@@ -119,7 +119,7 @@ import {
   QUERY_CHILD_ORDER,
   ALTERNATIVE_KEY_CHILD_ORDER,
 } from "../adt/bopf-types.js";
-import { validateSpecKeys, SET_CHILD_FIELD_TABLES, type SpecFieldTable } from "./bopf-spec-keys.js";
+import { validateSpecKeys, SET_CHILD_FIELD_TABLES, baseShape, type SpecFieldTable } from "./bopf-spec-keys.js";
 import { classifyNodes, classifyAssociation, describeNodeKind, describeAssociationKind } from "../adt/bopf-node-kinds.js";
 import {
   isDelegationOperation,
@@ -269,6 +269,12 @@ export interface BopfRunDeps {
    * statically checks every registrar with a `journal` field is wired one.
    */
   readonly journal: Journal;
+  /**
+   * Issue #154's timeout re-read poll interval. `undefined` uses a real
+   * `setTimeout`-based sleep; tests inject a no-op so the suite doesn't burn
+   * wall-clock time waiting between `TIMEOUT_REREAD_ATTEMPTS` attempts.
+   */
+  readonly sleep?: (ms: number) => Promise<void>;
 }
 
 export interface BopfToolDeps extends BopfRunDeps {
@@ -1696,10 +1702,11 @@ const CHILD_ORDER_BY_KIND: Readonly<Record<ChildElementKind, readonly string[]>>
  * reasoning as `patchNodeFlags`).
  *
  * The enum checks below duplicate exactly what the matching `build*Fields`
- * function applies via `strEnum` — this must not let a patch write a value
- * `add_*` would have refused. `validateSpecKeys` has already confirmed
- * every key present is recognised and its JS shape (string/boolean/ref, or
- * null) is right; it does not check enum membership.
+ * function applies via `strEnum` — belt and braces, since `validateSpecKeys`
+ * has already refused any enum-valued field whose value isn't one of the
+ * accepted set (see `BOPF_ENUM_FIELDS`), on top of confirming every key
+ * present is recognised and its JS shape (string/boolean/ref, or null) is
+ * right.
  */
 function patchChildFields(freshXml: string, tokens: readonly Token[], input: BopfEditInput, op: SetChildFieldsOp): string {
   const kind = SET_CHILD_KIND[op];
@@ -1750,14 +1757,15 @@ function patchChildFields(freshXml: string, tokens: readonly Token[], input: Bop
 
   const attrs = new Map<string, string | boolean | null>();
   for (const [key, shape] of Object.entries(table)) {
-    if ((shape !== "stringOrNull" && shape !== "booleanOrNull") || !(key in spec)) continue;
+    const base = baseShape(shape);
+    if ((base !== "stringOrNull" && base !== "booleanOrNull") || !(key in spec)) continue;
     attrs.set(key, spec[key] as string | boolean | null);
   }
   let result = attrs.size > 0 ? patchOpenTagAttrs(freshXml, token, attrs) : freshXml;
 
   const childOrder = CHILD_ORDER_BY_KIND[kind];
   for (const [key, shape] of Object.entries(table)) {
-    if (shape !== "refOrNull") continue;
+    if (baseShape(shape) !== "refOrNull") continue;
     const isImplClassRef = key === "implementationClassRef";
     if (isImplClassRef ? !implClassRefRequested : !(key in spec)) continue;
 
@@ -2369,7 +2377,8 @@ function childFieldMismatches(
     }
     if (!(key in spec)) continue;
     const sent = spec[key];
-    if (shape === "refOrNull") {
+    const base = baseShape(shape);
+    if (base === "refOrNull") {
       const readBack = element[key] as AdtObjectRef | undefined;
       if (sent === null) {
         if (readBack !== undefined) out.push({ field: key, sent: null, readBack });
@@ -2380,7 +2389,7 @@ function childFieldMismatches(
       if (!readBack || readBack.name.toLowerCase() !== wanted.name.toLowerCase() || readBack.type.toLowerCase() !== wanted.type.toLowerCase()) {
         out.push({ field: key, sent: wanted, readBack: readBack ?? null });
       }
-    } else if (shape === "stringOrNull") {
+    } else if (base === "stringOrNull") {
       const readBack = element[key] as string | undefined;
       // Case-insensitive: SAP's own casing convention on a string field isn't ground truth for
       // whether the write stuck, and a case difference alone isn't evidence of a discarded value.
@@ -2390,7 +2399,7 @@ function childFieldMismatches(
           ? readBack === undefined
           : typeof readBack === "string" && typeof expected === "string" && readBack.toLowerCase() === expected.toLowerCase();
       if (!same) out.push({ field: key, sent, readBack: readBack ?? null });
-    } else if (shape === "booleanOrNull") {
+    } else if (base === "booleanOrNull") {
       const readBack = element[key];
       const expected = sent === null ? undefined : sent;
       if (readBack !== expected) out.push({ field: key, sent, readBack: readBack ?? null });
@@ -2436,6 +2445,35 @@ function attributeSessionDeath(e: unknown, input: BopfEditInput): unknown {
   return new AbapError(e.code, message, details, hint);
 }
 
+/**
+ * Names the abap_bopf_edit call on an `ExceptionInvalidData` error the
+ * "invalid-data-xml-path" rule (`src/adt/adt-message-rules.ts`) classified —
+ * `describeXmlPath` already names the offending element; this adds which
+ * call produced it. The classified branch in `translateAdtError` always
+ * mints code `"ADT_ERROR"`, so the rule is identified by
+ * `details.classifiedBy`, not by `e.code`. Leaves every other error
+ * untouched.
+ */
+function attributeInvalidData(e: unknown, input: BopfEditInput): unknown {
+  if (!isAbapError(e) || e.details.classifiedBy !== "invalid-data-xml-path") return e;
+  const node = input.node;
+  const name = input.name;
+  const details: Record<string, unknown> = {
+    ...e.details,
+    specElement: {
+      operation: input.operation,
+      ...(node !== undefined ? { node } : {}),
+      ...(typeof name === "string" && name !== "" ? { name } : {}),
+    },
+  };
+  const hint =
+    `${e.hint ?? ""} This call was ${input.operation}` +
+    (typeof name === "string" && name !== "" ? ` "${name}"` : "") +
+    (node !== undefined ? ` on node "${node}"` : "") +
+    ".";
+  return new AbapError(e.code, e.message, details, hint);
+}
+
 const BOPF_EDIT_TOOL_DESCRIPTION =
   "One design-time edit to a BOPF business object (or create one). node/name/spec carry the specifics — " +
   "see the abapsmith-edit-a-bopf-object skill for spec shapes, add_node/remove_node rules, and " +
@@ -2456,6 +2494,78 @@ function recoverCreateAfterSessionDeath(
   createRequest: CreateBusinessObjectInput,
 ): Promise<BopfModelRead> {
   return deps.pool.withRead("abap_bopf_edit", (conn) => readModel(conn, createRequest.name));
+}
+
+// Issue #154: how long / how many times the tool layer polls for the object
+// to show up after a client-side TIMEOUT on create_bo/activate.
+const TIMEOUT_REREAD_ATTEMPTS = 6;
+const TIMEOUT_REREAD_INTERVAL_MS = 5_000;
+
+function defaultSleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+type RereadAfterTimeoutResult =
+  | { readonly kind: "found"; readonly read: BopfModelRead }
+  | { readonly kind: "not-satisfied"; readonly last: BopfModelRead | undefined }
+  | { readonly kind: "failed" };
+
+/**
+ * Polls a fresh read of `bo` (a new session each time, via
+ * `deps.pool.withRead`) up to `TIMEOUT_REREAD_ATTEMPTS` times —
+ * `deps.sleep ?? defaultSleep` between attempts, not after the last one —
+ * until `until` is satisfied. `NOT_FOUND` counts as "not yet" and keeps
+ * polling; any other error aborts the poll immediately as `"failed"` — the
+ * caller must rethrow the ORIGINAL timeout error in that case, not invent a
+ * new one, since a re-read failure says nothing about whether the original
+ * request landed.
+ */
+async function rereadAfterTimeout(
+  deps: BopfRunDeps,
+  bo: string,
+  until: (m: BopfModelRead) => boolean,
+): Promise<RereadAfterTimeoutResult> {
+  const sleep = deps.sleep ?? defaultSleep;
+  let last: BopfModelRead | undefined;
+  for (let attempt = 0; attempt < TIMEOUT_REREAD_ATTEMPTS; attempt++) {
+    try {
+      const read = await deps.pool.withRead("abap_bopf_edit", (conn) => readModel(conn, bo));
+      last = read;
+      if (until(read)) return { kind: "found", read };
+    } catch (e) {
+      if (!(isAbapError(e) && e.code === "NOT_FOUND")) return { kind: "failed" };
+    }
+    if (attempt < TIMEOUT_REREAD_ATTEMPTS - 1) await sleep(TIMEOUT_REREAD_INTERVAL_MS);
+  }
+  return { kind: "not-satisfied", last };
+}
+
+/** Shape of the create_bo mutation's result, incl. its optional TIMEOUT-recovery outcomes (issue #154). */
+interface CreateBoMutationResult {
+  readonly model: BoModel;
+  readonly xml: string;
+  readonly recovered: boolean;
+  readonly activation: ActivationOutcomeBopf | undefined;
+  readonly rootNodeCheck: RootNodeNameCheck;
+  /** Set on outcomes (a) and (c): a note to surface in the success response. */
+  readonly timeoutNote?: string;
+  /**
+   * Set on outcome (d): the create succeeded (so the journal entry must
+   * settle as succeeded first, like `unusableRootNodeError`) but activation
+   * never confirmed within the re-read budget — the caller throws the
+   * TIMEOUT error AFTER settling.
+   */
+  readonly activationTimeoutFailure?: { readonly version: string; readonly timeoutMs: number; readonly envVar: string };
+}
+
+/** Shape of the standalone edit-path mutation's result, incl. issue #154's TIMEOUT-recovery outcomes (e)/(f). */
+interface EditMutationResult {
+  readonly model: BoModel;
+  readonly danglingVerdict: DanglingVerdict | undefined;
+  readonly activation: ActivationOutcomeBopf | undefined;
+  readonly entryId: string | undefined;
+  /** Set on outcome (e): a note to surface in the success response. */
+  readonly timeoutNote?: string;
 }
 
 export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<BopfCallResult> {
@@ -2548,7 +2658,7 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
           tool: "abap_bopf_edit",
         }),
       },
-      async (onBeforeImage) => {
+      async (onBeforeImage): Promise<CreateBoMutationResult> => {
         try {
           return await deps.pool.withWrite("abap_bopf_edit", gateKey, async (conn) => {
             // No fresh reread precedes a create (nothing to reread) —
@@ -2588,7 +2698,91 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
             };
           });
         } catch (e) {
-          if (!(isAbapError(e) && e.code === "SESSION_DEAD")) throw e;
+          // Issue #154: the create (or a create-then-activate's activation)
+          // may have landed on the server even though the client gave up
+          // waiting for the response — `transportTimeoutError`
+          // (src/adt/timeouts.ts) names which request timed out in
+          // `e.details.operation`. Re-read on a fresh session before
+          // deciding whether this call actually failed.
+          if (isAbapError(e) && e.code === "TIMEOUT" && e.details.operation === "create_bo") {
+            const timeoutMs = e.details.timeoutMs as number;
+            const envVar = e.details.envVar as string;
+            const reread = await rereadAfterTimeout(deps, bo, () => true);
+            if (reread.kind === "found") {
+              const version = reread.read.model.version ?? "unknown";
+              return {
+                model: reread.read.model,
+                xml: reread.read.xml,
+                recovered: true,
+                activation: undefined,
+                rootNodeCheck: checkRootNodeName(createRequest, reread.read.model),
+                timeoutNote:
+                  `create_bo did not answer within ${timeoutMs} ms (${envVar}) but completed on the server after ` +
+                  `the client timeout: a fresh session re-read confirms ${bo} exists (version ${version}). No ` +
+                  `activation was attempted on this call` +
+                  (wantsActivate ? `; run abap_bopf_edit operation: "activate" to activate it.` : "."),
+              };
+            }
+            // A re-read failure that is itself not "not found" says nothing
+            // about whether the create landed — rethrow the ORIGINAL
+            // timeout, not a fabricated one.
+            if (reread.kind === "failed") throw e;
+            throw new AbapError(
+              "TIMEOUT",
+              `create_bo of ${bo} did not answer within ${timeoutMs} ms (${envVar}) and ${TIMEOUT_REREAD_ATTEMPTS} ` +
+                `fresh-session re-reads over ${(TIMEOUT_REREAD_ATTEMPTS * TIMEOUT_REREAD_INTERVAL_MS) / 1000} s ` +
+                `found no business object of that name; the create most likely never landed.`,
+              {
+                operation: "create_bo",
+                phase: "create_bo",
+                name: bo,
+                timeoutMs,
+                envVar,
+                rereadAttempts: TIMEOUT_REREAD_ATTEMPTS,
+              },
+              `Retry create_bo. If it then fails because ${bo} already exists, the server finished late — read ` +
+                `it with abap_bopf and activate it with abap_bopf_edit operation: "activate".`,
+              { retryable: true }, // no re-read ever found the object: the create most likely never landed, so a retry is the right next move
+            );
+          }
+          if (isAbapError(e) && e.code === "TIMEOUT" && e.details.operation === "activate") {
+            const timeoutMs = e.details.timeoutMs as number;
+            const envVar = e.details.envVar as string;
+            const reread = await rereadAfterTimeout(deps, bo, (m) => m.model.version === "active");
+            if (reread.kind === "found") {
+              return {
+                model: reread.read.model,
+                xml: reread.read.xml,
+                recovered: false,
+                activation: { activated: true, messages: [], version: "active" },
+                rootNodeCheck: checkRootNodeName(createRequest, reread.read.model),
+                timeoutNote:
+                  `activation of ${bo} did not answer within ${timeoutMs} ms (${envVar}) but completed on the ` +
+                  `server after the client timeout: a fresh session re-read shows version active.`,
+              };
+            }
+            if (reread.kind === "failed") throw e;
+            // "not-satisfied": the object genuinely exists (this phase only
+            // runs after a successful create in this same call), it just
+            // never showed as active. That's outcome (d) — the create
+            // itself is a real, journalled success, so it must settle as
+            // succeeded before the TIMEOUT is thrown (below, after
+            // `settle()`), like `unusableRootNodeError`.
+            if (reread.last === undefined) throw e;
+            return {
+              model: reread.last.model,
+              xml: reread.last.xml,
+              recovered: false,
+              activation: undefined,
+              rootNodeCheck: checkRootNodeName(createRequest, reread.last.model),
+              activationTimeoutFailure: {
+                version: reread.last.model.version ?? "unknown",
+                timeoutMs,
+                envVar,
+              },
+            };
+          }
+          if (!(isAbapError(e) && e.code === "SESSION_DEAD")) throw attributeInvalidData(e, input);
           // The write's own session died before its response arrived — the
           // create may have landed anyway. The dead slot is
           // retired; re-read on a fresh one. No activation was ever sent on
@@ -2616,6 +2810,27 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
     // `succeeded` regardless of what happens next — the residue has to be
     // recorded, not hidden behind a failed mutation.
     await settle({ outcome: "succeeded", afterSource: result.xml });
+    if (result.activationTimeoutFailure) {
+      const { version, timeoutMs, envVar } = result.activationTimeoutFailure;
+      throw new AbapError(
+        "TIMEOUT",
+        `${bo} was created, but its activation did not answer within ${timeoutMs} ms (${envVar}) and a fresh ` +
+          `session re-read still shows version ${version}.`,
+        {
+          operation: "create_bo",
+          phase: "activate",
+          name: bo,
+          version,
+          timeoutMs,
+          envVar,
+          journalEntryId: entryId,
+          rereadAttempts: TIMEOUT_REREAD_ATTEMPTS,
+        },
+        `Do not retry create_bo: ${bo} exists. Run abap_bopf_edit operation: "activate" for it (or ` +
+          `abap_bopf_delete to remove it).`,
+        { retryable: false }, // the create is confirmed to have landed (settled succeeded above); retrying create_bo would only fail on "already exists" — activate or delete is the right next move, never create_bo again
+      );
+    }
     if (result.rootNodeCheck.actual === undefined || result.rootNodeCheck.actual === "") {
       throw unusableRootNodeError(bo, result.rootNodeCheck, entryId, wantsActivate);
     }
@@ -2636,6 +2851,7 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
                   "that died cannot be trusted to have sent one, even if activate was requested.",
               ]
             : []),
+          ...(result.timeoutNote ? [result.timeoutNote] : []),
           ...createBoRootNodeNotes(bo, result.rootNodeCheck),
           ...createBoActivatabilityNotes(result.model),
         ],
@@ -2645,8 +2861,8 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
     );
   }
 
-  const result = await deps.pool.withWrite("abap_bopf_edit", gateKey, (conn) =>
-    conn.withStatefulSession(async (session) => {
+  const result: EditMutationResult = await deps.pool.withWrite("abap_bopf_edit", gateKey, (conn) =>
+    conn.withStatefulSession(async (session): Promise<EditMutationResult> => {
       const initial: BopfModelRead = await readModel(conn, bo);
 
       if (input.operation === "remove_node") {
@@ -2993,8 +3209,45 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
 
       return { model: afterMutate.model, danglingVerdict, activation, entryId };
     }),
-  ).catch((e) => {
-    throw attributeSessionDeath(e, input);
+  ).catch(async (e): Promise<EditMutationResult> => {
+    // Issue #154 outcomes (e)/(f): a standalone `operation: "activate"`
+    // whose activation request itself timed out client-side may still have
+    // landed on the server — re-read before treating it as a failure. Every
+    // other operation, and any other error, is untouched (composed through
+    // `attributeInvalidData`/`attributeSessionDeath` below).
+    if (input.operation === "activate" && isAbapError(e) && e.code === "TIMEOUT" && e.details.operation === "activate") {
+      const timeoutMs = e.details.timeoutMs as number;
+      const envVar = e.details.envVar as string;
+      const reread = await rereadAfterTimeout(deps, bo, (m) => m.model.version === "active");
+      if (reread.kind === "found") {
+        return {
+          model: reread.read.model,
+          danglingVerdict: undefined,
+          activation: { activated: true, messages: [], version: "active" },
+          entryId: undefined,
+          timeoutNote:
+            `activation of ${bo} did not answer within ${timeoutMs} ms (${envVar}) but completed on the server ` +
+            `after the client timeout: a fresh session re-read shows version active.`,
+        };
+      }
+      if (reread.kind === "not-satisfied" && reread.last !== undefined) {
+        const version = reread.last.model.version ?? "unknown";
+        throw new AbapError(
+          "TIMEOUT",
+          `activate of ${bo} did not answer within ${timeoutMs} ms (${envVar}) and a fresh session re-read still ` +
+            `shows version ${version}.`,
+          { operation: "activate", phase: "activate", name: bo, version, timeoutMs, envVar, rereadAttempts: TIMEOUT_REREAD_ATTEMPTS },
+          `Run abap_bopf_edit operation: "activate" again; the server may still be activating ${bo}. Raise ` +
+            `${envVar} if it regularly needs longer.`,
+          { retryable: true }, // still not active after every re-read, but the object itself is untouched by this failed activate — retrying activate is safe and is likely to just be catching up with a slow server
+        );
+      }
+      // "failed", or "not-satisfied" with no successful read at all: says
+      // nothing about whether activation landed — rethrow the ORIGINAL
+      // timeout, not a fabricated one.
+      throw attributeInvalidData(attributeSessionDeath(e, input), input);
+    }
+    throw attributeInvalidData(attributeSessionDeath(e, input), input);
   });
 
   const categoryNote = determinationCategoryOmittedNote(input);
@@ -3009,7 +3262,7 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
       false,
       result.entryId,
       deps.cfg.maxResponseChars,
-      [categoryNote, addNodeNote, altKeyNote, ...delegationNotes(input as DelegationInput)].filter(
+      [categoryNote, addNodeNote, altKeyNote, result.timeoutNote, ...delegationNotes(input as DelegationInput)].filter(
         (n): n is string => n !== undefined,
       ),
     ),

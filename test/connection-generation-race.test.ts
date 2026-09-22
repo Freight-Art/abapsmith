@@ -14,7 +14,9 @@
  *
  * So for the whole duration of a reconnect — the logon round trip, plus however
  * long the caller waited for the session lock, bounded by
- * `sessionWaitMs + timeoutMs` = 70 s with the shipped defaults — the connection
+ * `sessionWaitMs + max(timeoutMs, bopfTimeoutMs, activateTimeoutMs, runTimeoutMs)`
+ * = 190 s with the shipped defaults (issue #154 widened the bound past plain
+ * `timeoutMs` once BOPF got its own longer per-family timeout) — the connection
  * reports itself ALIVE while being neither dead nor connected. `assertUsable()`
  * (:1037) is the only admission control on `get`/`put`/`post`/`del` and
  * `withStatefulSession()`, and it consults exactly that erased field. Every

@@ -669,13 +669,19 @@ describe("the wait timeout is DERIVED from the config, not SessionLock's default
     // measured 14 075 ms of legitimate server-side queueing ON ITS OWN,
     // which already exceeds that default.
     //
-    // The relation that composes is `sessionWaitMs + timeoutMs` = 10 000 +
-    // 60 000 = 70 000 at defaults. The two probes below pin BOTH terms: still
-    // pending at 69 s kills "use timeoutMs alone" (60 s) and "revert to the
-    // 10 s default"; refused by 70.1 s kills "make it enormous".
+    // The relation that composes is `sessionWaitMs + max(timeoutMs,
+    // bopfTimeoutMs, activateTimeoutMs, runTimeoutMs)` = 10 000 + 180 000 =
+    // 190 000 at defaults (issue #154 gave BOPF its own longer per-family
+    // timeout, which is now the largest term). The two probes below pin BOTH
+    // sides of that sum: still pending at 189 s kills "use timeoutMs alone"
+    // (60 s) and "revert to the 10 s default"; refused by 190.1 s kills "make
+    // it enormous".
     const c = cfg();
     expect(c.sessionWaitMs).toBe(10_000);
     expect(c.timeoutMs).toBe(60_000);
+    expect(c.bopfTimeoutMs).toBe(180_000);
+    expect(c.activateTimeoutMs).toBe(180_000);
+    expect(c.runTimeoutMs).toBe(180_000);
 
     // ONLY setTimeout/clearTimeout. Vitest's default `toFake` also captures
     // `setImmediate`, which `settleTurns()` uses to yield a macrotask turn — a
@@ -717,7 +723,7 @@ describe("the wait timeout is DERIVED from the config, not SessionLock's default
       );
       await settleTurns();
 
-      await vi.advanceTimersByTimeAsync(69_000);
+      await vi.advanceTimersByTimeAsync(189_000);
       await settleTurns();
       expect(settled).toBe("pending");
 
@@ -795,8 +801,9 @@ describe("shutdown force-releases the mutex", () => {
     // `withStatefulSession` registers `() => session.unlockAll()` on the
     // shutdown chain while it still HOLDS the lock, and a signal fires that
     // cleanup from a callback OUTSIDE the holder's async context — so it is not
-    // re-entrant, it queues, and it queues for `sessionWaitMs + timeoutMs`
-    // while handleSignal's 5 s force-exit timer runs underneath it. The unlock
+    // re-entrant, it queues, and it queues for `sessionWaitMs + max(timeoutMs,
+    // bopfTimeoutMs, activateTimeoutMs, runTimeoutMs)` while handleSignal's
+    // 5 s force-exit timer runs underneath it. The unlock
     // would be severed and the ADT enqueue leaked until the session itself died.
     //
     // NOTE: `test/session.test.ts` fires shutdown from INSIDE the stateful

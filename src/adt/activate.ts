@@ -32,6 +32,7 @@ import { truncateForDisplay, ECHO_LINE_MAX } from "../truncate.js";
 import { elide } from "../debug/render.js";
 import { specForType } from "./types.js";
 import { normaliseRevisions } from "./revisions.js";
+import { isTransportTimeout, transportTimeoutError } from "./timeouts.js";
 
 export interface AdtMessage {
   severity: string;
@@ -722,11 +723,15 @@ export async function activateObject(
 ): Promise<ActivationOutcome> {
   let result: ActivationResult;
   try {
-    // preaudit `true` — the shape the recon exercised end to end.
-    result = await conn.adt.activate(target.name, target.uri, undefined, true);
+    // preaudit `true` — the shape the recon exercised end to end. Issue
+    // #154: this POST gets its own (longer) client timeout instead of
+    // sharing `ABAP_TIMEOUT_MS` — mass DDIC activations regularly outrun it.
+    result = await conn.withRequestTimeout(conn.cfg.activateTimeoutMs, () =>
+      conn.adt.activate(target.name, target.uri, undefined, true),
+    );
   } catch (e) {
     if (isAbapError(e)) throw e;
-    throw translateActivationError(e, target);
+    throw translateActivationError(e, target, conn.cfg.activateTimeoutMs);
   }
 
   let preaudit: InactiveObjectRef[] | undefined;
@@ -738,7 +743,7 @@ export async function activateObject(
     }
   } catch (e) {
     if (isAbapError(e)) throw e;
-    throw translateActivationError(e, target);
+    throw translateActivationError(e, target, conn.cfg.activateTimeoutMs);
   }
 
   const messages = mapActivationMessages(result);
@@ -891,11 +896,15 @@ async function postActivation(
   targets: readonly ActivationTarget[],
   preauditRequested: boolean,
 ): Promise<ActivationResult> {
-  const resp = await conn.post("/sap/bc/adt/activation", {
-    qs: { method: "activate", preauditRequested: preauditRequested ? "true" : "false" },
-    headers: { "Content-Type": "application/xml", Accept: "application/xml" },
-    body: buildActivationBody(targets),
-  });
+  // Issue #154: every POST here (single and mass/DDIC activation) gets its
+  // own (longer) client timeout instead of sharing ABAP_TIMEOUT_MS.
+  const resp = await conn.withRequestTimeout(conn.cfg.activateTimeoutMs, () =>
+    conn.post("/sap/bc/adt/activation", {
+      qs: { method: "activate", preauditRequested: preauditRequested ? "true" : "false" },
+      headers: { "Content-Type": "application/xml", Accept: "application/xml" },
+      body: buildActivationBody(targets),
+    }),
+  );
   return parseActivationResponse(resp.body);
 }
 
@@ -1407,10 +1416,14 @@ export async function activateObjects(
         if (isAbapError(e)) throw e;
         // Attributed to THIS CHUNK, not `targets[0]`: a transport failure on
         // the request is not evidence about any one member.
-        throw translateActivationError(e, {
-          name: chunk.map((t) => t.name).join(" + "),
-          uri: chunk[0]!.uri,
-        });
+        throw translateActivationError(
+          e,
+          {
+            name: chunk.map((t) => t.name).join(" + "),
+            uri: chunk[0]!.uri,
+          },
+          conn.cfg.activateTimeoutMs,
+        );
       }
 
       const messages = mapActivationMessages(result);
@@ -1588,8 +1601,29 @@ export function assertBatchActivated(
   );
 }
 
-/** 403-while-locked and friends → structured errors instead of ADT prose. */
-export function translateActivationError(e: unknown, target: ActivationTarget): AbapError {
+/**
+ * 403-while-locked and friends → structured errors instead of ADT prose.
+ * `timeoutMs` (defaults to the Config schema's own default for
+ * ABAP_ACTIVATE_TIMEOUT_MS) is only used to word a TIMEOUT error's message
+ * when the failure is a client-side transport timeout (issue #154); callers
+ * with a `conn` in scope should pass `conn.cfg.activateTimeoutMs`.
+ */
+export function translateActivationError(
+  e: unknown,
+  target: ActivationTarget,
+  timeoutMs = 180_000,
+): AbapError {
+  if (isTransportTimeout(e)) {
+    return transportTimeoutError({
+      family: "activate",
+      operation: "activate",
+      name: target.name,
+      uri: target.uri,
+      timeoutMs,
+      cause: e,
+    });
+  }
+
   const err = e as { err?: number; status?: number; type?: string; message?: string };
   const status = Number(err?.err ?? err?.status ?? 0);
   const type = String(err?.type ?? "");
