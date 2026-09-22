@@ -12,6 +12,16 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.19] - 2026-09-22
+
+### Added
+
+- **`abap_transport_release scope: "request"`** (#159). One call releases a whole request: every modifiable task under it that holds at least one object, in the order the request lists them, then the request itself, reporting each step's outcome as it goes. It stops at the first step whose release is not proven and does not attempt the rest — retrying with the same arguments resumes at the failed step, since an already-released step is no longer planned. One journal entry is written per attempted step. A modifiable task holding no objects is skipped rather than released, and named in a note. Called on a task number instead of a request, it is refused as `BAD_INPUT` naming the parent request, before any release.
+
+### Changed
+
+- **Releasing a task number now reports its parent** (#159). The response gains `parent: <request>` and `parentStillOpen: yes | no | not known`, with a note on how to finish the request (`scope: "request"` on the parent, or a plain release of it) or that nothing is left. The shared parameter checker also catches `include_tasks`/`with_tasks` as misspellings of `scope`.
+
 ## [0.6.18] - 2026-09-22
 
 ### Changed

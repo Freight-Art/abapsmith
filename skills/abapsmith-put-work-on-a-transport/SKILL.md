@@ -209,6 +209,13 @@ by default (`allowTransportRelease`). Release is a deployment decision, not a
 cleanup step — never release a request just because the work is finished. Confirm
 with the user first, and check the request is complete and owned by them.
 
+Release it in one call: `abap_transport_release { transport: "<REQUEST>", confirm:
+"<REQUEST>", scope: "request" }` releases every modifiable task that holds objects,
+then the request itself, stopping at the first step that fails or can't be verified
+and naming which step that was. Call it first without `confirm` — the dry run
+reports `stepsPlanned` and a `STEPS` table, so you know the plan before it becomes
+irreversible.
+
 ### Mode ceilings
 
 Per-feature ceilings here are not implied by ordinary write access:
@@ -233,6 +240,9 @@ names the request, lists every object it would carry, and asks for
 request number exactly, same as `confirm`. When this fires, the right response is
 almost always to release the request **you** created instead — not to override.
 Overriding is a deliberate decision about someone else's work, not a default path.
+
+Releasing a task number alone leaves the request open — the response's `parent`
+and `parentStillOpen` say so — so prefer `scope: "request"` on the request itself.
 
 Check ownership before releasing: `transport_show` reports
 `createdByAbapsmith` (the old `createdThisSession: yes|no` field is gone) —

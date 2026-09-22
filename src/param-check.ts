@@ -33,7 +33,12 @@ export const PARAM_ALIASES: Readonly<Record<string, Readonly<Record<string, stri
   abap_bopf_edit: { object: "bo", business_object: "bo" },
   abap_bopf_delete: { object: "bo", business_object: "bo" },
   abap_transport: { action: "operation", mode: "operation", request: "transport", trkorr: "transport" },
-  abap_transport_release: { request: "transport", trkorr: "transport" },
+  abap_transport_release: {
+    request: "transport",
+    trkorr: "transport",
+    include_tasks: "scope",
+    with_tasks: "scope",
+  },
 };
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {

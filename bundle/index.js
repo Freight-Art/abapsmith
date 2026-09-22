@@ -119397,7 +119397,12 @@ var PARAM_ALIASES = {
   abap_bopf_edit: { object: "bo", business_object: "bo" },
   abap_bopf_delete: { object: "bo", business_object: "bo" },
   abap_transport: { action: "operation", mode: "operation", request: "transport", trkorr: "transport" },
-  abap_transport_release: { request: "transport", trkorr: "transport" }
+  abap_transport_release: {
+    request: "transport",
+    trkorr: "transport",
+    include_tasks: "scope",
+    with_tasks: "scope"
+  }
 };
 function isPlainObject7(v) {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -139310,11 +139315,14 @@ var transportReleaseInputSchema = {
   confirm: external_exports.string().optional().describe("Echo the request number to really release. Omitted = dry run."),
   confirm_unowned: external_exports.string().optional().describe(
     "Echo the request number to release a request this session did not create."
+  ),
+  scope: external_exports.enum(["single", "request"]).optional().describe(
+    '"single" (default): release only the number named. "request": name a REQUEST; release each of its modifiable tasks that holds objects, in order, then the request itself, in one call \u2014 stops at the first step that fails.'
   )
 };
 var TransportReleaseInput = external_exports.object(transportReleaseInputSchema);
 var TRANSPORT_TOOL_DESCRIPTION = `Inspect and manage CTS transport requests: list, show, check (does an object need a transport?), users, log (a request's export/import log per target system), queue (a target system's import buffer), create (kind="workbench" default, or "copies" with target), addUser, setOwner, delete, removeObject (drop one E071 entry and its CTS lock). list/show/check/users/log/queue are plain reads, always allowed; create/addUser/setOwner need write access; delete/removeObject additionally need the admin-only transport-delete ceiling. Release is a separate tool, abap_transport_release. Semantics of log/queue/copies/removeObject: doc/TOOLS/transports.md.`;
-var TRANSPORT_RELEASE_TOOL_DESCRIPTION = "Release one CTS transport request \u2014 irreversible. Gated by a release ceiling separate from ordinary write access; see abapsmith-orient. A request this session did not create is refused unless confirm_unowned is also passed.";
+var TRANSPORT_RELEASE_TOOL_DESCRIPTION = `Release one CTS transport request \u2014 irreversible. Gated by a release ceiling separate from ordinary write access; see abapsmith-orient. A request this session did not create is refused unless confirm_unowned is also passed. scope: "request" releases a request's modifiable tasks and then the request in one call, stopping at the first failure; naming a task without it releases only the task and the response says whether the parent still has to be released.`;
 function fmtTarget(h) {
   const t = (h.target ?? "").trim();
   if (t === "") return "no target (local-only system)";
@@ -139367,15 +139375,20 @@ function unionedObjects(r) {
 function subjectOf(asked, answered) {
   return { asked, answered: answered.trkorr, substituted: answered.trkorr !== asked };
 }
-function subjectHeader(s, answered) {
+function subjectHeader(s, answered, extra) {
   if (!s.substituted) return {};
   const own = answered.tasks.find((t) => t.trkorr === s.asked);
   return {
     requested: s.asked,
     answeredAbout: s.answered,
+    ...extra,
     requestedStatus: own ? fmtStatus(own.status, own.statusText) : "not known",
     requestedType: own ? fmtTaskType(own) : "not known"
   };
+}
+function parentStillOpenValue(res) {
+  if (!res.verified) return "not known";
+  return res.actualStatus === "released" ? "no" : "yes";
 }
 function subjectNotes(s, answered) {
   if (!s.substituted) return [];
@@ -139428,6 +139441,24 @@ function createdByField(c) {
     case "not-checked":
       return void 0;
   }
+}
+function createdByNotes(created, requestTrkorr, trkorr) {
+  if (created.kind === "journal") {
+    return [
+      `${requestTrkorr} was created by abapsmith earlier (journal entry ${created.entry.id}), but not by this server process \u2014 the release guard counts only this process, so abap_transport_release will still refuse unless you also pass confirm_unowned: "${trkorr}".`
+    ];
+  }
+  if (created.kind === "no") {
+    return [
+      `${requestTrkorr} was NOT created by abapsmith (not by this server process, and no transport-create entry for it in this system's journal) \u2014 releasing it would also transport whatever earlier work left in it. abap_transport_release will refuse unless you also pass confirm_unowned: "${trkorr}".`
+    ];
+  }
+  if (created.kind === "unknown") {
+    return [
+      `${requestTrkorr} was not created by this server process, and ${created.why} \u2014 so abapsmith cannot tell whether an earlier process created it. Releasing it would also transport whatever earlier work left in it; abap_transport_release will refuse unless you also pass confirm_unowned: "${trkorr}".`
+    ];
+  }
+  return [];
 }
 var RELEASE_MESSAGE_NOTES = {
   "TR/768": "the request was already released before this call",
@@ -140647,6 +140678,65 @@ function deleteNotes(res) {
     `The delete call returned, but the follow-up read that would prove it failed${res.verificationError ? ` (${res.verificationError})` : ""}. Treat this as neither deleted nor kept, and re-check with operation "show".`
   ];
 }
+function alreadyReleasedResponse(trkorr, subject, before, maxChars, extraHeader) {
+  const ownTask = subject.substituted ? before.tasks.find((t) => t.trkorr === trkorr) : void 0;
+  const parentReleased = before.status === "released";
+  const taskReleased = ownTask?.status === "released";
+  if (!parentReleased && !taskReleased) return void 0;
+  const detail = !subject.substituted ? `${trkorr} was already released before this call (TR/768). No release was attempted.` : taskReleased ? `${trkorr} is itself already released \u2014 reads ${fmtStatus(ownTask.status, ownTask.statusText)}. No release was attempted.` : `${subject.answered} \u2014 the request the server answered about when you named ${trkorr} \u2014 is already released, and a task cannot stay modifiable under a released request. No release was attempted.`;
+  return buildResponse({
+    header: {
+      transport: trkorr,
+      ...subjectHeader(subject, before),
+      ...extraHeader,
+      verdict: "ALREADY RELEASED \u2014 this call released nothing",
+      status: fmtStatus(before.status, before.statusText),
+      owner: before.owner,
+      target: fmtTarget(before)
+    },
+    notes: [detail, ...subjectNotes(subject, before)],
+    maxChars
+  });
+}
+function assertOwned(ownership, subject, before, trkorr, confirmUnowned) {
+  const owned = createdByThisProcess(ownership, subject);
+  if (owned !== false || confirmUnowned !== void 0) return;
+  const carried = unionedObjects(before);
+  const held = carried.length === 0 ? "It holds no objects." : `It holds ${carried.length} object(s) this release would carry: ${carried.map((o) => `${o.pgmid} ${o.type} ${o.name}`).join(", ")}.`;
+  throw new AbapError(
+    "BAD_INPUT",
+    `${trkorr} was not created by this abapsmith server process \u2014 it was already open when this process started, so releasing it also transports whatever earlier work left in it, and a release is irreversible. ${held} To release it anyway, call again with confirm_unowned: "${trkorr}"`,
+    {
+      transport: trkorr,
+      owner: before.owner,
+      objects: carried.map((o) => `${o.pgmid} ${o.type} ${o.name}`)
+    }
+  );
+}
+function warnReleasePostFailed(journal, entry, number4, errMessage) {
+  journal.warn(
+    `[abapsmith] WARNING: ${number4} \u2014 the release POST failed with "${errMessage}". Journal entry ${entry.id} stays \`pending\`: a failed call is not proof the release did not reach the system. Re-check ${number4} with abap_transport {"operation":"show"} before retrying.`
+  );
+}
+function scopeRequestNeedsRequestError(trkorr, parent) {
+  return new AbapError(
+    "BAD_INPUT",
+    `scope: "request" needs a request number, and ${trkorr} is a task of ${parent}. Call again with transport: "${parent}" (and confirm: "${parent}" to release) to release its remaining tasks and the request in one call.`,
+    { transport: trkorr, parent, scope: "request" }
+  );
+}
+function planRequestSteps(r) {
+  return {
+    tasks: r.tasks.filter((t) => t.status === "modifiable" && t.objects.length > 0),
+    skipped: r.tasks.filter((t) => t.status === "modifiable" && t.objects.length === 0)
+  };
+}
+function skippedEmptyTasksNote(skipped) {
+  if (!skipped.length) return [];
+  return [
+    `${skipped.length} modifiable task(s) hold no objects and are skipped (${skipped.map((t) => t.trkorr).join(", ")}): observed on A4H, an empty open task does not block the request's release (TR/732 is raised only for a task that holds objects).`
+  ];
+}
 async function abapTransportRelease(conn, input, maxChars, gate, journal, ownership) {
   const trkorr = normTrkorr(input.transport, "release");
   const ceiling = ceilingDecision(gate, "release");
@@ -140663,43 +140753,29 @@ async function abapTransportRelease(conn, input, maxChars, gate, journal, owners
     });
   }
   const armed = input.confirm !== void 0;
-  if (!armed) return await releaseDryRun(conn, trkorr, ceiling, maxChars, journal, ownership);
+  const scope = input.scope ?? "single";
+  if (!armed) {
+    return scope === "request" ? await releaseDryRunRequestScope(conn, trkorr, ceiling, maxChars, journal, ownership) : await releaseDryRun(conn, trkorr, ceiling, maxChars, journal, ownership);
+  }
+  if (scope === "request") {
+    return await releaseRequestScope(
+      conn,
+      trkorr,
+      gate,
+      maxChars,
+      journal,
+      ownership,
+      input.confirm_unowned
+    );
+  }
   assertCeiling(gate, "release", "release");
   const releaseProof = authorizeCeiling(gate, "transport", { release: true });
   const before = await trShow(conn, trkorr);
   const subject = subjectOf(trkorr, before);
+  const already = alreadyReleasedResponse(trkorr, subject, before, maxChars);
+  if (already) return already;
+  assertOwned(ownership, subject, before, trkorr, input.confirm_unowned);
   const ownTask = subject.substituted ? before.tasks.find((t) => t.trkorr === trkorr) : void 0;
-  const parentReleased = before.status === "released";
-  const taskReleased = ownTask?.status === "released";
-  if (parentReleased || taskReleased) {
-    const detail = !subject.substituted ? `${trkorr} was already released before this call (TR/768). No release was attempted.` : taskReleased ? `${trkorr} is itself already released \u2014 reads ${fmtStatus(ownTask.status, ownTask.statusText)}. No release was attempted.` : `${subject.answered} \u2014 the request the server answered about when you named ${trkorr} \u2014 is already released, and a task cannot stay modifiable under a released request. No release was attempted.`;
-    return buildResponse({
-      header: {
-        transport: trkorr,
-        ...subjectHeader(subject, before),
-        verdict: "ALREADY RELEASED \u2014 this call released nothing",
-        status: fmtStatus(before.status, before.statusText),
-        owner: before.owner,
-        target: fmtTarget(before)
-      },
-      notes: [detail, ...subjectNotes(subject, before)],
-      maxChars
-    });
-  }
-  const owned = createdByThisProcess(ownership, subject);
-  if (owned === false && input.confirm_unowned === void 0) {
-    const carried = unionedObjects(before);
-    const held = carried.length === 0 ? "It holds no objects." : `It holds ${carried.length} object(s) this release would carry: ${carried.map((o) => `${o.pgmid} ${o.type} ${o.name}`).join(", ")}.`;
-    throw new AbapError(
-      "BAD_INPUT",
-      `${trkorr} was not created by this abapsmith server process \u2014 it was already open when this process started, so releasing it also transports whatever earlier work left in it, and a release is irreversible. ${held} To release it anyway, call again with confirm_unowned: "${trkorr}"`,
-      {
-        transport: trkorr,
-        owner: before.owner,
-        objects: carried.map((o) => `${o.pgmid} ${o.type} ${o.name}`)
-      }
-    );
-  }
   const entry = journal ? await journal.journal.begin(
     beginInput(journal, {
       operation: "transport-release",
@@ -140723,11 +140799,7 @@ async function abapTransportRelease(conn, input, maxChars, gate, journal, owners
   try {
     res = await trRelease(conn, trkorr, releaseProof);
   } catch (e) {
-    if (journal && entry) {
-      journal.warn(
-        `[abapsmith] WARNING: ${trkorr} \u2014 the release POST failed with "${e.message}". Journal entry ${entry.id} stays \`pending\`: a failed call is not proof the release did not reach the system. Re-check ${trkorr} with abap_transport {"operation":"show"} before retrying.`
-      );
-    }
+    if (journal && entry) warnReleasePostFailed(journal, entry, trkorr, e.message);
     throw e;
   }
   const built = renderRelease(res, before, subject, maxChars);
@@ -140837,6 +140909,11 @@ async function releaseDryRun(conn, trkorr, ceiling, maxChars, journal, ownership
     });
   }
   const notes = ["DRY RUN \u2014 nothing was released.", ...subjectNotes(subject, r)];
+  if (subject.substituted && r.status !== "released") {
+    notes.push(
+      `${r.trkorr} is the parent request of ${trkorr}. Releasing ${trkorr} leaves ${r.trkorr} open; it has to be released afterwards \u2014 or call abap_transport_release with transport: "${r.trkorr}" and scope: "request" to release its remaining tasks and the request in one call.`
+    );
+  }
   const ownTask = subject.substituted ? r.tasks.find((t) => t.trkorr === trkorr) : void 0;
   const alreadyReleased = subject.substituted ? r.status === "released" || ownTask?.status === "released" : r.status === "released";
   if (alreadyReleased) {
@@ -140858,19 +140935,7 @@ async function releaseDryRun(conn, trkorr, ceiling, maxChars, journal, ownership
       `${emptyOpenTasks.length} task(s) are still modifiable but hold no objects (${emptyOpenTasks.map((t) => t.trkorr).join(", ")}). Observed on A4H: a release with an empty task still open went through and the request ended Released \u2014 an empty task is not the TR/732 case, so this is not a blocker. If a release does abort on TR/732 anyway, release that task first and retry.`
     );
   }
-  if (created.kind === "journal") {
-    notes.push(
-      `${r.trkorr} was created by abapsmith earlier (journal entry ${created.entry.id}), but not by this server process \u2014 the release guard counts only this process, so abap_transport_release will still refuse unless you also pass confirm_unowned: "${trkorr}".`
-    );
-  } else if (created.kind === "no") {
-    notes.push(
-      `${r.trkorr} was NOT created by abapsmith (not by this server process, and no transport-create entry for it in this system's journal) \u2014 releasing it would also transport whatever earlier work left in it. abap_transport_release will refuse unless you also pass confirm_unowned: "${trkorr}".`
-    );
-  } else if (created.kind === "unknown") {
-    notes.push(
-      `${r.trkorr} was not created by this server process, and ${created.why} \u2014 so abapsmith cannot tell whether an earlier process created it. Releasing it would also transport whatever earlier work left in it; abap_transport_release will refuse unless you also pass confirm_unowned: "${trkorr}".`
-    );
-  }
+  notes.push(...createdByNotes(created, r.trkorr, trkorr));
   return buildResponse({
     header: {
       transport: r.trkorr,
@@ -140890,6 +140955,72 @@ async function releaseDryRun(conn, trkorr, ceiling, maxChars, journal, ownership
       // callers already branch on the first one. Present only when a task
       // really does block, so its absence is not a claim that nothing does.
       releaseBlockedBy: blockingTasks.length ? blockingTasks.map((t) => t.trkorr).join(", ") : void 0
+    },
+    sections,
+    notes,
+    maxChars
+  });
+}
+async function releaseDryRunRequestScope(conn, trkorr, ceiling, maxChars, journal, ownership) {
+  const r = await trShow(conn, trkorr);
+  const subject = subjectOf(trkorr, r);
+  if (subject.substituted) throw scopeRequestNeedsRequestError(trkorr, r.trkorr);
+  const created = await resolveCreatedBy(ownership, journal, subject);
+  const objects = unionedObjects(r);
+  const { tasks, skipped } = planRequestSteps(r);
+  const N = tasks.length + 1;
+  const steps = [
+    ...tasks.map((t, i) => ({ step: i + 1, number: t.trkorr, kind: "task" })),
+    { step: N, number: trkorr, kind: "request" }
+  ];
+  const sections = [
+    {
+      title: "STEPS",
+      content: textTable(
+        steps.map((s) => {
+          const task = s.kind === "task" ? tasks.find((t) => t.trkorr === s.number) : void 0;
+          return {
+            step: String(s.step),
+            number: s.number,
+            kind: s.kind,
+            status: s.kind === "task" ? task?.status ?? "" : r.status,
+            objects: s.kind === "task" ? String(task?.objects.length ?? 0) : String(objects.length)
+          };
+        }),
+        ["step", "number", "kind", "status", "objects"]
+      )
+    }
+  ];
+  if (objects.length) {
+    sections.push({
+      title: "OBJECTS THAT WOULD BE RELEASED",
+      content: textTable(objectRows(objects), ["pgmid", "type", "name", "locked", "description"])
+    });
+  }
+  const notes = ["DRY RUN \u2014 nothing was released."];
+  if (r.status === "released") {
+    notes.push("Already released (TR/768) \u2014 there is nothing left to do.");
+  } else if (!ceiling.allowed) {
+    notes.push(`Release is refused by the server's policy: ${ceiling.reason}`);
+  } else {
+    notes.push(`To release, call again with confirm: "${trkorr}" and scope: "request"`);
+  }
+  notes.push(...skippedEmptyTasksNote(skipped));
+  notes.push(...createdByNotes(created, r.trkorr, trkorr));
+  return buildResponse({
+    header: {
+      transport: r.trkorr,
+      scope: "request",
+      stepsPlanned: N,
+      mode: "dry run",
+      status: fmtStatus(r.status, r.statusText),
+      owner: r.owner,
+      createdByAbapsmith: createdByField(created),
+      description: r.description,
+      target: fmtTarget(r),
+      tasks: r.tasks.length,
+      objects: objects.length,
+      releasePermitted: ceiling.allowed ? "yes" : "no"
     },
     sections,
     notes,
@@ -141010,6 +141141,25 @@ function renderRelease(res, before, subject, maxChars) {
     notes.push(
       `requestedStatus/requestedStatusAfter are ${subject.asked}'s own readings and the fields to act on for this release. parentStatusBefore/parentStatusAfter describe ${subject.answered} and can stay Modifiable even when ${subject.asked} released cleanly.`
     );
+    const parentStillOpen = parentStillOpenValue(res);
+    const parentNow = fmtStatus(res.actualStatus, res.actualStatusText);
+    if (parentStillOpen === "yes" && proved === "released") {
+      notes.push(
+        `${subject.answered} \u2014 the parent request \u2014 is still ${parentNow}: releasing ${subject.asked} did not release it. To finish, release the parent: abap_transport_release {"transport":"${subject.answered}","confirm":"${subject.answered}"} \u2014 or call it with scope: "request" on ${subject.answered} to release its remaining tasks and the request in one call.`
+      );
+    } else if (parentStillOpen === "yes") {
+      notes.push(
+        `${subject.answered} \u2014 the parent request \u2014 is still ${parentNow} and still has to be released once ${subject.asked} is.`
+      );
+    } else if (parentStillOpen === "no") {
+      notes.push(
+        `${subject.answered} \u2014 the parent request \u2014 reads ${parentNow}; nothing is left to release.`
+      );
+    } else {
+      notes.push(
+        `Whether ${subject.answered} \u2014 the parent request \u2014 still has to be released is not known (the re-read failed). Check it with abap_transport {"operation":"show","transport":"${subject.answered}"}.`
+      );
+    }
   }
   if (proved === "released") {
     notes.push(
@@ -141036,7 +141186,10 @@ function renderRelease(res, before, subject, maxChars) {
   return buildResponse({
     header: {
       transport: res.trkorr,
-      ...subjectHeader(subject, before),
+      ...subjectHeader(subject, before, {
+        parent: subject.answered,
+        parentStillOpen: parentStillOpenValue(res)
+      }),
       requestedStatusAfter,
       verdict,
       outcome: releaseOutcome(res, subject),
@@ -141047,6 +141200,145 @@ function renderRelease(res, before, subject, maxChars) {
       ...statusFields,
       verified: res.verified,
       releasedAt: res.releaseTimestamp,
+      target: fmtTarget(before)
+    },
+    sections,
+    notes,
+    maxChars
+  });
+}
+async function releaseRequestScope(conn, trkorr, gate, maxChars, journal, ownership, confirmUnowned) {
+  assertCeiling(gate, "release", "release");
+  const releaseProof = authorizeCeiling(gate, "transport", { release: true });
+  const before = await trShow(conn, trkorr);
+  const subject = subjectOf(trkorr, before);
+  if (subject.substituted) throw scopeRequestNeedsRequestError(trkorr, before.trkorr);
+  const already = alreadyReleasedResponse(trkorr, subject, before, maxChars, { scope: "request" });
+  if (already) return already;
+  assertOwned(ownership, subject, before, trkorr, confirmUnowned);
+  const { tasks, skipped } = planRequestSteps(before);
+  const N = tasks.length + 1;
+  const steps = [
+    ...tasks.map((t, i) => ({ step: i + 1, number: t.trkorr, kind: "task" })),
+    { step: N, number: trkorr, kind: "request" }
+  ];
+  const results = [];
+  let latest = before;
+  let stoppedAt;
+  for (const s of steps) {
+    const stepSubject = s.kind === "task" ? { asked: s.number, answered: trkorr, substituted: true } : { asked: trkorr, answered: trkorr, substituted: false };
+    const ownTaskRow = s.kind === "task" ? latest.tasks.find((t) => t.trkorr === s.number) : void 0;
+    const entry = journal ? await journal.journal.begin(
+      beginInput(journal, {
+        operation: "transport-release",
+        trkorr: s.number,
+        description: `release ${s.number} (${s.kind === "task" ? `a task of ${trkorr}` : "the request"}) \u2014 step ${s.step} of ${N} of scope "request" on ${trkorr}` + (s.kind === "request" && before.description ? ` \u2014 ${before.description}` : ""),
+        existedBefore: true,
+        beforeCapture: s.kind === "task" ? ownTaskRow ? "captured" : "unknown" : "captured",
+        beforeSource: releaseBeforeImage(s.number, latest, stepSubject, ownTaskRow),
+        irreversible: true,
+        tool: "abap_transport_release"
+      })
+    ) : void 0;
+    let res;
+    try {
+      res = await trRelease(conn, s.number, releaseProof);
+    } catch (e) {
+      if (journal && entry) warnReleasePostFailed(journal, entry, s.number, e.message);
+      if (e instanceof AbapError) {
+        throw new AbapError(
+          e.code,
+          `scope "request" on ${trkorr} stopped at step ${s.step} of ${N} (${s.number}, ${s.kind}): ` + e.message,
+          {
+            ...e.details,
+            transport: trkorr,
+            step: s.step,
+            stepsPlanned: N,
+            stepsCompleted: results.filter((r) => r.proved === "released").map((r) => r.number),
+            failedStep: s.number
+          },
+          e.hint
+        );
+      }
+      throw e;
+    }
+    const { verdict, detail, proved } = releaseVerdict(res, stepSubject);
+    const outcome = releaseOutcome(res, stepSubject);
+    if (journal && entry) {
+      await settleEntry(journal, entry, s.number, releaseJournalVerdict(res, stepSubject));
+    }
+    if (res.verified && res.request) latest = res.request;
+    results.push({ step: s.step, number: s.number, kind: s.kind, outcome, verdict, detail, proved, res });
+    if (proved !== "released") {
+      stoppedAt = { step: s.step, number: s.number, kind: s.kind };
+      break;
+    }
+  }
+  return renderReleaseRequestScope(trkorr, before, latest, steps, results, stoppedAt, skipped, N, maxChars);
+}
+function renderReleaseRequestScope(trkorr, before, latest, steps, results, stoppedAt, skipped, N, maxChars) {
+  const tasksPlanned = N - 1;
+  const lastResult = results[results.length - 1];
+  const requestResult = results.find((r) => r.kind === "request");
+  const verdict = stoppedAt ? `STOPPED AT STEP ${stoppedAt.step} of ${N} (${stoppedAt.number}, ${stoppedAt.kind}) \u2014 ${lastResult?.verdict}` : tasksPlanned === 0 ? `RELEASED \u2014 the request ${trkorr} (no task needed releasing)` : `RELEASED \u2014 ${tasksPlanned} task(s) and the request ${trkorr}`;
+  const sections = [
+    {
+      title: "STEPS",
+      content: textTable(
+        steps.map((s) => {
+          const r = results.find((x) => x.step === s.step);
+          return {
+            step: String(s.step),
+            number: s.number,
+            kind: s.kind,
+            outcome: r ? r.outcome : "not attempted",
+            verdict: r ? r.verdict : "not attempted"
+          };
+        }),
+        ["step", "number", "kind", "outcome", "verdict"]
+      )
+    }
+  ];
+  const messagesSource = stoppedAt ? lastResult?.res : requestResult?.res;
+  if (messagesSource && messagesSource.messages.length) {
+    sections.push({
+      title: "MESSAGES",
+      content: textTable(messageRows(messagesSource.messages), ["message", "type", "text", "meaning"])
+    });
+  }
+  const notes = results.map((r) => `Step ${r.step} (${r.number}, ${r.kind}): ${r.detail}`);
+  notes.push(...skippedEmptyTasksNote(skipped));
+  if (stoppedAt && stoppedAt.step < N) {
+    const remaining = steps.filter((s) => s.step > stoppedAt.step);
+    const which = remaining.length === 1 ? `Step ${N} was` : `Steps ${stoppedAt.step + 1}..${N} were`;
+    notes.push(
+      `${which} not attempted (${remaining.map((s) => s.number).join(", ")}). Fix the cause and call again with the same arguments \u2014 a task that is already released is no longer planned, so the retry resumes at the failed step.`
+    );
+  }
+  if (requestResult && requestResult.proved === "released") {
+    notes.push(
+      `${trkorr} is now frozen: its objects are unlocked and the request can no longer be changed.`
+    );
+  }
+  if ((before.target ?? "").trim() === "") {
+    notes.push(
+      "This system has no transport route (empty target), so a release here only flips the status and frees the locks \u2014 nothing is exported anywhere."
+    );
+  }
+  const statusAfter = lastResult && lastResult.res.verified ? fmtStatus(latest.status, latest.statusText) : "re-read failed";
+  return buildResponse({
+    header: {
+      transport: trkorr,
+      scope: "request",
+      verdict,
+      stepsPlanned: N,
+      stepsCompleted: results.filter((r) => r.proved === "released").length,
+      stoppedAtStep: stoppedAt?.step,
+      stoppedAt: stoppedAt ? `${stoppedAt.number} (${stoppedAt.kind})` : void 0,
+      statusBefore: fmtStatus(before.status, before.statusText),
+      statusAfter,
+      verified: lastResult?.res.verified,
+      releasedAt: requestResult?.res.releaseTimestamp,
       target: fmtTarget(before)
     },
     sections,

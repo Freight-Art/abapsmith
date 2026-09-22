@@ -387,12 +387,70 @@ enum-fuzzing `abap_transport`.
 |---|---|---|---|---|
 | `transport` | string | yes | — | Transport request to release. |
 | `confirm` | string | no (required to actually release) | — | Echo `transport` exactly to arm the release. Omitted = dry run that shows the request's contents and releases nothing. |
+| `scope` | string | no | `"single"` | `"single"` releases only `transport` itself. `"request"` releases every modifiable task that holds objects, then the request — `transport` must name a request. Misspellings `include_tasks`/`with_tasks` are caught by the parameter checker and pointed at `scope`. |
+| `confirm_unowned` | string | no (required when the request was not created by this server process) | — | Echo the request number to override the ownership gate. Under `scope: "request"` the gate is evaluated once, for the request. |
 
 Example (armed release):
 
 ```json
 { "transport": "A4HK900123", "confirm": "A4HK900123" }
 ```
+
+Example (release the request's tasks and the request in one call):
+
+```json
+{ "transport": "A4HK900123", "confirm": "A4HK900123", "scope": "request" }
+```
+
+### Releasing the tasks and the request in one call
+
+`scope: "request"` turns one release call into a plan: every task under
+`transport` whose status is Modifiable and that holds at least one object, in
+the order the request lists them, then the request itself. `transport` must
+name a request — pointed at a task number, the call is refused as
+`BAD_INPUT` naming the parent request (`details.parent`) before any release:
+one read, no POST. A Modifiable task holding no objects is not a step; it is
+skipped and named in a note instead — an empty open task does not block CTS
+from releasing the parent (TR/732 "referencing task not released" fires only
+for a task that holds objects, observed on A4H).
+
+Dry run (no `confirm`): header `mode: dry run`, `scope: request`,
+`stepsPlanned: N`, a `STEPS` table (step, number, kind, status, objects),
+the objects each step would release, and a note to call again with
+`confirm: "<request>"` and `scope: "request"`. `releaseBlockedBy` is not
+shown here — the plan already releases the blocking tasks first.
+
+Armed (`confirm`, and `confirm_unowned` when required — both echoing the
+request number): each step is released as its own POST plus re-read, one
+journal entry per attempted step, begun before that step's POST and settled
+from the same verdict the response shows. Task steps are judged from the
+task's own row in the parent re-read; the request step from the request's
+own status. The plan stops at the first step whose release is not proven —
+aborted, or unverifiable — and does not attempt the steps after it; the
+release ceiling (`SAFETY_DENIED`) still applies before any wire request.
+
+The response carries `transport`, `scope: request`, `verdict`,
+`stepsPlanned`, `stepsCompleted`, and — when it stopped early —
+`stoppedAtStep`/`stoppedAt: <number> (task|request)`, plus the request's own
+`statusBefore`/`statusAfter`, `verified`, `releasedAt`, `target`. A `STEPS`
+section lists every step's number, kind, outcome and verdict (steps after a
+stop read `not attempted`); a `MESSAGES` section carries the failed step's
+messages. The overall verdict reads either `RELEASED — N task(s) and the
+request <number>` or `STOPPED AT STEP k of N (<number>, task|request) —
+<that step's verdict>`. On a stop, fix the cause and call again with the
+same arguments — a task already released is no longer planned, so the retry
+resumes at the step that failed. If a step's POST itself throws, the error
+names the step (`stopped at step k of N (<number>, kind)`) and its details
+carry `step`, `stepsPlanned`, `stepsCompleted`, `failedStep`; that step's
+journal entry stays pending, same as any other interrupted release.
+
+Releasing a task number without `scope` behaves as before, plus two new
+header fields read from the parent re-read: `parent: <request>` and
+`parentStillOpen: yes | no | not known` (the last when that re-read failed),
+with a note naming either how to finish the request (`scope: "request"` on
+`parent`, or a plain release of `parent`) or that nothing is left. The dry
+run on a task number carries the same reminder that the parent stays open
+and needs releasing afterward.
 
 Notes: the dry run's `releasePermitted` is this server's own policy ceiling
 and nothing else — it does not predict whether CTS will accept the release.
