@@ -105,14 +105,13 @@ describe("imgSources — ABAP source content", () => {
 // CLNT-typed-field derivation) plus `allow_cross_client: true` can name a genuinely
 // client-independent table, which `img-write-policy.ts`'s cross-client rule (rule 7) only refuses
 // when `allowCrossClient !== true` — it never checks whether the declared client field actually
-// exists on the table. Before this guard, `apply`'s ABAP body silently no-opped an absent client
-// field (`ASSIGN COMPONENT ... IF sy-subrc = 0. <fs_val> = sy-mandt. ENDIF.`) and fell straight
-// through to a real MODIFY/DELETE — reaching a live write the documented guarantee ("this tool
-// cannot write a client-independent table at all") said was impossible. There is no ABAP
-// interpreter here to execute `apply` and observe the refusal directly, so this pins the guard's
-// presence and position in the shipped source text instead: it must exist, it must run before
-// either MODIFY or DELETE (never after), and it must actually refuse (report an error, clear
-// rv_ok, and return) rather than merely look up the field.
+// exists on the table. This guard refuses a declared client field that is not a component only for
+// a client-dependent table (DD02L CLIDEP = 'X'); for a client-independent table (CLIDEP blank) the
+// apply body sets `lv_has_client = abap_false` and the bridge simply ignores the client field and
+// writes (issue #176). There is no ABAP interpreter here to execute `apply` and observe the
+// refusal directly, so this pins the guard's presence and position in the shipped source text
+// instead: it must exist, it must run before either MODIFY or DELETE (never after), and it must
+// actually refuse (report an error, clear rv_ok, and return) rather than merely look up the field.
 describe("ZCL_ZMCP_FLUID_IMG's apply refuses a client field absent from the table before writing", () => {
   it("checks the client field is a real component, before MODIFY/DELETE, and actually refuses when it isn't", () => {
     const source = imgSources.get("ZCL_ZMCP_FLUID_IMG");
@@ -143,5 +142,59 @@ describe("ZCL_ZMCP_FLUID_IMG's apply refuses a client field absent from the tabl
     expect(guardBlock, "guard must actually report a refusal").toContain("zcl_zmcp_fluid_rt=>err(");
     expect(guardBlock, "guard must clear rv_ok").toContain("rv_ok = abap_false");
     expect(guardBlock, "guard must RETURN, not merely record the refusal").toContain("RETURN.");
+  });
+});
+
+// Structural pins for issue #176: client-independent tables get a real write path (MANDT
+// placeholder, no client stamp), and the CTS bookkeeping call moved from TR_OBJECTS_INSERT to
+// TRINT_OBJECTS_CHECK_AND_INSERT with iv_with_dialog = 'D'. No ABAP interpreter here, so these pin
+// the shipped source text rather than execute it.
+describe("ZCL_ZMCP_FLUID_IMG — structural pins (issue #176)", () => {
+  function source(): string {
+    const src = imgSources.get("ZCL_ZMCP_FLUID_IMG");
+    expect(src).toBeDefined();
+    return src ?? "";
+  }
+
+  it("computes clidep as an abap_bool via xsdbool( lv_clidep = 'X' )", () => {
+    expect(source()).toContain("xsdbool( lv_clidep = 'X' )");
+  });
+
+  it("sets lv_has_client = abap_false for a client-independent table", () => {
+    expect(source()).toContain("lv_has_client = abap_false");
+  });
+
+  it("declares lv_wi_order as TYPE trkorr in cts_record", () => {
+    expect(/DATA\s+lv_wi_order\s+TYPE\s+trkorr/.test(source())).toBe(true);
+  });
+
+  it("calls TRINT_OBJECTS_CHECK_AND_INSERT with iv_with_dialog = 'D' in the same CALL FUNCTION block, and never calls TR_OBJECTS_INSERT", () => {
+    const src = source();
+
+    expect(src).not.toContain("CALL FUNCTION 'TR_OBJECTS_INSERT'");
+
+    const callIdx = src.indexOf("CALL FUNCTION 'TRINT_OBJECTS_CHECK_AND_INSERT'");
+    expect(callIdx, "CALL FUNCTION 'TRINT_OBJECTS_CHECK_AND_INSERT' not found").toBeGreaterThan(-1);
+
+    const nextCallIdx = src.indexOf("CALL FUNCTION", callIdx + 1);
+    const block = nextCallIdx > -1 ? src.slice(callIdx, nextCallIdx) : src.slice(callIdx);
+    expect(/iv_with_dialog\s*=\s*'D'/.test(block)).toBe(true);
+  });
+
+  it("the masterType guard accepts 'TABU' alongside VDAT/CDAT", () => {
+    const src = source();
+    expect(src).toMatch(/lv_master_type\s*<>\s*'VDAT'\s+AND\s+lv_master_type\s*<>\s*'CDAT'\s+AND\s+lv_master_type\s*<>\s*'TABU'/);
+  });
+
+  it("create_request declares iv_type TYPE trfunction", () => {
+    expect(/iv_type\s+TYPE\s+trfunction/.test(source())).toBe(true);
+  });
+
+  it("emits a CTSW> REQTYPE line after the REQUEST line", () => {
+    const src = source();
+    const reqIdx = src.indexOf("CTSW> REQUEST");
+    const reqTypeIdx = src.indexOf("CTSW> REQTYPE", reqIdx);
+    expect(reqIdx, "CTSW> REQUEST emit not found").toBeGreaterThan(-1);
+    expect(reqTypeIdx, "CTSW> REQTYPE emit not found after REQUEST").toBeGreaterThan(reqIdx);
   });
 });

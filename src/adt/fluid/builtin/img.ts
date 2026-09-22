@@ -115,6 +115,7 @@ const IMG_SOURCE = `CLASS zcl_zmcp_fluid_img DEFINITION
       IMPORTING
         iv_description TYPE string
         iv_owner       TYPE string
+        iv_type        TYPE trfunction
       RETURNING
         VALUE(rv_ok)   TYPE abap_bool.
 
@@ -167,6 +168,7 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
     DATA lv_probe_ok     TYPE abap_bool.
     DATA lv_description  TYPE string.
     DATA lv_owner        TYPE string.
+    DATA lv_request_type TYPE trfunction.
     DATA lv_request_ok   TYPE abap_bool.
     DATA lv_client_field TYPE string.
     DATA lv_op           TYPE string.
@@ -228,6 +230,7 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
         zcl_zmcp_fluid_rt=>scan( iv_json ).
         lv_description = zcl_zmcp_fluid_rt=>s( 'description' ).
         lv_owner       = zcl_zmcp_fluid_rt=>s( 'owner' ).
+        lv_request_type = zcl_zmcp_fluid_rt=>s( 'request_type' ).
 
         IF lv_description IS INITIAL.
           zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
@@ -243,7 +246,17 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
           RETURN.
         ENDIF.
 
-        lv_request_ok = create_request( iv_description = lv_description iv_owner = lv_owner ).
+        IF lv_request_type IS INITIAL.
+          lv_request_type = 'W'.
+        ELSEIF lv_request_type <> 'W' AND lv_request_type <> 'K'.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+            iv_text = |request_type must be W or K, got "{ lv_request_type }"| ).
+          zcl_zmcp_fluid_rt=>end( 1 ).
+          RETURN.
+        ENDIF.
+
+        lv_request_ok = create_request( iv_description = lv_description iv_owner = lv_owner
+          iv_type = lv_request_type ).
 
         IF lv_request_ok = abap_false.
           zcl_zmcp_fluid_rt=>end( 1 ).
@@ -631,13 +644,17 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
     lv_text = iv_description.
 
     ls_user-user = sy-uname.
-    ls_user-type = 'Q'.
+    IF iv_type = 'W'.
+      ls_user-type = 'Q'.
+    ELSE.
+      ls_user-type = 'S'.
+    ENDIF.
     INSERT ls_user INTO TABLE lt_users.
 
     IF iv_owner IS NOT INITIAL.
       CALL FUNCTION 'TR_INSERT_REQUEST_WITH_TASKS'
         EXPORTING
-          iv_type           = 'W'
+          iv_type           = iv_type
           iv_text           = lv_text
           iv_owner          = iv_owner
           it_users          = lt_users
@@ -651,7 +668,7 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
     ELSE.
       CALL FUNCTION 'TR_INSERT_REQUEST_WITH_TASKS'
         EXPORTING
-          iv_type           = 'W'
+          iv_type           = iv_type
           iv_text           = lv_text
           it_users          = lt_users
         IMPORTING
@@ -690,6 +707,7 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
     ENDIF.
 
     emit( |CTSW> REQUEST len=[{ strlen( ls_request_header-trkorr ) }] value=[{ ls_request_header-trkorr }]| ).
+    emit( |CTSW> REQTYPE len=[1] value=[{ iv_type }]| ).
 
     READ TABLE lt_task_headers INTO ls_task_header INDEX 1.
     IF sy-subrc <> 0.
@@ -1229,8 +1247,9 @@ export const imgManifest: FluidManifest = {
       name: "create_request",
       category: "mutate",
       description:
-        "Creates a customizing (type W) transport request via TR_INSERT_REQUEST_WITH_TASKS, with a " +
-        "type-Q task recorded for the logon user.",
+        "Creates a transport request via TR_INSERT_REQUEST_WITH_TASKS: type W (customizing, task " +
+        "type Q, the default) or type K (workbench, task type S). CTS refuses to record a " +
+        "client-independent table entry on a customizing request (TK599), so those need K.",
       input: {
         type: "object",
         required: ["description"],
@@ -1244,6 +1263,11 @@ export const imgManifest: FluidManifest = {
             type: "string",
             maxLength: 12,
             description: "Request owner; defaults to the logon user when omitted.",
+          },
+          request_type: {
+            type: "string",
+            enum: ["W", "K"],
+            description: "W (customizing, default) or K (workbench).",
           },
         },
       },

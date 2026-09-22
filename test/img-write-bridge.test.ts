@@ -82,21 +82,24 @@ describe("static exports", () => {
     expect(CTS_INSERT_FM.confidence).toBe("high");
     expect(CTS_INSERT_FM.note.length).toBeGreaterThan(0);
     expect(CTS_INSERT_FM.checkFm).toBe("TR_OBJECTS_CHECK");
-    expect(CTS_INSERT_FM.insertFm).toBe("TR_OBJECTS_INSERT");
-    expect(CTS_INSERT_FM.params.objects).toBe("wt_ko200");
+    expect(CTS_INSERT_FM.insertFm).toBe("TRINT_OBJECTS_CHECK_AND_INSERT");
+    expect(CTS_INSERT_FM.params.objects).toBe("ct_ko200");
+    expect(CTS_INSERT_FM.params.keys).toBe("ct_e071k");
+    expect(CTS_INSERT_FM.params.order).toBe("iv_order");
+    expect(CTS_INSERT_FM.params.withDialog).toBe("iv_with_dialog");
     expect(CTS_INSERT_FM.exceptions.cancelEditOtherError).not.toBe(CTS_INSERT_FM.exceptions.showOnlyOtherError);
   });
 
-  it("CTS_INSERT_FM's note says plainly, near the front, that both FMs have been called successfully from here, and still names what's unproven", () => {
+  it("CTS_INSERT_FM's note says plainly, near the front, that TRINT_OBJECTS_CHECK_AND_INSERT with 'D' is proven, and still names what's unproven", () => {
     const upfront = CTS_INSERT_FM.note.slice(0, 80).toUpperCase();
     expect(upfront).toContain("PROVEN");
     expect(upfront).not.toContain("UNPROVEN");
-    expect(CTS_INSERT_FM.note).toContain(
-      "TR_OBJECTS_CHECK and TR_OBJECTS_INSERT were both called from this server",
-    );
-    expect(CTS_INSERT_FM.note).toContain("STILL UNPROVEN FROM HERE");
-    expect(CTS_INSERT_FM.params.weOrder).toBe("we_order");
-    expect(CTS_INSERT_FM.params.weTask).toBe("we_task");
+    expect(CTS_INSERT_FM.note).toContain("TRINT_OBJECTS_CHECK_AND_INSERT");
+    expect(CTS_INSERT_FM.note).toContain("'D'");
+    expect(CTS_INSERT_FM.note).toContain("space is check-only");
+    expect(CTS_INSERT_FM.note).toContain("Still unproven");
+    expect(CTS_INSERT_FM.params.weOrder).toBe("ev_order");
+    expect(CTS_INSERT_FM.params.weTask).toBe("ev_task");
   });
 
   it("IMGW_MAX_ROWS is 50", () => {

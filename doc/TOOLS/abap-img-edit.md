@@ -36,43 +36,54 @@ deploying anything.
    itself; generating a guess at that shape would have produced code that
    looks faithful and is wrong in ways this server cannot detect. What
    *does* still happen is the transport bookkeeping SM30 also does: the
-   same CTS pair (`TR_OBJECTS_CHECK` then `TR_OBJECTS_INSERT`, function
-   group `SAPLSTRD`) records `R3TR VDAT` for the view and `R3TR TABU` for
-   each row's base-table key. Measured on the sixth live run (2026-09-06):
-   this actually files two rows, not one — an `E071` header for the
-   maintenance view (`R3TR VDAT <view>`, `OBJFUNC` `K`) and, beneath it,
-   an `E071K` key sub-entry for the base table (`PGMID` `R3TR`, `OBJECT`
-   `TABU`, `OBJNAME` = the table, `MASTERTYPE` = the resolved master type,
-   `MASTERNAME` = the view, `TABKEY` = the client followed by the key,
-   e.g. `001ZTMD`). `SORTFLAG` and `LANG` on that `E071K` row were both
-   left initial (blank) by the function modules; `AS4POS` was `000001`.
-   The row lands on the request itself, not on a task beneath it.
-2. **`TR_OBJECTS_CHECK`, `TR_OBJECTS_INSERT`, and
-   `TR_INSERT_REQUEST_WITH_TASKS` are now all live-proven from this
-   server**, as of a sixth verification run on 2026-09-06.
-   `TR_INSERT_REQUEST_WITH_TASKS` (used by `create_request`) was called
-   from here first on 2026-09-05, and returned `sy-subrc = 0`, creating a
-   real type-`W` customizing request. That first call did not pass
-   `IT_USERS`, so the request came back with no task, and the generated
-   code printed its error and returned before printing the request
-   number — the number was lost and the request left orphaned. That
-   defect is why `create_request` now has the shape described below. A
-   second live call did pass `IT_USERS`, as a bare `sy-uname` row, and
-   failed to activate outright — see the `create_request` bullet under
-   "Mechanism" for the `SCTS_USER` structure that call was missing. With
-   that structure filled in, the sixth run's call succeeded: it passed
-   `TYPE = 'Q'` and the request came back carrying a task with
-   `TASKTYPE = 'Q'`. That is consistent with the function module
-   honouring the value passed, but not proof of it — a type-`W`
-   request's task defaults to `'Q'` regardless of what `TYPE` asks for,
-   so this call cannot distinguish the two; only passing a different
-   `TYPE` and reading it back would settle it. `TR_OBJECTS_CHECK`
-   and `TR_OBJECTS_INSERT` were proven the same run: an armed key-only
-   `upsert` on `TB004` (view `V_TB004`, master type `VDAT`) called both
-   successfully and filed a real transport entry, and a later `delete` of
-   the same row also succeeded and added no second key row. Still
-   unproven from here: every failure path on either CTS FM
-   (`INSERT_FAILED`, `ENQUEUE_FAILED`, an authority or lock refusal).
+   same CTS pair — `TR_OBJECTS_CHECK` then, as of this change,
+   `TRINT_OBJECTS_CHECK_AND_INSERT` called with `IV_WITH_DIALOG = 'D'`
+   (headless insert; see point 2 below) — records `R3TR VDAT` for the view
+   and `R3TR TABU` for each row's base-table key when a maintenance view is
+   involved, or `R3TR TABU` alone, with no `VDAT` header, when `master_type`
+   resolves to `TABU` for a plain-table target (see the `master_type` row
+   under "Parameters"). For a view target this files two rows — an `E071`
+   header for the maintenance view (`R3TR VDAT <view>`, `OBJFUNC` `K`) and,
+   beneath it, an `E071K` key sub-entry for the base table (`PGMID` `R3TR`,
+   `OBJECT` `TABU`, `OBJNAME` = the table, `MASTERTYPE` = the resolved
+   master type, `MASTERNAME` = the view, `TABKEY` = the client followed by
+   the key, e.g. `001ZTMD`) — measured on the sixth live run (2026-09-06).
+   For a plain-table target the `E071K` row's `TABKEY` carries no client
+   prefix when the table is client-independent: verified live 2026-09-22, a
+   delete of two `BALOBJ` rows on workbench request A4HK900350 filed `R3TR
+   TABU BALOBJ` (`OBJFUNC` `K`) on its task, one `E071K` row per key, each
+   `TABKEY` unprefixed (e.g. `ZAS_LOG176`). `SORTFLAG` and `LANG` on an
+   `E071K` row are left initial (blank) by the function modules; `AS4POS`
+   was `000001` in the 2026-09-06 run. The row lands on the request itself
+   for a customizing (type `W`) request, or on the request's task for a
+   workbench (type `K`) request — ordinary CTS behaviour, not something
+   this bridge chooses. See "Transport resolution under
+   `ABAP_ALLOW_TRANSPORTS=auto`" below for which request or task a call
+   without an explicit `corr_nr` ends up filing against.
+2. **The CTS recording call is now `TRINT_OBJECTS_CHECK_AND_INSERT` with
+   `IV_WITH_DIALOG = 'D'`, not `TR_OBJECTS_INSERT`.** `TR_OBJECTS_CHECK`,
+   `TR_OBJECTS_INSERT`, and `TR_INSERT_REQUEST_WITH_TASKS` were first
+   live-proven from this server on a sixth verification run, 2026-09-06 —
+   that run also found and fixed a `create_request` defect around a
+   missing `SCTS_USER` fill-in, described under the `create_request`
+   bullet in "Mechanism" below. `TR_OBJECTS_INSERT` hard-codes
+   `IV_WITH_DIALOG = 'X'` and pops SAPLSTRD dynpros 0300 (request choice) /
+   0352 (task classification) whenever the chosen request or its task
+   needs a dialog decision — in a classrun that raises
+   `CX_SY_SEND_DYNPRO_NO_RECEIVER` instead of completing. The 2026-09-06
+   run only succeeded because neither dialog was needed that time; it was
+   not proof the call was safe in general. The bridge now calls
+   `TRINT_OBJECTS_CHECK_AND_INSERT` with `IV_WITH_DIALOG = 'D'` (headless
+   insert) instead, which decides without popping a dynpro.
+   `IV_WITH_DIALOG = space` is a documented trap, not a stricter mode: it
+   returns success but writes nothing at all (check-only) — the bridge
+   never passes it. Verified live 2026-09-22 (BALOBJ/A4HK900350, point 1
+   above): the new call recorded a real entry, including for a
+   client-independent table, which the pre-fix bridge refused outright —
+   see "What this does not do" below for what changed there. Still
+   unproven from here: `TRINT_OBJECTS_CHECK_AND_INSERT`'s own failure
+   paths — `INSERT_FAILED`, `ENQUEUE_FAILED`, an authority or lock
+   refusal — none has been forced live yet.
 3. **Every generated helper class goes into `$ABAPSMITH_FLUID_API`, never
    `$TMP`.** This is the fluid API's own local package, created on first
    use (super-package `$TMP`, but `$TMP` itself is never a landing spot).
@@ -110,9 +121,12 @@ nothing about arming a write changes with this.
 - **`upsert`** / **`delete`** — the same checks as `preview`, now enforced:
   delivery class must be `C`, `G`, or `E` (`A`/`L`/`S`/`W` are SAP-delivered
   or system tables and are refused by name); `allow_cross_client: true`
-  clears the policy refusal for a client-independent table, but this tool
-  still cannot actually write one — see "What this does not do" below;
-  row count must be 1–50; every key field's data type must be char-like
+  clears the policy refusal for a client-independent table, and — since the
+  2026-09-22 fix — the write actually reaches such a table too, whether it
+  is resolved via `activity`/`object` or via the `table` expert escape
+  hatch, rather than being refused a second time inside the shared `apply`
+  action; see "What this does not do" below for what changed; row count
+  must be 1–50; every key field's data type must be char-like
   (`CLNT`/`CHAR`/`NUMC`/`LANG`/`UNIT`/`CUKY`/`DATS`/`TIMS`/`ACCP` — the
   generated code casts the key structure with `ASSIGN ... CASTING TYPE c`,
   which is only sound for these); the table must not be on the same
@@ -190,27 +204,33 @@ nothing about arming a write changes with this.
 - **`create_request`** — the fluid `img` tool's shared `create_request`
   action (`ZCL_ZMCP_FLUID_IMG`, dispatched through
   `runCreateCustomizingRequest` in `src/adt/img-write.ts`) calls
-  `TR_INSERT_REQUEST_WITH_TASKS` to create a type-`W` (customizing)
-  request, passing `IT_USERS` with one row so the request gets a task.
-  This ported a since-retired per-call `ZCL_ZMCP_CTS_WREQ` generator's
-  behavior unchanged, including the history below.
+  `TR_INSERT_REQUEST_WITH_TASKS`, passing `IT_USERS` with one row so the
+  request gets a task. This ported a since-retired per-call
+  `ZCL_ZMCP_CTS_WREQ` generator's behavior unchanged, including the
+  history below. `request_type` picks what kind of request is created:
+  `customizing` (the default — type `W`, task type `Q`) or `workbench`
+  (type `K`, task type `S`); see "Transport resolution under
+  `ABAP_ALLOW_TRANSPORTS=auto`" below for why a caller might want a
+  workbench request out of a tool whose own writes are customizing rows.
   `IT_USERS`' row type, `SCTS_USER`, is a structure with exactly two
   fields — `USER` (`TR_AS4USER`) and `TYPE` (`TRFUNCTION`), measured from
   DD40L/DD03L — not a plain user-name table; a second live run (against
   that retired generator) that passed a bare `sy-uname` failed to
   activate the bridge (`"SY-UNAME" and the row type of "LT_USERS" are
   incompatible`). The row now fills that
-  structure (`USER` = `sy-uname`, `TYPE` = `'Q'`, the customizing task
-  type), and the response carries the created task's number and its type
-  (`taskType`) alongside the request number. That type can now be
+  structure (`USER` = `sy-uname`, `TYPE` = the task type for the chosen
+  `request_type`), and the response carries the created task's number and
+  its type (`taskType`) alongside the request number. That type can now be
   confirmed independently with `abap_transport operation="show"` on the
   request number — its `TASKS` table carries a `type` column. The sixth
   live verification run (2026-09-06) passed `TYPE = 'Q'` and read back a
   task typed `'Q'` — consistent with the function module honouring the
-  value passed, but not decisive: a type-`W` request's task is `'Q'` by
-  default regardless of what `TYPE` asks for, so this single observation
-  cannot tell the two apart. Only passing a different `TYPE` and reading it
-  back would settle it. The request number is reported as soon as it is
+  value passed, but not decisive on its own: a type-`W` request's task is
+  `'Q'` by default regardless of what `TYPE` asks for, so that single
+  observation could not tell the two apart. `request_type: "workbench"`
+  passes a different `TYPE` (`'S'` on a type-`K` request) and reads it
+  back the same way, which is what actually settles the question — see
+  "Transport resolution under `ABAP_ALLOW_TRANSPORTS=auto`" below. The request number is reported as soon as it is
   known, before the task check runs; a request that comes back with no task
   is a loud warning carrying the number, not a silent loss. A call whose
   transcript carries an error line, or from which no request number can
@@ -226,6 +246,54 @@ nothing about arming a write changes with this.
   package, refuses a local (`$`) one, and checks the package allowlist —
   and none of that is meaningful for a customizing request, which has no
   development class at all.
+
+### Transport resolution under `ABAP_ALLOW_TRANSPORTS=auto`
+
+This only concerns `ABAP_ALLOW_TRANSPORTS=auto`; deny-all
+(`ABAP_ALLOW_TRANSPORTS=` empty) and an explicit TRKORR allowlist behave
+exactly as they always have — see
+[doc/CONFIGURATION/permissions-and-allowlists.md](../CONFIGURATION/permissions-and-allowlists.md).
+
+**A caller-named `corr_nr`** is accepted under `auto` only when it is a
+request this session itself created — through this tool's own
+`create_request`, or through `abap_transport operation="create"` — the same
+session registry (`SessionTransport`, `src/adt/session-transport.ts`)
+`abap_write` already consults for its own auto-resolution. Any other
+caller-named request is refused, `SAFETY_DENIED`, and the hint now adds:
+"Under auto, pass a request this session created (abap_img_edit
+mode=create_request or abap_transport create), or omit corr_nr to let this
+session resolve one."
+
+**An omitted `corr_nr`** under `auto` no longer refuses when the table
+needs a request — the session resolves one, and which kind depends on the
+target table's client-dependence:
+
+- A **client-dependent** table gets a customizing request: the one this
+  session already created earlier via `create_request` (default
+  `request_type`), or a new one if none exists yet, described `abapsmith
+  customizing request <date>`.
+- A **client-independent** table gets a workbench request instead: the
+  session's currently active workbench request, one this session created
+  earlier via `create_request request_type=workbench`, or a new one.
+  Customizing requests cannot take this entry — CTS refuses to record a
+  client-independent table entry on a customizing (type `W`) request with
+  TK599 "No task for editing objects can be determined" (verified live
+  2026-09-22), so resolving toward a workbench request here is not a
+  style choice, it is the only request kind CTS will accept the entry on.
+
+Either way, the response header's `corrNrSource` says what happened —
+`caller` (a caller-named request was used, only possible with an explicit
+TRKORR allowlist or a session-created request under `auto`), `session-cached`
+(an existing session-created request was reused), or `session-created` (a
+new request was created for this call) — and the journal entry's
+`trSource` records the same thing.
+
+**`preview`** never creates a request, but under `auto` it now says which
+one an armed call would use, or would create: "Applying this change would
+record on `<REQ>` (`<kind>` request known to this session)" when one
+already exists to reuse, or "would create a new `<kind>` request ..." when
+none does yet — `<kind>` is `customizing` or `workbench`, following the
+same client-dependence rule above.
 
 ### CHECKS NOT RUN
 
@@ -292,17 +360,18 @@ written, snake_case included.
 | `activity` | string | consultant path: exactly one of `activity`/`object`/`table`, for `preview`/`upsert`/`delete` | — | Same activity id `abap_img show` takes; resolved to its base table, key fields, and client field automatically. Conflicts with `key_fields`/`client_field`. |
 | `object` | string | consultant path: exactly one of `activity`/`object`/`table`, for `preview`/`upsert`/`delete` | — | Same object name `abap_img objects` takes. Conflicts with `key_fields`/`client_field`. |
 | `kind` | enum `table` \| `view` \| `cluster` \| `transaction` \| `customizing_object` \| `report` | optional, only meaningful with `object` | probed table → view → cluster → transaction → customizing object, first match wins | Which catalog to resolve `object` against. |
-| `table` | string | expert escape hatch: exactly one of `activity`/`object`/`table`, for `preview`/`upsert`/`delete` | — | The base DDIC table to read/write directly, bypassing activity/object resolution. Requires `key_fields`. `client_field` is optional but the write always sets it from `sy-mandt`, so a genuinely client-independent table cannot be written this way — see "What this does not do". |
+| `table` | string | expert escape hatch: exactly one of `activity`/`object`/`table`, for `preview`/`upsert`/`delete` | — | The base DDIC table to read/write directly, bypassing activity/object resolution. Requires `key_fields`. `client_field` is optional; for a client-dependent table the write stamps it from `sy-mandt`, for a client-independent table (DD02L CLIDEP blank) the declared client field is ignored and `allow_cross_client: true` is required — see "What this does not do". |
 | `client_field` | string | `table` (expert escape hatch) only | `MANDT` | The table's client field name, e.g. `MANDT`. Conflicts with `activity`/`object`, whose client field is resolved automatically. |
 | `key_fields` | array of string | `table` (expert escape hatch) only, at least one entry | — | The table's key field names, in order, excluding the client field. Conflicts with `activity`/`object`, whose key fields are resolved automatically. |
 | `rows` | array of `{ key: {...}, values: {...} }` | required for `preview`/`upsert`/`delete` | — | Row key fields and, for `upsert`, the non-key values to write. `values` may be omitted entirely on an `upsert` row — see "Mechanism" for what a key-only row does. `delete` needs only `key`. 1–50 rows per call. |
 | `view` | string | optional, for `upsert`/`delete` | resolved view/cluster name (or table, if the resolved target is a table); with `table`, defaults to `table` | The maintenance view or view cluster name recorded on the transport entry. |
-| `master_type` | enum `VDAT` \| `CDAT` | optional, for `upsert`/`delete` | `VDAT` | The transport entry's object type — `VDAT` for a maintenance view, `CDAT` for a customizing object recorded directly. |
+| `master_type` | enum `VDAT` \| `CDAT` \| `TABU` | optional, for `upsert`/`delete` | `VDAT` when a view is involved; `TABU` when the resolved target is the table itself, with no maintenance view | The transport entry's object type — `VDAT` for a maintenance view, `CDAT` for a customizing object recorded directly, `TABU` for the plain table. CTS refuses a `VDAT` header naming a plain table outright, with TK323 "<table> is a table, it cannot be accessed as a view" (verified live 2026-09-22 on `BALOBJ`), so pass `TABU` explicitly if you ever override the default toward a view-less target. |
 | `language` | string, regex `^[A-Za-z]$` | optional | the server's configured language (`ABAP_LANGUAGE`/`cfg.language`) if set, else `"E"` | Single-character SAP language key (SPRAS) the probe reads DD02L/DD03L texts in — e.g. `"E"` for English, `"D"` for German. A two-character ISO code such as `EN`/`DE` is refused (`BAD_INPUT`) naming the one-character form, not silently mapped — see `doc/TOOLS/abap-img.md`'s `language` row for why. The `preview` response header prints the resolved value. |
-| `corr_nr` | string | required when the client's change setting demands a recorded change | — | Customizing request or task to record the write on. Get one via `create_request`, or reuse an existing one. |
+| `corr_nr` | string | required when the client's change setting demands a recorded change | — | Customizing request or task to record the write on. Get one via `create_request`, or reuse an existing one. Under `ABAP_ALLOW_TRANSPORTS=auto`, only a request this session itself created (`create_request`, or `abap_transport create`) is accepted here — any other caller-named request is refused; omit `corr_nr` under `auto` instead and let the session resolve one, following the table's client-dependence — see "Transport resolution under `ABAP_ALLOW_TRANSPORTS=auto`" below. |
 | `confirm` | string | required to actually apply `upsert`/`delete` | — | Must exactly equal the resolved base table name (case-insensitive) to arm the write. Omitted (or on `preview`) means nothing changes. |
-| `allow_cross_client` | boolean | no | `false` | Clears the policy refusal for a client-independent table; without it, a cross-client target is refused outright. Does not make the write possible — see "What this does not do". |
-| `description` | string, max 60 chars | required for `create_request` | — | Short text for the new customizing request. |
+| `allow_cross_client` | boolean | no | `false` | Clears the policy refusal for a client-independent table; without it, a cross-client target is refused outright. As of 2026-09-22 this does make the write possible too, whether the target is resolved via `activity`/`object` or via the `table` expert escape hatch — see "What this does not do". |
+| `description` | string, max 60 chars | required for `create_request` | — | Short text for the new customizing (or workbench, see `request_type`) request. |
+| `request_type` | enum `customizing` \| `workbench` | optional, for `create_request` only | `customizing` | Kind of request `create_request` makes: `customizing` (type `W`, task type `Q`) or `workbench` (type `K`, task type `S`). Pass `workbench` when the session will need to record a client-independent table — a customizing request's task cannot hold that entry, see "Transport resolution under `ABAP_ALLOW_TRANSPORTS=auto`" below. |
 | `owner` | string, regex `^[A-Z0-9_]{1,12}$` | optional for `create_request` | the logged-on user | Request owner. Case-sensitive and not normalized — a wrong-case value is refused, not silently corrected, since a wrong owner on a customizing request cannot be detected after the fact. |
 
 ## Worked example
@@ -393,17 +462,29 @@ this system use.
 - Does not create an IMG node, activity, or maintenance view.
 - Does not maintain any table outside the fixed delivery-class set
   (`C`/`G`/`E`); a SAP-delivered or system table is refused by name.
-- **Cannot actually write a client-independent (cross-client) table**,
-  `allow_cross_client: true` notwithstanding: the shared `apply` action
-  (`ZCL_ZMCP_FLUID_IMG`) explicitly refuses, before touching any row, when
-  the declared client field is not a component of the table — which a
-  genuinely client-independent table never has. (A now-retired per-call
-  `ZCL_ZMCP_IMG_WAPPLY` generator used to hit the same outcome by accident,
-  as an activation failure from unconditionally setting a client field
-  that didn't exist; the shared class makes the same refusal explicit and
-  disclosed instead.) `allow_cross_client` only clears the policy refusal;
-  it does not make the write possible. Maintain a client-independent table
-  by hand (SM30/SM34) instead.
+- **Resolved: a client-independent (cross-client) table used to be refused
+  outright even with `allow_cross_client: true`.** Before 2026-09-22, the
+  shared `apply` action (`ZCL_ZMCP_FLUID_IMG`) refused every such table
+  before touching any row, with "client field MANDT not found" — the
+  DD02L client-flag guard compared a boolc string against `abap_bool` and
+  always failed for a table with no client field, so `allow_cross_client`
+  cleared only the policy refusal and never reached a real write. (A
+  now-retired per-call `ZCL_ZMCP_IMG_WAPPLY` generator used to hit the
+  same outcome by accident, as an activation failure from
+  unconditionally setting a client field that didn't exist.) That guard
+  is fixed, and `WI_ORDER` — previously passed as a string
+  (`CX_SY_DYN_CALL_ILLEGAL_TYPE`) — is fixed alongside it: a
+  client-independent table — through `activity`/`object` or through the
+  `table` expert escape hatch — is now genuinely writable, with
+  `allow_cross_client: true` still required to clear the policy refusal
+  first. Verified live 2026-09-22: a `delete` of two `BALOBJ` rows, made
+  through the `table` expert escape hatch (`table: "BALOBJ"`, no
+  `client_field` given), filed a real `R3TR TABU BALOBJ` transport entry
+  with no client prefix on `TABKEY`. Resolving via `activity`/`object` to a
+  client-independent table (no CLNT-typed key field) is accepted the same
+  way: all key fields are treated as key fields and the client field
+  placeholder is ignored by the bridge — the earlier `BAD_INPUT` "cannot
+  write a client-independent table at all" refusal goes away.
 
 ## Known limitations
 

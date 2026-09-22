@@ -422,6 +422,137 @@ describe("evaluateImgWrite: preview mode skips corr_nr/confirm enforcement", () 
   });
 });
 
+describe("evaluateImgWrite: ABAP_ALLOW_TRANSPORTS=auto (issue #176)", () => {
+  it("corr_nr omitted, recording required, allowTransports auto, autoResolve true — session resolves it", () => {
+    const v = evaluateImgWrite(
+      probe({ cccoractiv: "1" }),
+      req({ corrNr: undefined }),
+      cfg({ allowTransports: ["auto"] }),
+      { autoResolve: true },
+    );
+    expect(v.allowed).toBe(true);
+    if (v.allowed) {
+      expect(v.corrNrResolution).toBe("session");
+      expect(v.corrRequired).toBe(true);
+      expect(v.notes.some((n) => n.includes("this session resolves one because ABAP_ALLOW_TRANSPORTS contains auto"))).toBe(
+        true,
+      );
+    }
+  });
+
+  it("corr_nr omitted, allowTransports auto, but autoResolve is false/undefined — the caller cannot resolve, still refused", () => {
+    for (const opts of [undefined, { autoResolve: false }]) {
+      const v = evaluateImgWrite(
+        probe({ cccoractiv: "1" }),
+        req({ corrNr: undefined }),
+        cfg({ allowTransports: ["auto"] }),
+        opts,
+      );
+      expect(v.allowed).toBe(false);
+      if (!v.allowed) expect(v.rule).toBe("corr-nr-required");
+    }
+  });
+
+  it("empty allowlist (deny-all) never counts as auto: corr_nr omitted still refused corr-nr-required even with autoResolve true", () => {
+    const v = evaluateImgWrite(
+      probe({ cccoractiv: "1" }),
+      req({ corrNr: undefined }),
+      cfg({ allowTransports: [] }),
+      { autoResolve: true },
+    );
+    expect(v.allowed).toBe(false);
+    if (!v.allowed) expect(v.rule).toBe("corr-nr-required");
+  });
+
+  it("empty allowlist (deny-all): a named corr_nr stays refused corr-nr-not-allowed", () => {
+    const v = evaluateImgWrite(
+      probe({ cccoractiv: "1" }),
+      req({ corrNr: "XXXK900001" }),
+      cfg({ allowTransports: [] }),
+      { autoResolve: true },
+    );
+    expect(v.allowed).toBe(false);
+    if (!v.allowed) expect(v.rule).toBe("corr-nr-not-allowed");
+  });
+
+  it("a named corr_nr this session created is accepted under auto, and the callback receives the uppercased trkorr", () => {
+    const seen: string[] = [];
+    const v = evaluateImgWrite(
+      probe({ cccoractiv: "1" }),
+      req({ corrNr: "a4hk900348" }),
+      cfg({ allowTransports: ["auto"] }),
+      {
+        sessionCreated: (t) => {
+          seen.push(t);
+          return t === "A4HK900348";
+        },
+      },
+    );
+    expect(v.allowed).toBe(true);
+    if (v.allowed) {
+      expect(v.corrNrResolution).toBe("named");
+      expect(v.notes.some((n) => n.includes("was created by this session"))).toBe(true);
+      expect(v.notes.some((n) => n.includes("accepted under ABAP_ALLOW_TRANSPORTS=auto"))).toBe(true);
+    }
+    expect(seen).toContain("A4HK900348");
+  });
+
+  it.each([
+    { label: "sessionCreated returns false", sessionCreated: (_t: string) => false },
+    { label: "sessionCreated is undefined", sessionCreated: undefined },
+  ])("a named corr_nr under auto that this session did not create is refused corr-nr-not-allowed ($label)", ({ sessionCreated }) => {
+    const v = evaluateImgWrite(
+      probe({ cccoractiv: "1" }),
+      req({ corrNr: "A4HK900348" }),
+      cfg({ allowTransports: ["auto"] }),
+      { sessionCreated },
+    );
+    expect(v.allowed).toBe(false);
+    if (!v.allowed) {
+      expect(v.rule).toBe("corr-nr-not-allowed");
+      expect(v.reason).toContain("Under auto, pass a request this session created");
+    }
+  });
+
+  it("an explicit pinned allowlist (no auto) refuses a different named corr_nr without mentioning auto", () => {
+    const v = evaluateImgWrite(
+      probe({ cccoractiv: "1" }),
+      req({ corrNr: "A4HK900348" }),
+      cfg({ allowTransports: ["A4HK900001"] }),
+    );
+    expect(v.allowed).toBe(false);
+    if (!v.allowed) expect(v.reason).not.toContain("Under auto");
+  });
+
+  it("no request needed (client-dependent, recording proven off): corrNrResolution is none, corrRequired false", () => {
+    const v = evaluateImgWrite(
+      probe({ cccoractiv: "" }),
+      req({ corrNr: undefined }),
+      cfg({ allowTransports: ["auto"] }),
+      { autoResolve: true },
+    );
+    expect(v.allowed).toBe(true);
+    if (v.allowed) {
+      expect(v.corrNrResolution).toBe("none");
+      expect(v.corrRequired).toBe(false);
+    }
+  });
+
+  it("preview mode, corr_nr omitted, allowTransports auto, autoResolve true: allowed with resolution session and no 'would refuse unless' note", () => {
+    const v = evaluateImgWrite(
+      probe({ cccoractiv: "1" }),
+      req({ mode: "preview", corrNr: undefined, confirm: undefined }),
+      cfg({ allowTransports: ["auto"] }),
+      { autoResolve: true },
+    );
+    expect(v.allowed).toBe(true);
+    if (v.allowed) {
+      expect(v.corrNrResolution).toBe("session");
+      expect(v.notes.some((n) => /would refuse unless a transport request/.test(n))).toBe(false);
+    }
+  });
+});
+
 describe("evaluateImgWrite: happy path", () => {
   it("allows a fully valid upsert and discloses the view-event-module caveat", () => {
     const v = evaluateImgWrite(probe(), req(), cfg());

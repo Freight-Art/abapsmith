@@ -151,6 +151,8 @@ export const CUSTOMIZING_REQUEST_FM = Object.freeze({
 export interface CustomizingRequestPlan {
   readonly description: string;
   readonly owner?: string;
+  /** "W" (customizing, task type Q, default) or "K" (workbench, task type S). */
+  readonly requestType?: "W" | "K";
 }
 
 /**
@@ -193,6 +195,12 @@ export function validateCustomizingRequestPlan(p: CustomizingRequestPlan): void 
   if (p.owner !== undefined) {
     assertCustomizingOwner(p.owner);
   }
+
+  if (p.requestType !== undefined && p.requestType !== "W" && p.requestType !== "K") {
+    throw new AbapError("BAD_INPUT", `request type must be "W" or "K", got ${JSON.stringify(p.requestType)}.`, {
+      value: p.requestType,
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -203,6 +211,7 @@ export interface CustomizingRequestTranscript {
   request?: string;
   task?: string;
   taskType?: string;
+  requestType?: string;
   errors: string[];
   warnings: string[];
 }
@@ -294,6 +303,11 @@ export function parseCustomizingRequestTranscript(text: string): CustomizingRequ
         case "TASKTYPE": {
           const parsed = extractCustReqValue(remainder, CUSTREQ_VAL_RE);
           if (parsed) result.taskType = parsed.value;
+          break;
+        }
+        case "REQTYPE": {
+          const parsed = extractCustReqValue(remainder, CUSTREQ_VAL_RE);
+          if (parsed) result.requestType = parsed.value;
           break;
         }
         case "ERROR": {

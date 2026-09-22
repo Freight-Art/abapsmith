@@ -132,6 +132,21 @@ describe("validateCustomizingRequestPlan", () => {
   it("rejects an empty owner", () => {
     expectBadInput(() => validateCustomizingRequestPlan(basePlan({ owner: "" })));
   });
+
+  it.each(["W", "K"] as const)("accepts requestType %s", (requestType) => {
+    expect(() => validateCustomizingRequestPlan(basePlan({ requestType }))).not.toThrow();
+  });
+
+  it('rejects requestType "X" with a message that says it must be "W" or "K"', () => {
+    try {
+      validateCustomizingRequestPlan(basePlan({ requestType: "X" as unknown as "W" }));
+      throw new Error("expected to throw");
+    } catch (e) {
+      if (!isAbapError(e)) throw e;
+      expect((e as AbapError).code).toBe("BAD_INPUT");
+      expect((e as AbapError).message).toContain('request type must be "W" or "K"');
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -292,5 +307,20 @@ describe("parseCustomizingRequestTranscript", () => {
     expect(() => parseCustomizingRequestTranscript(text)).not.toThrow();
     const t = parseCustomizingRequestTranscript(text);
     expect(t.taskType).toBeUndefined();
+  });
+
+  it("parses a CTSW> REQTYPE line into requestType", () => {
+    const text = `${CUSTREQ_LINE_PREFIX}REQTYPE len=[1] value=[K]`;
+    const t = parseCustomizingRequestTranscript(text);
+    expect(t.requestType).toBe("K");
+  });
+
+  it("leaves requestType undefined when a transcript carries no REQTYPE line", () => {
+    const text = [
+      `${CUSTREQ_LINE_PREFIX}REQUEST len=[10] value=[AAAK900050]`,
+      `${CUSTREQ_LINE_PREFIX}TASK len=[10] value=[AAAK900051]`,
+    ].join("\n");
+    const t = parseCustomizingRequestTranscript(text);
+    expect(t.requestType).toBeUndefined();
   });
 });

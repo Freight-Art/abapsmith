@@ -531,7 +531,14 @@ async function withJournal(fn: (j: Journal) => Promise<void>): Promise<void> {
  */
 function depsFor(
   conn: AbapConnection,
-  opts: { safety?: SafetyGate; maxResponseChars?: number; journal?: Journal; language?: string; ensureConnected?: () => Promise<void> } = {},
+  opts: {
+    safety?: SafetyGate;
+    maxResponseChars?: number;
+    journal?: Journal;
+    language?: string;
+    ensureConnected?: () => Promise<void>;
+    transport?: ImgEditToolDeps["transport"];
+  } = {},
 ): ImgEditToolDeps {
   return {
     pool: fakePool(conn),
@@ -540,12 +547,20 @@ function depsFor(
     errorResult,
     cfg: cfg({ maxResponseChars: opts.maxResponseChars, language: opts.language }),
     journal: opts.journal ?? disabledJournal,
+    ...(opts.transport !== undefined ? { transport: opts.transport } : {}),
   };
 }
 
 async function registered(
   conn: AbapConnection,
-  opts: { safety?: SafetyGate; maxResponseChars?: number; journal?: Journal; language?: string; ensureConnected?: () => Promise<void> } = {},
+  opts: {
+    safety?: SafetyGate;
+    maxResponseChars?: number;
+    journal?: Journal;
+    language?: string;
+    ensureConnected?: () => Promise<void>;
+    transport?: ImgEditToolDeps["transport"];
+  } = {},
 ): Promise<{
   tools: Map<string, { config: Record<string, unknown>; handler: (args: unknown) => Promise<CallToolResult> }>;
   deps: ImgEditToolDeps;
@@ -555,6 +570,33 @@ async function registered(
   registerImgEditTools(mcp, deps);
   return { tools, deps };
 }
+
+/**
+ * Minimal `SessionTrOwner` fake for issue #176's auto-resolve path: `created` tracks the trkorrs
+ * this "session" itself minted (via `abap_img_edit create_request` or `abap_transport create`),
+ * `createdThisSession` answers whether a given trkorr is one of them, and `trkorr` is the general
+ * session transport `previewSessionCorrNr`/`resolveSessionCorrNr` fall back to for a workbench
+ * request when nothing has been cached under the "workbench" kind yet — undefined here since these
+ * tests exercise the img-edit-specific cache (`sessionImgRequests`), not that fallback.
+ */
+function fakeTransport(trkorr?: string): ImgEditToolDeps["transport"] {
+  const created = new Set<string>();
+  return {
+    trkorr,
+    createdThisSession: (t: string) => created.has(t.toUpperCase()),
+    noteCreated: (t: string) => {
+      created.add(t.toUpperCase());
+    },
+  };
+}
+
+/** `allowTransports: ["auto"]` — the config surface `transportAllowlistHasAuto` reads. */
+const autoGate = (): SafetyGate =>
+  new SafetyGate({ readOnly: false, allowPackages: ["*"], allowNamePrefixes: ["*"], writesLockedOut: false, allowTransports: ["auto"] });
+
+/** `allowTransports: []` — deny-all, never counts as "auto" even with a session transport present. */
+const denyAllTransportsGate = (): SafetyGate =>
+  new SafetyGate({ readOnly: false, allowPackages: ["*"], allowNamePrefixes: ["*"], writesLockedOut: false, allowTransports: [] });
 
 // ----------------------------------------------------------------------- fixtures ---
 
@@ -687,12 +729,62 @@ const REQUEST_PLUS_SCAFFOLD_ERROR_TRANSCRIPT = `CTSW> REQUEST len=[10] value=[A4
 /** The `NO_TASK` *warning* path (current `customizing-request.ts` behaviour): a number always comes back, and a missing task is reported as a `WARN` line rather than aborting the transcript. */
 const REQUEST_PLUS_NO_TASK_WARNING_TRANSCRIPT = `CTSW> REQUEST len=[10] value=[A4HK900002]\nCTSW> WARN code=[NO_TASK] len=[10] value=[A4HK900002]\n`;
 
+/**
+ * Same table/row shape as `PROBE_TRANSCRIPT_EXISTING`, but `cccoractiv=[1]` (auto-record ON) instead
+ * of blank — `classifyCccoractiv` then reads this as NOT proven off, so `evaluateImgWrite`'s
+ * `corrRequired` is true even though the table is client-dependent (img-write-policy.ts: `corrRequired
+ * = !(clientDependent === true && recordingProvenOff)`). This is the fixture issue #176's auto-resolve
+ * tests need: a corr_nr genuinely required, on an otherwise ordinary writable table.
+ */
+const PROBE_TRANSCRIPT_CORR_REQUIRED =
+  `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[1]\n` +
+  `IMGW> TABLE table=[ztest_imgw] delclass=[C] clidep=[X]\n` +
+  `IMGW> FLD table=[ztest_imgw] field=[ZKEY] key=[X] type=[CHAR] len=[10] rollname=[ZKEY]\n` +
+  `IMGW> FLD table=[ztest_imgw] field=[ZDESC] key=[] type=[CHAR] len=[40] rollname=[ZDESC]\n` +
+  `IMGW> BVAL row=[1] field=[ZKEY] len=[1] value=[A]\n` +
+  `IMGW> BVAL row=[1] field=[ZDESC] len=[3] value=[Old]\n` +
+  `IMGW> PROBED rows=[1]\n`;
+
+/** A minted request/task, distinct numbers from `CREATE_REQUEST_TRANSCRIPT` so a test can tell which create call answered which invocation if both run in the same test. */
+const CREATE_REQUEST_TRANSCRIPT_SESSION = `CTSW> REQUEST len=[10] value=[A4HK900050]\nCTSW> TASK len=[10] value=[A4HK900051]\n`;
+
+/**
+ * Client-independent table (`clidep=[]`), fixture for the tabkey-rendering sibling test: the
+ * generated ABAP only prefixes TABKEY with `sy-mandt` for a client-dependent table (`lv_has_client`),
+ * so this must render unprefixed even though the apply transcript below carries a full `IMGW> CLIENT`
+ * line.
+ */
+const PROBE_TRANSCRIPT_CLIENT_INDEP =
+  `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+  `IMGW> TABLE table=[zcind] delclass=[C] clidep=[]\n` +
+  `IMGW> FLD table=[zcind] field=[ZKEY] key=[X] type=[CHAR] len=[10] rollname=[ZKEY]\n` +
+  `IMGW> FLD table=[zcind] field=[ZDESC] key=[] type=[CHAR] len=[40] rollname=[ZDESC]\n` +
+  `IMGW> BVAL row=[1] field=[ZKEY] len=[1] value=[A]\n` +
+  `IMGW> BVAL row=[1] field=[ZDESC] len=[3] value=[Old]\n` +
+  `IMGW> PROBED rows=[1]\n`;
+
+const APPLY_TRANSCRIPT_CLIENT_INDEP_TABKEY =
+  `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+  `IMGW> TABLE table=[zcind] delclass=[C] clidep=[]\n` +
+  `IMGW> BVAL row=[1] field=[ZDESC] len=[3] value=[Old]\n` +
+  `IMGW> TRKEY row=[1] trkorr=[A4HK900001] len=[4] value=[ZTMD]\n` +
+  `IMGW> AVAL row=[1] field=[ZDESC] len=[3] value=[New]\n` +
+  `IMGW> APPLIED rows=[1]\n`;
+
 const BASE_ARGS = {
   table: "ZTEST_IMGW",
   key_fields: ["ZKEY"],
   view: "ZTEST_IMGW_V",
   master_type: "VDAT" as const,
   corr_nr: "A4HK900001",
+};
+
+/** `BASE_ARGS` without `corr_nr` — issue #176's auto-resolve tests need the field genuinely omitted, not merely overridden, so corr_nr resolution runs. */
+const BASE_ARGS_NO_CORR = {
+  table: "ZTEST_IMGW",
+  key_fields: ["ZKEY"],
+  view: "ZTEST_IMGW_V",
+  master_type: "VDAT" as const,
 };
 
 // ===========================================================================
@@ -1115,6 +1207,37 @@ describe("abap_img_edit — armed transport entry identity disclosure", () => {
     expect(tokens).toContain("ZTMD");
     expect(tokens).not.toContain("001ZTMD");
     expect(text).toContain("key portion only");
+  });
+
+  it("a client-independent table's tabkey renders unprefixed even with an IMGW> CLIENT line present (issue #176)", async () => {
+    const { conn } = await connected(
+      multiBridgeHappyPath({
+        preview: () => resp(200, PROBE_TRANSCRIPT_CLIENT_INDEP),
+        apply: () => resp(200, APPLY_TRANSCRIPT_CLIENT_INDEP_TABKEY),
+      }),
+    );
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "upsert",
+      table: "ZCIND",
+      key_fields: ["ZKEY"],
+      view: "ZCIND_V",
+      master_type: "VDAT",
+      allow_cross_client: true,
+      corr_nr: "A4HK900001",
+      confirm: "ZCIND",
+      rows: [{ key: { ZKEY: "A" }, values: { ZDESC: "New" } }],
+    });
+    const section = transportSection(okText(result));
+    const tokens = section.split(/\s+/).filter(Boolean);
+
+    // Unlike the client-dependent ZTMD case above, the generated ABAP only prefixes TABKEY with
+    // sy-mandt when lv_has_client is true (renderArmed: `clientDependent && mandt !== undefined`) —
+    // a client-independent table's transport entry key stays bare even though the transcript below
+    // still carries a full IMGW> CLIENT line.
+    expect(tokens).toContain("ZTMD");
+    expect(tokens).not.toContain("001ZTMD");
   });
 
   it("a delete also records a CTS entry, and the section renders the same identity/tabkey disclosure", async () => {
@@ -1698,6 +1821,355 @@ describe("abap_img_edit — mode: create_request", () => {
 });
 
 // ===========================================================================
+// ABAP_ALLOW_TRANSPORTS=auto (issue #176): under `auto`, abap_img_edit may accept a caller-named
+// corr_nr this session itself created (via create_request or abap_transport create), and — when
+// corr_nr is omitted and a transport is genuinely required — resolve one itself: reuse a request
+// this session already minted for the same kind (customizing for a client-dependent table,
+// workbench for a client-independent one), or mint a new one through the same create_request
+// bridge. Deny-all (`allowTransports: []`) and an explicit non-"auto" allowlist are unchanged by any
+// of this — see the existing corr-nr-required/corr-nr-not-allowed tests elsewhere in this file.
+// ===========================================================================
+
+describe("abap_img_edit — ABAP_ALLOW_TRANSPORTS=auto (issue #176)", () => {
+  describe("create_request: request_type", () => {
+    it('request_type: "workbench" sends requestType K, renders it, and notes the session created the request', async () => {
+      const { conn, inner } = await connected(
+        multiBridgeHappyPath({ create_request: () => resp(200, CREATE_REQUEST_TRANSCRIPT_SESSION) }),
+      );
+      const transport = fakeTransport();
+      const { tools } = await registered(conn, { transport });
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "create_request",
+        description: "Workbench request",
+        request_type: "workbench",
+      });
+      const text = okText(result);
+
+      expect(text).toContain("requestType: workbench");
+      expect(text).toContain("A4HK900050");
+
+      const put = inner.calls.find(
+        (c) =>
+          (c.method ?? "GET").toUpperCase() === "PUT" &&
+          INVOKER_SOURCE_URL_RE.test(c.url) &&
+          invokerActionOf(c.body) === "create_request",
+      );
+      expect(put).toBeDefined();
+      const args = JSON.parse(invokerArgsJson(String(put!.body))) as { request_type?: string };
+      expect(args.request_type).toBe("K");
+
+      expect(transport.createdThisSession("A4HK900050")).toBe(true);
+    });
+
+    it("default (no request_type) sends requestType W, and still notes the session created the request", async () => {
+      const { conn, inner } = await connected(
+        multiBridgeHappyPath({ create_request: () => resp(200, CREATE_REQUEST_TRANSCRIPT) }),
+      );
+      const transport = fakeTransport();
+      const { tools } = await registered(conn, { transport });
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "create_request",
+        description: "Default request",
+      });
+      const text = okText(result);
+
+      expect(text).toContain("requestType: customizing");
+
+      const put = inner.calls.find(
+        (c) =>
+          (c.method ?? "GET").toUpperCase() === "PUT" &&
+          INVOKER_SOURCE_URL_RE.test(c.url) &&
+          invokerActionOf(c.body) === "create_request",
+      );
+      const args = JSON.parse(invokerArgsJson(String(put!.body))) as { request_type?: string };
+      expect(args.request_type).toBe("W");
+
+      expect(transport.createdThisSession("A4HK900002")).toBe(true);
+    });
+
+    it("rejects request_type on a row-edit mode (upsert) with BAD_INPUT before any network call", async () => {
+      const { conn, inner } = await connected(
+        multiBridgeHappyPath({
+          preview: () => resp(200, PROBE_TRANSCRIPT_EXISTING),
+          apply: () => resp(200, APPLY_TRANSCRIPT_UPSERT),
+        }),
+      );
+      const { tools } = await registered(conn);
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "upsert",
+        ...BASE_ARGS,
+        confirm: "ZTEST_IMGW",
+        rows: [{ key: { ZKEY: "A" }, values: { ZDESC: "New" } }],
+        request_type: "workbench",
+      });
+
+      expect(errorPayload(result).error).toBe("BAD_INPUT");
+      expect(inner.calls).toHaveLength(0);
+    });
+  });
+
+  describe("armed upsert, corr_nr omitted, recording required: this session resolves one", () => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    it("client-dependent table (CCCORACTIV=1): mints a customizing request, applies, and discloses session-created", async () => {
+      await withJournal(async (journal) => {
+        const { conn, inner } = await connected(
+          multiBridgeHappyPath({
+            preview: () => resp(200, PROBE_TRANSCRIPT_CORR_REQUIRED),
+            create_request: () => resp(200, CREATE_REQUEST_TRANSCRIPT_SESSION),
+            apply: () => resp(200, APPLY_TRANSCRIPT_UPSERT),
+          }),
+        );
+        const transport = fakeTransport();
+        const { tools } = await registered(conn, { safety: autoGate(), transport, journal });
+
+        const result = await invoke(tools, "abap_img_edit", {
+          mode: "upsert",
+          ...BASE_ARGS_NO_CORR,
+          confirm: "ZTEST_IMGW",
+          rows: [{ key: { ZKEY: "A" }, values: { ZDESC: "New" } }],
+        });
+        const text = okText(result);
+
+        expect(text).toContain(
+          "corr_nr was not supplied; this session recorded on A4HK900050 (customizing request created now).",
+        );
+        expect(text).toContain("corrNrSource: session-created");
+        expect(transport.createdThisSession("A4HK900050")).toBe(true);
+
+        const createPut = inner.calls.find(
+          (c) =>
+            (c.method ?? "GET").toUpperCase() === "PUT" &&
+            INVOKER_SOURCE_URL_RE.test(c.url) &&
+            invokerActionOf(c.body) === "create_request",
+        );
+        expect(createPut).toBeDefined();
+        const createArgs = JSON.parse(invokerArgsJson(String(createPut!.body))) as {
+          description?: string;
+          request_type?: string;
+        };
+        expect(createArgs.description).toBe(`abapsmith customizing request ${today}`);
+        expect(createArgs.request_type).toBe("W");
+
+        const entries = await journal.list({});
+        const rowEntry = entries.find((e) => e.operation === "update");
+        expect(rowEntry).toBeDefined();
+        expect(rowEntry!.trSource).toBe("session-created");
+      });
+    });
+
+    it("client-independent table: mints a workbench request, applies, and discloses session-created", async () => {
+      const { conn, inner } = await connected(
+        multiBridgeHappyPath({
+          preview: () => resp(200, PROBE_TRANSCRIPT_CLIENT_INDEP),
+          create_request: () => resp(200, CREATE_REQUEST_TRANSCRIPT_SESSION),
+          apply: () => resp(200, APPLY_TRANSCRIPT_CLIENT_INDEP_TABKEY),
+        }),
+      );
+      const transport = fakeTransport();
+      const { tools } = await registered(conn, { safety: autoGate(), transport });
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "upsert",
+        table: "ZCIND",
+        key_fields: ["ZKEY"],
+        view: "ZCIND_V",
+        master_type: "VDAT",
+        allow_cross_client: true,
+        confirm: "ZCIND",
+        rows: [{ key: { ZKEY: "A" }, values: { ZDESC: "New" } }],
+      });
+      const text = okText(result);
+
+      expect(text).toContain(
+        "corr_nr was not supplied; this session recorded on A4HK900050 (workbench request created now).",
+      );
+      expect(text).toContain("corrNrSource: session-created");
+      expect(transport.createdThisSession("A4HK900050")).toBe(true);
+
+      const createPut = inner.calls.find(
+        (c) =>
+          (c.method ?? "GET").toUpperCase() === "PUT" &&
+          INVOKER_SOURCE_URL_RE.test(c.url) &&
+          invokerActionOf(c.body) === "create_request",
+      );
+      const createArgs = JSON.parse(invokerArgsJson(String(createPut!.body))) as {
+        description?: string;
+        request_type?: string;
+      };
+      expect(createArgs.description).toBe(`abapsmith workbench request ${today}`);
+      expect(createArgs.request_type).toBe("K");
+    });
+
+    it("a request already cached from an earlier create_request call in this session is reused, not recreated", async () => {
+      const { conn, inner } = await connected(
+        multiBridgeHappyPath({
+          create_request: () => resp(200, CREATE_REQUEST_TRANSCRIPT_SESSION),
+          preview: () => resp(200, PROBE_TRANSCRIPT_CORR_REQUIRED),
+          apply: () => resp(200, APPLY_TRANSCRIPT_UPSERT),
+        }),
+      );
+      const transport = fakeTransport();
+      const { tools } = await registered(conn, { safety: autoGate(), transport });
+
+      const createResult = await invoke(tools, "abap_img_edit", {
+        mode: "create_request",
+        description: "Pre-minted customizing request",
+      });
+      okText(createResult);
+
+      const createRequestPuts = () =>
+        inner.calls.filter(
+          (c) =>
+            (c.method ?? "GET").toUpperCase() === "PUT" &&
+            INVOKER_SOURCE_URL_RE.test(c.url) &&
+            invokerActionOf(c.body) === "create_request",
+        ).length;
+      expect(createRequestPuts()).toBe(1);
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "upsert",
+        ...BASE_ARGS_NO_CORR,
+        confirm: "ZTEST_IMGW",
+        rows: [{ key: { ZKEY: "A" }, values: { ZDESC: "New" } }],
+      });
+      const text = okText(result);
+
+      expect(text).toContain(
+        "corr_nr was not supplied; this session recorded on A4HK900050 (customizing request created earlier in this session).",
+      );
+      expect(text).toContain("corrNrSource: session-cached");
+      // No second create_request invoker was ever written — the cache short-circuited resolution.
+      expect(createRequestPuts()).toBe(1);
+    });
+  });
+
+  describe("named corr_nr under auto", () => {
+    it("a named corr_nr this session created is accepted, applies, and shows corrNrSource caller", async () => {
+      const { conn, inner } = await connected(
+        multiBridgeHappyPath({
+          preview: () => resp(200, PROBE_TRANSCRIPT_CORR_REQUIRED),
+          apply: () => resp(200, APPLY_TRANSCRIPT_UPSERT),
+        }),
+      );
+      const transport = fakeTransport();
+      transport.noteCreated("A4HK900077");
+      const { tools } = await registered(conn, { safety: autoGate(), transport });
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "upsert",
+        ...BASE_ARGS_NO_CORR,
+        corr_nr: "A4HK900077",
+        confirm: "ZTEST_IMGW",
+        rows: [{ key: { ZKEY: "A" }, values: { ZDESC: "New" } }],
+      });
+      const text = okText(result);
+
+      expect(text).toContain("corrNrSource: caller");
+      expect(text).toContain("A4HK900077");
+      expect(actionRan(inner, "apply")).toBe(true);
+    });
+
+    it("a named corr_nr this session does not know is refused SAFETY_DENIED/corr-nr-not-allowed, before any apply deploy", async () => {
+      const { conn, inner } = await connected(
+        multiBridgeHappyPath({
+          preview: () => resp(200, PROBE_TRANSCRIPT_CORR_REQUIRED),
+          apply: () => resp(200, APPLY_TRANSCRIPT_UPSERT),
+        }),
+      );
+      const transport = fakeTransport();
+      const { tools } = await registered(conn, { safety: autoGate(), transport });
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "upsert",
+        ...BASE_ARGS_NO_CORR,
+        corr_nr: "A4HK900099",
+        confirm: "ZTEST_IMGW",
+        rows: [{ key: { ZKEY: "A" }, values: { ZDESC: "New" } }],
+      });
+      const err = errorPayload(result);
+
+      expect(err.error).toBe("SAFETY_DENIED");
+      expect((err.details as Record<string, unknown>).rule).toBe("corr-nr-not-allowed");
+      expect(actionRan(inner, "apply")).toBe(false);
+    });
+  });
+
+  describe("preview under auto, corr_nr omitted", () => {
+    it("no cached request: says a new request would be created, and creates nothing", async () => {
+      const { conn, inner } = await connected(
+        multiBridgeHappyPath({ preview: () => resp(200, PROBE_TRANSCRIPT_CORR_REQUIRED) }),
+      );
+      const transport = fakeTransport();
+      const { tools } = await registered(conn, { safety: autoGate(), transport });
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "preview",
+        ...BASE_ARGS_NO_CORR,
+        rows: [{ key: { ZKEY: "A" }, values: { ZDESC: "New" } }],
+      });
+      const text = okText(result);
+
+      expect(text).toContain("Applying this change would create a new customizing request");
+      expect(actionRan(inner, "create_request")).toBe(false);
+    });
+
+    it("a cached request: names it instead of promising a new one", async () => {
+      const { conn, inner } = await connected(
+        multiBridgeHappyPath({
+          create_request: () => resp(200, CREATE_REQUEST_TRANSCRIPT_SESSION),
+          preview: () => resp(200, PROBE_TRANSCRIPT_CORR_REQUIRED),
+        }),
+      );
+      const transport = fakeTransport();
+      const { tools } = await registered(conn, { safety: autoGate(), transport });
+
+      const createResult = await invoke(tools, "abap_img_edit", {
+        mode: "create_request",
+        description: "Pre-minted for preview",
+      });
+      okText(createResult);
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "preview",
+        ...BASE_ARGS_NO_CORR,
+        rows: [{ key: { ZKEY: "A" }, values: { ZDESC: "New" } }],
+      });
+      const text = okText(result);
+
+      expect(text).toContain(
+        "Applying this change would record on A4HK900050 (customizing request known to this session).",
+      );
+      expect(actionRan(inner, "apply")).toBe(false);
+    });
+  });
+
+  it("deny-all (allowTransports []) with corr_nr omitted and required: refused corr-nr-required, no transport calls", async () => {
+    const { conn, inner } = await connected(
+      multiBridgeHappyPath({ preview: () => resp(200, PROBE_TRANSCRIPT_CORR_REQUIRED) }),
+    );
+    const transport = fakeTransport();
+    const { tools } = await registered(conn, { safety: denyAllTransportsGate(), transport });
+
+    const result = await invoke(tools, "abap_img_edit", {
+      mode: "upsert",
+      ...BASE_ARGS_NO_CORR,
+      confirm: "ZTEST_IMGW",
+      rows: [{ key: { ZKEY: "A" }, values: { ZDESC: "New" } }],
+    });
+    const err = errorPayload(result);
+
+    expect(err.error).toBe("SAFETY_DENIED");
+    expect((err.details as Record<string, unknown>).rule).toBe("corr-nr-required");
+    expect(actionRan(inner, "create_request")).toBe(false);
+    expect(actionRan(inner, "apply")).toBe(false);
+  });
+});
+
+// ===========================================================================
 // Language default/validation (A1): the catalog SPRAS columns this tool
 // eventually reads through are one character wide — a 2-letter ISO code
 // like "EN" is rejected by `assertImgLanguage`, not silently accepted or
@@ -2052,6 +2524,84 @@ describe("abap_img_edit — target selection (activity / object / table)", () =>
       expect(String(err.message)).toContain("spans 2 base tables");
       expect(String(err.message)).toMatch(/ZTABA/);
       expect(String(err.message)).toMatch(/ZTABB/);
+      expect(probeRan(inner)).toBe(false);
+    });
+
+    // issue #176: splitClientField's CLNT-typed-field derivation has no field to find on a table
+    // with no CLNT component at all. For a client-independent table that is not a refusal — there is
+    // no client to strip, so the bridge writes with a MANDT placeholder and every key field stays a
+    // key field. For a client-dependent table it is still BAD_INPUT: DD02L says the table needs a
+    // client, but nothing in the field list says which one that is.
+    const zcitDcBody = body({ TABNAME: ["ZCIT"], CONTFLAG: ["C"], CLIDEP: [""] });
+    const zcitTextBody = body({ TABNAME: ["ZCIT"], DDTEXT: ["Client-independent, no CLNT field"] });
+    const zcitFieldsBody = body({
+      TABNAME: ["ZCIT", "ZCIT"],
+      FIELDNAME: ["ZKEY", "ZDESC"],
+      POSITION: ["0001", "0002"],
+      KEYFLAG: ["X", ""],
+      DATATYPE: ["CHAR", "CHAR"],
+      LENG: ["000010", "000040"],
+      ROLLNAME: ["ZKEY", "ZDESC"],
+    });
+    const ZCIT_IMG_BODIES = [zcitDcBody, zcitTextBody, zcitFieldsBody, zcitDcBody, zcitTextBody, zcitFieldsBody];
+
+    const PROBE_TRANSCRIPT_ZCIT =
+      `IMGW> CLIENT mandt=[001] cccategory=[] cccoractiv=[]\n` +
+      `IMGW> TABLE table=[ZCIT] delclass=[C] clidep=[]\n` +
+      `IMGW> FLD table=[ZCIT] field=[ZKEY] key=[X] type=[CHAR] len=[10] rollname=[ZKEY]\n` +
+      `IMGW> FLD table=[ZCIT] field=[ZDESC] key=[] type=[CHAR] len=[40] rollname=[ZDESC]\n` +
+      `IMGW> BVAL row=[1] field=[ZKEY] len=[1] value=[A]\n` +
+      `IMGW> BVAL row=[1] field=[ZDESC] len=[3] value=[Old]\n` +
+      `IMGW> PROBED rows=[1]\n`;
+
+    it("object -> client-independent table, no CLNT-typed field: allow_cross_client lets the preview proceed with Client field MANDT and every key field as a key field (issue #176)", async () => {
+      const route = resolutionRoute(ZCIT_IMG_BODIES, { preview: () => resp(200, PROBE_TRANSCRIPT_ZCIT) });
+      const { conn, inner } = await connected(route);
+      const { tools } = await registered(conn);
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "preview",
+        object: "ZCIT",
+        kind: "table",
+        allow_cross_client: true,
+        rows: [{ key: { ZKEY: "A" } }],
+      });
+      const text = okText(result);
+
+      expect(text).toContain("Client field: MANDT");
+      expect(text).toContain("Key fields (in order): ZKEY");
+      expect(probeRan(inner)).toBe(true);
+    });
+
+    const zcdtDcBody = body({ TABNAME: ["ZCDT"], CONTFLAG: ["C"], CLIDEP: ["X"] });
+    const zcdtTextBody = body({ TABNAME: ["ZCDT"], DDTEXT: ["Client-dependent, no CLNT field"] });
+    const zcdtFieldsBody = body({
+      TABNAME: ["ZCDT", "ZCDT"],
+      FIELDNAME: ["ZKEY", "ZDESC"],
+      POSITION: ["0001", "0002"],
+      KEYFLAG: ["X", ""],
+      DATATYPE: ["CHAR", "CHAR"],
+      LENG: ["000010", "000040"],
+      ROLLNAME: ["ZKEY", "ZDESC"],
+    });
+    const ZCDT_IMG_BODIES = [zcdtDcBody, zcdtTextBody, zcdtFieldsBody, zcdtDcBody, zcdtTextBody, zcdtFieldsBody];
+
+    it("object -> client-dependent table, no CLNT-typed field: still refuses BAD_INPUT naming DD02L, even with allow_cross_client (issue #176)", async () => {
+      const route = resolutionRoute(ZCDT_IMG_BODIES, {});
+      const { conn, inner } = await connected(route);
+      const { tools } = await registered(conn);
+
+      const result = await invoke(tools, "abap_img_edit", {
+        mode: "preview",
+        object: "ZCDT",
+        kind: "table",
+        allow_cross_client: true,
+        rows: [{ key: { ZKEY: "A" } }],
+      });
+      const err = errorPayload(result);
+
+      expect(err.error).toBe("BAD_INPUT");
+      expect(String(err.message)).toContain("DD02L marks client-dependent");
       expect(probeRan(inner)).toBe(false);
     });
   });
