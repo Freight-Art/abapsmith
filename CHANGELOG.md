@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.17] - 2026-09-22
+
 ### Added
 
 - **`abap_bopf_edit` checks enum-valued `spec` fields client-side** (#153): `spec.multiplicity` and `spec.implementationType` on `add_association`, `spec.instanceMultiplicity` and `spec.exportingParameterCategoryType` on `add_action`, `spec.category` on `add_determination`/`add_validation`/`add_query`, `spec.relations[].relationType` on `add_determination`, and `spec.uniqueness` on `add_alternative_key` (plus the matching `set_*_fields` calls). An out-of-set value never reaches the server: it is refused `BAD_INPUT` in the shape `spec.instanceMultiplicity "1_1" is not one of "0" (…), "1" (…), "2" (…)`, with every accepted value's meaning spelled out in the message. An action's `category` is an opaque numeric code and stays unchecked; a determination `category` of `"undefined"` is refused rather than silently accepted, since BOPF defaults an omitted category to that exact string server-side and the determination then never fires.
@@ -27,6 +29,7 @@ version was set to `0.3.0`, which is intended.
 ### Fixed
 
 - **`abap_bopf_edit add_action` with an out-of-set `instanceMultiplicity` (e.g. `"1_1"`) no longer reaches the server** (#153). It previously produced an opaque `ExceptionInvalidData`; it now fails `BAD_INPUT` before any request is sent, naming the accepted values.
+
 ## [0.6.16] - 2026-09-22
 
 ### Added
