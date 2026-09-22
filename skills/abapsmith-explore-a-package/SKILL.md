@@ -12,7 +12,9 @@ Read-only. Nothing here writes to the system — this is `abap_search` and
 
 1. `abap_search mode="objects"` — find the package by name pattern.
 2. `abap_read` the package itself, `type: "DEVC/K"` — lists its direct contents.
-3. `abap_read` a class of interest with `outline: true` — its component list.
+3. `abap_read` a class of interest — above 150 lines / 8000 chars the answer
+   is its outline (component list) by default; `outline: true` asks for it
+   on a small class, `full: true` for the whole source of a large one.
 4. `abap_read` one method by name — `method:` — instead of the whole class.
 5. `abap_search mode="where_used"` — who calls this object.
 6. `abap_read view="history"` / `view="diff"` — what changed and when.

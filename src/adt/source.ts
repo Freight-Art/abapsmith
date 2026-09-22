@@ -894,7 +894,7 @@ export function availableMembersMax(): number {
 }
 
 /** Plain Levenshtein edit distance, no dependencies. */
-function levenshtein(a: string, b: string): number {
+export function levenshtein(a: string, b: string): number {
   const prev = Array.from({ length: b.length + 1 }, (_, j) => j);
   for (let i = 1; i <= a.length; i++) {
     let diag = prev[0] ?? 0;
@@ -1174,4 +1174,176 @@ export function renderInheritedOutline(rows: InheritedMember[]): string {
     for (const r of list) out.push(outlineRow(r, "    "));
   }
   return out.join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Pure text helpers for issue #148: `pattern=` (grep -n -C over a source
+// document) and the statement-structure outline PROG/FUGR get instead of the
+// ADT component structure that only classes and interfaces have.
+// ---------------------------------------------------------------------------
+
+export interface GrepOptions {
+  /** Unchanged lines shown around each match (like `grep -C`). */
+  context: number;
+  /** 1-based first source line to scan; earlier lines are not examined. */
+  fromLine: number;
+  /** Matching lines rendered at most; the rest is disclosed, not dropped silently. */
+  maxMatches: number;
+}
+
+export interface GrepResult {
+  /** `NNN: text` (match) / `NNN- text` (context) rows, groups separated by `--`. */
+  text: string;
+  /** Matching lines from `fromLine` to the end of the document. */
+  total: number;
+  /** Matching lines actually rendered (`<= maxMatches`). */
+  shown: number;
+  /** 1-based line of the last rendered match — `offset` for the next chunk is `+ 1`. */
+  lastShownLine?: number;
+  truncated: boolean;
+}
+
+/**
+ * Case-insensitive regex scan over the lines of `source`, rendered the way
+ * `grep -n -C<context>` renders: the line number, `:` for a matching line,
+ * `-` for a context line, `--` between non-adjacent groups. Windows around
+ * adjacent matches are merged so no line is printed twice. Line numbers are
+ * absolute in `source` — the same frame `offset=` uses — so a hit can be
+ * read around with offset/limit directly.
+ *
+ * Counts ALL matches from `fromLine` on (`total`) even past the cap, so the
+ * response can say how much was not shown; only the first `maxMatches` are
+ * rendered (context included).
+ */
+export function grepSource(source: string, pattern: string, opts: GrepOptions): GrepResult {
+  const re = new RegExp(pattern, "i");
+  const lines = source === "" ? [] : source.replace(/\r\n/g, "\n").split("\n");
+  const from = Math.max(1, opts.fromLine);
+  const matches: number[] = [];
+  for (let i = from - 1; i < lines.length; i++) {
+    if (re.test(lines[i]!)) matches.push(i + 1);
+  }
+  const shownMatches = matches.slice(0, Math.max(0, opts.maxMatches));
+  const shownSet = new Set(shownMatches);
+  const width = String(lines.length).length;
+  const out: string[] = [];
+  let prevEnd = 0;
+  for (const m of shownMatches) {
+    const start = Math.max(from, m - opts.context);
+    const end = Math.min(lines.length, m + opts.context);
+    const groupStart = Math.max(start, prevEnd + 1);
+    if (prevEnd > 0 && groupStart > prevEnd + 1) out.push("--");
+    for (let n = groupStart; n <= end; n++) {
+      out.push(`${String(n).padStart(width)}${shownSet.has(n) ? ":" : "-"} ${lines[n - 1]}`);
+    }
+    prevEnd = Math.max(prevEnd, end);
+  }
+  return {
+    text: out.join("\n"),
+    total: matches.length,
+    shown: shownMatches.length,
+    lastShownLine: shownMatches.length ? shownMatches[shownMatches.length - 1] : undefined,
+    truncated: shownMatches.length < matches.length,
+  };
+}
+
+export interface StructureRow {
+  /** Statement keyword as written in ABAP, e.g. "FORM", "START-OF-SELECTION". */
+  kind: string;
+  /** Named unit; empty for event blocks. */
+  name: string;
+  startLine: number;
+  /** Line of the matching END statement, when one was found. */
+  endLine?: number;
+  /** Nesting depth (a METHOD inside a CLASS IMPLEMENTATION is 1). */
+  depth: number;
+}
+
+interface StructureOpener {
+  re: RegExp;
+  /** Row kind; `$n` substitutes the n-th capture group, upper-cased. */
+  kind: string;
+  /** Capture group holding the unit name; undefined for event blocks. */
+  nameGroup?: number;
+  /** END keyword closing the block, or undefined for an event block / flat statement. */
+  closer?: string;
+}
+
+// Anchored at the start of a statement line (leading blanks allowed). Only
+// statements a human would list in a program's table of contents; DATA,
+// TYPES, PARAMETERS and friends are deliberately not here.
+const STRUCTURE_OPENERS: StructureOpener[] = [
+  { re: /^(REPORT|PROGRAM|FUNCTION-POOL)\s+(\S+?)\s*[.\s]/i, kind: "$1", nameGroup: 2 },
+  { re: /^INCLUDE\s+(\S+?)\s*\./i, kind: "INCLUDE", nameGroup: 1 },
+  { re: /^FORM\s+(\S+)/i, kind: "FORM", nameGroup: 1, closer: "ENDFORM" },
+  { re: /^FUNCTION\s+(\S+?)\s*\./i, kind: "FUNCTION", nameGroup: 1, closer: "ENDFUNCTION" },
+  { re: /^MODULE\s+(\S+?)(\s+(?:INPUT|OUTPUT))?\s*\./i, kind: "MODULE", nameGroup: 1, closer: "ENDMODULE" },
+  { re: /^CLASS\s+(\S+)\s+(DEFINITION|IMPLEMENTATION)\b/i, kind: "CLASS $2", nameGroup: 1, closer: "ENDCLASS" },
+  { re: /^INTERFACE\s+(\S+?)\s*[.\s]/i, kind: "INTERFACE", nameGroup: 1, closer: "ENDINTERFACE" },
+  { re: /^METHOD\s+(\S+?)\s*[.\s]/i, kind: "METHOD", nameGroup: 1, closer: "ENDMETHOD" },
+  {
+    re: /^(INITIALIZATION|START-OF-SELECTION|END-OF-SELECTION|TOP-OF-PAGE|END-OF-PAGE|LOAD-OF-PROGRAM|AT LINE-SELECTION|AT USER-COMMAND|AT PF\d+|AT SELECTION-SCREEN[^.]*|GET\s+\S+(?:\s+LATE)?)\s*\./i,
+    kind: "$1",
+  },
+  {
+    re: /^SELECTION-SCREEN\s+BEGIN\s+OF\s+(SCREEN|BLOCK|TABBED BLOCK|LINE)\s+(\S+)/i,
+    kind: "SELECTION-SCREEN $1",
+    nameGroup: 2,
+  },
+];
+
+/**
+ * Table-of-contents scan of a program's or function group's source text:
+ * every FORM/FUNCTION/MODULE/CLASS/INTERFACE/METHOD/INCLUDE statement and
+ * event block, with the line of its END statement where one exists. A text
+ * scan over statement-initial keywords — comment lines (`*` in column 1,
+ * `"` first non-blank) are skipped, nothing else is parsed — so it is an
+ * honest orientation aid, not ADT's component structure.
+ */
+export function scanSourceStructure(source: string): StructureRow[] {
+  const lines = source === "" ? [] : source.replace(/\r\n/g, "\n").split("\n");
+  const rows: StructureRow[] = [];
+  const open: Array<{ row: StructureRow; closer: string }> = [];
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i]!;
+    if (raw.startsWith("*")) continue;
+    const stmt = raw.trim();
+    if (stmt === "" || stmt.startsWith('"')) continue;
+    const endMatch = /^(ENDFORM|ENDFUNCTION|ENDMODULE|ENDCLASS|ENDINTERFACE|ENDMETHOD)\b/i.exec(stmt);
+    if (endMatch) {
+      const closer = endMatch[1]!.toUpperCase();
+      for (let d = open.length - 1; d >= 0; d--) {
+        if (open[d]!.closer === closer) {
+          open[d]!.row.endLine = i + 1;
+          open.length = d;
+          break;
+        }
+      }
+      continue;
+    }
+    for (const opener of STRUCTURE_OPENERS) {
+      const m = opener.re.exec(stmt);
+      if (!m) continue;
+      const kind = opener.kind.replace(/\$(\d)/g, (_s, g: string) =>
+        (m[Number(g)] ?? "").toUpperCase().replace(/\s+/g, " ").trim(),
+      );
+      const name = opener.nameGroup === undefined ? "" : (m[opener.nameGroup] ?? "").replace(/[.,]+$/, "").toUpperCase();
+      const row: StructureRow = { kind, name, startLine: i + 1, depth: open.length };
+      rows.push(row);
+      if (opener.closer) open.push({ row, closer: opener.closer });
+      break;
+    }
+  }
+  return rows;
+}
+
+/** One row per structure element, `renderOutline`-style, with line ranges. */
+export function renderSourceStructure(rows: StructureRow[]): string {
+  return rows
+    .map((r) => {
+      const label = r.name ? `${r.kind} ${r.name}` : r.kind;
+      const loc = r.endLine ? `lines ${r.startLine}-${r.endLine}` : `line ${r.startLine}`;
+      return `  ${"  ".repeat(r.depth)}${label}  ${loc}`;
+    })
+    .join("\n");
 }

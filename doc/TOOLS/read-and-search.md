@@ -13,17 +13,19 @@ Read the source, metadata or outline of an ABAP object.
 |---|---|---|---|---|
 | `object` | string | yes | — | Object reference: bare name, `"class ZCL_FOO"`, or a raw ADT URI. |
 | `type` | string | no | — | ADT type hint, e.g. `CLAS/OC`, to disambiguate a bare name. |
-| `method` | string | no | — | Read one method's source instead of the whole class: its `METHODS` declaration first, then the `METHOD … ENDMETHOD.` body. Resolved against the inactive version's component structure when one exists, then the active one, then up the superclass/interface chain (`foundOn` in the header). With `include="definitions"`, returns the declaration only — the cheap way to learn a signature. With `view="docu"` against a `CLAS` object, selects that method's ABAP Doc comment instead of the class's own SAP documentation — refused against every other `view`. See ["Classes: `method=`, `outline=true`, inherited members and the inactive version"](#classes-method-outlinetrue-inherited-members-and-the-inactive-version). |
-| `outline` | boolean | no | — | Return the structural outline (members/methods) instead of full source. For classes, an `INHERITED` section lists the public/protected members of every superclass and interface with the defining object. |
-| `offset` | number (int, 1–999999) | no | — | 1-based first line to return. |
-| `limit` | number (int, 1–999999) | no | — | Number of lines to return. |
+| `method` | string | no | — | Read one method's source instead of the whole class: its `METHODS` declaration first, then the `METHOD … ENDMETHOD.` body. Resolved against the inactive version's component structure when one exists, then the active one, then up the superclass/interface chain (`foundOn` in the header). With `include="definitions"`, returns the declaration only — the cheap way to learn a signature. With `view="docu"` against a `CLAS` object, selects that method's ABAP Doc comment instead of the class's own SAP documentation — refused against every other `view`. Giving it also opts out of the default outline. See ["Classes: `method=`, `outline=true`, inherited members and the inactive version"](#classes-method-outlinetrue-inherited-members-and-the-inactive-version). |
+| `outline` | boolean | no | automatic — see [Large sources](#large-sources-outline-by-default-pattern-and-full) | `true`: the component list with line ranges instead of the source (`CLAS`/`INTF`: ADT component structure; `PROG`/`FUGR`: a statement scan of the text). `false`: the source, even above the default-outline threshold. Omitted: the outline is the default for a `CLAS`/`INTF`/`PROG`/`FUGR` source read above 150 lines or 8000 chars when no narrower parameter is given. For classes, an `INHERITED` section lists the public/protected members of every superclass and interface with the defining object. |
+| `full` | boolean | no | — | The whole source even above the default-outline threshold — the same as `outline=false`, named for what it asks. Refused with `BAD_INPUT` together with `outline=true`, `method` or `pattern` (whole vs. part cannot both be honoured), with `UNSUPPORTED` together with any `view` and on the raw/enhancements/DDIC paths. |
+| `pattern` | string | no | — | Case-insensitive regex: only the source lines matching it, numbered like `grep -n -C`, with `context` unchanged lines around each match. At most 50 matches per response unless `limit` says otherwise; `offset` is the first line scanned. Empty or invalid → `BAD_INPUT` before any request. Refused with `BAD_INPUT` together with `outline=true`/`method`/`full`, with `UNSUPPORTED` together with any `view`, `format="raw"`, `enhancements=true` and on a DDIC/catalog read. |
+| `offset` | number (int, 1–999999) | no | — | 1-based first line to return (with `pattern`: the first line scanned). Giving it also opts out of the default outline. |
+| `limit` | number (int, 1–999999) | no | — | Number of lines to return (with `pattern`: the match cap). Giving it also opts out of the default outline. |
 | `enhancements` | boolean | no | — | Also report enhancement anchors/implementations on this object. |
 | `version` | enum `active` \| `inactive` | no | `active` | Which version to read. |
 | `format` | enum `raw` | no | — | Return unprocessed source instead of the rendered/annotated form. |
 | `view` | enum `history` \| `diff` \| `definition` \| `lineage` \| `footprint` \| `docu` \| `digest` | no | — | `history`: list the object's version feed (author, date, transport) instead of source/DDIC. `diff`: return unified-diff hunks between two versions — never two full sources. `definition`: element info / go-to-definition for the identifier at `line`/`column` — see ["view=\"definition\": element info and go-to-definition"](#viewdefinition-element-info-and-go-to-definition) below. `lineage`: trace a CDS view's DDL source down to its base tables — see ["view=\"lineage\": CDS view lineage"](#viewlineage-cds-view-lineage) below. `footprint`: scan a PROG/CLAS/FUGR object's own source for database writes and commits — see ["view=\"footprint\": database write footprint"](#viewfootprint-database-write-footprint) below. `docu`: SAP's own documentation for the object (or, with `method=`, one method's ABAP Doc) — see ["view=\"docu\": SAP documentation"](#viewdocu-sap-documentation) below. `digest`: a fixed six-section overview — see ["view=\"digest\": one-page object overview"](#viewdigest-one-page-object-overview) below. Omit for a normal source/DDIC read. |
 | `from` | string | `view="diff"` only | released version before `to` | Older side of the diff — a version number (e.g. `"66"`), a transport name, or the literal `"active"` for current source. Refused together with `from_system`/`to_system` — see below. |
 | `to` | string | `view="diff"` only | newest released version | Newer side of the diff, same forms as `from`. Refused together with `from_system`/`to_system` — see below. |
-| `context` | number (int, 0–20) | no | `3` | `view="diff"` only — unchanged context lines per hunk. Also honoured by a cross-system diff. |
+| `context` | number (int, 0–20) | no | `3` (`view="diff"`) / `2` (`pattern`) | With `view="diff"`: unchanged context lines per hunk (also honoured by a cross-system diff). With `pattern`: unchanged lines shown around each matching line. Refused with `BAD_INPUT` when neither is given. |
 | `from_system` | string | `view="diff"` only, and only with [more than one system configured](../CONFIGURATION/multi-system.md) | the called system | Cross-system diff: compare the object as it is on this system. See [`view="diff"`: same-system versions and cross-system comparison](#viewdiff-same-system-versions-and-cross-system-comparison) below. |
 | `to_system` | string | `view="diff"` only, and only with more than one system configured | — | Cross-system diff: the other side of the comparison, e.g. `{"object":"ZCL_FOO","view":"diff","to_system":"QAS"}`. Giving either `from_system` or `to_system` switches the whole request into cross-system mode. |
 | `line` | number (int, ≥1) | required with `view="definition"`; refused otherwise | — | 1-based source line — same convention as `abap_quick_fix`. Refused with `UNSUPPORTED` together with `view="history"`/`"diff"`/`"lineage"`/`"footprint"`/`"docu"`/`"digest"`, and refused with `BAD_INPUT` if given with no `view` at all (it would silently be discarded by an ordinary read). |
@@ -36,7 +38,11 @@ Read the source, metadata or outline of an ABAP object.
 Notes: response includes an etag (a content hash) — pass it back as
 `abap_write`'s `expect_etag` to detect a concurrent change before writing.
 `offset`/`limit` page long sources; a truncated response always names how to
-fetch the rest. A function module named without its group — e.g.
+fetch the rest. Every read response carries a `size:` header line —
+`size: <chars> chars, <lines> lines, truncated=<bool>` — that describes the
+response text itself, exactly (it is rendered inside the character budget,
+so it counts itself; a `~` prefix would mark the rare case where the two
+self-referential counts did not settle — it has not been observed). A function module named without its group — e.g.
 `{"type":"FUGR/FF","object":"BUP_ROLES_GET_ALL"}` — resolves on its own: the
 exact-name lookup goes out untyped and the group is read off the matching
 row's `adtcore:uri`, since neither the name nor `adtcore:packageName` carries
@@ -46,6 +52,79 @@ module by that name, or asking for the group by hand if the search finds
 nothing at all, which happens for generated function modules (e.g.
 `ENQUEUE_E_TABLE`) that the repository search does not index: say
 `"ENQUEUE_E_TABLE in ETABLE"` or `"ETABLE/ENQUEUE_E_TABLE"`.
+
+### Large sources: outline by default, `pattern`, and `full`
+
+Issue #148 measured what a plain `abap_read` of a standard class costs: a
+10K–31K-character source paged over two or three calls, most of which the
+caller never needed. So a source read of a `CLAS`, `INTF`, `PROG` or `FUGR`
+object answers with the **outline** instead of the source when the source
+is above **150 lines or 8000 characters** (`OUTLINE_DEFAULT_LINES` /
+`OUTLINE_DEFAULT_CHARS` in `src/tools/read.ts`) and the call named no part
+of it. The response says so: `outline: default (large source)` in the
+header, `totalLines`/`totalChars` for the source it stands in for, and a
+`NOTE:` naming the threshold, the full line count and every way to get
+the text — `method="<NAME>"`, `pattern="<regex>"`, `offset`/`limit`, or
+`full=true` for all of it. The etag is the full source's etag, not marked
+partial: nothing was cut from a text the caller asked for.
+
+The default does **not** engage — the source is returned as before — when
+the call passes `full=true`, `outline=false`, `method`, `include`,
+`offset`, `limit` or `pattern`; for any other object kind (DDIC, CDS, catalog
+reads); for a source at or under both bounds; and for every `view`. An
+explicit `outline=true` is `outline: requested` and works at any size.
+
+What the outline is depends on the kind. `CLAS`/`INTF`: ADT's component
+structure (`classMembers`) — name, visibility, implementation line range —
+exactly what `outline=true` always returned. `PROG`/`FUGR` have no ADT
+component structure, so their outline is a **text scan** of
+statement-initial keywords (`REPORT`/`PROGRAM`/`FUNCTION-POOL`, `INCLUDE`,
+`FORM`…`ENDFORM`, `FUNCTION`…`ENDFUNCTION`, `MODULE`…`ENDMODULE`, `CLASS`
+`DEFINITION`/`IMPLEMENTATION`…`ENDCLASS`, `INTERFACE`, `METHOD`…`ENDMETHOD`,
+event blocks, `SELECTION-SCREEN BEGIN OF`), each with its line or line
+range, indented by nesting — and the response's `NOTE:` says it is a scan.
+Full-line `*` and `"` comments are skipped; a keyword that is not the first
+token of a line is not seen. A scan that finds nothing says it found no
+such statement, which is a fact about the scan, not a claim that the
+program has no components. Other kinds with `outline=true` keep the
+"outline is NOT SUPPORTED for …" body for the same reason.
+
+**`pattern`** is `grep -n -C` over the document: every line matching the
+case-insensitive regex, prefixed with its absolute line number and `:`,
+with `context` (default 2) unchanged lines around it prefixed `-`, and
+`--` between non-adjacent groups — so the numbers feed straight into
+`offset=`, `abap_quick_fix`'s `line`, or `view="definition"`. The body
+label is `MATCHES`; the header carries `pattern`, `context`, `matches`
+(every match from `offset` on), `matchesShown`, `scannedFrom`,
+`totalLines` and `totalChars`. At most 50 matching lines are shown
+(`PATTERN_MAX_MATCHES`; `limit=` overrides); past that the body ends with
+`--- TRUNCATED --- <shown> of <total> matching line(s) shown (cap N, raise
+with limit=). Continue with offset=<last shown line + 1>, or narrow the
+pattern.` — a continuation, not a silent cut. The etag of a pattern read is
+marked `partial:`: it never shows the whole text, so a full-source
+`abap_write` presenting it is refused exactly like a truncated read's,
+while `edit={old_string,new_string}` accepts it. `pattern` composes with
+`include` (grep that include) and with `offset`/`limit` as described; it
+is refused with `BAD_INPUT` together with `outline=true`, `method` and
+`full` (it already narrows the read), and with `UNSUPPORTED` together with
+any `view`, `format="raw"`, `enhancements=true` and on DDIC/catalog paths —
+each names the clash rather than dropping the filter. An empty or
+syntactically invalid regex is `BAD_INPUT` before the object is resolved:
+zero requests reach the wire.
+
+**`full=true`** is the explicit way to ask for the whole source of a large
+object; it is the same as `outline=false` and exists so the request reads
+as what it is. It is refused with `BAD_INPUT` next to anything narrower
+(`outline=true`, `method`, `pattern`) and with `UNSUPPORTED` next to a
+`view` or on a non-source path.
+
+Offline coverage: `test/read-outline-default.test.ts` (threshold on both
+bounds, every opt-out, INTF, non-default kinds, the PROG/FUGR scan and its
+empty result, the `full` clashes) and `test/read-pattern.test.ts`
+(`grepSource` rendering, context, cap and continuation, zero-wire refusals,
+partial etag, pattern over a large class). Live: not run against A4H on
+this build — the installed MCP tools run the released bundle, whose
+`abap_read` has neither parameter.
 
 ### Classes: `method=`, `outline=true`, inherited members and the inactive version
 
@@ -209,8 +288,8 @@ What a cross-system diff does NOT do:
   independent SAP systems have no common version numbering for either side
   of `from`/`to` to name. Those two parameters are refused outright when
   combined with `from_system`/`to_system`.
-- **No component-narrowing parameters.** `method`, `outline`, `line`,
-  `column`, `types` and `depth` are all refused together with
+- **No component-narrowing parameters.** `method`, `outline`, `pattern`,
+  `full`, `line`, `column`, `types` and `depth` are all refused together with
   `from_system`/`to_system` — a cross-system diff always compares the
   whole object's current source, never a single method, a source position,
   or a package listing. `include` (class-includes) is the one exception:
@@ -292,6 +371,7 @@ elsewhere in this table, which page whole lines of a normal read.
 | `view="definition"` combined with `version="inactive"` | `UNSUPPORTED` (`version="active"` is allowed — a no-op) |
 | `view="definition"` combined with `outline=true` | `UNSUPPORTED` |
 | `view="definition"` combined with `method=...` | `UNSUPPORTED` |
+| `view="definition"` combined with `pattern=...` or `full=true` | `UNSUPPORTED` — `pattern` greps plain source lines and `full` only overrides a source read's default outline; a view renders something else. Same for every other `view`. |
 | `view="definition"` combined with `from`/`to`/`context` | `UNSUPPORTED` |
 | `view="definition"` with no `line` | `BAD_INPUT` — a definition lookup is position-driven; without a line there is no element to resolve. |
 | `line`/`column` given with `view="history"` or `view="diff"` | `UNSUPPORTED` |
@@ -1289,16 +1369,28 @@ character inside a `|...|` string template. DDLS/CDS sources are always
 matched in full text, comments included, since CDS comment syntax is not
 ABAP comment syntax and the heuristic does not apply to it.
 
-**Output and truncation.** One row per matching line: object type, object
-name, include name, line number, and line text (each line clipped to 120
-characters for display). Line numbers are include-local — for a CLAS/FUGR
-hit, `line` counts from the top of the matching include (a method's own
-program, not the class as a whole), not from the object. The response names
-a concrete `abap_read` follow-up (with `offset`/`limit`, or `method=` for a
-class hit inside a method include) to fetch the surrounding source. Both
-ways this can run out of room are marked in the response body with a
-`--- TRUNCATED ---` line, never left silent: the hit cap (`max`, default
-100) and the object-scope ceiling (200).
+**Output and truncation.** Hits are grouped per object (issue #148 —
+38 hits used to cost ~8K characters as one row per hit with the object
+name repeated on every row). Each object gets one header line,
+`<TYPE> <NAME>  (<n> hits)`, followed by one `  <line>: <text>` row per hit
+(text clipped to 120 characters for display). Where an object's hits sit
+in includes whose name is not the object's own — a class's method includes,
+a function group's includes — an `  include <NAME>` sub-header precedes
+that include's rows, since that name is what the `abap_read` follow-up
+takes. Line numbers are include-local — for a CLAS/FUGR hit, `line`
+counts from the top of the matching include, not from the object. An
+object shows at most 20 hits (`SOURCE_PER_OBJECT_HIT_CAP`,
+`src/tools/search.ts`); the header then says `(<n> hits, 20 shown)` and a
+`  ... <k> more hit(s) in <NAME> not shown (per-object cap 20; narrow
+`query`, or scope with objects="<NAME>").` row closes the group, so one
+noisy object cannot push every other object's first hit off the page. The
+header carries `objectsWithHits` next to `hits`, and a `size:` line for
+the response itself. The `NOTE:` lines (include-local numbering, the
+text-scan caveat, the `abap_read` follow-up) appear once at the top of the
+response, never per hit. Both ways the scan can run out of room are marked
+in the body with a `--- TRUNCATED ---` line, never left silent: the hit cap
+(`max`, default 100) and the object-scope ceiling (200). Offline coverage:
+`test/search-source-grouping.test.ts`.
 
 **When to use `where_used` vs. `source`.** `where_used` reads ADT's
 reference index and is the right tool for "what uses this object" — it is

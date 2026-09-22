@@ -99,18 +99,11 @@ export const transportInputSchema = {
     ])
     .describe(
       "What to do. list/show/check/users/log/queue are plain reads, always allowed. " +
-        "log reads a transport's own export/import log (per target system); queue reads a " +
-        "target system's import queue/buffer. create/addUser/setOwner need write access " +
+        "create/addUser/setOwner need write access " +
         "(ABAP_MODE=edit or admin, or legacy ABAP_ALLOW_WRITE=true when ABAP_MODE is unset); " +
-        "create with kind=\"copies\" (a transport of copies) needs the same write access as an " +
-        "ordinary create — no extra ceiling. delete additionally needs the " +
-        "admin-only transport-delete ceiling (ABAP_MODE=admin — no legacy flag grants it) and " +
-        "confirm; removeObject (drop one E071 entry and its CTS lock, e.g. for an object " +
-        "already deleted from the system, so its request can then be deleted — if the object " +
-        "still exists, its lock goes too; CTS refuses this when the request holds 2 or more " +
-        "E071 rows for that object (same PGMID+OBJECT+OBJ_NAME — legal but not reliably " +
-        "reproducible; cause unconfirmed), leaving the request undeletable through abapsmith) " +
-        "needs that same admin-only transport-delete ceiling and confirm." +
+        "kind=\"copies\" needs no extra ceiling. removeObject and delete share one ceiling: " +
+        "delete additionally needs the admin-only transport-delete ceiling " +
+        "(ABAP_MODE=admin — no legacy flag grants it) and confirm; removeObject needs that same ceiling and confirm." +
         " Required args: list/users none; show transport; check object; log transport; " +
         "queue system; create package+description (plus target when kind=\"copies\"); " +
         "addUser/setOwner transport+user; delete transport+confirm; " +
@@ -120,8 +113,8 @@ export const transportInputSchema = {
     .string()
     .optional()
     .describe(
-      "Request/task number, e.g. A4HK900123. Required for " +
-        "operation=show/addUser/setOwner/delete/removeObject and for operation=log.",
+      "Request/task number, e.g. A4HK900123. Required for operation=show/addUser/setOwner/delete" +
+        "/removeObject and for operation=log.",
     ),
   user: z
     .string()
@@ -133,9 +126,8 @@ export const transportInputSchema = {
     .string()
     .optional()
     .describe(
-      "Object name. Required for operation=check, and for operation=removeObject (the entry " +
-        "to remove). Optional anchor for create with kind=\"workbench\" (the default); not " +
-        "accepted for create with kind=\"copies\" — a transport of copies is created empty.",
+      "Object name. Required for operation=check/removeObject (removeObject: the entry to remove). " +
+        "Optional anchor for create with kind=\"workbench\" (default); not for kind=\"copies\", which is created empty.",
     ),
   package: z
     .string()
@@ -149,11 +141,8 @@ export const transportInputSchema = {
     .enum(["workbench", "copies"])
     .optional()
     .describe(
-      "Which kind of request operation=\"create\" should create. \"workbench\" (the default) is " +
-        "a normal transportable change request created through ADT. \"copies\" is a transport " +
-        "of copies, which carries a snapshot of objects to a target system while leaving the " +
-        "originals modifiable in this system and their original request untouched. " +
-        "kind=\"copies\" requires target.",
+      "operation=\"create\" only. \"workbench\" (default): a normal transportable change request. " +
+        "\"copies\": a snapshot sent to a target system, originals untouched; requires target.",
     ),
   target: z
     .string()
@@ -165,16 +154,11 @@ export const transportInputSchema = {
   system: z
     .string()
     .optional()
-    .describe(
-      "Target system whose import queue to read, e.g. QAS. Required for operation=\"queue\".",
-    ),
+    .describe("Target system whose import queue to read, e.g. QAS. Required for operation=\"queue\"."),
   domain: z
     .string()
     .optional()
-    .describe(
-      "TMS transport domain of system, e.g. DOMAIN_A4H. Optional; TMS resolves the local " +
-        "domain when omitted.",
-    ),
+    .describe("TMS transport domain of system, e.g. DOMAIN_A4H. Optional; TMS resolves the local domain when omitted."),
   confirm: z
     .string()
     .optional()
@@ -203,19 +187,13 @@ export type TransportReleaseInput = z.infer<typeof TransportReleaseInput>;
 
 export const TRANSPORT_TOOL_DESCRIPTION =
   "Inspect and manage CTS transport requests: list, show, check (does an object need a " +
-  "transport?), users, log (a transport's own export/import log, per target system — a " +
-  "request that has never been exported legitimately has zero log lines; that is not a " +
-  "failure), queue (a target system's import queue/buffer — the requests waiting to be " +
-  "imported there; an already-imported request has left the buffer, so absence alone does " +
-  "not prove a change never arrived), create (kind=\"workbench\", the default, or " +
-  "kind=\"copies\" for a transport of copies — a snapshot sent to a target system that " +
-  "leaves the originals and their own request untouched; requires target), addUser, " +
-  "setOwner, delete, removeObject (drop one E071 entry and its CTS lock so its request can " +
-  "then be deleted — if the object still exists, its lock goes too, and CTS refuses this for " +
-  "some entries, leaving the request undeletable). list/show/check/users/log/queue are plain " +
-  "reads, always allowed; create/addUser/setOwner need write access; delete/removeObject " +
-  "additionally need the admin-only transport-delete ceiling. Release is a " +
-  "separate tool, abap_transport_release.";
+  "transport?), users, log (a request's export/import log per target system), queue (a " +
+  "target system's import buffer), create (kind=\"workbench\" default, or \"copies\" with " +
+  "target), addUser, setOwner, delete, removeObject (drop one E071 entry and its CTS lock). " +
+  "list/show/check/users/log/queue are plain reads, always allowed; create/addUser/setOwner " +
+  "need write access; delete/removeObject additionally need the admin-only transport-delete " +
+  "ceiling. Release is a separate tool, abap_transport_release. Semantics of log/queue/" +
+  "copies/removeObject: doc/TOOLS/transports.md.";
 
 export const TRANSPORT_RELEASE_TOOL_DESCRIPTION =
   "Release one CTS transport request — irreversible. Gated by a release ceiling separate " +
@@ -506,13 +484,20 @@ function messageRows(messages: readonly TrReleaseMessage[]): Array<Record<string
 // Input validation
 // ---------------------------------------------------------------------------
 
-function normTrkorr(value: string | undefined, operation: string): string {
+/** A request/task number shape, e.g. A4HK900123 — used to guess a misnamed `object=`. */
+const TRKORR_LIKE = /^[A-Z0-9]{3}K\d{6}$/i;
+
+function normTrkorr(value: string | undefined, operation: string, objectValue?: string): string {
   const raw = (value ?? "").trim().toUpperCase();
   if (raw === "") {
+    const guess = (objectValue ?? "").trim();
+    const looksLikeTransport = TRKORR_LIKE.test(guess);
     throw new AbapError(
       "BAD_INPUT",
-      `Operation "${operation}" needs "transport" (a request/task number, e.g. A4HK900123).`,
+      `Operation "${operation}" needs "transport" (a request/task number, e.g. A4HK900123).` +
+        (looksLikeTransport ? ` Did you mean transport="${guess}"?` : ""),
       { operation, arg: "transport" },
+      looksLikeTransport ? `Retry with transport="${guess}".` : undefined,
     );
   }
   if (!isTrkorr(raw)) {
@@ -920,7 +905,7 @@ async function opShow(
   journal?: TransportJournalDeps,
   ownership?: SessionTrOwner,
 ): Promise<BuiltResponse> {
-  const trkorr = normTrkorr(input.transport, "show");
+  const trkorr = normTrkorr(input.transport, "show", input.object);
   const r = await trShow(conn, trkorr);
   const subject = subjectOf(trkorr, r);
   // Read-only: the journal is only ever consulted here, never written to.
@@ -1113,14 +1098,22 @@ async function opCheck(
  * A `transport` value with no format check — `readTransportLogViaBridge` (`src/adt/
  * transport-log.ts`) validates the shape itself via its own `assertTrkorr`, so this only
  * covers the "missing entirely" case, in the same BAD_INPUT shape `normTrkorr` uses for it.
+ *
+ * `objectValue` is the caller's `object=` argument, if any (issue #156: a common mix-up is
+ * passing the request number as `object` instead of `transport`) — when it looks like a
+ * request/task number, the refusal points the caller at the fix instead of a bare "missing".
  */
-function requireTransportArg(value: string | undefined, operation: string): string {
+function requireTransportArg(value: string | undefined, operation: string, objectValue?: string): string {
   const raw = (value ?? "").trim().toUpperCase();
   if (raw === "") {
+    const guess = (objectValue ?? "").trim();
+    const looksLikeTransport = TRKORR_LIKE.test(guess);
     throw new AbapError(
       "BAD_INPUT",
-      `Operation "${operation}" needs "transport" (a request/task number, e.g. A4HK900123).`,
+      `Operation "${operation}" needs "transport" (a request/task number, e.g. A4HK900123).` +
+        (looksLikeTransport ? ` Did you mean transport="${guess}"?` : ""),
       { operation, arg: "transport" },
+      looksLikeTransport ? `Retry with transport="${guess}".` : undefined,
     );
   }
   return raw;
@@ -1186,7 +1179,7 @@ async function opLog(
   input: TransportInput,
   maxChars: number,
 ): Promise<BuiltResponse> {
-  const trkorr = requireTransportArg(input.transport, "log");
+  const trkorr = requireTransportArg(input.transport, "log", input.object);
   const result: TransportLogResult = await readTransportLogViaBridge(conn, gate, { trkorr });
 
   const sections: Array<{ title: string; content: string }> = [];
@@ -1759,7 +1752,7 @@ async function opAddUser(
   gate: SafetyGate,
   journal?: TransportJournalDeps,
 ): Promise<BuiltResponse> {
-  const trkorr = normTrkorr(input.transport, "addUser");
+  const trkorr = normTrkorr(input.transport, "addUser", input.object);
   const user = required(input.user, "user", "addUser").toUpperCase();
   assertCeiling(gate, "plain", "addUser");
   // Guaranteed to succeed: assertCeiling above already threw on denial via
@@ -1830,7 +1823,7 @@ async function opSetOwner(
   gate: SafetyGate,
   journal?: TransportJournalDeps,
 ): Promise<BuiltResponse> {
-  const trkorr = normTrkorr(input.transport, "setOwner");
+  const trkorr = normTrkorr(input.transport, "setOwner", input.object);
   const user = required(input.user, "user", "setOwner").toUpperCase();
   assertCeiling(gate, "plain", "setOwner");
   const proof = authorizeCeiling(gate, "transport");
@@ -1882,7 +1875,7 @@ async function opDelete(
   gate: SafetyGate,
   journal?: TransportJournalDeps,
 ): Promise<BuiltResponse> {
-  const trkorr = normTrkorr(input.transport, "delete");
+  const trkorr = normTrkorr(input.transport, "delete", input.object);
   const confirm = input.confirm;
   if (confirm === undefined) {
     throw new AbapError(
@@ -1963,7 +1956,7 @@ async function opRemoveObject(
   gate: SafetyGate,
   journal?: TransportJournalDeps,
 ): Promise<BuiltResponse> {
-  const trkorr = normTrkorr(input.transport, "removeObject");
+  const trkorr = normTrkorr(input.transport, "removeObject", input.object);
   const objectName = required(input.object, "object", "removeObject").trim().toUpperCase();
   const confirm = input.confirm;
   if (confirm === undefined) {

@@ -85,6 +85,7 @@ const FPM_SOURCE = `CLASS zcl_zmcp_fluid_fpm DEFINITION
     CLASS-METHODS outline.
     CLASS-METHODS app.
     CLASS-METHODS events.
+    CLASS-METHODS resolve.
 
     CLASS-METHODS read_config
       IMPORTING iv_config_id      TYPE string
@@ -139,6 +140,8 @@ CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
             app( ).
           WHEN 'events'.
             events( ).
+          WHEN 'resolve'.
+            resolve( ).
           WHEN OTHERS.
             zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'dispatch'
               iv_text = |unknown action "{ iv_action }"| ).
@@ -206,12 +209,53 @@ CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
         DATA(lv_aid)   = |{ ls_appl-config_id }|.
         DATA(lv_atype) = |{ ls_appl-config_type }|.
         DATA(lv_avar)  = |{ ls_appl-config_var }|.
+
+        " An application config's XCONTENT references the one
+        " component config mode=app actually resolves and loads - decode it
+        " (same pattern as read_config's '02' branch) and pull the first
+        " <Component Name="..." ConfId="..."/> out with PCRE, anchored on
+        " <Component so the outer <Application ConfId="..."> is not matched.
+        DATA(lv_comp_name)   = ||.
+        DATA(lv_comp_confid) = ||.
+        DATA lv_axc TYPE xstring.
+        CLEAR lv_axc.
+        SELECT SINGLE xcontent FROM wdy_config_appl
+          WHERE config_id = @ls_appl-config_id AND config_type = @ls_appl-config_type
+            AND config_var = @ls_appl-config_var
+          INTO @lv_axc.
+        IF sy-subrc = 0 AND lv_axc IS NOT INITIAL.
+          DATA(lo_aconv) = cl_abap_conv_in_ce=>create( encoding = 'UTF-8' input = lv_axc ).
+          DATA(lv_axml) = ||.
+          lo_aconv->read( IMPORTING data = lv_axml ).
+          FIND PCRE '<Component[^>]*\\bName="([^"]*)"' IN lv_axml SUBMATCHES lv_comp_name.
+          FIND PCRE '<Component[^>]*\\bConfId="([^"]*)"' IN lv_axml SUBMATCHES lv_comp_confid.
+        ENDIF.
+
+        DATA(lv_loadable) = abap_true.
+        DATA(lv_reason)   = ||.
+        IF lv_comp_confid IS NOT INITIAL.
+          DATA(lv_exists_comp) = ||.
+          SELECT SINGLE config_id FROM wdy_config_data
+            WHERE config_id = @lv_comp_confid AND config_type = '00'
+            INTO @lv_exists_comp.
+          IF sy-subrc <> 0.
+            lv_loadable = abap_false.
+            lv_reason = |references component configuration { lv_comp_confid } which does not exist in WDY_CONFIG_DATA|.
+          ENDIF.
+        ENDIF.
+        DATA(lv_loadable_s) = COND string( WHEN lv_loadable = abap_true THEN 'true' ELSE 'false' ).
+
         zcl_zmcp_fluid_rt=>out(
           |\\{"config_id":"{ zcl_zmcp_fluid_rt=>esc( lv_aid ) }",| &&
           |"config_type":"{ zcl_zmcp_fluid_rt=>esc( lv_atype ) }",| &&
-          |"config_var":"{ zcl_zmcp_fluid_rt=>esc( lv_avar ) }","component":"",| &&
+          |"config_var":"{ zcl_zmcp_fluid_rt=>esc( lv_avar ) }",| &&
+          |"component":"{ zcl_zmcp_fluid_rt=>esc( lv_comp_name ) }",| &&
           |"description":"{ zcl_zmcp_fluid_rt=>esc( lv_desc ) }",| &&
-          |"devclass":"{ zcl_zmcp_fluid_rt=>esc( lv_devclass ) }"\\}| ).
+          |"devclass":"{ zcl_zmcp_fluid_rt=>esc( lv_devclass ) }",| &&
+          |"loadable":{ lv_loadable_s },| &&
+          |"app_config_id":"{ zcl_zmcp_fluid_rt=>esc( lv_aid ) }",| &&
+          |"component_config_id":"{ zcl_zmcp_fluid_rt=>esc( lv_comp_confid ) }",| &&
+          |"reason":"{ zcl_zmcp_fluid_rt=>esc( lv_reason ) }"\\}| ).
       ENDLOOP.
     ELSE.
       SELECT config_id, config_type, config_var, component
@@ -242,13 +286,42 @@ CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
         DATA(lv_dtype) = |{ ls_data-config_type }|.
         DATA(lv_dvar)  = |{ ls_data-config_var }|.
         DATA(lv_dcomp) = |{ ls_data-component }|.
+
+        " mode=app loads application configs (config_type 02),
+        " never component configs (config_type 00) directly - tell the
+        " caller which application config (if any) references this one, or
+        " why this id is not loadable by mode=app at all.
+        DATA(lv_dapp_config_id) = ||.
+        DATA(lv_dloadable) = abap_true.
+        DATA(lv_dreason)   = ||.
+        IF lv_dtype = '00'.
+          DATA(lv_dexists_app) = ||.
+          SELECT SINGLE config_id FROM wdy_config_appl
+            WHERE config_id = @ls_data-config_id AND config_type = '02'
+            INTO @lv_dexists_app.
+          IF sy-subrc = 0.
+            lv_dapp_config_id = lv_dexists_app.
+          ELSE.
+            lv_dloadable = abap_false.
+            lv_dreason = |component configuration (config_type 00); mode=app loads application configurations (config_type 02) - pass this id to mode=app anyway and it resolves the application configuration that references it|.
+          ENDIF.
+        ELSE.
+          lv_dloadable = abap_false.
+          lv_dreason = |config_type { lv_dtype } is not loadable by mode=app|.
+        ENDIF.
+        DATA(lv_dloadable_s) = COND string( WHEN lv_dloadable = abap_true THEN 'true' ELSE 'false' ).
+
         zcl_zmcp_fluid_rt=>out(
           |\\{"config_id":"{ zcl_zmcp_fluid_rt=>esc( lv_did ) }",| &&
           |"config_type":"{ zcl_zmcp_fluid_rt=>esc( lv_dtype ) }",| &&
           |"config_var":"{ zcl_zmcp_fluid_rt=>esc( lv_dvar ) }",| &&
           |"component":"{ zcl_zmcp_fluid_rt=>esc( lv_dcomp ) }",| &&
           |"description":"{ zcl_zmcp_fluid_rt=>esc( lv_desc2 ) }",| &&
-          |"devclass":"{ zcl_zmcp_fluid_rt=>esc( lv_devclass2 ) }"\\}| ).
+          |"devclass":"{ zcl_zmcp_fluid_rt=>esc( lv_devclass2 ) }",| &&
+          |"loadable":{ lv_dloadable_s },| &&
+          |"app_config_id":"{ zcl_zmcp_fluid_rt=>esc( lv_dapp_config_id ) }",| &&
+          |"component_config_id":"{ zcl_zmcp_fluid_rt=>esc( lv_did ) }",| &&
+          |"reason":"{ zcl_zmcp_fluid_rt=>esc( lv_dreason ) }"\\}| ).
       ENDLOOP.
     ENDIF.
   ENDMETHOD.
@@ -412,6 +485,85 @@ CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
         |"is_leaf":{ lv_nleaf }| &&
         lv_resolved_json && |\\}| ).
     ENDLOOP.
+  ENDMETHOD.
+
+  METHOD resolve.
+    " Given one config_id, report whether it is an application
+    " config (mode=app's own table), a component config, or both, and -
+    " when it is a component config - which application config(s) reference
+    " it, so mode=app can resolve a component id to the application id it
+    " actually needs without a second round trip from the caller.
+    DATA(lv_config_id) = zcl_zmcp_fluid_rt=>s( 'config_id' ).
+    IF lv_config_id IS INITIAL.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args' iv_text = 'config_id is required' ).
+      RETURN.
+    ENDIF.
+
+    DATA(lv_exists_app_id) = ||.
+    SELECT SINGLE config_id FROM wdy_config_appl
+      WHERE config_id = @lv_config_id AND config_type = '02'
+      INTO @lv_exists_app_id.
+    DATA(lv_exists_as_app) = xsdbool( sy-subrc = 0 ).
+
+    DATA(lv_comp_var) = ||.
+    DATA(lv_comp)     = ||.
+    SELECT SINGLE config_var, component FROM wdy_config_data
+      WHERE config_id = @lv_config_id AND config_type = '00'
+      INTO ( @lv_comp_var, @lv_comp ).
+    DATA(lv_exists_as_component) = xsdbool( sy-subrc = 0 ).
+
+    DATA(lv_apps_json) = ||.
+    DATA(lv_count)     = 0.
+    DATA(lv_truncated) = abap_false.
+
+    IF lv_exists_as_component = abap_true.
+      " config_id is not a PCRE metacharacter source: assertConfigId/
+      " ABAP_NAME on the TypeScript side already restrict it to letters,
+      " digits, underscore and slash, so it embeds into the pattern below
+      " with no escaping.
+      DATA(lv_pat) = '<Component[^>]*\\bConfId="' && lv_config_id && '"'.
+      SELECT config_id, config_var, application, xcontent FROM wdy_config_appl
+        WHERE config_type = '02'
+        INTO TABLE @DATA(lt_appl2).
+      LOOP AT lt_appl2 INTO DATA(ls_appl2).
+        DATA(lv_atxt) = ||.
+        IF ls_appl2-xcontent IS NOT INITIAL.
+          DATA(lo_bconv) = cl_abap_conv_in_ce=>create( encoding = 'UTF-8' input = ls_appl2-xcontent ).
+          lo_bconv->read( IMPORTING data = lv_atxt ).
+        ENDIF.
+        FIND PCRE lv_pat IN lv_atxt.
+        IF sy-subrc = 0.
+          IF lv_count >= 20.
+            lv_truncated = abap_true.
+            EXIT.
+          ENDIF.
+          lv_count = lv_count + 1.
+          DATA(lv_aid2)  = |{ ls_appl2-config_id }|.
+          DATA(lv_aapp2) = |{ ls_appl2-application }|.
+          DATA(lv_avar2) = |{ ls_appl2-config_var }|.
+          IF lv_apps_json IS NOT INITIAL.
+            lv_apps_json = lv_apps_json && |,|.
+          ENDIF.
+          lv_apps_json = lv_apps_json &&
+            |\\{"config_id":"{ zcl_zmcp_fluid_rt=>esc( lv_aid2 ) }",| &&
+            |"application":"{ zcl_zmcp_fluid_rt=>esc( lv_aapp2 ) }",| &&
+            |"config_var":"{ zcl_zmcp_fluid_rt=>esc( lv_avar2 ) }"\\}|.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
+    DATA(lv_eapp_s)  = COND string( WHEN lv_exists_as_app = abap_true THEN 'true' ELSE 'false' ).
+    DATA(lv_ecomp_s) = COND string( WHEN lv_exists_as_component = abap_true THEN 'true' ELSE 'false' ).
+    DATA(lv_trunc_s) = COND string( WHEN lv_truncated = abap_true THEN 'true' ELSE 'false' ).
+
+    zcl_zmcp_fluid_rt=>out(
+      |\\{"config_id":"{ zcl_zmcp_fluid_rt=>esc( lv_config_id ) }",| &&
+      |"exists_as_app":{ lv_eapp_s },| &&
+      |"exists_as_component":{ lv_ecomp_s },| &&
+      |"component":"{ zcl_zmcp_fluid_rt=>esc( lv_comp ) }",| &&
+      |"component_config_var":"{ zcl_zmcp_fluid_rt=>esc( lv_comp_var ) }",| &&
+      |"application_configs":[{ lv_apps_json }],| &&
+      |"truncated":{ lv_trunc_s }\\}| ).
   ENDMETHOD.
 
   METHOD read_config.
@@ -977,6 +1129,8 @@ export const fpmManifest: FluidManifest = {
         description: "Every matching config row; abapsmith imposes no row cap here.",
         items: {
           type: "object",
+          // loadable/app_config_id/component_config_id/reason are optional in the
+          // schema so the TS side keeps rendering rows from a bridge without them.
           required: ["config_id", "config_type", "config_var", "component", "description", "devclass"],
           properties: {
             config_id: { type: "string", maxLength: CONFIG_ID_LEN },
@@ -985,6 +1139,22 @@ export const fpmManifest: FluidManifest = {
             component: { type: "string" },
             description: { type: "string" },
             devclass: { type: "string" },
+            loadable: {
+              type: "boolean",
+              description: "Cheap existence check only: true when mode=app is expected to be able to load this row (see app_config_id/component_config_id).",
+            },
+            app_config_id: {
+              type: "string",
+              description: "config_id to pass to mode=app; empty when nothing loadable was found for this row.",
+            },
+            component_config_id: {
+              type: "string",
+              description: "The component config (WDY_CONFIG_DATA, config_type 00) this row resolves to or is.",
+            },
+            reason: {
+              type: "string",
+              description: "Why loadable is false; empty when loadable is true.",
+            },
           },
         },
       },
@@ -1097,6 +1267,55 @@ export const fpmManifest: FluidManifest = {
               type: "string",
               description: "Present only when resolve=true and this node's re-read raised an exception.",
             },
+          },
+        },
+      },
+    },
+    {
+      name: "resolve",
+      category: "read",
+      description:
+        "Given one config_id, reports whether it exists as an application config (WDY_CONFIG_APPL) and/or a component config (WDY_CONFIG_DATA), and which application config(s) reference it as a component config.",
+      input: {
+        type: "object",
+        required: ["config_id"],
+        properties: {
+          config_id: { type: "string", maxLength: CONFIG_ID_LEN },
+        },
+      },
+      output: {
+        type: "object",
+        required: [
+          "config_id",
+          "exists_as_app",
+          "exists_as_component",
+          "component",
+          "component_config_var",
+          "application_configs",
+          "truncated",
+        ],
+        properties: {
+          config_id: { type: "string" },
+          exists_as_app: { type: "boolean" },
+          exists_as_component: { type: "boolean" },
+          component: { type: "string" },
+          component_config_var: { type: "string" },
+          application_configs: {
+            type: "array",
+            description: "Application configs (config_type 02) whose XCONTENT references this config_id as a component config; only populated when exists_as_component is true.",
+            items: {
+              type: "object",
+              required: ["config_id", "application", "config_var"],
+              properties: {
+                config_id: { type: "string" },
+                application: { type: "string" },
+                config_var: { type: "string" },
+              },
+            },
+          },
+          truncated: {
+            type: "boolean",
+            description: "true when more than 20 referencing application configs exist and the list was capped.",
           },
         },
       },

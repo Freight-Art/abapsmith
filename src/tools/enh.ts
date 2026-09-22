@@ -136,7 +136,7 @@ export const enhInputSchema = {
     .optional()
     .describe(
       'Default "write_description". Six create ops: always $TMP, always activate. discover_hook_anchors: ' +
-        "read-only. delete needs ABAP_ALLOW_ENHANCEMENT_DELETE=true, irreversible. set_impl_active: reversible.",
+        "read-only. delete needs ABAP_ALLOW_ENHANCEMENT_DELETE=true, irreversible; set_impl_active: reversible.",
     ),
   type: z
     .enum(ENHANCEMENT_WRITE_TYPES)
@@ -158,20 +158,18 @@ export const enhInputSchema = {
     .record(z.string(), z.unknown())
     .optional()
     .describe(
-      "Fields per op (?=optional, else required; numbers=max chars). IDs max 30 chars, see enhancement skill.\n" +
-        "create_spot: description(60).\n" +
-        "add_badi_def: badiName, interfaceName, singleUse(bool), shortText(60).\n" +
-        "add_filter_def: badiName, filterName, filterType(1 upper letter, e.g. C), filterText?(255).\n" +
-        "create_impl: spotName, badiName, implName, implClass, active(bool), description(60).\n" +
-        "set_filter_values: spotName, implName, filterName, filterType(as above), compare(=,<>,<,<=,>,>=,EQ," +
-        "NE,LT,LE,GT,GE), value(255).\n" +
-        "exercise: methodName, filterName?, filterValue?, params?[{name, kind?(importing/changing/exporting/" +
-        "receiving, default importing, max 1 receiving), value?(req for importing/changing, else forbidden), " +
-        "type?(params[].type: req for changing/exporting/receiving, else forbidden; namespaced type ref)}].\n" +
+      "Fields per op (?=optional; IDs max 30 chars; lengths and value rules in doc/TOOLS/enhancements.md).\n" +
+        "create_spot: description.\n" +
+        "add_badi_def: badiName, interfaceName, singleUse, shortText.\n" +
+        "add_filter_def: badiName, filterName, filterType, filterText?.\n" +
+        "create_impl: spotName, badiName, implName, implClass, active, description.\n" +
+        "set_filter_values: spotName, implName, filterName, filterType, compare, value.\n" +
+        "exercise: methodName, filterName?, filterValue?, params?[{name, kind?, value?, type?}] " +
+        "(params[].type: required for changing/exporting/receiving, forbidden otherwise; a namespaced type ref is allowed).\n" +
         "discover_hook_anchors: hostType, hostName, hostUri.\n" +
-        "create_hook: hostType(PROG/P only), hostName, hostUri, anchorFullName, anchorFullDescription(200), " +
-        "responsible?(12), activate?(bool).\n" +
-        "set_impl_active: active(bool), implName?(omit only if exactly one entry), description?(60).",
+        "create_hook: hostType(PROG/P only), hostName, hostUri, anchorFullName, anchorFullDescription, " +
+        "responsible?, activate?.\n" +
+        "set_impl_active: active, implName?(omit only if exactly one entry), description?.",
     ),
   affects: z
     .object({

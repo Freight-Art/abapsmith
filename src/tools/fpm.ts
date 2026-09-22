@@ -10,12 +10,12 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
-import { AbapError } from "../adt/errors.js";
+import { AbapError, isAbapError } from "../adt/errors.js";
 import {
+  appLoadFailure,
   assertConfigId,
   runFpmRead,
   type FpmAppQuery,
-  type FpmBridgeQuery,
   type FpmEventsQuery,
   type FpmFindQuery,
   type FpmOutlineQuery,
@@ -40,10 +40,11 @@ export const fpmReadInputSchema = {
   mode: z
     .enum(["find", "outline", "app", "locks", "events"])
     .describe(
-      "find: search configs. outline: one config's node tree. app: an application config's full " +
-        "UIBB hierarchy. locks: who holds enqueue locks on a config. events: trace which toolbar/" +
-        "button-row/FBI-action elements raise which FPM event, and what handles it (standard FPM, " +
-        "BOPF, feeder, app controller, ACTION_IMPL class, or unresolved).",
+      "find: search configs by component/config_id/package. outline: one config's XML plus " +
+        "metadata. app: an application config's full UIBB hierarchy (feeder/BOPF hints with " +
+        "resolve). locks: enqueue lock holders. events: which toolbar/button-row/FBI-action " +
+        "raises which FPM event and what handles it (FPM, BOPF, feeder, app controller, " +
+        "ACTION_IMPL class, or unresolved).",
     ),
   config_id: z
     .string()
@@ -163,7 +164,14 @@ const COMPACT_COVERAGE_NOTE =
   "customizing/personalization/CBA/POWL overlays; XML decoding verified in depth only for " +
   'FORM/LIST UIBBs and one FBI view shape. detail:"full" prints these in full.';
 
-function buildQuery(input: FpmReadInput): FpmBridgeQuery {
+/**
+ * Issue #155: excludes FpmResolveQuery on purpose — "resolve" is dispatched
+ * only internally (runFpmReadTool, on an mode=app load_configuration
+ * failure), never reachable from FpmReadInput's `mode` enum.
+ */
+type FpmToolQuery = FpmFindQuery | FpmOutlineQuery | FpmAppQuery | FpmEventsQuery;
+
+function buildQuery(input: FpmReadInput): FpmToolQuery {
   if (input.mode === "find") {
     const q: FpmFindQuery = {
       mode: "find",
@@ -235,15 +243,27 @@ function buildFindResponse(
 ): string {
   const t = result.transcript;
   const hasDevclass = t.configs.some((c) => c.devclass !== undefined);
+  // Issue #155: rows from an old (not-yet-redeployed) bridge may not carry these — gate on presence.
+  const hasLoadInfo = t.configs.some((c) => c.loadable !== undefined);
   const rows = t.configs.map((c) => ({
     config_id: c.configId,
     config_type: c.configType,
     config_var: c.configVar,
     component: c.component,
+    ...(hasLoadInfo
+      ? {
+          loadable: c.loadable ? "yes" : "no",
+          app_config_id: c.appConfigId ?? "",
+          component_config_id: c.componentConfigId ?? "",
+          reason: c.reason ?? "",
+        }
+      : {}),
     description: c.description,
     ...(hasDevclass ? { devclass: c.devclass ?? "" } : {}),
   }));
-  let columns = ["config_id", "config_type", "config_var", "component", "description"];
+  let columns = ["config_id", "config_type", "config_var", "component"];
+  if (hasLoadInfo) columns.push("loadable", "app_config_id", "component_config_id", "reason");
+  columns.push("description");
   if (hasDevclass) columns.push("devclass");
 
   // Columns constant across every row are hoisted into the header instead of repeated per row.
@@ -251,7 +271,16 @@ function buildFindResponse(
   if (detail === "compact") {
     hoisted = {};
     if (rows.length >= 2) {
-      for (const col of ["config_type", "config_var", "component", "devclass"]) {
+      for (const col of [
+        "config_type",
+        "config_var",
+        "component",
+        "devclass",
+        "loadable",
+        "app_config_id",
+        "component_config_id",
+        "reason",
+      ]) {
         if (!columns.includes(col)) continue;
         const values = rows.map((r) => (r as Record<string, string>)[col]);
         const first = values[0];
@@ -262,6 +291,13 @@ function buildFindResponse(
   }
 
   const notes = detail === "compact" ? [COMPACT_COVERAGE_NOTE] : [...FIDELITY_NOTES];
+  if (hasLoadInfo) {
+    notes.push(
+      "mode=app takes app_config_id. loadable=no rows name the reason; a component configuration id " +
+        "passed to mode=app is resolved to the application configuration that references it when " +
+        "there is exactly one.",
+    );
+  }
   // The server-side SELECT has no row cap; the only way rows can go missing is transport-level
   // truncation, already surfaced via outputComplete below.
   if (!result.outputComplete) {
@@ -423,9 +459,15 @@ function buildAppResponse(
   detail: FpmDetail,
   xmlWindowPassed: boolean,
   maxChars: number,
+  // Issue #155: set only when mode=app's initial load_configuration failed on
+  // a component config_id and was retried against the one application
+  // config that references it — see runFpmReadTool.
+  resolvedFrom?: string,
+  resolvedNote?: string,
 ): string {
   const t = result.transcript;
   const notes = detail === "compact" ? [COMPACT_COVERAGE_NOTE] : [...FIDELITY_NOTES];
+  if (resolvedNote) notes.push(resolvedNote);
   if (query.resolve) {
     notes.push(
       detail === "compact"
@@ -492,6 +534,7 @@ function buildAppResponse(
       mode: "app",
       detail,
       config_id: query.configId,
+      resolvedFrom,
       resolve: query.resolve,
       nodeCount: t.appNodes.length,
       serverNodeCount: t.count,
@@ -824,13 +867,8 @@ function buildLocksResponse(
 }
 
 const FPM_TOOL_DESCRIPTION =
-  "Read SAP FPM/FBI screen configurations — no ADT read endpoint exists. find: search by " +
-  "component/config_id pattern/package. outline: one configuration's XML plus delta/package " +
-  "metadata. app: an application configuration's full UIBB hierarchy with feeder/BOPF hints " +
-  "(resolve, default true). events: trace which toolbar/button-row/FBI-action raises which FPM " +
-  "event and what handles it (standard FPM, BOPF, feeder, app controller, ACTION_IMPL class, or unresolved), " +
-  "optionally cross-checked against the CL_FPM_EVENT and BOPF catalogues (resolve, default true). " +
-  "locks: enqueue lock holders. Read-only; every call deploys a throwaway bridge class into " +
+  "Read SAP FPM/FBI screen configurations (no ADT read endpoint exists): find, outline, app, " +
+  "events, locks — see mode. Read-only; every call deploys a throwaway bridge class into " +
   "abapsmith's own package.";
 
 export async function runFpmReadTool(deps: FpmToolDeps, args: unknown): Promise<CallToolResult> {
@@ -874,9 +912,69 @@ export async function runFpmReadTool(deps: FpmToolDeps, args: unknown): Promise<
 
   await deps.ensureConnected();
 
-  const result = await deps.pool.withWrite("abap_fpm_read", bridgeClass, (conn) =>
-    runFpmRead(conn, query, deps.safety),
-  );
+  // Issue #155: mode=app loads config_type "02" (WDY_CONFIG_APPL) only — a
+  // config_id that is really a component config (config_type "00") fails
+  // load_configuration. On that specific failure, dispatch an internal
+  // "resolve" query on the SAME connection/callback to either transparently
+  // retry against the one application config that references it, or to
+  // enrich the error with what does and doesn't exist for that id.
+  let resolvedFrom: string | undefined;
+  let resolvedTo: string | undefined;
+  let resolvedNote: string | undefined;
+
+  const result = await deps.pool.withWrite("abap_fpm_read", bridgeClass, async (conn) => {
+    if (query.mode !== "app") return runFpmRead(conn, query, deps.safety);
+
+    try {
+      return await runFpmRead(conn, query, deps.safety);
+    } catch (e) {
+      const failure = appLoadFailure(e);
+      if (!failure) throw e;
+
+      const tried = query.configId;
+      let resolveResult: FpmReadResult;
+      try {
+        resolveResult = await runFpmRead(conn, { mode: "resolve", configId: tried }, deps.safety);
+      } catch {
+        // The resolve dispatch itself failed — surface the ORIGINAL load error, not this one.
+        throw e;
+      }
+      const r = resolveResult.transcript.resolve;
+      if (!r) throw e;
+
+      if (!r.existsAsApp && r.existsAsComponent && r.applicationConfigs.length === 1) {
+        const resolvedId = r.applicationConfigs[0]!.configId;
+        resolvedFrom = tried;
+        resolvedTo = resolvedId;
+        resolvedNote =
+          `config_id ${tried} is a component configuration (component ${r.component}); loaded the ` +
+          `application configuration ${resolvedId} that references it.`;
+        return await runFpmRead(conn, { ...query, configId: resolvedId }, deps.safety);
+      }
+
+      const details: Record<string, unknown> = {
+        tool: "abap_fpm_read",
+        action: "app",
+        tried: { config_id: tried, config_type: "02", table: "WDY_CONFIG_APPL" },
+        existsAsApp: r.existsAsApp,
+        existsAsComponent: r.existsAsComponent,
+        ...(r.existsAsComponent ? { component: r.component, componentConfigVar: r.componentConfigVar } : {}),
+        applicationConfigs: r.applicationConfigs,
+        applicationConfigsTruncated: r.truncated,
+        frames: isAbapError(e) ? e.details["frames"] : undefined,
+      };
+      const hint =
+        r.applicationConfigs.length > 0
+          ? `Pass one of these to mode=app: ${r.applicationConfigs.map((a) => a.configId).join(", ")}`
+          : r.existsAsComponent
+            ? "No application configuration references this component configuration; mode=find " +
+              'config_type="02" lists the application configurations.'
+            : "Neither an application (WDY_CONFIG_APPL) nor a component (WDY_CONFIG_DATA) configuration " +
+              "has this id; check the spelling with mode=find.";
+
+      throw new AbapError("NOT_FOUND", `mode=app could not load configuration ${tried}: ${failure.text}`, details, hint);
+    }
+  });
 
   const text =
     query.mode === "find"
@@ -891,7 +989,15 @@ export async function runFpmReadTool(deps: FpmToolDeps, args: unknown): Promise<
           )
         : query.mode === "events"
           ? buildEventsResponse(query, result, input.detail !== undefined, xmlWindowPassed, deps.cfg.maxResponseChars)
-          : buildAppResponse(query, result, detail, xmlWindowPassed, deps.cfg.maxResponseChars);
+          : buildAppResponse(
+              resolvedTo !== undefined ? { ...query, configId: resolvedTo } : query,
+              result,
+              detail,
+              xmlWindowPassed,
+              deps.cfg.maxResponseChars,
+              resolvedFrom,
+              resolvedNote,
+            );
 
   return ok(text);
 }

@@ -2476,13 +2476,10 @@ function attributeInvalidData(e: unknown, input: BopfEditInput): unknown {
 
 const BOPF_EDIT_TOOL_DESCRIPTION =
   "One design-time edit to a BOPF business object (or create one). node/name/spec carry the specifics — " +
-  "see the abapsmith-edit-a-bopf-object skill for spec shapes, add_node/remove_node rules, and " +
-  "dangling-ref handling. add_alternative_key and set_alternative_key_fields both need " +
-  "i_know_this_may_not_activate: true — no alternative key added this way has been observed to activate; " +
-  "add_alternative_key additionally needs spec.uniqueness/dataTypeRef/dataTableTypeRef/keyElements, all four, " +
-  "and its checkAfterModify/checkBeforeSave/noCheck are constrained by uniqueness. remove_dependent_object " +
-  "removes an existing dependent-object embedding (its DoComposition association plus the matching " +
-  '"<name>.ROOT" node); abapsmith cannot create one — see doc/CAPABILITIES/bopf.md.';
+  "spec shapes, add_node/remove_node rules and dangling-ref handling are in the abapsmith-edit-a-bopf-object " +
+  "skill and doc/TOOLS/bopf.md. add_alternative_key and set_alternative_key_fields both need " +
+  "i_know_this_may_not_activate: true — no alternative key added this way has been observed to activate. " +
+  "remove_dependent_object removes an existing dependent-object embedding; abapsmith cannot create one.";
 
 /**
  * Takes the whole `createRequest`, not a bare BO name, so a future field

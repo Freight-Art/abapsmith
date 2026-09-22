@@ -39,6 +39,7 @@ import type { AbapMode } from "./mode.js";
 import { createSystemContext, type SystemContext } from "./systems/context.js";
 import { SystemRegistry } from "./systems/registry.js";
 import { installSystemRouting } from "./systems/route.js";
+import { installParamCheck } from "./param-check.js";
 import type { SystemSpec } from "./systems/spec.js";
 // One import per tool-feature module; each is a `registerXTools(mcp, deps)`
 // registrar (see REGISTRATION in `createMcpServer`). `shutdownDebugTools` is
@@ -287,8 +288,8 @@ export function instructionsFor(
       : "";
   return (
     "Access to an SAP ABAP system over ADT. Use abap_search to locate objects, " +
-    "abap_read to read source or DDIC definitions (outline=true first for large " +
-    "classes, then method=), abap_write to create/change/delete, abap_activate to " +
+    "abap_read to read source or DDIC definitions (a large class answers with its " +
+    "outline by default; then method= or pattern=), abap_write to create/change/delete, abap_activate to " +
     "syntax-check or activate, abap_run to execute a class or report and capture " +
     "its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately " +
     "from PASSED — they are not the same answer), " +
@@ -499,6 +500,11 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
    */
   const createMcpServer = (ctx?: McpSessionContext): McpServer => {
     const mcp = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION }, { instructions });
+
+    // Must run before `installSystemRouting` — it is the innermost
+    // `registerTool` wrapper, so it records each tool's FINAL shape,
+    // including the `system` key the routing wrapper adds below.
+    installParamCheck(mcp);
 
     // Must run before any `registerXTools(mcp, ...)` call below — it rebinds
     // `mcp.registerTool` in place, so only tools registered AFTER this point

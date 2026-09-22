@@ -86,9 +86,9 @@ describe("fpmManifest.objects / fpmSources — ZCL_ZMCP_FLUID_RT wiring", () => 
 });
 
 describe("fpm action names", () => {
-  it("declares exactly find/outline/app/events, each category read", () => {
+  it("declares exactly find/outline/app/events/resolve, each category read", () => {
     const names = fpmManifest.actions.map((a) => a.name).sort();
-    expect(names).toEqual(["app", "events", "find", "outline"]);
+    expect(names).toEqual(["app", "events", "find", "outline", "resolve"]);
     for (const action of fpmManifest.actions) {
       expect(action.category, `action "${action.name}"`).toBe("read");
     }

@@ -53,17 +53,13 @@ export const imgReadInputSchema = {
   mode: z
     .enum(["search", "show", "tree", "objects"])
     .describe(
-      "search: find activities by title/id text. show: one activity's reference-IMG path, " +
-        "maintenance objects and tables. tree: the reference-IMG node children under a node. " +
-        "objects: a view/cluster/table/customizing object's underlying DDIC tables and fields.",
+      "search: find activities by title/id text. show: an activity's reference-IMG path, objects " +
+        "and tables. tree: a node's reference-IMG children. objects: an object's DDIC tables and fields.",
     ),
   query: z
     .string()
     .optional()
-    .describe(
-      'search only: a term with no "*" matches as a substring of the title or id; "*" is an explicit ' +
-        'wildcard, and "*" alone matches everything.',
-    ),
+    .describe('search only: a term with no "*" matches as a substring; "*" is an explicit wildcard, "*" alone matches everything.'),
   activity: z.string().optional().describe("show only: the IMG activity id to display."),
   node: z
     .string()
@@ -73,8 +69,8 @@ export const imgReadInputSchema = {
     .string()
     .optional()
     .describe(
-      "tree only: the tree a node id belongs to (echoed back as treeId on a previous tree response, " +
-        "e.g. after following a REF node into a different tree). Omit to use the reference-IMG tree.",
+      "tree only: the tree a node id belongs to, echoed back as treeId on a previous tree response " +
+        "(e.g. after following a REF node). Omit to use the reference-IMG tree.",
     ),
   object: z
     .string()
@@ -88,10 +84,7 @@ export const imgReadInputSchema = {
     .string()
     .regex(IMG_LANGUAGE_RE, "single-character SAP language key (SPRAS), not an ISO code")
     .optional()
-    .describe(
-      "single-character SAP language key (SPRAS), e.g. \"E\" for English, \"D\" for German — not a " +
-        "2-letter ISO code. Defaults to the server's configured language, else \"E\".",
-    ),
+    .describe("Single-character SAP language key (SPRAS), e.g. E or D — not EN/DE. Defaults to the server's configured language, else E."),
   after: z
     .string()
     .optional()
@@ -458,13 +451,12 @@ function renderResult(query: ImgQuery, result: ImgReadResult, maxChars: number):
 }
 
 const IMG_TOOL_DESCRIPTION =
-  "search (query) finds activities. show (activity) returns its path, objects and tables. " +
-  "tree (node optional, treeId optional) lists a tree node's children, that tree's own root if node " +
-  "is omitted. objects (object, kind optional) returns a view/cluster/table/customizing object's DDIC " +
-  `tables and fields. search/tree page via after/limit (default ${IMG_PAGE_DEFAULT}, ceiling ` +
-  `${IMG_PAGE_MAX}): omit "after" for the first page, then pass back the exact {"after": "<cursor>"} ` +
-  "value a response's paging note gives you — there is no numeric offset to jump to. Every field not " +
-  "valid for the given mode is rejected outright.";
+  "Read the IMG customizing catalog: search (query) finds activities; show (activity) returns " +
+  "its path, objects and tables; tree (node/treeId optional) lists a node's children; objects " +
+  "(object, kind optional) returns a customizing object's DDIC tables and fields. search/tree " +
+  `page via after/limit (default ${IMG_PAGE_DEFAULT}, ceiling ${IMG_PAGE_MAX}) — pass back the ` +
+  'exact {"after": "<cursor>"} a response gives; there is no numeric offset. Fields not valid ' +
+  "for the mode are rejected.";
 
 export async function runImgReadTool(deps: ImgToolDeps, args: unknown): Promise<CallToolResult> {
   const input = args as ImgReadInput;

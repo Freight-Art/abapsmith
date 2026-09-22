@@ -1070,9 +1070,8 @@ export const debugInputSchema = {
     .optional()
     .describe(
       "≥1 entry, required for action=\"start\" and for action=\"breakpoints\" op=\"add\"; kinds " +
-        "(line/exception/statement/message) may mix and are validated against SAP before arming. " +
-        "All kinds take optional condition (ABAP expression, suspend only when true) and " +
-        'skipCount (sent to SAP, NOT enforced — use step:"continue").',
+        "(line/exception/statement/message) may mix and are validated against SAP before arming; " +
+        'condition and skipCount are optional on every kind, skipCount sent to SAP but NOT enforced.',
     ),
   run: z
     .object({

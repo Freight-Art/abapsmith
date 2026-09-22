@@ -96,10 +96,9 @@ export const bopfTestInputSchema = {
         "back and switch it back off. Refused on a read-only server. Default false.",
     ),
   snapshot_ids: z.array(z.string()).optional().describe(
-    "Snapshot ids from prior abap_data_preview mode=\"snapshot\" calls. After this call finishes, " +
-      "each one is re-read and diffed, and the result is appended as a DATA CHANGES section. " +
-      "The diff obeys the same data-preview policy as the snapshot did — if it is refused, this " +
-      "call's own result still returns and the section says why.",
+    "Snapshot ids from prior abap_data_preview mode=\"snapshot\" calls; each is re-read and " +
+      "diffed after this call and appended as a DATA CHANGES section, under the same data-preview " +
+      "policy (a refused diff does not fail this call).",
   ),
 };
 

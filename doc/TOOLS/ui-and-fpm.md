@@ -71,6 +71,33 @@ an already-activated class and a changed one pays the cold cost again.
 compact mode does not rescue an unnarrowed query — narrow with
 `config_id`/`component`/`package` instead.
 
+`find` rows carry `loadable` (`yes`/`no`), `app_config_id` (the id
+`mode=app` accepts — empty when none exists), `component_config_id` and
+`reason` (why a row is not loadable). `find`'s default `config_type` `"00"`
+lists component configurations (`WDY_CONFIG_DATA`); `mode=app` loads
+application configurations (`config_type` `"02"`, `WDY_CONFIG_APPL`). For a
+type-02 row the bridge reads the configuration XML and reports the
+component and component configuration it references, and checks that this
+component configuration exists; for a type-00 row it checks whether an
+application configuration with the same id exists. This costs one extra
+SELECT per row (plus the XML read for a type-02 row). In compact detail a
+column that is constant across all rows (`loadable=yes`, say) hoists into
+the `allRows` header line like any other constant column.
+
+`mode=app` accepts either id. When the given id fails to load as an
+application configuration, the bridge's internal `resolve` action looks it
+up in both `WDY_CONFIG_APPL` and `WDY_CONFIG_DATA` and lists the
+application configurations whose XML references it (capped at 20). With
+exactly one candidate, the app is loaded from it and the response header
+carries `config_id` (the id actually loaded) and `resolvedFrom` (the id
+given), with a note explaining the substitution. Otherwise the call fails
+`NOT_FOUND`, with `details`: `tried` (the id, `config_type` `"02"`, table),
+`existsAsApp`, `existsAsComponent`, `component`, `applicationConfigs`,
+`applicationConfigsTruncated`, the original exception frames, and a hint
+naming the candidate ids (or, with none, pointing to `mode=find
+config_type="02"`). The `app` happy path is still one bridge call; a
+resolution failure adds up to two more.
+
 `mode: "locks"` is scoped to one FPM config's own enqueue object and always
 requires `config_id`; it was not widened into a generic lock lookup. For
 enqueue locks on anything else — a table, a repository object, a user —
