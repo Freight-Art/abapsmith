@@ -149,6 +149,12 @@ export interface ResponseParts {
    * `hardClamp`'s cap still holds. See `withSizeLine`.
    */
   size?: boolean;
+  /**
+   * #180: when the truncated path cuts body lines, an in-place marker is
+   * appended after the kept lines (inside the body block) reporting how many
+   * were cut. Unused on the fast path (nothing is cut there).
+   */
+  omissionMarker?: (omittedLines: number) => string;
 }
 
 /** What the `size:` header line reports (issue #148). */
@@ -386,13 +392,23 @@ function renderResponse(parts: ResponseParts): BuiltResponse {
     `--- ${label} ---\n`,
     worstNoticeFor(sectionsCut),
   ).length;
-  const bodyFit = keepLines(bodyRaw.replace(/\r\n/g, "\n").trimEnd(), maxChars - bodyOverhead);
+  // Reserve the marker's worst-case length (over the range of possible omitted counts) so the
+  // real marker, computed after keepLines below, always fits without re-budgeting.
+  const worstMarkerLen = parts.omissionMarker
+    ? Math.max(parts.omissionMarker(0).length, parts.omissionMarker(bodyLines.length).length) + 1
+    : 0;
+  const bodyFit = keepLines(bodyRaw.replace(/\r\n/g, "\n").trimEnd(), maxChars - bodyOverhead - worstMarkerLen);
   const keptLines = bodyFit.kept ? bodyFit.kept.split("\n") : [];
+  const omittedLines = bodyLines.length - keptLines.length;
+  const markerLine =
+    parts.omissionMarker && keptLines.length > 0 && omittedLines > 0
+      ? parts.omissionMarker(omittedLines)
+      : undefined;
 
   const text = hardClamp(
     assemble(
       sectionsFit.kept,
-      keptLines.length ? `--- ${label} ---\n${bodyFit.kept}` : "",
+      keptLines.length ? `--- ${label} ---\n${bodyFit.kept}${markerLine ? `\n${markerLine}` : ""}` : "",
       notice("TRUNCATED", keptLines.length, sectionsCut),
     ),
     maxChars,
