@@ -327,6 +327,72 @@ describe("the invoker's JSON payload carries the caller's exact package_name/cor
 });
 
 // ---------------------------------------------------------------------------
+// 3b — corrSource reaches the classic bridge's targets gate (issue #195)
+// ---------------------------------------------------------------------------
+
+describe("the bridge's targets gate judges corr_nr with the caller's corrSource (issue #195)", () => {
+  /** A bare `auto` allowlist: only an auto-selected request may pass. */
+  const autoOnlyGate = (): SafetyGate =>
+    new SafetyGate({
+      readOnly: false,
+      allowPackages: [FLUID_PACKAGE, PKG],
+      allowNamePrefixes: ["*"],
+      allowTransports: ["auto"],
+      writesLockedOut: false,
+    });
+
+  it("a server-pinned/session-resolved request (corrSource 'auto') is admitted under ABAP_ALLOW_TRANSPORTS=auto", async () => {
+    const fake = classicFake({ action: "delete_package", lines: () => ["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"] });
+    const { conn } = await connected(fake.route);
+    const { transcript } = await deletePackageViaBridge(conn, autoOnlyGate(), {
+      ...TRANSPORT_PARAMS,
+      corrSource: "auto",
+    });
+    expect(transcript.tags).toContain("PKG-GONE");
+    const src = fake.sourceOf(fake.invoker()!);
+    const payload = [...src!.matchAll(/`([^`]*)`/g)].map((m) => m[1]).join("");
+    expect(payload).toBe(canonicalArgsJson({ package_name: PKG, corr_nr: "A4HK900123" }));
+  });
+
+  it("a caller-named request (corrSource 'named') is still refused under auto, before any HTTP request", async () => {
+    const fake = classicFake({ action: "delete_package", lines: () => ["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"] });
+    const { conn, adt } = await connected(fake.route);
+    const err = await catchErr(
+      deletePackageViaBridge(conn, autoOnlyGate(), { ...TRANSPORT_PARAMS, corrSource: "named" }),
+    );
+    expect(err.code).toBe("SAFETY_DENIED");
+    expect(err.message).toContain("Transport A4HK900123 is not permitted by ABAP_ALLOW_TRANSPORTS");
+    expect(adt.calls.length).toBe(0);
+  });
+
+  it("every gate call that carries a corr for the delete reports the same provenance", async () => {
+    const seen: EvaluateOptions[] = [];
+    class RecordingGate extends SafetyGate {
+      override assert(op: Operation, obj?: SafetyTarget, opts: EvaluateOptions = {}): void {
+        // The fluid deploy of the bridge class itself asserts with `{ kind: "unresolved" }`;
+        // only the calls that carry a RESOLVED request are this test's subject.
+        if (opts.corr?.kind === "transport") seen.push(opts);
+        super.assert(op, obj, opts);
+      }
+    }
+    const gate = new RecordingGate({
+      readOnly: false,
+      allowPackages: [FLUID_PACKAGE, PKG],
+      allowNamePrefixes: ["*"],
+      allowTransports: ["auto"],
+      writesLockedOut: false,
+    });
+    const fake = classicFake({ action: "delete_package", lines: () => ["PKG-EMPTY", "PKG-DELETED", "PKG-GONE"] });
+    const { conn } = await connected(fake.route);
+    await deletePackageViaBridge(conn, gate, { ...TRANSPORT_PARAMS, corrSource: "auto" });
+    expect(seen.length).toBeGreaterThanOrEqual(2);
+    for (const o of seen) {
+      expect(o.corr).toEqual({ kind: "transport", corrNr: "A4HK900123", source: "auto" });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 4 — input validation, refused before any network call
 // ---------------------------------------------------------------------------
 
