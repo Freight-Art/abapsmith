@@ -58,7 +58,13 @@ export interface FpmEventsQuery {
   resolve: boolean;
 }
 
-export type FpmBridgeQuery = FpmFindQuery | FpmOutlineQuery | FpmAppQuery | FpmEventsQuery;
+/** Issue #155: internal only — not reachable from FpmReadInput's `mode` enum (src/tools/fpm.ts). */
+export interface FpmResolveQuery {
+  mode: "resolve";
+  configId: string;
+}
+
+export type FpmBridgeQuery = FpmFindQuery | FpmOutlineQuery | FpmAppQuery | FpmEventsQuery | FpmResolveQuery;
 
 // ---------------------------------------------------------------------------
 // Validation — kept for `fpm-lock.ts` (config_id/config_var share the same
@@ -134,6 +140,8 @@ function fpmDispatchArgs(query: FpmBridgeQuery): Record<string, unknown> {
         ...(query.uibb !== undefined ? { uibb: query.uibb } : {}),
         resolve: query.resolve,
       };
+    case "resolve":
+      return { config_id: query.configId };
   }
 }
 
@@ -149,6 +157,14 @@ export interface FpmConfigRow {
   component: string;
   description: string;
   devclass?: string;
+  /** Issue #155: cheap existence check only — true when mode=app is expected to load this row. */
+  loadable?: boolean;
+  /** Issue #155: config_id to pass to mode=app; empty when nothing loadable was found. */
+  appConfigId?: string;
+  /** Issue #155: the component config (WDY_CONFIG_DATA, config_type 00) this row resolves to or is. */
+  componentConfigId?: string;
+  /** Issue #155: why loadable is false; empty when loadable is true. */
+  reason?: string;
 }
 
 export interface FpmAppNode {
@@ -189,6 +205,8 @@ export interface FpmTranscriptResult {
   };
   appNodes: FpmAppNode[];
   events?: FpmEventsResolved;
+  /** Issue #155: populated only for mode="resolve" (internal — see FpmResolveQuery). */
+  resolve?: FpmResolveResult;
   diagnostics: string[];
   droppedLines: number;
 }
@@ -235,6 +253,30 @@ function outlineNotFoundDiagnostic(e: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * Issue #155: `app`'s fluid body (builtin/fpm.ts) calls `err()` exactly once,
+ * with `iv_step = 'load_configuration'`, when CL_FPM_CFG_HRCHY_BRWSR_ASSIST's
+ * `load_configuration` raises — that's the one case `src/tools/fpm.ts`'s
+ * mode=app flow needs to distinguish from every other failure, to decide
+ * whether to fall back to a `resolve` dispatch. Mirrors
+ * `outlineNotFoundDiagnostic`'s way of reading `details.frames`, but searches
+ * the whole array (not just a single frame) since it's matching by step, not
+ * by position.
+ */
+export function appLoadFailure(e: unknown): { text: string } | undefined {
+  if (!isAbapError(e) || e.code !== "FLUID_ACTION_FAILED") return undefined;
+  const frames = e.details["frames"];
+  if (!Array.isArray(frames)) return undefined;
+  for (const f of frames) {
+    if (typeof f !== "object" || f === null) continue;
+    const frame = f as { step?: unknown; text?: unknown };
+    if (frame.step === "load_configuration" && typeof frame.text === "string") {
+      return { text: frame.text };
+    }
+  }
+  return undefined;
+}
+
 interface FpmFindRow {
   config_id: string;
   config_type: string;
@@ -242,19 +284,30 @@ interface FpmFindRow {
   component: string;
   description: string;
   devclass: string;
+  loadable?: boolean;
+  app_config_id?: string;
+  component_config_id?: string;
+  reason?: string;
 }
 
 function isFpmFindRow(v: unknown): v is FpmFindRow {
   if (typeof v !== "object" || v === null) return false;
   const r = v as Record<string, unknown>;
-  return (
-    typeof r["config_id"] === "string" &&
-    typeof r["config_type"] === "string" &&
-    typeof r["config_var"] === "string" &&
-    typeof r["component"] === "string" &&
-    typeof r["description"] === "string" &&
-    typeof r["devclass"] === "string"
-  );
+  if (
+    typeof r["config_id"] !== "string" ||
+    typeof r["config_type"] !== "string" ||
+    typeof r["config_var"] !== "string" ||
+    typeof r["component"] !== "string" ||
+    typeof r["description"] !== "string" ||
+    typeof r["devclass"] !== "string"
+  ) {
+    return false;
+  }
+  if (r["loadable"] !== undefined && typeof r["loadable"] !== "boolean") return false;
+  if (r["app_config_id"] !== undefined && typeof r["app_config_id"] !== "string") return false;
+  if (r["component_config_id"] !== undefined && typeof r["component_config_id"] !== "string") return false;
+  if (r["reason"] !== undefined && typeof r["reason"] !== "string") return false;
+  return true;
 }
 
 interface FpmOutlineResult {
@@ -292,6 +345,50 @@ function isFpmOutlineResult(v: unknown): v is FpmOutlineResult {
     typeof m["component"] === "string" &&
     typeof m["devclass"] === "string"
   );
+}
+
+/** Issue #155: mapped result of the internal "resolve" action (see FpmResolveQuery). */
+export interface FpmResolveResult {
+  configId: string;
+  existsAsApp: boolean;
+  existsAsComponent: boolean;
+  component: string;
+  componentConfigVar: string;
+  applicationConfigs: Array<{ configId: string; application: string; configVar: string }>;
+  truncated: boolean;
+}
+
+interface FpmResolveRawResult {
+  config_id: string;
+  exists_as_app: boolean;
+  exists_as_component: boolean;
+  component: string;
+  component_config_var: string;
+  application_configs: Array<{ config_id: string; application: string; config_var: string }>;
+  truncated: boolean;
+}
+
+function isFpmResolveResult(v: unknown): v is FpmResolveRawResult {
+  if (typeof v !== "object" || v === null) return false;
+  const r = v as Record<string, unknown>;
+  if (
+    typeof r["config_id"] !== "string" ||
+    typeof r["exists_as_app"] !== "boolean" ||
+    typeof r["exists_as_component"] !== "boolean" ||
+    typeof r["component"] !== "string" ||
+    typeof r["component_config_var"] !== "string" ||
+    typeof r["truncated"] !== "boolean" ||
+    !Array.isArray(r["application_configs"])
+  ) {
+    return false;
+  }
+  return r["application_configs"].every((a) => {
+    if (typeof a !== "object" || a === null) return false;
+    const ar = a as Record<string, unknown>;
+    return (
+      typeof ar["config_id"] === "string" && typeof ar["application"] === "string" && typeof ar["config_var"] === "string"
+    );
+  });
 }
 
 interface FpmAppNodeResult {
@@ -419,6 +516,10 @@ export async function runFpmRead(
           component: r.component,
           description: r.description,
           devclass: r.devclass,
+          loadable: r.loadable,
+          appConfigId: r.app_config_id,
+          componentConfigId: r.component_config_id,
+          reason: r.reason,
         })),
         outlineXml: undefined,
         outlineMeta: undefined,
@@ -526,6 +627,39 @@ export async function runFpmRead(
         diagnostics: raw.unrecognised.length
           ? [`${ERR_LINE_PREFIX}EVENTS ${raw.unrecognised.length} unrecognised frame(s) — protocol drift, see bodyBytes/raw result.`]
           : [],
+        droppedLines: 0,
+      };
+      break;
+    }
+    case "resolve": {
+      if (!isFpmResolveResult(res.result)) {
+        throw new AbapError(
+          "FLUID_PROTOCOL_ERROR",
+          "fpm.resolve returned a result that does not match the declared object schema.",
+          { tool: "fpm", action: "resolve", result: res.result },
+        );
+      }
+      const r = res.result;
+      transcript = {
+        count: undefined,
+        configs: [],
+        outlineXml: undefined,
+        outlineMeta: undefined,
+        appNodes: [],
+        resolve: {
+          configId: r.config_id,
+          existsAsApp: r.exists_as_app,
+          existsAsComponent: r.exists_as_component,
+          component: r.component,
+          componentConfigVar: r.component_config_var,
+          applicationConfigs: r.application_configs.map((a) => ({
+            configId: a.config_id,
+            application: a.application,
+            configVar: a.config_var,
+          })),
+          truncated: r.truncated,
+        },
+        diagnostics: [],
         droppedLines: 0,
       };
       break;
