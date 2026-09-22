@@ -966,7 +966,7 @@ describe("delete_package ABAP source — DELFLAG=X open-request lookup (#185)", 
 
   const norm = (s: string): string => s.replace(/\s+/g, " ").trim();
 
-  it("joins e071 and e070, restricted to open/limited-release statuses, ordered by trkorr descending, capped to one row", () => {
+  it("joins e071 and e070, restricted to open/limited-release statuses, ordered by trkorr descending, exits after the first row", () => {
     expect(norm(DELETE_METHOD)).toContain(
       norm(`
         SELECT e071~trkorr, e070~strkorr
@@ -977,8 +977,9 @@ describe("delete_package ABAP source — DELFLAG=X open-request lookup (#185)", 
             AND e071~obj_name = @ls_tadir-obj_name
             AND e070~trstatus IN ( 'D', 'L' )
           ORDER BY e071~trkorr DESCENDING
-          INTO ( @lv_holder, @lv_strkorr )
-          UP TO 1 ROWS.
+          INTO ( @lv_holder, @lv_strkorr ).
+          EXIT.
+        ENDSELECT.
       `),
     );
   });

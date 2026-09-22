@@ -81045,8 +81045,8 @@ var packagePart = {
             AND e071~obj_name = @ls_tadir-obj_name
             AND e070~trstatus IN ( 'D', 'L' )
           ORDER BY e071~trkorr DESCENDING
-          INTO ( @lv_holder, @lv_strkorr )
-          UP TO 1 ROWS.
+          INTO ( @lv_holder, @lv_strkorr ).
+          EXIT.
         ENDSELECT.
         IF lv_holder IS NOT INITIAL.
           IF lv_strkorr IS NOT INITIAL.
