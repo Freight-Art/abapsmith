@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.20] - 2026-09-22
+
 ### Fixed
 
 - **`abap_search` no longer throws on a bare `*` query under a type filter** (#172). `conn.adt.searchObject` parses object-name attributes numerically, so a whitespace-padded numeric name like `"                                00"` (a real WDCC/YG row) becomes the number `0` and the library's own `result["adtcore:name"].match(...)` throws `TypeError: match is not a function` before our code ever sees a row. `abap_search` now retries that one call with a string-preserving parse of the raw ADT XML when it hits exactly this failure; any other error is rethrown unchanged. `*` stays supported, with or without `type`, within the existing fetch cap.
