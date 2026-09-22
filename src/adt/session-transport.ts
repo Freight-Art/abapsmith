@@ -558,12 +558,17 @@ export class SessionTransport implements SessionTrOwner {
     // Everything below is transportable and needs a corrNr; "auto-created"
     // vs "required" only differs in whether SAP fabricates one behind our
     // back if we omit it (rule 2). checkFailed was handled in Step 1b.
+    const locks = req.locks ?? [];
+    const pinnedObject =
+      locks.find((l) => l.request.trkorr.toUpperCase() === (req.pinnedTo ?? "").toUpperCase())
+        ?.object ?? locks[0]?.object;
     return this.#decideTransportable(
       conn,
       obj,
       wanted,
       req.pinnedTo,
       req.pinnedOwner,
+      pinnedObject,
       req.devclass,
       req.candidates,
       opts.revalidate === true,
@@ -614,6 +619,7 @@ export class SessionTransport implements SessionTrOwner {
       named.wanted,
       undefined,
       undefined,
+      undefined,
       obj.devclass,
       candidates,
       opts.revalidate === true,
@@ -658,6 +664,7 @@ export class SessionTransport implements SessionTrOwner {
     wanted: string | undefined,
     pinnedTo: string | undefined,
     pinnedOwner: string | undefined,
+    pinnedObject: { pgmid: string; type: string; name: string } | undefined,
     devclass: string | undefined,
     candidates: readonly TrHeader[],
     revalidate: boolean,
@@ -677,7 +684,7 @@ export class SessionTransport implements SessionTrOwner {
     // Step 4: server-imposed pin — not an adoption. SAP is reporting the
     // object is already recorded in that request, so it's the only answer.
     if (pinnedTo !== undefined && pinnedTo !== "") {
-      return this.#resolvePin(pinnedTo, pinnedOwner, obj, wanted);
+      return this.#resolvePin(pinnedTo, pinnedOwner, pinnedObject, obj, wanted);
     }
 
     // Step 5: a TRKORR the caller named.
@@ -808,6 +815,7 @@ export class SessionTransport implements SessionTrOwner {
   #resolvePin(
     pinnedTo: string,
     pinnedOwner: string | undefined,
+    pinnedObject: { pgmid: string; type: string; name: string } | undefined,
     obj: SessionTrTarget,
     wanted: string | undefined,
   ): SessionTrResolution {
@@ -837,6 +845,23 @@ export class SessionTransport implements SessionTrOwner {
     const overrode =
       wanted !== undefined && wanted !== pinnedTo.toUpperCase() ? wanted : undefined;
     const note = overrode !== undefined ? ` (overriding the requested ${overrode})` : "";
+    // Recorded so a bridge write's response can quote why the pin won, the same
+    // `lastAutoDecision` channel the auto-resolve branches below use.
+    const lockText =
+      pinnedObject !== undefined
+        ? `it holds the lock for ${pinnedObject.pgmid} ${pinnedObject.type} ${pinnedObject.name}`
+        : `it already records ${obj.name ?? obj.uri}`;
+    const session =
+      this.#state.kind === "active" && this.#state.trkorr.toUpperCase() !== pinnedTo.toUpperCase()
+        ? this.#state.trkorr
+        : undefined;
+    this.#lastAutoDecision = {
+      trkorr: pinnedTo,
+      source: "server-pin",
+      reason:
+        `Server pinned ${obj.name ?? obj.uri} to ${pinnedTo} (${lockText})` +
+        (session !== undefined ? `, not the session's request ${session}.` : "."),
+    };
     return granted(
       pinnedTo,
       "server-pin",
@@ -897,6 +922,34 @@ export class SessionTransport implements SessionTrOwner {
       );
     }
 
+    // Registry consult (issue #174): a request registered via `noteCreated()`
+    // (`abap_transport operation=create`) that CTS's own candidate list didn't
+    // surface — the package check can fail, be pinned, or throw, and
+    // `#packageCandidates` then returns [] — must still out-rank creating a
+    // new request. Only worth the extra wire calls when the cached state
+    // isn't already a session-created request; a cached session request
+    // keeps costing zero wire requests either way.
+    const consultRegistry =
+      this.#state.kind !== "active" || !this.createdThisSession(this.#state.trkorr);
+    const registryHeaders: TrHeader[] = [];
+    if (consultRegistry) {
+      const known = new Set(candidates.map((c) => c.trkorr.toUpperCase()));
+      const strangerCached =
+        this.#state.kind === "active" ? this.#state.trkorr.toUpperCase() : undefined;
+      for (const t of this.#created) {
+        if (known.has(t) || t === strangerCached) continue;
+        try {
+          const req = await this.#cts.trShow(conn, t);
+          if (req.kind === "workbench" && req.status === "modifiable") registryHeaders.push(req);
+        } catch {
+          // TRANSPORT_GONE, released, or any other wire failure — skip. Never
+          // remove from #created: a transient read failure here must not
+          // make this session forget a request it created.
+        }
+      }
+    }
+    const registryTrkorrs = new Set(registryHeaders.map((c) => c.trkorr.toUpperCase()));
+
     // Prefixed onto whatever this call ends up granting, only when the
     // cached request just died below — empty otherwise.
     let healedPrefix = "";
@@ -916,12 +969,13 @@ export class SessionTransport implements SessionTrOwner {
       // stranger is left alone here, not retired: no probe, no invalidate.
       const preempting =
         !this.createdThisSession(cached) &&
-        candidates.some(
+        (candidates.some(
           (c) =>
             c.kind === "workbench" &&
             c.status === "modifiable" &&
             this.createdThisSession(c.trkorr),
-        );
+        ) ||
+          registryHeaders.length > 0);
       if (preempting) {
         preemptedFrom = cached;
       } else {
@@ -967,15 +1021,21 @@ export class SessionTransport implements SessionTrOwner {
     // No owner or description check — the session's own creation record is
     // stronger evidence than either, and it still works when whoami() is
     // unknown.
-    const sessionCreated = candidates.filter(
-      (c) =>
-        // Same "don't re-adopt what the heal branch just killed" guard as
-        // the attributed tier below.
-        (retired === undefined || c.trkorr.toUpperCase() !== retired.toUpperCase()) &&
-        c.kind === "workbench" &&
-        c.status === "modifiable" &&
-        this.createdThisSession(c.trkorr),
-    );
+    const sessionCreated = candidates
+      .filter(
+        (c) =>
+          // Same "don't re-adopt what the heal branch just killed" guard as
+          // the attributed tier below.
+          (retired === undefined || c.trkorr.toUpperCase() !== retired.toUpperCase()) &&
+          c.kind === "workbench" &&
+          c.status === "modifiable" &&
+          this.createdThisSession(c.trkorr),
+      )
+      .concat(
+        registryHeaders.filter(
+          (c) => retired === undefined || c.trkorr.toUpperCase() !== retired.toUpperCase(),
+        ),
+      );
 
     if (sessionCreated.length > 0) {
       const chosen = pickLatest(sessionCreated);
@@ -986,10 +1046,13 @@ export class SessionTransport implements SessionTrOwner {
         createdAt: this.#now().toISOString(),
         origin: "adopted",
       };
+      const registrySuffix = registryTrkorrs.has(chosen.trkorr.toUpperCase())
+        ? ` CTS did not list it among the candidates for package ${devclass}; a direct read confirmed it is modifiable.`
+        : "";
       const reason =
         preemptedFrom !== undefined
-          ? `${healedPrefix}Switched from ${preemptedFrom}, which this session did not create, to ${chosen.trkorr}, which THIS SESSION created.`
-          : `${healedPrefix}Adopted request ${chosen.trkorr}, which THIS SESSION created, rather than creating another.`;
+          ? `${healedPrefix}Switched from ${preemptedFrom}, which this session did not create, to ${chosen.trkorr}, which THIS SESSION created.${registrySuffix}`
+          : `${healedPrefix}Adopted request ${chosen.trkorr}, which THIS SESSION created, rather than creating another.${registrySuffix}`;
       return this.#autoGranted(chosen.trkorr, "session-adopted", reason);
     }
 
@@ -1022,10 +1085,20 @@ export class SessionTransport implements SessionTrOwner {
         createdAt: this.#now().toISOString(),
         origin: "adopted",
       };
+      const descDate = /^abapsmith session (\d{4}-\d{2}-\d{2})$/.exec(chosen.description.trim());
+      const when = descDate
+        ? ` on ${descDate[1]}`
+        : chosen.lastChanged
+          ? ` on ${chosen.lastChanged}`
+          : "";
+      const why =
+        retired !== undefined
+          ? `the session's own request ${retired} is no longer usable`
+          : "this session has no request of its own (none created, none registered by abap_transport operation=create)";
       return this.#autoGranted(
         chosen.trkorr,
         "session-adopted",
-        `${healedPrefix}Adopted existing request ${chosen.trkorr} rather than creating another: it is a modifiable workbench request owned by ${chosen.owner} and carries abapsmith's own session description (${chosen.description}). THIS SESSION DID NOT CREATE IT — it was already open when this session started, so it may already hold objects from earlier work, and abap_transport_release will refuse to release it without an explicit override.`,
+        `${healedPrefix}Resolver preferred ${chosen.trkorr} (created by this server${when}, description "${chosen.description}") over creating a new request because ${why}. THIS SESSION DID NOT CREATE IT — it was already open when this session started, so it may already hold objects from earlier work, and abap_transport_release will refuse to release it without an explicit override.`,
       );
     }
 
