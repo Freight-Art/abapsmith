@@ -12,6 +12,7 @@ connection pool slot is leased, nothing is sent to SAP). `undo` needs
 | `mode` | enum `list` \| `show` \| `undo` \| `reconcile` | no | `list` | Operation. |
 | `entry` | string | required for `show`/`undo`/`reconcile` (no `object` fallback for `reconcile`) | — | Journal entry id to show, undo, or reconcile. |
 | `object` | string | no | — | Undo the most recent entry for this object instead of naming an entry id. Not accepted by `reconcile` — closing the wrong entry writes a false outcome into the audit trail. |
+| `detail` | enum `summary` \| `full` | no | `"summary"` | `show` only. `summary`: header plus a capped diff of before-image → after-image. `full`: the complete before-image, plus the after-image when one was recorded. |
 | `limit` | number (1–999999) | no | `20` | `list` only — rows to return. |
 | `force` | boolean | no | — | `undo` only — overwrite server-side changes made since the journalled write. |
 | `activate` | boolean | no | `true` | `undo` only — also activate after reversing. |
@@ -20,6 +21,17 @@ connection pool slot is leased, nothing is sent to SAP). `undo` needs
 
 `list` columns: `id`, `when`, `op`, `object`, `existed`, `capture`,
 `outcome`, `flags`. `flags` includes `reconciled` for an entry closed by hand.
+
+`mode=show` defaults to `detail=summary`: the header (object, type,
+operation, request, timestamp, before/after sizes, diff sizes
+`diffAdded`/`diffRemoved`/`diffHunks`/`diffChars`) plus a unified diff of
+before-image → after-image, capped at about 2,000 characters — truncation is
+marked, `[diff truncated: N of M characters shown; detail="full" returns the
+complete images]`. `detail=full` returns the complete before-image as
+before, plus the after-image when one was recorded. When the entry has no
+after-image yet (a `pending` write), the summary says so and points to
+`detail=full`. This is render-side only — the entry on disk and everything
+`mode=undo`/`mode=reconcile` act on are unchanged by `detail`.
 
 Notes: transport-release entries are never undoable. Other transport-*
 entries are not auto-undoable. Activate entries have nothing to reverse.

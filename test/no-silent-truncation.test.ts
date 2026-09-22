@@ -261,6 +261,12 @@ function scanForHandRolledTruncation(): Offense[] {
 
 const ALLOWED_LINES: { file: string; contains: string; reason: string }[] = [
   {
+    file: "src/tools/journal.ts",
+    contains: "text.slice(0, SHOW_DIFF_MAX_CHARS)",
+    reason:
+      "Diff cap of the abap_journal mode=show summary view (issue #156). truncateDiffText appends `[diff truncated: <shown> of <total> characters shown; detail=\"full\" returns the complete images]` on the line after the cut, so the cut, both counts and the call that returns the rest are disclosed to the caller in the same block.",
+  },
+  {
     file: "src/tools/dumps.ts",
     contains: "summary.stack.slice(0, SUMMARY_STACK_FRAMES)",
     reason:

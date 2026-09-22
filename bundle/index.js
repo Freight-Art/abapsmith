@@ -25157,7 +25157,7 @@ var require_axios = __commonJS({
     var isNumber = typeOfTest("number");
     var isObject2 = (thing) => thing !== null && typeof thing === "object";
     var isBoolean = (thing) => thing === true || thing === false;
-    var isPlainObject8 = (val) => {
+    var isPlainObject9 = (val) => {
       if (!isObject2(val)) {
         return false;
       }
@@ -25272,9 +25272,9 @@ var require_axios = __commonJS({
         }
         const targetKey = caseless && typeof key === "string" && findKey(result, key) || key;
         const existing = hasOwnProperty(result, targetKey) ? result[targetKey] : void 0;
-        if (isPlainObject8(existing) && isPlainObject8(val)) {
+        if (isPlainObject9(existing) && isPlainObject9(val)) {
           result[targetKey] = merge2(existing, val);
-        } else if (isPlainObject8(val)) {
+        } else if (isPlainObject9(val)) {
           result[targetKey] = merge2({}, val);
         } else if (isArray(val)) {
           result[targetKey] = val.slice();
@@ -25539,7 +25539,7 @@ var require_axios = __commonJS({
       isNumber,
       isBoolean,
       isObject: isObject2,
-      isPlainObject: isPlainObject8,
+      isPlainObject: isPlainObject9,
       isEmptyObject,
       isReadableStream,
       isRequest,
@@ -83238,6 +83238,7 @@ var FPM_SOURCE = `CLASS zcl_zmcp_fluid_fpm DEFINITION
     CLASS-METHODS outline.
     CLASS-METHODS app.
     CLASS-METHODS events.
+    CLASS-METHODS resolve.
 
     CLASS-METHODS read_config
       IMPORTING iv_config_id      TYPE string
@@ -83292,6 +83293,8 @@ CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
             app( ).
           WHEN 'events'.
             events( ).
+          WHEN 'resolve'.
+            resolve( ).
           WHEN OTHERS.
             zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'dispatch'
               iv_text = |unknown action "{ iv_action }"| ).
@@ -83359,12 +83362,53 @@ CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
         DATA(lv_aid)   = |{ ls_appl-config_id }|.
         DATA(lv_atype) = |{ ls_appl-config_type }|.
         DATA(lv_avar)  = |{ ls_appl-config_var }|.
+
+        " An application config's XCONTENT references the one
+        " component config mode=app actually resolves and loads - decode it
+        " (same pattern as read_config's '02' branch) and pull the first
+        " <Component Name="..." ConfId="..."/> out with PCRE, anchored on
+        " <Component so the outer <Application ConfId="..."> is not matched.
+        DATA(lv_comp_name)   = ||.
+        DATA(lv_comp_confid) = ||.
+        DATA lv_axc TYPE xstring.
+        CLEAR lv_axc.
+        SELECT SINGLE xcontent FROM wdy_config_appl
+          WHERE config_id = @ls_appl-config_id AND config_type = @ls_appl-config_type
+            AND config_var = @ls_appl-config_var
+          INTO @lv_axc.
+        IF sy-subrc = 0 AND lv_axc IS NOT INITIAL.
+          DATA(lo_aconv) = cl_abap_conv_in_ce=>create( encoding = 'UTF-8' input = lv_axc ).
+          DATA(lv_axml) = ||.
+          lo_aconv->read( IMPORTING data = lv_axml ).
+          FIND PCRE '<Component[^>]*\\bName="([^"]*)"' IN lv_axml SUBMATCHES lv_comp_name.
+          FIND PCRE '<Component[^>]*\\bConfId="([^"]*)"' IN lv_axml SUBMATCHES lv_comp_confid.
+        ENDIF.
+
+        DATA(lv_loadable) = abap_true.
+        DATA(lv_reason)   = ||.
+        IF lv_comp_confid IS NOT INITIAL.
+          DATA(lv_exists_comp) = ||.
+          SELECT SINGLE config_id FROM wdy_config_data
+            WHERE config_id = @lv_comp_confid AND config_type = '00'
+            INTO @lv_exists_comp.
+          IF sy-subrc <> 0.
+            lv_loadable = abap_false.
+            lv_reason = |references component configuration { lv_comp_confid } which does not exist in WDY_CONFIG_DATA|.
+          ENDIF.
+        ENDIF.
+        DATA(lv_loadable_s) = COND string( WHEN lv_loadable = abap_true THEN 'true' ELSE 'false' ).
+
         zcl_zmcp_fluid_rt=>out(
           |\\{"config_id":"{ zcl_zmcp_fluid_rt=>esc( lv_aid ) }",| &&
           |"config_type":"{ zcl_zmcp_fluid_rt=>esc( lv_atype ) }",| &&
-          |"config_var":"{ zcl_zmcp_fluid_rt=>esc( lv_avar ) }","component":"",| &&
+          |"config_var":"{ zcl_zmcp_fluid_rt=>esc( lv_avar ) }",| &&
+          |"component":"{ zcl_zmcp_fluid_rt=>esc( lv_comp_name ) }",| &&
           |"description":"{ zcl_zmcp_fluid_rt=>esc( lv_desc ) }",| &&
-          |"devclass":"{ zcl_zmcp_fluid_rt=>esc( lv_devclass ) }"\\}| ).
+          |"devclass":"{ zcl_zmcp_fluid_rt=>esc( lv_devclass ) }",| &&
+          |"loadable":{ lv_loadable_s },| &&
+          |"app_config_id":"{ zcl_zmcp_fluid_rt=>esc( lv_aid ) }",| &&
+          |"component_config_id":"{ zcl_zmcp_fluid_rt=>esc( lv_comp_confid ) }",| &&
+          |"reason":"{ zcl_zmcp_fluid_rt=>esc( lv_reason ) }"\\}| ).
       ENDLOOP.
     ELSE.
       SELECT config_id, config_type, config_var, component
@@ -83395,13 +83439,42 @@ CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
         DATA(lv_dtype) = |{ ls_data-config_type }|.
         DATA(lv_dvar)  = |{ ls_data-config_var }|.
         DATA(lv_dcomp) = |{ ls_data-component }|.
+
+        " mode=app loads application configs (config_type 02),
+        " never component configs (config_type 00) directly - tell the
+        " caller which application config (if any) references this one, or
+        " why this id is not loadable by mode=app at all.
+        DATA(lv_dapp_config_id) = ||.
+        DATA(lv_dloadable) = abap_true.
+        DATA(lv_dreason)   = ||.
+        IF lv_dtype = '00'.
+          DATA(lv_dexists_app) = ||.
+          SELECT SINGLE config_id FROM wdy_config_appl
+            WHERE config_id = @ls_data-config_id AND config_type = '02'
+            INTO @lv_dexists_app.
+          IF sy-subrc = 0.
+            lv_dapp_config_id = lv_dexists_app.
+          ELSE.
+            lv_dloadable = abap_false.
+            lv_dreason = |component configuration (config_type 00); mode=app loads application configurations (config_type 02) - pass this id to mode=app anyway and it resolves the application configuration that references it|.
+          ENDIF.
+        ELSE.
+          lv_dloadable = abap_false.
+          lv_dreason = |config_type { lv_dtype } is not loadable by mode=app|.
+        ENDIF.
+        DATA(lv_dloadable_s) = COND string( WHEN lv_dloadable = abap_true THEN 'true' ELSE 'false' ).
+
         zcl_zmcp_fluid_rt=>out(
           |\\{"config_id":"{ zcl_zmcp_fluid_rt=>esc( lv_did ) }",| &&
           |"config_type":"{ zcl_zmcp_fluid_rt=>esc( lv_dtype ) }",| &&
           |"config_var":"{ zcl_zmcp_fluid_rt=>esc( lv_dvar ) }",| &&
           |"component":"{ zcl_zmcp_fluid_rt=>esc( lv_dcomp ) }",| &&
           |"description":"{ zcl_zmcp_fluid_rt=>esc( lv_desc2 ) }",| &&
-          |"devclass":"{ zcl_zmcp_fluid_rt=>esc( lv_devclass2 ) }"\\}| ).
+          |"devclass":"{ zcl_zmcp_fluid_rt=>esc( lv_devclass2 ) }",| &&
+          |"loadable":{ lv_dloadable_s },| &&
+          |"app_config_id":"{ zcl_zmcp_fluid_rt=>esc( lv_dapp_config_id ) }",| &&
+          |"component_config_id":"{ zcl_zmcp_fluid_rt=>esc( lv_did ) }",| &&
+          |"reason":"{ zcl_zmcp_fluid_rt=>esc( lv_dreason ) }"\\}| ).
       ENDLOOP.
     ENDIF.
   ENDMETHOD.
@@ -83565,6 +83638,85 @@ CLASS zcl_zmcp_fluid_fpm IMPLEMENTATION.
         |"is_leaf":{ lv_nleaf }| &&
         lv_resolved_json && |\\}| ).
     ENDLOOP.
+  ENDMETHOD.
+
+  METHOD resolve.
+    " Given one config_id, report whether it is an application
+    " config (mode=app's own table), a component config, or both, and -
+    " when it is a component config - which application config(s) reference
+    " it, so mode=app can resolve a component id to the application id it
+    " actually needs without a second round trip from the caller.
+    DATA(lv_config_id) = zcl_zmcp_fluid_rt=>s( 'config_id' ).
+    IF lv_config_id IS INITIAL.
+      zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args' iv_text = 'config_id is required' ).
+      RETURN.
+    ENDIF.
+
+    DATA(lv_exists_app_id) = ||.
+    SELECT SINGLE config_id FROM wdy_config_appl
+      WHERE config_id = @lv_config_id AND config_type = '02'
+      INTO @lv_exists_app_id.
+    DATA(lv_exists_as_app) = xsdbool( sy-subrc = 0 ).
+
+    DATA(lv_comp_var) = ||.
+    DATA(lv_comp)     = ||.
+    SELECT SINGLE config_var, component FROM wdy_config_data
+      WHERE config_id = @lv_config_id AND config_type = '00'
+      INTO ( @lv_comp_var, @lv_comp ).
+    DATA(lv_exists_as_component) = xsdbool( sy-subrc = 0 ).
+
+    DATA(lv_apps_json) = ||.
+    DATA(lv_count)     = 0.
+    DATA(lv_truncated) = abap_false.
+
+    IF lv_exists_as_component = abap_true.
+      " config_id is not a PCRE metacharacter source: assertConfigId/
+      " ABAP_NAME on the TypeScript side already restrict it to letters,
+      " digits, underscore and slash, so it embeds into the pattern below
+      " with no escaping.
+      DATA(lv_pat) = '<Component[^>]*\\bConfId="' && lv_config_id && '"'.
+      SELECT config_id, config_var, application, xcontent FROM wdy_config_appl
+        WHERE config_type = '02'
+        INTO TABLE @DATA(lt_appl2).
+      LOOP AT lt_appl2 INTO DATA(ls_appl2).
+        DATA(lv_atxt) = ||.
+        IF ls_appl2-xcontent IS NOT INITIAL.
+          DATA(lo_bconv) = cl_abap_conv_in_ce=>create( encoding = 'UTF-8' input = ls_appl2-xcontent ).
+          lo_bconv->read( IMPORTING data = lv_atxt ).
+        ENDIF.
+        FIND PCRE lv_pat IN lv_atxt.
+        IF sy-subrc = 0.
+          IF lv_count >= 20.
+            lv_truncated = abap_true.
+            EXIT.
+          ENDIF.
+          lv_count = lv_count + 1.
+          DATA(lv_aid2)  = |{ ls_appl2-config_id }|.
+          DATA(lv_aapp2) = |{ ls_appl2-application }|.
+          DATA(lv_avar2) = |{ ls_appl2-config_var }|.
+          IF lv_apps_json IS NOT INITIAL.
+            lv_apps_json = lv_apps_json && |,|.
+          ENDIF.
+          lv_apps_json = lv_apps_json &&
+            |\\{"config_id":"{ zcl_zmcp_fluid_rt=>esc( lv_aid2 ) }",| &&
+            |"application":"{ zcl_zmcp_fluid_rt=>esc( lv_aapp2 ) }",| &&
+            |"config_var":"{ zcl_zmcp_fluid_rt=>esc( lv_avar2 ) }"\\}|.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+
+    DATA(lv_eapp_s)  = COND string( WHEN lv_exists_as_app = abap_true THEN 'true' ELSE 'false' ).
+    DATA(lv_ecomp_s) = COND string( WHEN lv_exists_as_component = abap_true THEN 'true' ELSE 'false' ).
+    DATA(lv_trunc_s) = COND string( WHEN lv_truncated = abap_true THEN 'true' ELSE 'false' ).
+
+    zcl_zmcp_fluid_rt=>out(
+      |\\{"config_id":"{ zcl_zmcp_fluid_rt=>esc( lv_config_id ) }",| &&
+      |"exists_as_app":{ lv_eapp_s },| &&
+      |"exists_as_component":{ lv_ecomp_s },| &&
+      |"component":"{ zcl_zmcp_fluid_rt=>esc( lv_comp ) }",| &&
+      |"component_config_var":"{ zcl_zmcp_fluid_rt=>esc( lv_comp_var ) }",| &&
+      |"application_configs":[{ lv_apps_json }],| &&
+      |"truncated":{ lv_trunc_s }\\}| ).
   ENDMETHOD.
 
   METHOD read_config.
@@ -84129,6 +84281,8 @@ var fpmManifest = {
         description: "Every matching config row; abapsmith imposes no row cap here.",
         items: {
           type: "object",
+          // loadable/app_config_id/component_config_id/reason are optional in the
+          // schema so the TS side keeps rendering rows from a bridge without them.
           required: ["config_id", "config_type", "config_var", "component", "description", "devclass"],
           properties: {
             config_id: { type: "string", maxLength: CONFIG_ID_LEN },
@@ -84136,7 +84290,23 @@ var fpmManifest = {
             config_var: { type: "string", maxLength: 6 },
             component: { type: "string" },
             description: { type: "string" },
-            devclass: { type: "string" }
+            devclass: { type: "string" },
+            loadable: {
+              type: "boolean",
+              description: "Cheap existence check only: true when mode=app is expected to be able to load this row (see app_config_id/component_config_id)."
+            },
+            app_config_id: {
+              type: "string",
+              description: "config_id to pass to mode=app; empty when nothing loadable was found for this row."
+            },
+            component_config_id: {
+              type: "string",
+              description: "The component config (WDY_CONFIG_DATA, config_type 00) this row resolves to or is."
+            },
+            reason: {
+              type: "string",
+              description: "Why loadable is false; empty when loadable is true."
+            }
           }
         }
       }
@@ -84249,6 +84419,54 @@ var fpmManifest = {
               type: "string",
               description: "Present only when resolve=true and this node's re-read raised an exception."
             }
+          }
+        }
+      }
+    },
+    {
+      name: "resolve",
+      category: "read",
+      description: "Given one config_id, reports whether it exists as an application config (WDY_CONFIG_APPL) and/or a component config (WDY_CONFIG_DATA), and which application config(s) reference it as a component config.",
+      input: {
+        type: "object",
+        required: ["config_id"],
+        properties: {
+          config_id: { type: "string", maxLength: CONFIG_ID_LEN }
+        }
+      },
+      output: {
+        type: "object",
+        required: [
+          "config_id",
+          "exists_as_app",
+          "exists_as_component",
+          "component",
+          "component_config_var",
+          "application_configs",
+          "truncated"
+        ],
+        properties: {
+          config_id: { type: "string" },
+          exists_as_app: { type: "boolean" },
+          exists_as_component: { type: "boolean" },
+          component: { type: "string" },
+          component_config_var: { type: "string" },
+          application_configs: {
+            type: "array",
+            description: "Application configs (config_type 02) whose XCONTENT references this config_id as a component config; only populated when exists_as_component is true.",
+            items: {
+              type: "object",
+              required: ["config_id", "application", "config_var"],
+              properties: {
+                config_id: { type: "string" },
+                application: { type: "string" },
+                config_var: { type: "string" }
+              }
+            }
+          },
+          truncated: {
+            type: "boolean",
+            description: "true when more than 20 referencing application configs exist and the list was capped."
           }
         }
       }
@@ -118654,6 +118872,469 @@ function installSystemRouting(mcp, registry2) {
   });
 }
 
+// src/param-check.ts
+init_errors();
+
+// src/tool-errors.ts
+init_errors();
+init_session();
+init_error_capture();
+init_truncate();
+var MAX_ERROR_ENVELOPE_CHARS = 4e3;
+var MAX_PROPERTY_VALUE_CHARS = 300;
+var MAX_RESIDUAL_PROPERTIES = 24;
+var MAX_MESSAGE_CHARS = 500;
+var SUBTYPE_KEY2 = "com.sap.adt.communicationFramework.subType";
+function isLockHolderCell(v) {
+  if (typeof v !== "object" || v === null) return false;
+  const r = v;
+  return typeof r["user"] === "string" && typeof r["gname"] === "string" && typeof r["garg"] === "string" && (r["tcode"] === void 0 || typeof r["tcode"] === "string") && (r["age"] === void 0 || typeof r["age"] === "string");
+}
+function str2(v) {
+  if (typeof v === "string") return v.trim() || void 0;
+  if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  return void 0;
+}
+function reassembleSplitT100Variables(vars) {
+  const order = ["v1", "v2", "v3", "v4"];
+  const results = [];
+  const consumed = /* @__PURE__ */ new Set();
+  for (let i = 0; i < order.length; i++) {
+    const startKey = order[i];
+    if (consumed.has(startKey)) continue;
+    const startValue = vars[startKey];
+    if (startValue === void 0 || startValue.length !== 50) continue;
+    const from = [startKey];
+    let value = startValue;
+    let previousWasFullWidth = true;
+    for (let j = i + 1; j < order.length && previousWasFullWidth; j++) {
+      const nextKey = order[j];
+      const nextValue = vars[nextKey];
+      if (nextValue === void 0) break;
+      from.push(nextKey);
+      value += nextValue;
+      consumed.add(nextKey);
+      previousWasFullWidth = nextValue.length === 50;
+    }
+    if (from.length > 1) results.push({ from, value });
+  }
+  return results;
+}
+var XT465_TEMPLATE = /^Parameter (.+) not in version (.+) of tp configuration$/s;
+function matchXt465ChoppedTemplate(message) {
+  const m = XT465_TEMPLATE.exec(message.trim());
+  if (!m) return void 0;
+  const v1 = m[1];
+  const v2 = m[2];
+  if (v1.length !== 50) return void 0;
+  return {
+    id: "XT",
+    no: "465",
+    variables: { v1, v2 },
+    reassembled: [{ from: ["v1", "v2"], value: v1 + v2 }]
+  };
+}
+function withXt465Fallback(adt, message) {
+  if (adt?.t100) return adt;
+  const fallback = matchXt465ChoppedTemplate(message);
+  if (!fallback) return adt;
+  return { ...adt ?? {}, t100: fallback };
+}
+function envelopeFromProperties(props) {
+  const env = {};
+  const residual = {};
+  const t100Vars = {};
+  let t100Id;
+  let t100No;
+  for (const [rawKey, rawValue] of Object.entries(props)) {
+    const value = String(rawValue ?? "").trim();
+    if (!value || value === "undefined") continue;
+    const key = rawKey.trim();
+    if (key === "T100KEY-ID") t100Id = value;
+    else if (key === "T100KEY-NO") t100No = value;
+    else if (/^T100KEY-V\d+$/.test(key)) t100Vars[key.slice(8).toLowerCase()] = value;
+    else if (key === SUBTYPE_KEY2) env.subType = value;
+    else if (key === "ideUser" || key === "conflictText") {
+      env.lock = { ...env.lock, [key]: value };
+    } else if (key === "URI") env.uri = value;
+    else if (/^(TRANSPORT|CORRNR|TRKORR|REQUEST)$/i.test(key)) env.transport = value;
+    else if (/LongText$/i.test(key)) continue;
+    else residual[key] = truncateText(value, MAX_PROPERTY_VALUE_CHARS);
+  }
+  if (t100Id || t100No || Object.keys(t100Vars).length) {
+    const reassembled = reassembleSplitT100Variables(t100Vars);
+    env.t100 = {
+      ...t100Id ? { id: t100Id } : {},
+      ...t100No ? { no: t100No } : {},
+      ...Object.keys(t100Vars).length ? { variables: t100Vars } : {},
+      ...reassembled.length ? { reassembled } : {}
+    };
+  }
+  const keys = Object.keys(residual);
+  if (keys.length > MAX_RESIDUAL_PROPERTIES) {
+    const kept = keys.slice(0, MAX_RESIDUAL_PROPERTIES);
+    const dropped = keys.length - kept.length;
+    env.properties = {
+      ...Object.fromEntries(kept.map((k) => [k, residual[k]])),
+      // Mirrors compact.ts's notice("TRUNCATED", shown, cut) idiom.
+      "\u2026": `TRUNCATED: ${kept.length} of ${keys.length} ADT properties shown, ${dropped} cut`
+    };
+    env.omitted = `${dropped} further ADT properties (${keys.length} total); the full set is in the ${BODY_DUMP_DIR_ENV} capture if it is enabled`;
+  } else if (keys.length) {
+    env.properties = residual;
+  }
+  return env;
+}
+function adtEnvelopeFromThrown(e) {
+  const info = adtExceptionInfo(e);
+  if (!info) return void 0;
+  const any2 = e ?? {};
+  const env = envelopeFromProperties(info.properties);
+  if (info.status !== void 0) env.status = info.status;
+  env.exceptionType ??= info.type;
+  env.namespace ??= str2(any2.namespace);
+  env.code ??= str2(any2.code);
+  const localized = str2(any2.localizedMessage);
+  if (localized && localized !== info.message) env.localizedMessage = localized;
+  return env;
+}
+function adtEnvelopeFromDetails(details) {
+  const rest = {};
+  let env = {};
+  let sawAny = false;
+  for (const [k, v] of Object.entries(details)) {
+    switch (k) {
+      case "status":
+        if (typeof v === "number") {
+          env.status = v;
+          sawAny = true;
+        } else rest[k] = v;
+        break;
+      case "adtExceptionType":
+        if (str2(v)) {
+          env.exceptionType = str2(v);
+          sawAny = true;
+        } else rest[k] = v;
+        break;
+      case "properties":
+        if (v && typeof v === "object" && !Array.isArray(v)) {
+          env = { ...envelopeFromProperties(v), ...env };
+          sawAny = true;
+        } else rest[k] = v;
+        break;
+      case "t100":
+        if (v && typeof v === "object" && !Array.isArray(v)) {
+          env.t100 = { ...env.t100, ...envelopeFromProperties(v).t100 };
+          sawAny = true;
+        } else rest[k] = v;
+        break;
+      case "blockingUser":
+        if (str2(v)) {
+          env.lock = { ...env.lock, blockingUser: str2(v) };
+          sawAny = true;
+        } else rest[k] = v;
+        break;
+      case "lock_holders":
+        if (Array.isArray(v) && v.length > 0 && v.every(isLockHolderCell)) {
+          env.lock = { ...env.lock, holders: v };
+          sawAny = true;
+        } else rest[k] = v;
+        break;
+      case "lock_holders_total":
+        if (typeof v === "number") {
+          env.lock = { ...env.lock, holdersTotal: v };
+          sawAny = true;
+        } else rest[k] = v;
+        break;
+      case "transport":
+        if (str2(v)) {
+          env.transport = str2(v);
+          sawAny = true;
+        } else rest[k] = v;
+        break;
+      default:
+        rest[k] = v;
+    }
+  }
+  return { adt: sawAny ? env : void 0, rest };
+}
+function renderLockHolders(holders, holdersTotal) {
+  if (!holders || holders.length === 0) return void 0;
+  const cells = [];
+  for (const h of holders) {
+    const bits = [h.tcode, h.age].filter((b) => b !== void 0);
+    cells.push(bits.length ? `${h.user} (${bits.join(", ")})` : h.user);
+  }
+  let sentence = `Enqueue table shows ${cells.join(", ")}.`;
+  if (holdersTotal !== void 0 && holdersTotal > holders.length) {
+    sentence += ` (${holdersTotal} holders in total; ${holders.length} shown.)`;
+  }
+  return sentence;
+}
+function summarise(code, adt) {
+  if (!adt) return void 0;
+  const parts = [];
+  const holder = adt.lock?.blockingUser ?? adt.lock?.ideUser;
+  if (code === "LOCKED" || holder) {
+    parts.push(holder ? `Held by user ${holder}.` : "Another ADT session holds the lock.");
+  }
+  if (adt.lock?.conflictText) parts.push(adt.lock.conflictText);
+  const holderSentence = renderLockHolders(adt.lock?.holders, adt.lock?.holdersTotal);
+  if (holderSentence) parts.push(holderSentence);
+  if (adt.status !== void 0) parts.push(`ADT returned HTTP ${adt.status}.`);
+  if (adt.exceptionType) parts.push(`Exception ${adt.exceptionType}.`);
+  if (adt.t100?.id && adt.t100.no) parts.push(`SAP message ${adt.t100.id}${adt.t100.no}.`);
+  if (adt.subType) parts.push(`Operation ${adt.subType}.`);
+  return parts.length ? parts.join(" ") : void 0;
+}
+function ensureNotFoundNamesObject(message, details) {
+  const name = typeof details.name === "string" ? details.name.trim() : "";
+  if (!name) return message;
+  const trimmed = message.trim();
+  if (trimmed && trimmed.toLowerCase().includes(name.toLowerCase())) {
+    return message;
+  }
+  const own = `${name} was not found.`;
+  if (!trimmed) return own;
+  return `${own} SAP said: "${trimmed}"`;
+}
+function hintForRawThrow(code) {
+  switch (code) {
+    case "SESSION_DEAD":
+      return "Every lock the session held is already released. The connection re-establishes a session on the next request \u2014 retry the operation once. This is NOT an authentication failure and does not count against the logon-attempt budget.";
+    case "LOCKED":
+      return "This lock conflict was classified from the raw HTTP/exception shape only \u2014 it was never diagnosed beyond that, so no blocking session or object name could be extracted here. Do NOT retry in a loop: there is no lock timeout while the holding session lives, so a second attempt fails the same way. Close the other session (another terminal, an Eclipse/SE80 editor) if you have one open on this object, or work on a different object.";
+    case "NOT_FOUND":
+      return "Check the name with abap_search, or create the object first.";
+    default:
+      return "This failure was never classified beyond a generic HTTP/exception shape, so nothing more specific is known about it. Check the `adt` block in the tool result: `adt.localizedMessage` and `adt.t100` (id/no/variables) carry what SAP sent verbatim, when present, and are usually more specific than the message above. Do not retry unchanged \u2014 an unrecognised response will not resolve itself on a second try.";
+  }
+}
+function buildErrorPayload(e) {
+  let payload;
+  if (isAbapError(e)) {
+    const { adt: adtRaw, rest } = adtEnvelopeFromDetails(e.details);
+    const message = e.code === "NOT_FOUND" ? ensureNotFoundNamesObject(e.message, e.details) : e.message;
+    const adt = withXt465Fallback(adtRaw, message);
+    payload = {
+      error: e.code,
+      message,
+      ...e.hint ? { hint: e.hint } : {},
+      ...e.retryable !== void 0 ? { retryable: e.retryable } : {},
+      ...adt ? { adt } : {},
+      ...Object.keys(rest).length ? { details: rest } : {}
+    };
+    const summary = summarise(e.code, adt);
+    if (summary) payload.summary = summary;
+  } else {
+    const adtRaw = adtEnvelopeFromThrown(e);
+    const code = classifySessionFailure(adtExceptionInfo(e)?.response) ? "SESSION_DEAD" : isLockConflict(e) ? "LOCKED" : isNotFoundError(e) ? "NOT_FOUND" : "ADT_ERROR";
+    const described = describeUnknownError(e);
+    const message = typeof described === "string" && described ? described : `Unknown failure (${typeof e})`;
+    const adt = withXt465Fallback(adtRaw, message);
+    const hint = hintForRawThrow(code);
+    payload = {
+      error: code,
+      message,
+      ...hint ? { hint } : {},
+      ...adt ? { adt } : {}
+    };
+    const summary = summarise(code, adt);
+    if (summary) payload.summary = summary;
+    if (adt && process.env[BODY_DUMP_DIR_ENV]) {
+      payload.rawBody = `not included by design; a forensic capture was written to ${BODY_DUMP_DIR_ENV}`;
+    }
+  }
+  return payload;
+}
+function errorResult(e) {
+  const payload = buildErrorPayload(e);
+  return {
+    isError: true,
+    content: [{ type: "text", text: fitEnvelope(payload) }]
+  };
+}
+function fitEnvelope(payload) {
+  let text5 = JSON.stringify(payload);
+  if (text5.length <= MAX_ERROR_ENVELOPE_CHARS) return text5;
+  const adt = payload.adt;
+  if (adt?.properties) {
+    const dropped = Object.keys(adt.properties).length;
+    const { properties: _dropped, ...kept } = adt;
+    payload = {
+      ...payload,
+      adt: {
+        ...kept,
+        omitted: `${dropped} ADT properties dropped to stay inside the response budget`
+      }
+    };
+    text5 = JSON.stringify(payload);
+    if (text5.length <= MAX_ERROR_ENVELOPE_CHARS) return text5;
+  }
+  if (typeof payload.message === "string" && payload.message.length > MAX_MESSAGE_CHARS) {
+    payload = { ...payload, message: truncateText(payload.message, MAX_MESSAGE_CHARS) };
+    text5 = JSON.stringify(payload);
+    if (text5.length <= MAX_ERROR_ENVELOPE_CHARS) return text5;
+  }
+  return truncateText(text5, MAX_ERROR_ENVELOPE_CHARS) + `
+(set ${BODY_DUMP_DIR_ENV} to capture the full error)`;
+}
+
+// src/param-check.ts
+var PARAM_ALIASES = {
+  abap_journal: { id: "entry", entry_id: "entry", name: "object" },
+  abap_bopf: { object: "bo", name: "bo", business_object: "bo" },
+  abap_bopf_edit: { object: "bo", business_object: "bo" },
+  abap_bopf_delete: { object: "bo", business_object: "bo" },
+  abap_transport: { action: "operation", mode: "operation", request: "transport", trkorr: "transport" },
+  abap_transport_release: { request: "transport", trkorr: "transport" }
+};
+function isPlainObject7(v) {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+function suggestParam(unknown2, accepted, aliases) {
+  const lower = unknown2.toLowerCase();
+  if (aliases) {
+    const target = aliases[lower];
+    if (target !== void 0 && accepted.includes(target)) return target;
+  }
+  const exact = accepted.find((a) => a.toLowerCase() === lower);
+  if (exact !== void 0) return exact;
+  if (unknown2.length >= 2) {
+    const prefixCandidates = accepted.filter((a) => {
+      if (a.length < 2) return false;
+      const al = a.toLowerCase();
+      return al.startsWith(lower) || lower.startsWith(al);
+    });
+    if (prefixCandidates.length === 1) return prefixCandidates[0];
+  }
+  const maxDist = Math.max(1, Math.ceil(unknown2.length / 3));
+  let bestDist = Infinity;
+  let bestNames = [];
+  for (const a of accepted) {
+    const d = levenshtein(a.toLowerCase(), lower);
+    if (d < bestDist) {
+      bestDist = d;
+      bestNames = [a];
+    } else if (d === bestDist) {
+      bestNames.push(a);
+    }
+  }
+  if (bestNames.length === 1 && bestDist <= maxDist) return bestNames[0];
+  return void 0;
+}
+function suggestEnumValue(value, values) {
+  return suggestParam(value, values);
+}
+var UNWRAP_TYPES = /* @__PURE__ */ new Set(["optional", "nullable", "default", "readonly", "catch"]);
+var MAX_UNWRAP_DEPTH = 10;
+function enumValuesOf(schema) {
+  let current = schema;
+  for (let i = 0; i < MAX_UNWRAP_DEPTH; i++) {
+    if (typeof current !== "object" || current === null) return void 0;
+    const def = current._zod?.def;
+    if (!def || typeof def.type !== "string") return void 0;
+    if (def.type === "enum") {
+      const entries = def.entries;
+      if (!entries || typeof entries !== "object") return void 0;
+      const values = Object.values(entries).filter((v) => typeof v === "string");
+      return values.length ? values : void 0;
+    }
+    if (UNWRAP_TYPES.has(def.type) && def.innerType !== void 0) {
+      current = def.innerType;
+      continue;
+    }
+    return void 0;
+  }
+  return void 0;
+}
+function checkToolArgs(tool, shape, args, aliases) {
+  if (!isPlainObject7(args)) return void 0;
+  const accepted = Object.keys(shape);
+  const acceptedSet = new Set(accepted);
+  const unknownKeys = Object.keys(args).filter((k) => !acceptedSet.has(k));
+  if (unknownKeys.length > 0) {
+    const key = unknownKeys[0];
+    const suggestion = suggestParam(key, accepted, aliases);
+    const message = `${tool} does not accept parameter "${key}".` + (suggestion ? ` Did you mean "${suggestion}"?` : "") + ` Accepted parameters: ${accepted.join(", ")}.`;
+    const details = {
+      tool,
+      parameter: key,
+      unknown: unknownKeys,
+      accepted: [...accepted],
+      ...suggestion ? { suggestion } : {}
+    };
+    const hint = suggestion ? `Retry with ${suggestion}= instead of ${key}=.` : "Use only the listed parameters; see the tool description.";
+    return new AbapError("BAD_INPUT", message, details, hint);
+  }
+  for (const key of accepted) {
+    if (!(key in args)) continue;
+    const value = args[key];
+    if (typeof value !== "string") continue;
+    const values = enumValuesOf(shape[key]);
+    if (values === void 0 || values.includes(value)) continue;
+    const suggestion = suggestEnumValue(value, values);
+    const message = `${tool}: ${key} "${value}" is not valid. Valid values: ${values.join(", ")}.` + (suggestion ? ` Did you mean "${suggestion}"?` : "");
+    const details = {
+      tool,
+      parameter: key,
+      value,
+      accepted: values,
+      ...suggestion ? { suggestion } : {}
+    };
+    const hint = suggestion ? `Retry with ${key}="${suggestion}".` : "Pick one of the listed values.";
+    return new AbapError("BAD_INPUT", message, details, hint);
+  }
+  return void 0;
+}
+function hasZodMarker(v) {
+  if (typeof v !== "object" || v === null) return false;
+  const r = v;
+  return "_zod" in r || "_def" in r;
+}
+function isRawShape(v) {
+  if (typeof v !== "object" || v === null || Array.isArray(v)) return false;
+  if (hasZodMarker(v)) return false;
+  return Object.values(v).every(hasZodMarker);
+}
+function isCallToolRequest(message) {
+  const m = message;
+  return m.method === "tools/call" && (typeof m.id === "string" || typeof m.id === "number") && isPlainObject7(m.params) && typeof m.params.name === "string";
+}
+function installParamCheck(mcp, options = {}) {
+  const aliases = options.aliases ?? PARAM_ALIASES;
+  const shapes = /* @__PURE__ */ new Map();
+  const rawRegisterTool = mcp.registerTool.bind(mcp);
+  mcp.registerTool = ((name, config2, cb) => {
+    if (isRawShape(config2.inputSchema)) {
+      shapes.set(name, config2.inputSchema);
+    }
+    return rawRegisterTool(name, config2, cb);
+  });
+  const rawConnect = mcp.connect.bind(mcp);
+  mcp.connect = (async (transport) => {
+    await rawConnect(transport);
+    const original = transport.onmessage;
+    if (!original) return;
+    transport.onmessage = ((message, extra) => {
+      if (isCallToolRequest(message)) {
+        const shape = shapes.get(message.params.name);
+        const args = message.params.arguments;
+        if (shape) {
+          const error51 = checkToolArgs(message.params.name, shape, args, aliases[message.params.name]);
+          if (error51) {
+            const response = { jsonrpc: "2.0", id: message.id, result: errorResult(error51) };
+            transport.send(response).catch(() => {
+            });
+            return;
+          }
+        }
+      }
+      original(message, extra);
+    });
+  });
+}
+
 // src/tools/activate.ts
 init_zod();
 init_capabilities();
@@ -119424,6 +120105,8 @@ function fpmDispatchArgs(query) {
         ...query.uibb !== void 0 ? { uibb: query.uibb } : {},
         resolve: query.resolve
       };
+    case "resolve":
+      return { config_id: query.configId };
   }
 }
 var EMPTY_TRANSCRIPT = {
@@ -119447,10 +120130,30 @@ function outlineNotFoundDiagnostic(e) {
   }
   return void 0;
 }
+function appLoadFailure(e) {
+  if (!isAbapError(e) || e.code !== "FLUID_ACTION_FAILED") return void 0;
+  const frames = e.details["frames"];
+  if (!Array.isArray(frames)) return void 0;
+  for (const f of frames) {
+    if (typeof f !== "object" || f === null) continue;
+    const frame = f;
+    if (frame.step === "load_configuration" && typeof frame.text === "string") {
+      return { text: frame.text };
+    }
+  }
+  return void 0;
+}
 function isFpmFindRow(v) {
   if (typeof v !== "object" || v === null) return false;
   const r = v;
-  return typeof r["config_id"] === "string" && typeof r["config_type"] === "string" && typeof r["config_var"] === "string" && typeof r["component"] === "string" && typeof r["description"] === "string" && typeof r["devclass"] === "string";
+  if (typeof r["config_id"] !== "string" || typeof r["config_type"] !== "string" || typeof r["config_var"] !== "string" || typeof r["component"] !== "string" || typeof r["description"] !== "string" || typeof r["devclass"] !== "string") {
+    return false;
+  }
+  if (r["loadable"] !== void 0 && typeof r["loadable"] !== "boolean") return false;
+  if (r["app_config_id"] !== void 0 && typeof r["app_config_id"] !== "string") return false;
+  if (r["component_config_id"] !== void 0 && typeof r["component_config_id"] !== "string") return false;
+  if (r["reason"] !== void 0 && typeof r["reason"] !== "string") return false;
+  return true;
 }
 function isFpmOutlineResult(v) {
   if (typeof v !== "object" || v === null) return false;
@@ -119460,6 +120163,18 @@ function isFpmOutlineResult(v) {
   }
   const m = r["meta"];
   return typeof m["config_idpar"] === "string" && typeof m["config_typepar"] === "string" && typeof m["config_varpar"] === "string" && typeof m["component"] === "string" && typeof m["devclass"] === "string";
+}
+function isFpmResolveResult(v) {
+  if (typeof v !== "object" || v === null) return false;
+  const r = v;
+  if (typeof r["config_id"] !== "string" || typeof r["exists_as_app"] !== "boolean" || typeof r["exists_as_component"] !== "boolean" || typeof r["component"] !== "string" || typeof r["component_config_var"] !== "string" || typeof r["truncated"] !== "boolean" || !Array.isArray(r["application_configs"])) {
+    return false;
+  }
+  return r["application_configs"].every((a) => {
+    if (typeof a !== "object" || a === null) return false;
+    const ar = a;
+    return typeof ar["config_id"] === "string" && typeof ar["application"] === "string" && typeof ar["config_var"] === "string";
+  });
 }
 var FPM_EVENTS_FRAME_KINDS = /* @__PURE__ */ new Set([
   "config",
@@ -119537,7 +120252,11 @@ async function runFpmRead(conn, query, gate) {
           configVar: r.config_var,
           component: r.component,
           description: r.description,
-          devclass: r.devclass
+          devclass: r.devclass,
+          loadable: r.loadable,
+          appConfigId: r.app_config_id,
+          componentConfigId: r.component_config_id,
+          reason: r.reason
         })),
         outlineXml: void 0,
         outlineMeta: void 0,
@@ -119641,6 +120360,39 @@ async function runFpmRead(conn, query, gate) {
         appNodes: [],
         events,
         diagnostics: raw.unrecognised.length ? [`${ERR_LINE_PREFIX}EVENTS ${raw.unrecognised.length} unrecognised frame(s) \u2014 protocol drift, see bodyBytes/raw result.`] : [],
+        droppedLines: 0
+      };
+      break;
+    }
+    case "resolve": {
+      if (!isFpmResolveResult(res.result)) {
+        throw new AbapError(
+          "FLUID_PROTOCOL_ERROR",
+          "fpm.resolve returned a result that does not match the declared object schema.",
+          { tool: "fpm", action: "resolve", result: res.result }
+        );
+      }
+      const r = res.result;
+      transcript = {
+        count: void 0,
+        configs: [],
+        outlineXml: void 0,
+        outlineMeta: void 0,
+        appNodes: [],
+        resolve: {
+          configId: r.config_id,
+          existsAsApp: r.exists_as_app,
+          existsAsComponent: r.exists_as_component,
+          component: r.component,
+          componentConfigVar: r.component_config_var,
+          applicationConfigs: r.application_configs.map((a) => ({
+            configId: a.config_id,
+            application: a.application,
+            configVar: a.config_var
+          })),
+          truncated: r.truncated
+        },
+        diagnostics: [],
         droppedLines: 0
       };
       break;
@@ -129154,6 +129906,9 @@ var journalInputSchema = {
     "list (default): recent writes. show: one entry incl. its before-image. undo: revert one entry. reconcile: close a stranded pending entry with an outcome you establish and a stated reason."
   ),
   entry: external_exports.string().optional().describe("Journal entry id from mode=list. Required for show and undo unless `object` is given."),
+  detail: external_exports.enum(["summary", "full"]).optional().describe(
+    'show only. "summary" (default): header plus a unified diff of before-image \u2192 after-image, capped at about 2,000 characters. "full": the complete before-image (and after-image when one was recorded), as before.'
+  ),
   object: external_exports.string().optional().describe("Filter by object name; for undo, targets that object's most recent undoable entry."),
   limit: external_exports.number().min(1).max(999999).optional().describe("mode=list: entries to return. Default 20."),
   session: external_exports.string().optional().describe(
@@ -129171,6 +129926,7 @@ var journalInputSchema = {
   )
 };
 var JournalInput = external_exports.object(journalInputSchema);
+var SHOW_DIFF_MAX_CHARS = 2e3;
 var shortId = (id) => id;
 function row(e) {
   const flags = [e.undoneBy ? "undone" : e.undoOf ? "is-undo" : void 0, e.reconciled ? "reconciled" : void 0].filter(Boolean).join(" ");
@@ -129303,6 +130059,14 @@ async function pickEntry(journal, input, mode) {
     );
   }
   return usable;
+}
+function truncateDiffText(text5) {
+  if (text5.length <= SHOW_DIFF_MAX_CHARS) return text5;
+  const window2 = text5.slice(0, SHOW_DIFF_MAX_CHARS);
+  const lastBreak = window2.lastIndexOf("\n");
+  const cut = lastBreak >= 0 ? window2.slice(0, lastBreak) : window2;
+  return `${cut}
+[diff truncated: ${cut.length} of ${text5.length} characters shown; detail="full" returns the complete images]`;
 }
 async function abapJournal(conn, input, maxChars, journal, gate) {
   const mode = input.mode ?? "list";
@@ -129467,23 +130231,57 @@ async function abapJournal(conn, input, maxChars, journal, gate) {
   }
   const entry = await pickEntry(j, input, mode);
   if (mode === "show") {
+    const detail = input.detail ?? "summary";
     const before = await j.beforeImage(entry);
+    const after = await j.afterImage(entry);
     const sections = [];
-    if (before !== void 0) {
-      const win = sliceLines(before, 1);
-      const label = entry.beforeKind === "package-metadata" ? "package metadata, " : "";
-      sections.push({ title: `BEFORE-IMAGE (${label}${entry.before?.bytes ?? 0} bytes)`, content: win.text });
-    } else {
+    const beforeImagePlaceholder = entry.existedBefore ? entry.beforeCapture === "failed" ? "(none was ever captured \u2014 the entry says the object existed but its source read never resolved, whether it didn't complete or came back inconclusive. Not a retention problem; there is nothing to restore.)" : "(recorded, but the blob is gone \u2014 pruned or the journal dir was cleaned)" : `(none \u2014 the entry records that the object did not exist before this operation, so undo would mean DELETE; provenance: beforeCapture="${entry.beforeCapture}")`;
+    let diff;
+    let diffFullText;
+    if (before !== void 0 && after !== void 0) {
+      diff = diffSources(before, after);
+      diffFullText = diff.identical ? "(before-image and after-image are identical)" : renderHunks(diff.hunks);
+    }
+    if (detail === "full") {
+      if (before !== void 0) {
+        const win = sliceLines(before, 1);
+        const label = entry.beforeKind === "package-metadata" ? "package metadata, " : "";
+        sections.push({ title: `BEFORE-IMAGE (${label}${entry.before?.bytes ?? 0} bytes)`, content: win.text });
+      } else {
+        sections.push({ title: "BEFORE-IMAGE", content: beforeImagePlaceholder });
+      }
+      if (after !== void 0) {
+        const win = sliceLines(after, 1);
+        sections.push({ title: `AFTER-IMAGE (${entry.after?.bytes ?? 0} bytes)`, content: win.text });
+      }
+    } else if (before !== void 0 && after !== void 0 && diff && diffFullText !== void 0) {
+      let text5 = truncateDiffText(diffFullText);
+      if (diff.droppedHunks > 0) text5 += `
+[${diff.droppedHunks} more hunk(s) omitted]`;
+      sections.push({ title: `DIFF (before \u2192 after, +${diff.added} \u2212${diff.removed} lines)`, content: text5 });
+    } else if (before !== void 0 && after === void 0) {
       sections.push({
-        title: "BEFORE-IMAGE",
-        content: entry.existedBefore ? entry.beforeCapture === "failed" ? "(none was ever captured \u2014 the entry says the object existed but its source read never resolved, whether it didn't complete or came back inconclusive. Not a retention problem; there is nothing to restore.)" : "(recorded, but the blob is gone \u2014 pruned or the journal dir was cleaned)" : `(none \u2014 the entry records that the object did not exist before this operation, so undo would mean DELETE; provenance: beforeCapture="${entry.beforeCapture}")`
+        title: "DIFF",
+        content: `(no after-image was recorded for this entry \u2014 before-image is ${entry.before?.bytes ?? 0} bytes; detail="full" shows it)`
       });
+    } else if (before === void 0 && after !== void 0) {
+      const d = diffSources("", after);
+      const rendered = d.identical ? "(before-image and after-image are identical)" : renderHunks(d.hunks);
+      let text5 = truncateDiffText(rendered);
+      if (d.droppedHunks > 0) text5 += `
+[${d.droppedHunks} more hunk(s) omitted]`;
+      sections.push({ title: `DIFF (object created, +${d.added} lines)`, content: text5 });
+    } else {
+      sections.push({ title: "DIFF", content: beforeImagePlaceholder });
     }
     if (entry.parts?.length) {
       const columns = entry.parts.some((p) => p.object.package) ? PART_COLUMNS_WITH_PACKAGE : PART_COLUMNS;
       sections.push({ title: `ALSO TOUCHED (${entry.parts.length})`, content: textTable(entry.parts.map(partRow), columns) });
     }
     const notes2 = [];
+    if (detail === "summary") {
+      notes2.push('Summary view: detail="full" returns the complete before-image and after-image.');
+    }
     if (entry.outcome === "pending") {
       notes2.push(
         "THIS IS NOT A USABLE UNDO. The entry is still `pending`: abapsmith wrote the before-image and then never recorded an outcome, so it does not know whether the write reached the server at all. Undo refuses pending entries rather than guess which state to put the object back into. Read the object (abap_read) and compare it with the images above to find out what actually happened."
@@ -129526,6 +130324,15 @@ async function abapJournal(conn, input, maxChars, journal, gate) {
         outcome: entry.outcome,
         reconciled: entry.reconciled?.at,
         error: entry.error,
+        detail,
+        beforeBytes: entry.before?.bytes,
+        afterBytes: entry.after?.bytes,
+        ...diff && diffFullText !== void 0 ? {
+          diffAdded: diff.added,
+          diffRemoved: diff.removed,
+          diffHunks: diff.totalHunks,
+          diffChars: diffFullText.length
+        } : {},
         beforeEtag: entry.before?.etag,
         beforeServerEtag: entry.before?.serverEtag,
         afterEtag: entry.after?.etag,
@@ -129541,7 +130348,7 @@ async function abapJournal(conn, input, maxChars, journal, gate) {
       },
       sections,
       notes: notes2,
-      hints: [`abap_journal mode=undo entry=${entry.id}`],
+      hints: [`abap_journal mode=undo entry=${entry.id}`, `abap_journal mode=show entry=${entry.id} detail=full`],
       maxChars
     });
   }
@@ -138408,13 +139215,17 @@ function messageRows(messages) {
     };
   });
 }
-function normTrkorr(value, operation) {
+var TRKORR_LIKE = /^[A-Z0-9]{3}K\d{6}$/i;
+function normTrkorr(value, operation, objectValue) {
   const raw = (value ?? "").trim().toUpperCase();
   if (raw === "") {
+    const guess = (objectValue ?? "").trim();
+    const looksLikeTransport = TRKORR_LIKE.test(guess);
     throw new AbapError(
       "BAD_INPUT",
-      `Operation "${operation}" needs "transport" (a request/task number, e.g. A4HK900123).`,
-      { operation, arg: "transport" }
+      `Operation "${operation}" needs "transport" (a request/task number, e.g. A4HK900123).` + (looksLikeTransport ? ` Did you mean transport="${guess}"?` : ""),
+      { operation, arg: "transport" },
+      looksLikeTransport ? `Retry with transport="${guess}".` : void 0
     );
   }
   if (!isTrkorr(raw)) {
@@ -138630,7 +139441,7 @@ async function opList(conn, input, maxChars, gate, journal) {
   return buildResponse({ header, sections, notes, maxChars });
 }
 async function opShow(conn, input, maxChars, journal, ownership) {
-  const trkorr = normTrkorr(input.transport, "show");
+  const trkorr = normTrkorr(input.transport, "show", input.object);
   const r = await trShow(conn, trkorr);
   const subject = subjectOf(trkorr, r);
   const created = await resolveCreatedBy(ownership, journal, subject);
@@ -138796,13 +139607,16 @@ async function opCheck(conn, input, maxChars) {
     maxChars
   });
 }
-function requireTransportArg(value, operation) {
+function requireTransportArg(value, operation, objectValue) {
   const raw = (value ?? "").trim().toUpperCase();
   if (raw === "") {
+    const guess = (objectValue ?? "").trim();
+    const looksLikeTransport = TRKORR_LIKE.test(guess);
     throw new AbapError(
       "BAD_INPUT",
-      `Operation "${operation}" needs "transport" (a request/task number, e.g. A4HK900123).`,
-      { operation, arg: "transport" }
+      `Operation "${operation}" needs "transport" (a request/task number, e.g. A4HK900123).` + (looksLikeTransport ? ` Did you mean transport="${guess}"?` : ""),
+      { operation, arg: "transport" },
+      looksLikeTransport ? `Retry with transport="${guess}".` : void 0
     );
   }
   return raw;
@@ -138841,7 +139655,7 @@ function fmtTrStatus(raw) {
   return fmtCodeWithLabel(raw, TRSTATUS_LABELS);
 }
 async function opLog(conn, gate, input, maxChars) {
-  const trkorr = requireTransportArg(input.transport, "log");
+  const trkorr = requireTransportArg(input.transport, "log", input.object);
   const result = await readTransportLogViaBridge(conn, gate, { trkorr });
   const sections = [];
   for (const sys of result.systems) {
@@ -139200,7 +140014,7 @@ function discloseUnprovenMutation(e, trkorr) {
   return disclosed;
 }
 async function opAddUser(conn, input, maxChars, gate, journal) {
-  const trkorr = normTrkorr(input.transport, "addUser");
+  const trkorr = normTrkorr(input.transport, "addUser", input.object);
   const user = required2(input.user, "user", "addUser").toUpperCase();
   assertCeiling(gate, "plain", "addUser");
   const proof = authorizeCeiling(gate, "transport");
@@ -139252,7 +140066,7 @@ async function opAddUser(conn, input, maxChars, gate, journal) {
   });
 }
 async function opSetOwner(conn, input, maxChars, gate, journal) {
-  const trkorr = normTrkorr(input.transport, "setOwner");
+  const trkorr = normTrkorr(input.transport, "setOwner", input.object);
   const user = required2(input.user, "user", "setOwner").toUpperCase();
   assertCeiling(gate, "plain", "setOwner");
   const proof = authorizeCeiling(gate, "transport");
@@ -139293,7 +140107,7 @@ async function opSetOwner(conn, input, maxChars, gate, journal) {
   });
 }
 async function opDelete(conn, input, maxChars, gate, journal) {
-  const trkorr = normTrkorr(input.transport, "delete");
+  const trkorr = normTrkorr(input.transport, "delete", input.object);
   const confirm = input.confirm;
   if (confirm === void 0) {
     throw new AbapError(
@@ -139346,7 +140160,7 @@ async function opDelete(conn, input, maxChars, gate, journal) {
   });
 }
 async function opRemoveObject(conn, input, maxChars, gate, journal) {
-  const trkorr = normTrkorr(input.transport, "removeObject");
+  const trkorr = normTrkorr(input.transport, "removeObject", input.object);
   const objectName = required2(input.object, "object", "removeObject").trim().toUpperCase();
   const confirm = input.confirm;
   if (confirm === void 0) {
@@ -142327,7 +143141,7 @@ var DELEGATION_OPERATIONS = ["remove_dependent_object"];
 function isDelegationOperation(op) {
   return DELEGATION_OPERATIONS.includes(op);
 }
-function str2(v) {
+function str3(v) {
   return typeof v === "string" && v.trim() ? v : void 0;
 }
 function resolveTargetNodeName(target) {
@@ -142373,8 +143187,8 @@ function validateDelegationShape(input) {
 function refuseHandAssembledDelegation(operation, spec, name) {
   const named = name ? ` "${name}"` : "";
   if (operation === "add_association") {
-    const implementationType = str2(spec.implementationType);
-    const doEmbeddingName = str2(spec.doEmbeddingName);
+    const implementationType = str3(spec.implementationType);
+    const doEmbeddingName = str3(spec.doEmbeddingName);
     if (implementationType && implementationType.toLowerCase() === "docomposition" || doEmbeddingName !== void 0) {
       throw new AbapError(
         "BAD_INPUT",
@@ -142385,7 +143199,7 @@ function refuseHandAssembledDelegation(operation, spec, name) {
     return;
   }
   if (operation === "add_node") {
-    const doEmbeddingName = str2(spec.doEmbeddingName);
+    const doEmbeddingName = str3(spec.doEmbeddingName);
     const isDependentObjectNode = spec.isDependentObjectNode === true;
     if (doEmbeddingName !== void 0 || isDependentObjectNode) {
       throw new AbapError(
@@ -142394,7 +143208,7 @@ function refuseHandAssembledDelegation(operation, spec, name) {
         { operation, name, doEmbeddingName, isDependentObjectNode }
       );
     }
-    const hasParent = str2(spec.parent) !== void 0 || str2(spec.parentNodeId) !== void 0;
+    const hasParent = str3(spec.parent) !== void 0 || str3(spec.parentNodeId) !== void 0;
     if (!hasParent && spec.rootNode !== true) {
       throw new AbapError(
         "BAD_INPUT",
@@ -142573,12 +143387,12 @@ function delegationNotes(input) {
     let targetBo;
     if (targetRef && typeof targetRef === "object") {
       const o = targetRef;
-      const name = str2(o.name);
+      const name = str3(o.name);
       if (name && name.includes("~")) {
         targetName = name;
         targetBo = name.slice(0, name.indexOf("~"));
       } else {
-        const uri = str2(o.uri);
+        const uri = str3(o.uri);
         if (uri) {
           const hashIdx = uri.indexOf("#");
           const beforeHash = hashIdx >= 0 ? uri.slice(0, hashIdx) : uri;
@@ -142842,11 +143656,11 @@ var IMPL_INTERFACE_BY_OP = {
 function danglingRefElementLabel(operation) {
   return operation.replace(/^(add|set)_/, "").replace(/_fields$/, "");
 }
-function str3(v) {
+function str4(v) {
   return typeof v === "string" && v.trim() ? v : void 0;
 }
 function strEnum(v, allowed, field) {
-  const s = str3(v);
+  const s = str4(v);
   if (s === void 0) return void 0;
   if (!allowed.includes(s)) {
     throw new AbapError(
@@ -142864,10 +143678,10 @@ function bool(v) {
 function ref(v) {
   if (!v || typeof v !== "object") return void 0;
   const o = v;
-  const name = str3(o.name);
-  const type = str3(o.type);
+  const name = str4(o.name);
+  const type = str4(o.type);
   if (!name || !type) return void 0;
-  const uri = str3(o.uri);
+  const uri = str4(o.uri);
   return uri ? { uri, type, name } : { type, name };
 }
 function strArray(v) {
@@ -142878,14 +143692,14 @@ function strArray(v) {
 function classRefFromSpec(spec) {
   const explicit = ref(spec.implementationClassRef);
   if (explicit) return explicit;
-  const className = str3(spec.class) ?? str3(spec.implementationClass);
+  const className = str4(spec.class) ?? str4(spec.implementationClass);
   return className ? { type: "CLAS/OC", name: className.toUpperCase() } : void 0;
 }
 function specClassName(spec) {
   if (!spec) return void 0;
   const explicit = ref(spec.implementationClassRef);
   if (explicit) return explicit.name;
-  return str3(spec.class) ?? str3(spec.implementationClass);
+  return str4(spec.class) ?? str4(spec.implementationClass);
 }
 async function danglingRefPreflight(conn, operation, spec, allowDangling) {
   if (!DANGLING_REF_OPS.has(operation)) return void 0;
@@ -142933,9 +143747,9 @@ function actionRefPreflight(model, ownerNode, spec, allowDangling) {
   for (const t of spec.triggers) {
     if (!t || typeof t !== "object") continue;
     const o = t;
-    const actionName = str3(o.action);
+    const actionName = str4(o.action);
     if (actionName === void 0) continue;
-    const actionNodeName = str3(o.actionNode) ?? ownerNode;
+    const actionNodeName = str4(o.actionNode) ?? ownerNode;
     const node2 = model.nodes.find((n) => n.name === actionNodeName);
     const exists = node2?.actions.some((a) => a.name === actionName) === true;
     if (exists || allowDangling) continue;
@@ -142978,7 +143792,7 @@ function alternativeKeyCheckModePreflight(model, sel, name, spec) {
   if (!node2) return;
   const key = node2.alternativeKeys.find((k) => k.name.toLowerCase() === name.toLowerCase());
   if (!key) return;
-  const effUniqueness = "uniqueness" in spec ? str3(spec.uniqueness) : key.uniqueness;
+  const effUniqueness = "uniqueness" in spec ? str4(spec.uniqueness) : key.uniqueness;
   const effCheckAfterModify = "checkAfterModify" in spec ? bool(spec.checkAfterModify) : key.checkAfterModify;
   const effCheckBeforeSave = "checkBeforeSave" in spec ? bool(spec.checkBeforeSave) : key.checkBeforeSave;
   const effNoCheck = "noCheck" in spec ? bool(spec.noCheck) : key.noCheck;
@@ -143010,7 +143824,7 @@ function requireLocate(tokens, sel) {
 function validateAlternativeKeySpec(name, spec) {
   strEnum(spec.uniqueness, KEY_UNIQUENESS_VALUES, "uniqueness");
   const missing = [];
-  if (str3(spec.uniqueness) === void 0) missing.push("uniqueness");
+  if (str4(spec.uniqueness) === void 0) missing.push("uniqueness");
   if (ref(spec.dataTypeRef) === void 0) missing.push("dataTypeRef");
   if (ref(spec.dataTableTypeRef) === void 0) missing.push("dataTableTypeRef");
   if (strArray(spec.keyElements) === void 0) missing.push("keyElements");
@@ -143022,7 +143836,7 @@ function validateAlternativeKeySpec(name, spec) {
       `dataTypeRef and dataTableTypeRef are { name, type } refs \u2014 the key's DDIC structure and its table type, e.g. { "name": "ZSORDER_ID", "type": "TABL/DS" } and { "name": "ZTORDER_ID", "type": "TTYP/DA" }. uniqueness is one of "unique", "uniqueIfNotInitial", "notUnique". keyElements lists the node field names that make up the key.`
     );
   }
-  validateAlternativeKeyCheckMode("add_alternative_key", name, str3(spec.uniqueness), {
+  validateAlternativeKeyCheckMode("add_alternative_key", name, str4(spec.uniqueness), {
     checkAfterModify: bool(spec.checkAfterModify),
     checkBeforeSave: bool(spec.checkBeforeSave),
     noCheck: bool(spec.noCheck)
@@ -143124,8 +143938,8 @@ function validateEditInputShape(input) {
   }
 }
 function resolveParentLink(spec, tokens) {
-  const parentSpec = str3(spec.parent);
-  const parentNodeIdSpec = str3(spec.parentNodeId);
+  const parentSpec = str4(spec.parent);
+  const parentNodeIdSpec = str4(spec.parentNodeId);
   if (parentSpec === void 0 && parentNodeIdSpec === void 0) return void 0;
   const candidates = tokens.filter((t) => t.name === "bo:nodes" && t.depth === 1);
   const existingNames = () => candidates.map((t) => t.attrs.get("bo:name") || "(unnamed)").join(", ") || "none";
@@ -143175,8 +143989,8 @@ function buildNodeFields(name, nodeId, spec, parentLink) {
     nodeId,
     parent: parentLink?.parent,
     parentNodeId: parentLink?.parentNodeId,
-    xmlName: str3(spec.xmlName),
-    doEmbeddingName: str3(spec.doEmbeddingName),
+    xmlName: str4(spec.xmlName),
+    doEmbeddingName: str4(spec.doEmbeddingName),
     // Explicit spec.rootNode (false included) always wins; otherwise a
     // resolved parent link means this can't be the root — every captured
     // non-root node carries bo:rootNode="false" explicitly.
@@ -143204,11 +144018,11 @@ function buildAssociationFields(name, nodeId, spec) {
   return {
     name,
     nodeId,
-    xmlName: str3(spec.xmlName),
-    multiplicity: str3(spec.multiplicity),
-    implementationType: str3(spec.implementationType),
+    xmlName: str4(spec.xmlName),
+    multiplicity: str4(spec.multiplicity),
+    implementationType: str4(spec.implementationType),
     objectModelGenerated: bool(spec.objectModelGenerated),
-    doEmbeddingName: str3(spec.doEmbeddingName),
+    doEmbeddingName: str4(spec.doEmbeddingName),
     targetNodeRef: ref(spec.targetNodeRef),
     implementationClassRef: classRefFromSpec(spec),
     parameterStructureRef: ref(spec.parameterStructureRef)
@@ -143218,10 +144032,10 @@ function buildActionFields(name, nodeId, spec) {
   return {
     name,
     nodeId,
-    xmlName: str3(spec.xmlName),
-    category: str3(spec.category),
-    instanceMultiplicity: str3(spec.instanceMultiplicity),
-    exportingParameterCategoryType: str3(spec.exportingParameterCategoryType),
+    xmlName: str4(spec.xmlName),
+    category: str4(spec.category),
+    instanceMultiplicity: str4(spec.instanceMultiplicity),
+    exportingParameterCategoryType: str4(spec.exportingParameterCategoryType),
     exportParameterLink: bool(spec.exportParameterLink),
     isExtensible: bool(spec.isExtensible),
     objectModelGenerated: bool(spec.objectModelGenerated),
@@ -143256,10 +144070,10 @@ function buildTriggerFragments(boName, ownerNode, spec, kind) {
       );
     }
     const o = t;
-    const nodeName = str3(o.node);
+    const nodeName = str4(o.node);
     const assocGiven = typeof o.association === "string";
     const assocRaw = assocGiven ? o.association : void 0;
-    const actionName = str3(o.action);
+    const actionName = str4(o.action);
     if (actionName !== void 0 && kind === "determination") {
       throw new AbapError(
         "BAD_INPUT",
@@ -143294,7 +144108,7 @@ function buildTriggerFragments(boName, ownerNode, spec, kind) {
       nodeRef = boNodeRef(boName, effectiveNode);
       assocRef = boAssociationRef(boName, effectiveNode, effectiveAssoc);
     }
-    const actionRef = actionName !== void 0 ? boActionRef(boName, str3(o.actionNode) ?? ownerNode, actionName) : void 0;
+    const actionRef = actionName !== void 0 ? boActionRef(boName, str4(o.actionNode) ?? ownerNode, actionName) : void 0;
     const base = {
       node: nodeRef,
       association: assocRef,
@@ -143327,8 +144141,8 @@ function buildRelationFragments(boName, spec) {
       );
     }
     const o = r;
-    const nodeName = str3(o.node);
-    const detName = str3(o.determination);
+    const nodeName = str4(o.node);
+    const detName = str4(o.determination);
     if (nodeName === void 0) {
       throw new AbapError(
         "BAD_INPUT",
@@ -143340,7 +144154,7 @@ function buildRelationFragments(boName, spec) {
       renderRelation({
         node: boNodeRef(boName, nodeName),
         determination: detName !== void 0 ? boDeterminationRef(boName, nodeName, detName) : void 0,
-        relationType: str3(o.relationType)
+        relationType: str4(o.relationType)
       })
     );
   }
@@ -143371,7 +144185,7 @@ function buildDeterminationFields(boName, ownerNode, name, nodeId, spec) {
   return {
     name,
     nodeId,
-    xmlName: str3(spec.xmlName),
+    xmlName: str4(spec.xmlName),
     category: strEnum(spec.category, DETERMINATION_CATEGORIES, "category"),
     objectModelGenerated: bool(spec.objectModelGenerated),
     implementationClassRef: classRefFromSpec(spec),
@@ -143386,7 +144200,7 @@ function buildValidationFields(boName, ownerNode, name, nodeId, spec) {
   return {
     name,
     nodeId,
-    xmlName: str3(spec.xmlName),
+    xmlName: str4(spec.xmlName),
     category: strEnum(spec.category, VALIDATION_CATEGORIES, "category"),
     checkBeforeSave: bool(spec.checkBeforeSave),
     createNode: bool(spec.createNode),
@@ -143401,7 +144215,7 @@ function buildQueryFields(name, nodeId, spec) {
   return {
     name,
     nodeId,
-    xmlName: str3(spec.xmlName),
+    xmlName: str4(spec.xmlName),
     category: strEnum(spec.category, QUERY_CATEGORIES, "category"),
     objectModelGenerated: bool(spec.objectModelGenerated),
     dataTypeRef: ref(spec.dataTypeRef),
@@ -143412,7 +144226,7 @@ function buildAlternativeKeyFields(name, nodeId, spec) {
   return {
     name,
     nodeId,
-    xmlName: str3(spec.xmlName),
+    xmlName: str4(spec.xmlName),
     uniqueness: strEnum(spec.uniqueness, KEY_UNIQUENESS_VALUES, "uniqueness"),
     checkAfterModify: bool(spec.checkAfterModify),
     checkBeforeSave: bool(spec.checkBeforeSave),
@@ -143761,7 +144575,7 @@ function mutateModel(freshXml, input) {
 function determinationCategoryOmittedNote(input) {
   if (input.operation !== "add_determination") return void 0;
   const spec = input.spec ?? {};
-  if (str3(spec.category) !== void 0) return void 0;
+  if (str4(spec.category) !== void 0) return void 0;
   return 'spec.category was omitted \u2014 BOPF defaults an unset determination category to the literal "undefined" server-side, and (per live A4H recon) a determination in that state does not fire its triggers. Pass a real category (e.g. "reactDuringSave", "reactAfterModification") if this determination is meant to run.';
 }
 function createBoActivatabilityNotes(model) {
@@ -144271,7 +145085,7 @@ async function runBopfEdit(deps, args) {
             let equivalentTarget;
             if (input.operation === "add_association") {
               const spec = input.spec ?? {};
-              const implementationType = str3(spec.implementationType);
+              const implementationType = str4(spec.implementationType);
               const requestedTarget = resolveTargetNodeName2(ref(spec.targetNodeRef));
               if (implementationType && requestedTarget) {
                 const targetNode = afterMutate.model.nodes.find((n) => n.name.toLowerCase() === nodeName.toLowerCase());
@@ -145609,21 +146423,39 @@ function buildLocksQuery(input) {
 function buildFindResponse(result, detail, xmlWindowPassed, maxChars) {
   const t = result.transcript;
   const hasDevclass = t.configs.some((c) => c.devclass !== void 0);
+  const hasLoadInfo = t.configs.some((c) => c.loadable !== void 0);
   const rows = t.configs.map((c) => ({
     config_id: c.configId,
     config_type: c.configType,
     config_var: c.configVar,
     component: c.component,
+    ...hasLoadInfo ? {
+      loadable: c.loadable ? "yes" : "no",
+      app_config_id: c.appConfigId ?? "",
+      component_config_id: c.componentConfigId ?? "",
+      reason: c.reason ?? ""
+    } : {},
     description: c.description,
     ...hasDevclass ? { devclass: c.devclass ?? "" } : {}
   }));
-  let columns = ["config_id", "config_type", "config_var", "component", "description"];
+  let columns = ["config_id", "config_type", "config_var", "component"];
+  if (hasLoadInfo) columns.push("loadable", "app_config_id", "component_config_id", "reason");
+  columns.push("description");
   if (hasDevclass) columns.push("devclass");
   let hoisted;
   if (detail === "compact") {
     hoisted = {};
     if (rows.length >= 2) {
-      for (const col of ["config_type", "config_var", "component", "devclass"]) {
+      for (const col of [
+        "config_type",
+        "config_var",
+        "component",
+        "devclass",
+        "loadable",
+        "app_config_id",
+        "component_config_id",
+        "reason"
+      ]) {
         if (!columns.includes(col)) continue;
         const values = rows.map((r) => r[col]);
         const first = values[0];
@@ -145633,6 +146465,11 @@ function buildFindResponse(result, detail, xmlWindowPassed, maxChars) {
     columns = columns.filter((c) => hoisted[c] === void 0);
   }
   const notes = detail === "compact" ? [COMPACT_COVERAGE_NOTE] : [...FIDELITY_NOTES];
+  if (hasLoadInfo) {
+    notes.push(
+      "mode=app takes app_config_id. loadable=no rows name the reason; a component configuration id passed to mode=app is resolved to the application configuration that references it when there is exactly one."
+    );
+  }
   if (!result.outputComplete) {
     notes.push(
       "The bridge's output was cut off before every matching row could be returned \u2014 there may be more configs than are shown. Narrow component/query/package to be sure nothing is missing."
@@ -145750,9 +146587,10 @@ function buildOutlineResponse(query, result, detailPassed, xmlWindow, maxChars) 
     maxChars
   }).text;
 }
-function buildAppResponse(query, result, detail, xmlWindowPassed, maxChars) {
+function buildAppResponse(query, result, detail, xmlWindowPassed, maxChars, resolvedFrom, resolvedNote) {
   const t = result.transcript;
   const notes = detail === "compact" ? [COMPACT_COVERAGE_NOTE] : [...FIDELITY_NOTES];
+  if (resolvedNote) notes.push(resolvedNote);
   if (query.resolve) {
     notes.push(
       detail === "compact" ? `feeder/bopf are best-effort substring presence flags over each resolved node's decoded XML, never verified against a fixture containing a real FEEDER reference \u2014 a blank means "not detected", not "confirmed absent". Full text and the per-node XML excerpts: detail:"full".` : "FEEDER/BOPF-binding hints (feeder/bopf columns below) are best-effort substring checks over each resolved node's decoded XML (searching for the literal text 'FEEDER', '/BOBF/', 'BOPF', 'BO_KEY') \u2014 they are presence flags, not parsed field values, and have never been verified against a fixture that actually contains a FEEDER reference. Treat a blank as 'not detected', not as 'confirmed absent'. Excerpt sections below (first ~300 characters of each resolved node's XML) are provided as a fallback regardless of whether either hint matched."
@@ -145795,6 +146633,7 @@ function buildAppResponse(query, result, detail, xmlWindowPassed, maxChars) {
       mode: "app",
       detail,
       config_id: query.configId,
+      resolvedFrom,
       resolve: query.resolve,
       nodeCount: t.appNodes.length,
       serverNodeCount: t.count,
@@ -146094,18 +146933,62 @@ async function runFpmReadTool(deps, args) {
     { phase: "preflight" }
   );
   await deps.ensureConnected();
-  const result = await deps.pool.withWrite(
-    "abap_fpm_read",
-    bridgeClass,
-    (conn) => runFpmRead(conn, query, deps.safety)
-  );
+  let resolvedFrom;
+  let resolvedTo;
+  let resolvedNote;
+  const result = await deps.pool.withWrite("abap_fpm_read", bridgeClass, async (conn) => {
+    if (query.mode !== "app") return runFpmRead(conn, query, deps.safety);
+    try {
+      return await runFpmRead(conn, query, deps.safety);
+    } catch (e) {
+      const failure = appLoadFailure(e);
+      if (!failure) throw e;
+      const tried = query.configId;
+      let resolveResult;
+      try {
+        resolveResult = await runFpmRead(conn, { mode: "resolve", configId: tried }, deps.safety);
+      } catch {
+        throw e;
+      }
+      const r = resolveResult.transcript.resolve;
+      if (!r) throw e;
+      if (!r.existsAsApp && r.existsAsComponent && r.applicationConfigs.length === 1) {
+        const resolvedId = r.applicationConfigs[0].configId;
+        resolvedFrom = tried;
+        resolvedTo = resolvedId;
+        resolvedNote = `config_id ${tried} is a component configuration (component ${r.component}); loaded the application configuration ${resolvedId} that references it.`;
+        return await runFpmRead(conn, { ...query, configId: resolvedId }, deps.safety);
+      }
+      const details = {
+        tool: "abap_fpm_read",
+        action: "app",
+        tried: { config_id: tried, config_type: "02", table: "WDY_CONFIG_APPL" },
+        existsAsApp: r.existsAsApp,
+        existsAsComponent: r.existsAsComponent,
+        ...r.existsAsComponent ? { component: r.component, componentConfigVar: r.componentConfigVar } : {},
+        applicationConfigs: r.applicationConfigs,
+        applicationConfigsTruncated: r.truncated,
+        frames: isAbapError(e) ? e.details["frames"] : void 0
+      };
+      const hint = r.applicationConfigs.length > 0 ? `Pass one of these to mode=app: ${r.applicationConfigs.map((a) => a.configId).join(", ")}` : r.existsAsComponent ? 'No application configuration references this component configuration; mode=find config_type="02" lists the application configurations.' : "Neither an application (WDY_CONFIG_APPL) nor a component (WDY_CONFIG_DATA) configuration has this id; check the spelling with mode=find.";
+      throw new AbapError("NOT_FOUND", `mode=app could not load configuration ${tried}: ${failure.text}`, details, hint);
+    }
+  });
   const text5 = query.mode === "find" ? buildFindResponse(result, detail, xmlWindowPassed, deps.cfg.maxResponseChars) : query.mode === "outline" ? buildOutlineResponse(
     query,
     result,
     input.detail !== void 0,
     { offset: input.xml_offset, limit: input.xml_limit },
     deps.cfg.maxResponseChars
-  ) : query.mode === "events" ? buildEventsResponse(query, result, input.detail !== void 0, xmlWindowPassed, deps.cfg.maxResponseChars) : buildAppResponse(query, result, detail, xmlWindowPassed, deps.cfg.maxResponseChars);
+  ) : query.mode === "events" ? buildEventsResponse(query, result, input.detail !== void 0, xmlWindowPassed, deps.cfg.maxResponseChars) : buildAppResponse(
+    resolvedTo !== void 0 ? { ...query, configId: resolvedTo } : query,
+    result,
+    detail,
+    xmlWindowPassed,
+    deps.cfg.maxResponseChars,
+    resolvedFrom,
+    resolvedNote
+  );
   return ok12(text5);
 }
 function registerFpmTools(mcp, deps) {
@@ -149368,7 +150251,7 @@ import { createHash as createHash12 } from "node:crypto";
 function isRecord2(v) {
   return typeof v === "object" && v !== null;
 }
-function str4(v, fallback = "") {
+function str5(v, fallback = "") {
   return typeof v === "string" ? v : fallback;
 }
 function num3(v, fallback = 0) {
@@ -149411,16 +150294,16 @@ function splitFcodeFrames(values) {
       case "target": {
         const tcodeRaw = v.tcode;
         raw.target = {
-          program: str4(v.program),
-          dynpro: str4(v.dynpro),
-          fcodeFilter: str4(v.fcode_filter),
+          program: str5(v.program),
+          dynpro: str5(v.dynpro),
+          fcodeFilter: str5(v.fcode_filter),
           ...isRecord2(tcodeRaw) ? {
             tcode: {
-              tcode: str4(tcodeRaw.tcode),
-              program: str4(tcodeRaw.program),
-              dynpro: str4(tcodeRaw.dynpro),
-              cinfo: str4(tcodeRaw.cinfo),
-              kind: str4(tcodeRaw.kind),
+              tcode: str5(tcodeRaw.tcode),
+              program: str5(tcodeRaw.program),
+              dynpro: str5(tcodeRaw.dynpro),
+              cinfo: str5(tcodeRaw.cinfo),
+              kind: str5(tcodeRaw.kind),
               ...typeof tcodeRaw.bdcApplies === "boolean" ? { bdcApplies: tcodeRaw.bdcApplies } : {}
             }
           } : {}
@@ -149428,12 +150311,12 @@ function splitFcodeFrames(values) {
         break;
       }
       case "flow":
-        flow.push({ index: num3(v.index), line: str4(v.line) });
+        flow.push({ index: num3(v.index), line: str5(v.line) });
         break;
       case "pai_module":
         paiModules.push({
           index: num3(v.index),
-          name: str4(v.name),
+          name: str5(v.name),
           atExit: bool2(v.at_exit),
           flowLine: num3(v.flow_line),
           ...optStr(v.condition) !== void 0 ? { condition: optStr(v.condition) } : {}
@@ -149447,50 +150330,50 @@ function splitFcodeFrames(values) {
           ...typeof v.statusCount === "number" ? { statusCount: v.statusCount } : {},
           ...typeof v.functionsCount === "number" ? { functionsCount: v.functionsCount } : {},
           functions: functionsRaw.filter(isRecord2).map((f) => ({
-            code: str4(f.code),
-            text: str4(f.text),
-            type: str4(f.type)
+            code: str5(f.code),
+            text: str5(f.text),
+            type: str5(f.type)
           })),
           ...typeof v.fkeysCount === "number" ? { fkeysCount: v.fkeysCount } : {},
           fkeys: fkeysRaw.filter(isRecord2).map((f) => ({
-            status: str4(f.status),
-            code: str4(f.code),
-            text: str4(f.text),
-            quickinfo: str4(f.quickinfo)
+            status: str5(f.status),
+            code: str5(f.code),
+            text: str5(f.text),
+            quickinfo: str5(f.quickinfo)
           })),
-          ...isRecord2(noCuaRaw) ? { noCua: { program: str4(noCuaRaw.program), note: str4(noCuaRaw.note) } } : {}
+          ...isRecord2(noCuaRaw) ? { noCua: { program: str5(noCuaRaw.program), note: str5(noCuaRaw.note) } } : {}
         };
         break;
       }
       case "include":
         includes.push({
-          name: str4(v.name),
+          name: str5(v.name),
           lines: num3(v.lines),
           ...optStr(v.read_error) !== void 0 ? { readError: optStr(v.read_error) } : {}
         });
         break;
       case "module":
         modules.push({
-          name: str4(v.name),
-          include: str4(v.include),
+          name: str5(v.name),
+          include: str5(v.include),
           lineFrom: num3(v.line_from),
           lineTo: num3(v.line_to),
           ...v.unterminated === true ? { unterminated: true } : {}
         });
         break;
       case "src":
-        src.push({ include: str4(v.include), line: num3(v.line), text: str4(v.text) });
+        src.push({ include: str5(v.include), line: num3(v.line), text: str5(v.text) });
         break;
       case "summary":
         raw.summary = {
-          program: str4(v.program),
-          dynpro: str4(v.dynpro),
+          program: str5(v.program),
+          dynpro: str5(v.dynpro),
           includes: num3(v.includes),
           includesFailed: num3(v.includes_failed),
           modules: num3(v.modules),
           paiModules: num3(v.pai_modules),
           srcLines: num3(v.src_lines),
-          truncated: str4(v.truncated)
+          truncated: str5(v.truncated)
         };
         break;
       default:
@@ -150556,7 +151439,7 @@ function dec2(v) {
   if (v === void 0 || !DEC_RE.test(v)) return void 0;
   return parseInt(v, 10);
 }
-function str5(row2, key) {
+function str6(row2, key) {
   return row2[key] ?? "";
 }
 function idx(oneBased) {
@@ -150597,12 +151480,12 @@ function markOccupied(occ, col, len, width) {
   for (let c = Math.max(0, col); c < col + len && c < width; c++) occ.add(c);
 }
 function renderEmptyFill(row2, fnam) {
-  const stxt = str5(row2, "stxt");
+  const stxt = str6(row2, "stxt");
   const flg1 = hex3(row2, "flg1");
   if ((flg1 & 128) === 0) {
     return decodeStxt(stxt) || `?${fnam}?`;
   }
-  const grp3 = str5(row2, "grp3");
+  const grp3 = str6(row2, "grp3");
   if (grp3 === "TXT" || grp3 === "COM" || grp3 === "TOT") {
     return decodeStxt(stxt) || `?${fnam}?`;
   }
@@ -150616,15 +151499,15 @@ function renderEmptyFill(row2, fnam) {
 function renderNonEmptyFill(row2, fnam, fill) {
   switch (fill) {
     case "C": {
-      const t = decodeStxt(str5(row2, "stxt"));
+      const t = decodeStxt(str6(row2, "stxt"));
       return `[ ] ${t || fnam}`;
     }
     case "A": {
-      const t = decodeStxt(str5(row2, "stxt"));
+      const t = decodeStxt(str6(row2, "stxt"));
       return `( ) ${t || fnam}`;
     }
     case "P": {
-      const t = decodeStxt(str5(row2, "stxt"));
+      const t = decodeStxt(str6(row2, "stxt"));
       return `[ ${t || fnam} ]`;
     }
     case "I":
@@ -150644,8 +151527,8 @@ function frameBox(row2, bottomLine) {
   const colHex = hex3(row2, "coln");
   const width = hex3(row2, "leng");
   const col = idx(colHex);
-  const fnam = str5(row2, "fnam");
-  const title = decodeStxt(str5(row2, "stxt")) || fnam;
+  const fnam = str6(row2, "fnam");
+  const title = decodeStxt(str6(row2, "stxt")) || fnam;
   const rows = [{ line: idx(topLine), col, text: frameTopEdge(width, title) }];
   for (let l = topLine + 1; l < bottomLine; l++) {
     rows.push({ line: idx(l), col, text: "|" });
@@ -150663,13 +151546,13 @@ function resolveFrameBottom(topLine, allFrameLines, maxDrawnLine) {
   return Math.max(bottom, topLine + 1);
 }
 function tableControlBox(anchor, members) {
-  const fnam = str5(anchor, "fnam");
+  const fnam = str6(anchor, "fnam");
   const line2 = idx(hex3(anchor, "line"));
   const col = idx(hex3(anchor, "coln"));
   const width = Math.max(hex3(anchor, "leng"), 12);
-  const titleMember = members.find((m) => str5(m, "fnam").startsWith("%") && hex3(m, "fmb2") === 64);
-  const title = titleMember ? decodeStxt(str5(titleMember, "stxt")) : "";
-  const headers = members.filter((m) => str5(m, "fnam").startsWith("%") && hex3(m, "fmb2") === 128).slice().sort((a, b) => hex3(a, "coln") - hex3(b, "coln")).map((m) => decodeStxt(str5(m, "stxt")));
+  const titleMember = members.find((m) => str6(m, "fnam").startsWith("%") && hex3(m, "fmb2") === 64);
+  const title = titleMember ? decodeStxt(str6(titleMember, "stxt")) : "";
+  const headers = members.filter((m) => str6(m, "fnam").startsWith("%") && hex3(m, "fmb2") === 128).slice().sort((a, b) => hex3(a, "coln") - hex3(b, "coln")).map((m) => decodeStxt(str6(m, "stxt")));
   const row1Body = `+- table control: ${fnam}` + (title ? ` "${title}"` : "") + " ";
   const row1 = row1Body + "-".repeat(Math.max(0, width - row1Body.length - 1)) + "+";
   const row2Body = "| " + headers.join(" | ");
@@ -150679,7 +151562,7 @@ function tableControlBox(anchor, members) {
   return [row1, row2, row3, row4].map((text5, i) => ({ line: line2 + i, col, text: text5 }));
 }
 function subscreenBox(row2) {
-  const fnam = str5(row2, "fnam");
+  const fnam = str6(row2, "fnam");
   const line2 = idx(hex3(row2, "line"));
   const col = idx(hex3(row2, "coln"));
   const lengHex = hex3(row2, "leng");
@@ -150698,15 +151581,15 @@ function compareDrawItems(a, b) {
 function isTableMember(row2, anchorLanfs) {
   const lanf = hex3(row2, "lanf");
   if (lanf === 0) return false;
-  if (str5(row2, "fill") === "T") return false;
+  if (str6(row2, "fill") === "T") return false;
   return anchorLanfs.has(lanf);
 }
 function buildDrawItems(topLevel, drawable, anchorLanfs) {
   const items2 = [];
   for (const row2 of topLevel) {
-    const fill = str5(row2, "fill");
+    const fill = str6(row2, "fill");
     if (fill === "R") continue;
-    const fnam = str5(row2, "fnam");
+    const fnam = str6(row2, "fnam");
     const lineHex = hex3(row2, "line");
     const colHex = hex3(row2, "coln");
     if (fill === "T") {
@@ -150755,7 +151638,7 @@ function buildGridLines(header, fields) {
   const width = clamp(dec2(header?.columns) ?? 132, 40, 255);
   const drawable = fields.filter((r) => hex3(r, "line") !== 255);
   const anchorLanfs = new Set(
-    drawable.filter((r) => str5(r, "fill") === "T").map((r) => hex3(r, "lanf"))
+    drawable.filter((r) => str6(r, "fill") === "T").map((r) => hex3(r, "lanf"))
   );
   const topLevel = drawable.filter((r) => !isTableMember(r, anchorLanfs));
   const maxDrawnLine = topLevel.reduce((m, r) => Math.max(m, hex3(r, "line")), 0);
@@ -150764,7 +151647,7 @@ function buildGridLines(header, fields) {
   const height = Math.min(rawHeight, GRID_MAX_ROWS);
   const cutNote = headerLines !== void 0 && headerLines > GRID_MAX_ROWS ? `(grid cut to ${GRID_MAX_ROWS} rows; RPY_DYHEAD reports ${headerLines})` : void 0;
   const grid = buildGrid(width, height);
-  const frameRows = topLevel.filter((r) => str5(r, "fill") === "R").slice().sort((a, b) => hex3(a, "line") - hex3(b, "line") || hex3(a, "coln") - hex3(b, "coln"));
+  const frameRows = topLevel.filter((r) => str6(r, "fill") === "R").slice().sort((a, b) => hex3(a, "line") - hex3(b, "line") || hex3(a, "coln") - hex3(b, "coln"));
   const frameLines = frameRows.map((r) => hex3(r, "line"));
   for (const frame of frameRows) {
     const topLine = hex3(frame, "line");
@@ -150781,16 +151664,16 @@ function renderButtons(fkeys) {
   const statusOrder = [];
   const byStatus = /* @__PURE__ */ new Map();
   for (const row2 of fkeys) {
-    const code = str5(row2, "code");
+    const code = str6(row2, "code");
     if (code === "") continue;
-    const status = str5(row2, "status");
+    const status = str6(row2, "status");
     let codes = byStatus.get(status);
     if (!codes) {
       codes = /* @__PURE__ */ new Map();
       byStatus.set(status, codes);
       statusOrder.push(status);
     }
-    if (!codes.has(code)) codes.set(code, str5(row2, "text"));
+    if (!codes.has(code)) codes.set(code, str6(row2, "text"));
   }
   if (statusOrder.length === 0) return "Buttons: (no GUI status buttons)";
   return statusOrder.map((status) => {
@@ -150822,7 +151705,7 @@ var ALL_ZERO_RE = /^0+$/;
 var ALL_UNDERSCORE_RE = /^_+$/;
 function classifyScreenField(row2) {
   if (hex3(row2, "line") === 255) return "okcode";
-  const fill = str5(row2, "fill");
+  const fill = str6(row2, "fill");
   switch (fill) {
     case "":
       break;
@@ -150845,9 +151728,9 @@ function classifyScreenField(row2) {
   }
   const flg1 = hex3(row2, "flg1");
   if ((flg1 & 128) === 0) return "text";
-  const grp3 = str5(row2, "grp3");
+  const grp3 = str6(row2, "grp3");
   if (grp3 === "TXT" || grp3 === "COM" || grp3 === "TOT") return "label";
-  const stxt = str5(row2, "stxt");
+  const stxt = str6(row2, "stxt");
   if (stxt !== "" && ALL_UNDERSCORE_RE.test(stxt)) {
     return (flg1 & 33) === 1 ? "out" : "io";
   }
@@ -150855,8 +151738,8 @@ function classifyScreenField(row2) {
 }
 function compactFieldAttrs(row2) {
   const parts = [];
-  const text5 = decodeStxt(str5(row2, "stxt"));
-  const rawText = str5(row2, "stxt");
+  const text5 = decodeStxt(str6(row2, "stxt"));
+  const rawText = str6(row2, "stxt");
   if (text5 !== "" && !ALL_UNDERSCORE_RE.test(rawText)) parts.push(`text="${text5}"`);
   for (const [key, value] of Object.entries(row2)) {
     if (OWN_COLUMNS.has(key)) continue;
@@ -150870,7 +151753,7 @@ function compactFieldAttrs(row2) {
 function renderCompactFields(rows) {
   if (!rows.length) return "(none)";
   const table = rows.map((row2) => ({
-    name: str5(row2, "fnam") || str5(row2, "name"),
+    name: str6(row2, "fnam") || str6(row2, "name"),
     type: classifyScreenField(row2),
     len: String(hex3(row2, "leng")),
     pos: `${hex3(row2, "line")},${hex3(row2, "coln")}`,
@@ -161378,311 +162261,6 @@ function registerFluidTool(mcp, deps) {
   );
 }
 
-// src/tool-errors.ts
-init_errors();
-init_session();
-init_error_capture();
-init_truncate();
-var MAX_ERROR_ENVELOPE_CHARS = 4e3;
-var MAX_PROPERTY_VALUE_CHARS = 300;
-var MAX_RESIDUAL_PROPERTIES = 24;
-var MAX_MESSAGE_CHARS = 500;
-var SUBTYPE_KEY2 = "com.sap.adt.communicationFramework.subType";
-function isLockHolderCell(v) {
-  if (typeof v !== "object" || v === null) return false;
-  const r = v;
-  return typeof r["user"] === "string" && typeof r["gname"] === "string" && typeof r["garg"] === "string" && (r["tcode"] === void 0 || typeof r["tcode"] === "string") && (r["age"] === void 0 || typeof r["age"] === "string");
-}
-function str6(v) {
-  if (typeof v === "string") return v.trim() || void 0;
-  if (typeof v === "number" && Number.isFinite(v)) return String(v);
-  return void 0;
-}
-function reassembleSplitT100Variables(vars) {
-  const order = ["v1", "v2", "v3", "v4"];
-  const results = [];
-  const consumed = /* @__PURE__ */ new Set();
-  for (let i = 0; i < order.length; i++) {
-    const startKey = order[i];
-    if (consumed.has(startKey)) continue;
-    const startValue = vars[startKey];
-    if (startValue === void 0 || startValue.length !== 50) continue;
-    const from = [startKey];
-    let value = startValue;
-    let previousWasFullWidth = true;
-    for (let j = i + 1; j < order.length && previousWasFullWidth; j++) {
-      const nextKey = order[j];
-      const nextValue = vars[nextKey];
-      if (nextValue === void 0) break;
-      from.push(nextKey);
-      value += nextValue;
-      consumed.add(nextKey);
-      previousWasFullWidth = nextValue.length === 50;
-    }
-    if (from.length > 1) results.push({ from, value });
-  }
-  return results;
-}
-var XT465_TEMPLATE = /^Parameter (.+) not in version (.+) of tp configuration$/s;
-function matchXt465ChoppedTemplate(message) {
-  const m = XT465_TEMPLATE.exec(message.trim());
-  if (!m) return void 0;
-  const v1 = m[1];
-  const v2 = m[2];
-  if (v1.length !== 50) return void 0;
-  return {
-    id: "XT",
-    no: "465",
-    variables: { v1, v2 },
-    reassembled: [{ from: ["v1", "v2"], value: v1 + v2 }]
-  };
-}
-function withXt465Fallback(adt, message) {
-  if (adt?.t100) return adt;
-  const fallback = matchXt465ChoppedTemplate(message);
-  if (!fallback) return adt;
-  return { ...adt ?? {}, t100: fallback };
-}
-function envelopeFromProperties(props) {
-  const env = {};
-  const residual = {};
-  const t100Vars = {};
-  let t100Id;
-  let t100No;
-  for (const [rawKey, rawValue] of Object.entries(props)) {
-    const value = String(rawValue ?? "").trim();
-    if (!value || value === "undefined") continue;
-    const key = rawKey.trim();
-    if (key === "T100KEY-ID") t100Id = value;
-    else if (key === "T100KEY-NO") t100No = value;
-    else if (/^T100KEY-V\d+$/.test(key)) t100Vars[key.slice(8).toLowerCase()] = value;
-    else if (key === SUBTYPE_KEY2) env.subType = value;
-    else if (key === "ideUser" || key === "conflictText") {
-      env.lock = { ...env.lock, [key]: value };
-    } else if (key === "URI") env.uri = value;
-    else if (/^(TRANSPORT|CORRNR|TRKORR|REQUEST)$/i.test(key)) env.transport = value;
-    else if (/LongText$/i.test(key)) continue;
-    else residual[key] = truncateText(value, MAX_PROPERTY_VALUE_CHARS);
-  }
-  if (t100Id || t100No || Object.keys(t100Vars).length) {
-    const reassembled = reassembleSplitT100Variables(t100Vars);
-    env.t100 = {
-      ...t100Id ? { id: t100Id } : {},
-      ...t100No ? { no: t100No } : {},
-      ...Object.keys(t100Vars).length ? { variables: t100Vars } : {},
-      ...reassembled.length ? { reassembled } : {}
-    };
-  }
-  const keys = Object.keys(residual);
-  if (keys.length > MAX_RESIDUAL_PROPERTIES) {
-    const kept = keys.slice(0, MAX_RESIDUAL_PROPERTIES);
-    const dropped = keys.length - kept.length;
-    env.properties = {
-      ...Object.fromEntries(kept.map((k) => [k, residual[k]])),
-      // Mirrors compact.ts's notice("TRUNCATED", shown, cut) idiom.
-      "\u2026": `TRUNCATED: ${kept.length} of ${keys.length} ADT properties shown, ${dropped} cut`
-    };
-    env.omitted = `${dropped} further ADT properties (${keys.length} total); the full set is in the ${BODY_DUMP_DIR_ENV} capture if it is enabled`;
-  } else if (keys.length) {
-    env.properties = residual;
-  }
-  return env;
-}
-function adtEnvelopeFromThrown(e) {
-  const info = adtExceptionInfo(e);
-  if (!info) return void 0;
-  const any2 = e ?? {};
-  const env = envelopeFromProperties(info.properties);
-  if (info.status !== void 0) env.status = info.status;
-  env.exceptionType ??= info.type;
-  env.namespace ??= str6(any2.namespace);
-  env.code ??= str6(any2.code);
-  const localized = str6(any2.localizedMessage);
-  if (localized && localized !== info.message) env.localizedMessage = localized;
-  return env;
-}
-function adtEnvelopeFromDetails(details) {
-  const rest = {};
-  let env = {};
-  let sawAny = false;
-  for (const [k, v] of Object.entries(details)) {
-    switch (k) {
-      case "status":
-        if (typeof v === "number") {
-          env.status = v;
-          sawAny = true;
-        } else rest[k] = v;
-        break;
-      case "adtExceptionType":
-        if (str6(v)) {
-          env.exceptionType = str6(v);
-          sawAny = true;
-        } else rest[k] = v;
-        break;
-      case "properties":
-        if (v && typeof v === "object" && !Array.isArray(v)) {
-          env = { ...envelopeFromProperties(v), ...env };
-          sawAny = true;
-        } else rest[k] = v;
-        break;
-      case "t100":
-        if (v && typeof v === "object" && !Array.isArray(v)) {
-          env.t100 = { ...env.t100, ...envelopeFromProperties(v).t100 };
-          sawAny = true;
-        } else rest[k] = v;
-        break;
-      case "blockingUser":
-        if (str6(v)) {
-          env.lock = { ...env.lock, blockingUser: str6(v) };
-          sawAny = true;
-        } else rest[k] = v;
-        break;
-      case "lock_holders":
-        if (Array.isArray(v) && v.length > 0 && v.every(isLockHolderCell)) {
-          env.lock = { ...env.lock, holders: v };
-          sawAny = true;
-        } else rest[k] = v;
-        break;
-      case "lock_holders_total":
-        if (typeof v === "number") {
-          env.lock = { ...env.lock, holdersTotal: v };
-          sawAny = true;
-        } else rest[k] = v;
-        break;
-      case "transport":
-        if (str6(v)) {
-          env.transport = str6(v);
-          sawAny = true;
-        } else rest[k] = v;
-        break;
-      default:
-        rest[k] = v;
-    }
-  }
-  return { adt: sawAny ? env : void 0, rest };
-}
-function renderLockHolders(holders, holdersTotal) {
-  if (!holders || holders.length === 0) return void 0;
-  const cells = [];
-  for (const h of holders) {
-    const bits = [h.tcode, h.age].filter((b) => b !== void 0);
-    cells.push(bits.length ? `${h.user} (${bits.join(", ")})` : h.user);
-  }
-  let sentence = `Enqueue table shows ${cells.join(", ")}.`;
-  if (holdersTotal !== void 0 && holdersTotal > holders.length) {
-    sentence += ` (${holdersTotal} holders in total; ${holders.length} shown.)`;
-  }
-  return sentence;
-}
-function summarise(code, adt) {
-  if (!adt) return void 0;
-  const parts = [];
-  const holder = adt.lock?.blockingUser ?? adt.lock?.ideUser;
-  if (code === "LOCKED" || holder) {
-    parts.push(holder ? `Held by user ${holder}.` : "Another ADT session holds the lock.");
-  }
-  if (adt.lock?.conflictText) parts.push(adt.lock.conflictText);
-  const holderSentence = renderLockHolders(adt.lock?.holders, adt.lock?.holdersTotal);
-  if (holderSentence) parts.push(holderSentence);
-  if (adt.status !== void 0) parts.push(`ADT returned HTTP ${adt.status}.`);
-  if (adt.exceptionType) parts.push(`Exception ${adt.exceptionType}.`);
-  if (adt.t100?.id && adt.t100.no) parts.push(`SAP message ${adt.t100.id}${adt.t100.no}.`);
-  if (adt.subType) parts.push(`Operation ${adt.subType}.`);
-  return parts.length ? parts.join(" ") : void 0;
-}
-function ensureNotFoundNamesObject(message, details) {
-  const name = typeof details.name === "string" ? details.name.trim() : "";
-  if (!name) return message;
-  const trimmed = message.trim();
-  if (trimmed && trimmed.toLowerCase().includes(name.toLowerCase())) {
-    return message;
-  }
-  const own = `${name} was not found.`;
-  if (!trimmed) return own;
-  return `${own} SAP said: "${trimmed}"`;
-}
-function hintForRawThrow(code) {
-  switch (code) {
-    case "SESSION_DEAD":
-      return "Every lock the session held is already released. The connection re-establishes a session on the next request \u2014 retry the operation once. This is NOT an authentication failure and does not count against the logon-attempt budget.";
-    case "LOCKED":
-      return "This lock conflict was classified from the raw HTTP/exception shape only \u2014 it was never diagnosed beyond that, so no blocking session or object name could be extracted here. Do NOT retry in a loop: there is no lock timeout while the holding session lives, so a second attempt fails the same way. Close the other session (another terminal, an Eclipse/SE80 editor) if you have one open on this object, or work on a different object.";
-    case "NOT_FOUND":
-      return "Check the name with abap_search, or create the object first.";
-    default:
-      return "This failure was never classified beyond a generic HTTP/exception shape, so nothing more specific is known about it. Check the `adt` block in the tool result: `adt.localizedMessage` and `adt.t100` (id/no/variables) carry what SAP sent verbatim, when present, and are usually more specific than the message above. Do not retry unchanged \u2014 an unrecognised response will not resolve itself on a second try.";
-  }
-}
-function buildErrorPayload(e) {
-  let payload;
-  if (isAbapError(e)) {
-    const { adt: adtRaw, rest } = adtEnvelopeFromDetails(e.details);
-    const message = e.code === "NOT_FOUND" ? ensureNotFoundNamesObject(e.message, e.details) : e.message;
-    const adt = withXt465Fallback(adtRaw, message);
-    payload = {
-      error: e.code,
-      message,
-      ...e.hint ? { hint: e.hint } : {},
-      ...e.retryable !== void 0 ? { retryable: e.retryable } : {},
-      ...adt ? { adt } : {},
-      ...Object.keys(rest).length ? { details: rest } : {}
-    };
-    const summary = summarise(e.code, adt);
-    if (summary) payload.summary = summary;
-  } else {
-    const adtRaw = adtEnvelopeFromThrown(e);
-    const code = classifySessionFailure(adtExceptionInfo(e)?.response) ? "SESSION_DEAD" : isLockConflict(e) ? "LOCKED" : isNotFoundError(e) ? "NOT_FOUND" : "ADT_ERROR";
-    const described = describeUnknownError(e);
-    const message = typeof described === "string" && described ? described : `Unknown failure (${typeof e})`;
-    const adt = withXt465Fallback(adtRaw, message);
-    const hint = hintForRawThrow(code);
-    payload = {
-      error: code,
-      message,
-      ...hint ? { hint } : {},
-      ...adt ? { adt } : {}
-    };
-    const summary = summarise(code, adt);
-    if (summary) payload.summary = summary;
-    if (adt && process.env[BODY_DUMP_DIR_ENV]) {
-      payload.rawBody = `not included by design; a forensic capture was written to ${BODY_DUMP_DIR_ENV}`;
-    }
-  }
-  return payload;
-}
-function errorResult(e) {
-  const payload = buildErrorPayload(e);
-  return {
-    isError: true,
-    content: [{ type: "text", text: fitEnvelope(payload) }]
-  };
-}
-function fitEnvelope(payload) {
-  let text5 = JSON.stringify(payload);
-  if (text5.length <= MAX_ERROR_ENVELOPE_CHARS) return text5;
-  const adt = payload.adt;
-  if (adt?.properties) {
-    const dropped = Object.keys(adt.properties).length;
-    const { properties: _dropped, ...kept } = adt;
-    payload = {
-      ...payload,
-      adt: {
-        ...kept,
-        omitted: `${dropped} ADT properties dropped to stay inside the response budget`
-      }
-    };
-    text5 = JSON.stringify(payload);
-    if (text5.length <= MAX_ERROR_ENVELOPE_CHARS) return text5;
-  }
-  if (typeof payload.message === "string" && payload.message.length > MAX_MESSAGE_CHARS) {
-    payload = { ...payload, message: truncateText(payload.message, MAX_MESSAGE_CHARS) };
-    text5 = JSON.stringify(payload);
-    if (text5.length <= MAX_ERROR_ENVELOPE_CHARS) return text5;
-  }
-  return truncateText(text5, MAX_ERROR_ENVELOPE_CHARS) + `
-(set ${BODY_DUMP_DIR_ENV} to capture the full error)`;
-}
-
 // src/server.ts
 var SERVER_NAME = "abapsmith";
 function stripRedundantSchemaKeys(value) {
@@ -161812,6 +162390,7 @@ function createServer(cfg, opts) {
   };
   const createMcpServer = (ctx) => {
     const mcp2 = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION }, { instructions });
+    installParamCheck(mcp2);
     installSystemRouting(mcp2, registry2);
     mcp2.server.oninitialized = () => {
       if (ctx === void 0) {
@@ -162122,7 +162701,7 @@ var FORBIDDEN_ENV_NAME_RE = /PASSWORD|PASSPHRASE|SECRET|TOKEN|COOKIE/i;
 function errMsg(e) {
   return e instanceof Error ? e.message : String(e);
 }
-function isPlainObject7(v) {
+function isPlainObject8(v) {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 function truthy(v) {
@@ -162199,7 +162778,7 @@ function loadSystems(opts = {}) {
       }
     }
     if (json3 !== void 0) {
-      if (!isPlainObject7(json3)) {
+      if (!isPlainObject8(json3)) {
         problems.push(`${fileSourceLabel}: top-level JSON must be an object with a "systems" key.`);
       } else {
         for (const key of Object.keys(json3)) {
@@ -162218,11 +162797,11 @@ function loadSystems(opts = {}) {
           }
         }
         const rawSystems = json3.systems;
-        if (!isPlainObject7(rawSystems) || Object.keys(rawSystems).length === 0) {
+        if (!isPlainObject8(rawSystems) || Object.keys(rawSystems).length === 0) {
           problems.push(`${fileSourceLabel}: "systems" must be a non-empty object mapping alias to system settings.`);
         } else {
           for (const [rawAlias, rawEntry] of Object.entries(rawSystems)) {
-            if (!isPlainObject7(rawEntry)) {
+            if (!isPlainObject8(rawEntry)) {
               problems.push(`${fileSourceLabel}: systems entry "${rawAlias}" must be an object.`);
               continue;
             }
@@ -162280,7 +162859,7 @@ function loadSystems(opts = {}) {
                 continue;
               }
               if (key === "env") {
-                if (!isPlainObject7(value)) {
+                if (!isPlainObject8(value)) {
                   problems.push(
                     entryProblem(alias, fileSourceLabel, '"env" must be an object of ABAP_* environment overrides.')
                   );
@@ -162311,7 +162890,7 @@ function loadSystems(opts = {}) {
                 continue;
               }
               if (key === "secrets") {
-                if (!isPlainObject7(value)) {
+                if (!isPlainObject8(value)) {
                   problems.push(
                     entryProblem(
                       alias,

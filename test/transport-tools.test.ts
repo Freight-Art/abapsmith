@@ -2978,3 +2978,41 @@ describe("journalling caller-driven CTS mutations", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// abap_transport: object given where transport is required (#156)
+// ---------------------------------------------------------------------------
+
+describe("abap_transport — object given where transport is required (#156)", () => {
+  it('a missing transport whose object= looks like a request/task number is refused with a "Did you mean" hint, and no call is made', async () => {
+    const { conn, calls } = fakeCtsConnection([]);
+
+    await expect(
+      abapTransport(
+        conn,
+        transportInput({ operation: "show", object: "A4HK900001" }),
+        MAX_CHARS,
+      ),
+    ).rejects.toMatchObject({
+      code: "BAD_INPUT",
+      message: expect.stringContaining('Did you mean transport="A4HK900001"?'),
+    });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("a missing transport whose object= does not look like a request/task number is refused with no Did-you-mean text", async () => {
+    const { conn, calls } = fakeCtsConnection([]);
+
+    await expect(
+      abapTransport(
+        conn,
+        transportInput({ operation: "show", object: "ZCL_FOO" }),
+        MAX_CHARS,
+      ),
+    ).rejects.toMatchObject({
+      code: "BAD_INPUT",
+      message: expect.not.stringContaining("Did you mean"),
+    });
+    expect(calls).toHaveLength(0);
+  });
+});
