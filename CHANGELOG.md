@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.23] - 2026-09-22
+
 ### Fixed
 
 - **Bridge creates honour the request this session created** (#174). `VIEW/DV`, `TRAN/T`, `SHLP/DH`, `TABL/DI` and `DEVC/K` creates under `ABAP_ALLOW_TRANSPORTS=auto` now consult the session's created-request registry directly — a request from `abap_transport operation=create` that CTS's package candidate list omits (pinned, failed or empty check) is confirmed with a transport read and reused, instead of a new request being minted with the note "CTS offered no existing request for package …".
