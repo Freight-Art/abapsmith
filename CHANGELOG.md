@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.21] - 2026-09-22
+
 ### Added
 
 - **`add_query`/`set_query_fields` flag a missing `RETRIEVE_DEFAULT_PARAM` implementation** (#188). A query class must implement `/BOBF/IF_FRW_QUERY~RETRIEVE_DEFAULT_PARAM` even though the interface marks it `DEFAULT IGNORE` — the ABAP syntax check accepts a class without it, but BOPF activation of the business object then fails on the missing method. When the class source is readable, the preflight now checks case-insensitively for the method's implementation and adds a NOTE naming it if absent.
