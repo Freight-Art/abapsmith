@@ -31,6 +31,7 @@ import {
   fakeResponse,
   bopfStore,
   classSourceRoute,
+  typeHierarchyRoute,
   activationRoute,
   type FakeRoute,
 } from "./helpers/fake-adt.js";
@@ -476,6 +477,455 @@ describe("abap_bopf_edit — dangling-ref preflight (H2)", () => {
     });
 
     expect(okText(result)).toMatch(/wrong-interface/);
+  });
+});
+
+// ===========================================================================
+
+describe("abap_bopf_edit — dangling-ref preflight interface check (#186)", () => {
+  it("lower-case `interfaces /bobf/if_frw_action.` is present (no hierarchy route: source fallback)", async () => {
+    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
+    const source =
+      `CLASS zcl_lc DEFINITION PUBLIC.\n` +
+      `  PUBLIC SECTION.\n` +
+      `    interfaces /bobf/if_frw_action.\n` +
+      `ENDCLASS.\n` +
+      `CLASS zcl_lc IMPLEMENTATION.\n` +
+      `ENDCLASS.`;
+    const { conn } = await wired({
+      routes: [store.route, classSourceRoute({ name: "ZCL_LC", body: source })],
+    });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_bopf_edit", {
+      bo: "ZBOPF_PRB1",
+      operation: "add_action",
+      node: "ROOT",
+      name: "MY_ACTION_LC",
+      spec: { class: "ZCL_LC" },
+    });
+
+    const text = okText(result);
+    expect(text).not.toMatch(/wrong-interface/);
+    expect(text).not.toMatch(/Dangling-ref check/);
+    expect(store.get("zbopf_prb1")).toContain('bo:name="MY_ACTION_LC"');
+  });
+
+  it("an all-lower-case class (definition and implementation) is present, not declaration-only", async () => {
+    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
+    const source =
+      `class zcl_ll definition public.\n` +
+      `  public section.\n` +
+      `    interfaces /bobf/if_frw_action.\n` +
+      `endclass.\n` +
+      `class zcl_ll implementation.\n` +
+      `endclass.`;
+    const { conn } = await wired({
+      routes: [store.route, classSourceRoute({ name: "ZCL_LL", body: source })],
+    });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_bopf_edit", {
+      bo: "ZBOPF_PRB1",
+      operation: "add_action",
+      node: "ROOT",
+      name: "MY_ACTION_LL",
+      spec: { class: "ZCL_LL" },
+    });
+
+    const text = okText(result);
+    expect(text).not.toMatch(/declaration-only/);
+    expect(text).not.toMatch(/wrong-interface/);
+    expect(store.get("zbopf_prb1")).toContain('bo:name="MY_ACTION_LL"');
+  });
+
+  it("mixed-case source is present", async () => {
+    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
+    const source =
+      `CLASS zcl_mc DEFINITION PUBLIC.\n` +
+      `  PUBLIC SECTION.\n` +
+      `    Interfaces /Bobf/If_Frw_Action.\n` +
+      `ENDCLASS.\n` +
+      `CLASS zcl_mc IMPLEMENTATION.\n` +
+      `ENDCLASS.`;
+    const { conn } = await wired({
+      routes: [store.route, classSourceRoute({ name: "ZCL_MC", body: source })],
+    });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_bopf_edit", {
+      bo: "ZBOPF_PRB1",
+      operation: "add_action",
+      node: "ROOT",
+      name: "MY_ACTION_MC",
+      spec: { class: "ZCL_MC" },
+    });
+
+    const text = okText(result);
+    expect(text).not.toMatch(/wrong-interface/);
+    expect(text).not.toMatch(/Dangling-ref check/);
+    expect(store.get("zbopf_prb1")).toContain('bo:name="MY_ACTION_MC"');
+  });
+
+  it("interface inherited from a superclass is present via the type hierarchy", async () => {
+    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
+    const source =
+      `CLASS zcl_sub DEFINITION PUBLIC INHERITING FROM zcl_base.\n` + `ENDCLASS.\n` + `CLASS zcl_sub IMPLEMENTATION.\n` + `ENDCLASS.`;
+    const { conn, server } = await wired({
+      routes: [
+        store.route,
+        classSourceRoute({ name: "ZCL_SUB", body: source }),
+        typeHierarchyRoute({ name: "ZCL_SUB", superclasses: ["ZCL_BASE"], interfaces: ["/BOBF/IF_FRW_ACTION"] }),
+      ],
+    });
+    const { tools } = await registered(conn);
+    const before = callsAfterConnect(server);
+
+    const result = await invoke(tools, "abap_bopf_edit", {
+      bo: "ZBOPF_PRB1",
+      operation: "add_action",
+      node: "ROOT",
+      name: "MY_ACTION_SUB",
+      spec: { class: "ZCL_SUB" },
+    });
+
+    const text = okText(result);
+    expect(text).not.toMatch(/wrong-interface/);
+
+    const hierarchyCalls = server.calls
+      .slice(before)
+      .filter((r) => r.method === "POST" && r.path === "/sap/bc/adt/abapsource/typehierarchy");
+    expect(hierarchyCalls).toHaveLength(1);
+    const call = hierarchyCalls[0]!;
+    expect(call.qs["type"]).toBe("superTypes");
+    expect(String(call.qs["uri"])).toMatch(/^\/sap\/bc\/adt\/oo\/classes\/zcl_sub\/source\/main#start=1,6/);
+    expect(call.headers["content-type"]).toContain("text/plain");
+    expect(call.body).toBe(source);
+  });
+
+  it("hierarchy says the interface is absent → wrong-interface even though the source mentions it in a comment", async () => {
+    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
+    const source =
+      `CLASS zcl_hc DEFINITION PUBLIC.\n` +
+      `  PUBLIC SECTION.\n` +
+      `* interfaces /bobf/if_frw_action.\n` +
+      `ENDCLASS.\n` +
+      `CLASS zcl_hc IMPLEMENTATION.\n` +
+      `ENDCLASS.`;
+    const { conn } = await wired({
+      routes: [
+        store.route,
+        classSourceRoute({ name: "ZCL_HC", body: source }),
+        typeHierarchyRoute({ name: "ZCL_HC", interfaces: [] }),
+      ],
+    });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_bopf_edit", {
+      bo: "ZBOPF_PRB1",
+      operation: "add_action",
+      node: "ROOT",
+      name: "MY_ACTION_HC",
+      spec: { class: "ZCL_HC" },
+    });
+
+    expect(okText(result)).toMatch(/wrong-interface/);
+  });
+
+  it("INHERITING FROM with the hierarchy unavailable → unchecked, not wrong-interface", async () => {
+    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
+    const source =
+      `CLASS zcl_sub2 DEFINITION PUBLIC INHERITING FROM zcl_base.\n` + `ENDCLASS.\n` + `CLASS zcl_sub2 IMPLEMENTATION.\n` + `ENDCLASS.`;
+    const { conn } = await wired({
+      // No typeHierarchyRoute: the POST is unrouted, which the fake raises as a throw.
+      routes: [store.route, classSourceRoute({ name: "ZCL_SUB2", body: source })],
+    });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_bopf_edit", {
+      bo: "ZBOPF_PRB1",
+      operation: "add_action",
+      node: "ROOT",
+      name: "MY_ACTION_SUB2",
+      spec: { class: "ZCL_SUB2" },
+    });
+
+    const text = okText(result);
+    expect(text).toMatch(/Dangling-ref check on class ZCL_SUB2: unchecked/);
+    expect(text).not.toMatch(/wrong-interface/);
+    expect(store.get("zbopf_prb1")).toContain('bo:name="MY_ACTION_SUB2"');
+  });
+
+  it("source GET answers 403 → unchecked, edit proceeds", async () => {
+    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
+    const { conn } = await wired({
+      routes: [
+        store.route,
+        classSourceRoute({
+          name: "ZCL_SAP",
+          body: `<exc:exception><type id="ExceptionSecurity"/></exc:exception>`,
+          status: 403,
+        }),
+      ],
+    });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_bopf_edit", {
+      bo: "ZBOPF_PRB1",
+      operation: "add_action",
+      node: "ROOT",
+      name: "MY_ACTION_SAP",
+      spec: { class: "ZCL_SAP" },
+    });
+
+    const text = okText(result);
+    expect(text).toMatch(/Dangling-ref check on class ZCL_SAP: unchecked/);
+    expect(store.get("zbopf_prb1")).toContain('bo:name="MY_ACTION_SAP"');
+  });
+});
+
+// ===========================================================================
+
+describe("abap_bopf_edit — query class RETRIEVE_DEFAULT_PARAM note (#188)", () => {
+  it("add_query: a class implementing the query interface but not retrieve_default_param gets the missing-method note", async () => {
+    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
+    const source =
+      `CLASS zcl_q1 DEFINITION PUBLIC.\n` +
+      `  PUBLIC SECTION.\n` +
+      `    interfaces /bobf/if_frw_query.\n` +
+      `ENDCLASS.\n` +
+      `CLASS zcl_q1 IMPLEMENTATION.\n` +
+      `  METHOD /bobf/if_frw_query~query.\n` +
+      `  ENDMETHOD.\n` +
+      `ENDCLASS.`;
+    const { conn } = await wired({
+      routes: [store.route, classSourceRoute({ name: "ZCL_Q1", body: source })],
+    });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_bopf_edit", {
+      bo: "ZBOPF_PRB1",
+      operation: "add_query",
+      node: "ROOT",
+      name: "SELECT_BY_NAME",
+      spec: { category: "selectAll", class: "ZCL_Q1" },
+    });
+
+    expect(okText(result)).toMatch(/no METHOD \/bobf\/if_frw_query~retrieve_default_param implementation/);
+  });
+
+  it("add_query: a class implementing both methods gets no missing-method note", async () => {
+    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
+    const source =
+      `CLASS zcl_q2 DEFINITION PUBLIC.\n` +
+      `  PUBLIC SECTION.\n` +
+      `    interfaces /bobf/if_frw_query.\n` +
+      `ENDCLASS.\n` +
+      `CLASS zcl_q2 IMPLEMENTATION.\n` +
+      `  METHOD /bobf/if_frw_query~query.\n` +
+      `  ENDMETHOD.\n` +
+      `  METHOD /bobf/if_frw_query~retrieve_default_param.\n` +
+      `  ENDMETHOD.\n` +
+      `ENDCLASS.`;
+    const { conn } = await wired({
+      routes: [store.route, classSourceRoute({ name: "ZCL_Q2", body: source })],
+    });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_bopf_edit", {
+      bo: "ZBOPF_PRB1",
+      operation: "add_query",
+      node: "ROOT",
+      name: "SELECT_BY_NAME2",
+      spec: { category: "selectAll", class: "ZCL_Q2" },
+    });
+
+    expect(okText(result)).not.toMatch(/retrieve_default_param/);
+  });
+
+  it("add_action: a class lacking retrieve_default_param gets no such note — it's query-only", async () => {
+    const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
+    const source =
+      `CLASS zcl_act1 DEFINITION PUBLIC.\n` +
+      `  PUBLIC SECTION.\n` +
+      `    interfaces /bobf/if_frw_action.\n` +
+      `ENDCLASS.\n` +
+      `CLASS zcl_act1 IMPLEMENTATION.\n` +
+      `ENDCLASS.`;
+    const { conn } = await wired({
+      routes: [store.route, classSourceRoute({ name: "ZCL_ACT1", body: source })],
+    });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_bopf_edit", {
+      bo: "ZBOPF_PRB1",
+      operation: "add_action",
+      node: "ROOT",
+      name: "MY_ACTION_Q188",
+      spec: { class: "ZCL_ACT1" },
+    });
+
+    expect(okText(result)).not.toMatch(/retrieve_default_param/);
+  });
+
+  it("set_query_fields: an existing query's class missing retrieve_default_param gets the note", async () => {
+    const store = bopfStore({ zbopf_mc5: FX_ACTIVE_DANGLING });
+    const source =
+      `CLASS zcl_q3 DEFINITION PUBLIC.\n` +
+      `  PUBLIC SECTION.\n` +
+      `    interfaces /bobf/if_frw_query.\n` +
+      `ENDCLASS.\n` +
+      `CLASS zcl_q3 IMPLEMENTATION.\n` +
+      `  METHOD /bobf/if_frw_query~query.\n` +
+      `  ENDMETHOD.\n` +
+      `ENDCLASS.`;
+    const { conn } = await wired({
+      routes: [store.route, classSourceRoute({ name: "ZCL_Q3", body: source })],
+    });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_bopf_edit", {
+      bo: "ZBOPF_MC5",
+      operation: "set_query_fields",
+      node: "ROOT",
+      name: "SELECT_ALL",
+      spec: { class: "ZCL_Q3" },
+    });
+
+    expect(okText(result)).toMatch(/no METHOD \/bobf\/if_frw_query~retrieve_default_param implementation/);
+  });
+});
+
+// ===========================================================================
+
+describe("abap_bopf_edit — add_association target node qualification (#187)", () => {
+  it('a bare targetNodeRef name is qualified with the BO name and reported in a NOTE', async () => {
+    const store = bopfStore({ zbopf_prb1: FX_ACTIVE_AFTER_STRUCTURES });
+    const { conn } = await wired({ routes: [store.route] });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_bopf_edit", {
+      bo: "ZBOPF_PRB1",
+      operation: "add_association",
+      node: "ROOT",
+      name: "TO_ITEMS",
+      spec: { implementationType: "Association", multiplicity: "0_N", targetNodeRef: { name: "ITEM", type: "BOBF" } },
+    });
+
+    const text = okText(result);
+    expect(text).toMatch(/targetNodeRef "ITEM" had no "~" and was qualified to "ZBOPF_PRB1~ITEM"/);
+    const putBody = store.get("zbopf_prb1")!;
+    expect(putBody).toContain('bo:name="TO_ITEMS"');
+    const assocStart = putBody.indexOf('bo:name="TO_ITEMS"');
+    const assocSlice = putBody.slice(assocStart, assocStart + 400);
+    expect(assocSlice).toContain('adtcore:name="ZBOPF_PRB1~ITEM"');
+    expect(assocSlice).toContain('adtcore:type="BOBF"');
+  });
+
+  it("a lower-case bare name is qualified using the model's own spelling", async () => {
+    const store = bopfStore({ zbopf_prb1: FX_ACTIVE_AFTER_STRUCTURES });
+    const { conn } = await wired({ routes: [store.route] });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_bopf_edit", {
+      bo: "ZBOPF_PRB1",
+      operation: "add_association",
+      node: "ROOT",
+      name: "TO_ITEMS2",
+      spec: { implementationType: "Association", multiplicity: "0_N", targetNodeRef: { name: "item", type: "BOBF" } },
+    });
+
+    okText(result);
+    expect(store.get("zbopf_prb1")).toContain("ZBOPF_PRB1~ITEM");
+  });
+
+  it("an unknown node is refused with BAD_INPUT listing the available nodes, before any lock or PUT", async () => {
+    const store = bopfStore({ zbopf_prb1: FX_ACTIVE_AFTER_STRUCTURES });
+    const { conn, server } = await wired({ routes: [store.route] });
+    const { tools } = await registered(conn);
+    const before = callsAfterConnect(server);
+
+    const result = await invoke(tools, "abap_bopf_edit", {
+      bo: "ZBOPF_PRB1",
+      operation: "add_association",
+      node: "ROOT",
+      name: "TO_NOPE",
+      spec: { implementationType: "Association", multiplicity: "0_N", targetNodeRef: { name: "NOPE", type: "BOBF" } },
+    });
+
+    const payload = errorPayload(result);
+    expect(payload.error).toBe("BAD_INPUT");
+    expect(String(payload.message)).toMatch(/Available nodes: ROOT, ITEM/);
+
+    const puts = server.calls.slice(before).filter((r) => r.method === "PUT");
+    const locks = server.calls.slice(before).filter((r) => r.method === "POST" && r.qs["_action"] === "LOCK");
+    expect(puts).toHaveLength(0);
+    expect(locks).toHaveLength(0);
+    expect(store.get("zbopf_prb1")).toBe(FX_ACTIVE_AFTER_STRUCTURES);
+  });
+
+  it("an already-qualified same-BO name passes through unchanged, no qualification NOTE", async () => {
+    const store = bopfStore({ zbopf_prb1: FX_ACTIVE_AFTER_STRUCTURES });
+    const { conn } = await wired({ routes: [store.route] });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_bopf_edit", {
+      bo: "ZBOPF_PRB1",
+      operation: "add_association",
+      node: "ROOT",
+      name: "TO_ITEMS3",
+      spec: {
+        implementationType: "Association",
+        multiplicity: "0_N",
+        targetNodeRef: { name: "ZBOPF_PRB1~ITEM", type: "BOBF" },
+      },
+    });
+
+    const text = okText(result);
+    expect(text).not.toMatch(/was qualified/);
+    expect(store.get("zbopf_prb1")).toContain("ZBOPF_PRB1~ITEM");
+  });
+
+  it("a qualified name of an unknown same-BO node is refused", async () => {
+    const store = bopfStore({ zbopf_prb1: FX_ACTIVE_AFTER_STRUCTURES });
+    const { conn } = await wired({ routes: [store.route] });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_bopf_edit", {
+      bo: "ZBOPF_PRB1",
+      operation: "add_association",
+      node: "ROOT",
+      name: "TO_NOPE2",
+      spec: {
+        implementationType: "Association",
+        multiplicity: "0_N",
+        targetNodeRef: { name: "ZBOPF_PRB1~NOPE", type: "BOBF" },
+      },
+    });
+
+    expect(errorPayload(result).error).toBe("BAD_INPUT");
+  });
+
+  it("a cross-BO qualified name passes through unaffected", async () => {
+    const store = bopfStore({ zbopf_prb1: FX_ACTIVE_AFTER_STRUCTURES });
+    const { conn } = await wired({ routes: [store.route] });
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_bopf_edit", {
+      bo: "ZBOPF_PRB1",
+      operation: "add_association",
+      node: "ROOT",
+      name: "TO_CUSTOMER",
+      spec: {
+        implementationType: "Association",
+        multiplicity: "0_N",
+        targetNodeRef: { name: "/BOBF/DEMO_CUSTOMER~ROOT", type: "BOBF" },
+      },
+    });
+
+    const payload = result.isError ? errorPayload(result) : undefined;
+    expect(payload?.error).not.toBe("BAD_INPUT");
+    expect(store.get("zbopf_prb1")).toContain("/BOBF/DEMO_CUSTOMER~ROOT");
   });
 });
 

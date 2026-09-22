@@ -5194,9 +5194,9 @@ var require_utilities = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.orUndefined = exports2.toXmlAttributes = exports2.hasMessage = exports2.boolFromAbap = exports2.followUrl = exports2.parseJsonDate = exports2.toSapDate = exports2.parseSapDate = exports2.parse = exports2.fullParse = exports2.numberParseOptions = exports2.bar = exports2.typedNodeAttr = exports2.xmlNodeAttr = exports2.stripNs = exports2.xmlRoot = exports2.extractXmlArray = exports2.xmlArrayType = exports2.isUndefined = exports2.isNativeError = exports2.isNumber = exports2.isString = exports2.isArray = exports2.isObject = exports2.encodeEntity = void 0;
     exports2.JSON2AbapXML = JSON2AbapXML;
-    exports2.xmlNode = xmlNode3;
+    exports2.xmlNode = xmlNode4;
     exports2.xmlFlatArray = xmlFlatArray;
-    exports2.xmlArray = xmlArray3;
+    exports2.xmlArray = xmlArray4;
     exports2.toInt = toInt;
     exports2.btoa = btoa2;
     exports2.parts = parts;
@@ -5242,7 +5242,7 @@ var require_utilities = __commonJS({
     exports2.xmlArrayType = xmlArrayType;
     var extractXmlArray = (x) => x ? (0, exports2.isArray)(x) ? x : [x] : [];
     exports2.extractXmlArray = extractXmlArray;
-    function xmlNode3(xml4, ...path9) {
+    function xmlNode4(xml4, ...path9) {
       let current = xml4;
       path9.some((key) => {
         if ((0, exports2.isObject)(current))
@@ -5268,8 +5268,8 @@ var require_utilities = __commonJS({
       }
       return [];
     }
-    function xmlArray3(xml4, ...path9) {
-      const node2 = xmlNode3(xml4, ...path9);
+    function xmlArray4(xml4, ...path9) {
+      const node2 = xmlNode4(xml4, ...path9);
       if (node2) {
         if ((0, exports2.isArray)(node2))
           return node2;
@@ -5291,11 +5291,11 @@ var require_utilities = __commonJS({
     }, {});
     exports2.stripNs = stripNs;
     var stripAttrPrefix = (x) => x.replace(/^@_/, "");
-    var xmlNodeAttr3 = (n) => n && ok24(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
+    var xmlNodeAttr4 = (n) => n && ok24(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
       part[cur.replace(/^@_/, "")] = n[cur];
       return part;
     }, {});
-    exports2.xmlNodeAttr = xmlNodeAttr3;
+    exports2.xmlNodeAttr = xmlNodeAttr4;
     var typedNodeAttr = (n) => n && ok24(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
       part[cur.replace(/^@_/, "")] = n[cur];
       return part;
@@ -5307,13 +5307,13 @@ var require_utilities = __commonJS({
       hex: true,
       skipLike: new RegExp("")
     };
-    var fullParse3 = (xml4, options = {}) => new fast_xml_parser_1.XMLParser({
+    var fullParse4 = (xml4, options = {}) => new fast_xml_parser_1.XMLParser({
       ignoreAttributes: false,
       trimValues: false,
       parseAttributeValue: true,
       ...options
     }).parse(xml4);
-    exports2.fullParse = fullParse3;
+    exports2.fullParse = fullParse4;
     var parse4 = (xml4, options = {}) => new fast_xml_parser_1.XMLParser(options).parse(xml4);
     exports2.parse = parse4;
     function toInt(x) {
@@ -142564,6 +142564,122 @@ function classifyNode(model, node2) {
   return classifyNodes(model).get(node2.name.toLowerCase()) ?? { kind: "standard" };
 }
 
+// src/adt/class-interfaces.ts
+var import_utilities3 = __toESM(require_utilities(), 1);
+var TYPE_HIERARCHY_URL = "/sap/bc/adt/abapsource/typehierarchy";
+var CLASS_DEFINITION_LINE = /^\s*class\s+(\S+)\s+definition\b/i;
+var CLASS_IMPLEMENTATION_LINE = /^\s*class\s+\S+\s+implementation\b/im;
+function escapeRegExp6(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function definitionNamePosition(source, className) {
+  const lines = source.split(/\r?\n/);
+  const want = className.toLowerCase();
+  for (let i = 0; i < lines.length; i++) {
+    const line2 = lines[i];
+    const m = CLASS_DEFINITION_LINE.exec(line2);
+    if (m && m[1].toLowerCase() === want) {
+      return { line: i + 1, column: line2.indexOf(m[1]) };
+    }
+  }
+  return void 0;
+}
+function stripComments(text5) {
+  return text5.split(/\r?\n/).map((line2) => line2.startsWith("*") ? "" : line2.replace(/".*$/, "")).join("\n");
+}
+function interfacesFromDefinition(source) {
+  const implMatch = CLASS_IMPLEMENTATION_LINE.exec(source);
+  const definitionPart = stripComments(implMatch ? source.slice(0, implMatch.index) : source);
+  const interfaces = [];
+  const seen = /* @__PURE__ */ new Set();
+  const stmtRe = /\binterfaces\b\s*:?\s*([^.]*)\./gi;
+  let m;
+  while ((m = stmtRe.exec(definitionPart)) !== null) {
+    for (const part of m[1].split(",")) {
+      const token = part.trim().split(/\s+/)[0];
+      if (!token) continue;
+      const upper = token.toUpperCase();
+      if (!seen.has(upper)) {
+        seen.add(upper);
+        interfaces.push(upper);
+      }
+    }
+  }
+  return {
+    interfaces,
+    inheriting: /\binheriting\s+from\b/i.test(definitionPart)
+  };
+}
+async function fetchImplementedInterfaces(conn, className, source) {
+  const pos = definitionNamePosition(source, className);
+  if (!pos) return void 0;
+  let body;
+  try {
+    ({ body } = await conn.post(TYPE_HIERARCHY_URL, {
+      headers: { "Content-Type": "text/plain", Accept: "application/*" },
+      qs: {
+        uri: `/sap/bc/adt/oo/classes/${encodeURIComponent(className.toLowerCase())}/source/main#start=${pos.line},${pos.column}`,
+        type: "superTypes"
+      },
+      body: source
+    }));
+  } catch {
+    return void 0;
+  }
+  if (!body.trim()) return void 0;
+  const parsed = (0, import_utilities3.fullParse)(body);
+  const info = (0, import_utilities3.xmlNode)(parsed, "hierarchy:info");
+  if (!info) return void 0;
+  const entries = (0, import_utilities3.xmlArray)(parsed, "hierarchy:info", "entries", "entry");
+  const interfaces = [];
+  for (const e of entries) {
+    const attrs = (0, import_utilities3.xmlNodeAttr)(e);
+    if (attrs["adtcore:type"] === "INTF/OI" && typeof attrs["adtcore:name"] === "string") {
+      interfaces.push(attrs["adtcore:name"].toUpperCase());
+    }
+  }
+  return interfaces;
+}
+async function checkClassImplements(conn, className, source, iface) {
+  const want = iface.toUpperCase();
+  const hierarchy = await fetchImplementedInterfaces(conn, className, source);
+  if (hierarchy !== void 0) {
+    const implemented = hierarchy.includes(want);
+    return {
+      implemented,
+      via: "hierarchy",
+      detail: implemented ? `${iface} listed in the ADT type hierarchy` : `${iface} not in the ADT type hierarchy (own and inherited interfaces)`
+    };
+  }
+  const { interfaces, inheriting } = interfacesFromDefinition(source);
+  if (interfaces.includes(want)) {
+    return {
+      implemented: true,
+      via: "source",
+      detail: `${iface} declared in the definition part`
+    };
+  }
+  if (inheriting) {
+    return {
+      implemented: void 0,
+      via: "source",
+      detail: `${iface} not declared in the definition part, the class inherits from a superclass, and the ADT type hierarchy was unavailable`
+    };
+  }
+  return {
+    implemented: false,
+    via: "source",
+    detail: `${iface} not declared in the definition part (ADT type hierarchy unavailable)`
+  };
+}
+function hasMethodImplementation(source, method) {
+  const re = new RegExp("\\bmethod\\s+(?:[\\w/]+~)?" + escapeRegExp6(method) + "\\b", "i");
+  return re.test(stripComments(source));
+}
+function hasImplementationPart(source) {
+  return CLASS_IMPLEMENTATION_LINE.test(stripComments(source));
+}
+
 // src/adt/bopf.ts
 init_package_ref();
 var BOPF_COLLECTION = "/sap/bc/adt/bopf/businessobjects";
@@ -143406,18 +143522,17 @@ async function evaluateClassRef(conn, site) {
   if (source === void 0) {
     return { site, verdict: "unchecked", detail: "readCurrentSource returned no source for a target marked exists" };
   }
-  const verdict = source.includes("IMPLEMENTATION") ? "present" : "declaration-only";
+  const verdict = hasImplementationPart(source) ? "present" : "declaration-only";
   if (verdict === "declaration-only") {
     return { site, verdict, detail: "class exists but has no IMPLEMENTATION section" };
   }
-  if (site.requiredInterface && !source.includes(site.requiredInterface)) {
-    return {
-      site,
-      verdict: "wrong-interface",
-      detail: `source does not mention ${site.requiredInterface} (substring match only \u2014 cannot see inherited interfaces)`
-    };
+  if (site.requiredInterface) {
+    const check2 = await checkClassImplements(conn, className, source, site.requiredInterface);
+    if (check2.implemented === true) return { site, verdict: "present" };
+    if (check2.implemented === false) return { site, verdict: "wrong-interface", detail: check2.detail };
+    return { site, verdict: "unchecked", detail: check2.detail };
   }
-  return { site, verdict };
+  return { site, verdict: "present" };
 }
 
 // src/tools/bopf-spec-keys.ts
@@ -144532,16 +144647,22 @@ async function danglingRefPreflight(conn, operation, spec, allowDangling) {
         "Create the class first, or pass allow_dangling_ref: true to proceed anyway."
       );
     }
-    throw e;
+    return { className, verdict: "unchecked", detail: describeUnknownError(e) };
   }
-  if (source === void 0 || !source.includes("IMPLEMENTATION")) {
+  if (source === void 0 || !hasImplementationPart(source)) {
     return { className, verdict: "declaration-only" };
   }
   const requiredInterface = IMPL_INTERFACE_BY_OP[operation];
-  if (requiredInterface && !source.includes(requiredInterface)) {
-    return { className, verdict: "wrong-interface" };
+  let verdict = { className, verdict: "present" };
+  if (requiredInterface) {
+    const check2 = await checkClassImplements(conn, className, source, requiredInterface);
+    if (check2.implemented === false) verdict = { className, verdict: "wrong-interface", detail: check2.detail };
+    else if (check2.implemented === void 0) verdict = { className, verdict: "unchecked", detail: check2.detail };
   }
-  return { className, verdict: "present" };
+  if ((operation === "add_query" || operation === "set_query_fields") && !hasMethodImplementation(source, "retrieve_default_param")) {
+    verdict = { ...verdict, missingMethods: ["/BOBF/IF_FRW_QUERY~RETRIEVE_DEFAULT_PARAM"] };
+  }
+  return verdict;
 }
 function actionRefPreflight(model, ownerNode, spec, allowDangling) {
   if (!spec || !Array.isArray(spec.triggers)) return;
@@ -145449,8 +145570,15 @@ function buildEditResponse(bo, model, danglingVerdict, activation, recovered, jo
   }
   if (danglingVerdict && danglingVerdict.verdict !== "present") {
     notes.push(
-      `Dangling-ref check on class ${danglingVerdict.className}: ${danglingVerdict.verdict}` + (danglingVerdict.verdict === "allowed" ? " \u2014 allow_dangling_ref: true was passed, so this proceeded despite the class not existing as a source artifact. A determination/validation/action/query bound to it activates cleanly and silently never fires." : danglingVerdict.verdict === "declaration-only" ? " \u2014 the class exists but has no IMPLEMENTATION section yet." : " \u2014 the class exists but does not (yet) implement the interface this element's role requires (substring match only; inherited interfaces are not visible here).")
+      `Dangling-ref check on class ${danglingVerdict.className}: ${danglingVerdict.verdict}` + (danglingVerdict.verdict === "allowed" ? " \u2014 allow_dangling_ref: true was passed, so this proceeded despite the class not existing as a source artifact. A determination/validation/action/query bound to it activates cleanly and silently never fires." : danglingVerdict.verdict === "declaration-only" ? " \u2014 the class exists but has no IMPLEMENTATION section yet." : danglingVerdict.verdict === "wrong-interface" ? ` \u2014 the class exists but does not implement the interface this element's role requires (${danglingVerdict.detail ?? "see check_refs"}).` : ` \u2014 could not determine whether the class implements the required interface (${danglingVerdict.detail ?? "source or type hierarchy unreadable"}); proceeding.`)
     );
+  }
+  if (danglingVerdict?.missingMethods?.length) {
+    for (const m of danglingVerdict.missingMethods) {
+      notes.push(
+        `Class ${danglingVerdict.className} has no METHOD ${m.toLowerCase()} implementation \u2014 the interface marks it DEFAULT IGNORE so the syntax check passes, but BOPF activation fails on the missing method. Add an empty implementation before activating.`
+      );
+    }
   }
   if (activation) {
     notes.push(
@@ -145499,6 +145627,35 @@ function resolveTargetNodeName2(ref2) {
   }
   const tilde = ref2.name.lastIndexOf("~");
   return tilde >= 0 ? ref2.name.slice(tilde + 1) : ref2.name;
+}
+function qualifyTargetNodeRef(model, operation, spec) {
+  const targetNodeRef = spec?.targetNodeRef;
+  if (!targetNodeRef || typeof targetNodeRef !== "object") return { spec };
+  const targetNodeRefObj = targetNodeRef;
+  const raw = targetNodeRefObj.name;
+  if (typeof raw !== "string") return { spec };
+  const { bo, node: node2 } = splitTargetNodeRef(raw);
+  if (bo !== void 0 && bo.toLowerCase() !== model.name.toLowerCase()) {
+    return { spec };
+  }
+  const wantNode = (node2 ?? "").toLowerCase();
+  const found = model.nodes.find((n) => n.name.toLowerCase() === wantNode);
+  if (!found) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${operation} on ${model.name}: targetNodeRef "${raw}" names node "${node2}", which does not exist on ${model.name}. Available nodes: ${model.nodes.map((n) => n.name).join(", ")}.`,
+      { bo: model.name, targetNodeRef: raw, availableNodes: model.nodes.map((n) => n.name) },
+      `Use "<BO>~<NODE>" \u2014 for a same-BO target that is "${model.name}~<NODE>".`
+    );
+  }
+  const qualified = `${model.name}~${found.name}`;
+  const newRef = {
+    ...targetNodeRefObj,
+    name: bo === void 0 ? qualified : raw,
+    type: typeof targetNodeRefObj.type === "string" ? targetNodeRefObj.type : "BOBF"
+  };
+  const note = bo === void 0 ? `targetNodeRef "${raw}" had no "~" and was qualified to "${qualified}" \u2014 the target node is always <BO>~<NODE>, same-BO included.` : void 0;
+  return { spec: { ...spec, targetNodeRef: newRef }, note };
 }
 function findEquivalentAssociation(node2, implementationType, targetNode) {
   const wantType = implementationType.toLowerCase();
@@ -145873,6 +146030,12 @@ async function runBopfEdit(deps, args) {
     gateKey,
     (conn) => conn.withStatefulSession(async (session) => {
       const initial = await readModel(conn, bo);
+      let targetNodeNote;
+      if (input.operation === "add_association" || input.operation === "set_association_fields") {
+        const q = qualifyTargetNodeRef(initial.model, input.operation, input.spec);
+        input.spec = q.spec;
+        targetNodeNote = q.note;
+      }
       if (input.operation === "remove_node") {
         const target = requireNode(input).node.toLowerCase();
         const isRoot = initial.model.nodes.some((n) => n.name.toLowerCase() === target && n.rootNode);
@@ -146117,7 +146280,13 @@ async function runBopfEdit(deps, args) {
         );
         activation = await activateBusinessObject(conn, bo);
       }
-      return { model: afterMutate.model, danglingVerdict, activation, entryId };
+      return {
+        model: afterMutate.model,
+        danglingVerdict,
+        activation,
+        entryId,
+        notes: targetNodeNote ? [targetNodeNote] : []
+      };
     })
   ).catch(async (e) => {
     if (input.operation === "activate" && isAbapError(e) && e.code === "TIMEOUT" && e.details.operation === "activate") {
@@ -146130,6 +146299,7 @@ async function runBopfEdit(deps, args) {
           danglingVerdict: void 0,
           activation: { activated: true, messages: [], version: "active" },
           entryId: void 0,
+          notes: [],
           timeoutNote: `activation of ${bo} did not answer within ${timeoutMs} ms (${envVar}) but completed on the server after the client timeout: a fresh session re-read shows version active.`
         };
       }
@@ -146160,9 +146330,14 @@ async function runBopfEdit(deps, args) {
       false,
       result.entryId,
       deps.cfg.maxResponseChars,
-      [categoryNote, addNodeNote, altKeyNote, result.timeoutNote, ...delegationNotes(input)].filter(
-        (n) => n !== void 0
-      )
+      [
+        categoryNote,
+        addNodeNote,
+        altKeyNote,
+        result.timeoutNote,
+        ...delegationNotes(input),
+        ...result.notes ?? []
+      ].filter((n) => n !== void 0)
     ),
     result.entryId
   );

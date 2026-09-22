@@ -712,6 +712,21 @@ const NOT_REPOSITORY_MUTATIONS: ReadonlyMap<string, string> = new Map([
       "and this entry must be re-examined.",
   ],
   [
+    "adt/class-interfaces.ts",
+    "One `conn.post` lookup: `POST /sap/bc/adt/abapsource/typehierarchy?type=superTypes` " +
+      "(`fetchImplementedInterfaces`), which asks ADT for the interfaces a class implements, " +
+      "inherited ones included, so the BOPF class-reference preflight (issue #186) can judge " +
+      "`wrong-interface` without a substring match on the source. The POST body carries the " +
+      "class source because that is how the wire protocol resolves the `#start=line,col` " +
+      "position in the `uri` query parameter — the same shape as `adt/element-info.ts`'s " +
+      "elementinfo lookup. It creates, changes and deletes no repository object, so no " +
+      "`JournalOperation` value could describe it. Both importers, `src/adt/bopf.ts` " +
+      "(`checkReferences`, read-only) and `src/tools/bopf.ts` (the edit preflight, which runs " +
+      "BEFORE the gated PUT and journals that PUT separately), reach it on read paths. If a " +
+      "future code path in this module ever POSTs something that changes a repository object, " +
+      "it must journal and this entry must be re-examined.",
+  ],
+  [
     "adt/quickfix.ts",
     "Two POSTs, `evaluateQuickFixes` (quick-fix evaluation) and " +
       "`fetchQuickFixDelta` (one proposal's own `uri`), both of which compute a fix from source " +
@@ -740,6 +755,7 @@ describe("journal contract (heuristic, see file header)", () => {
         "adt/activate.ts",
         "adt/atc.ts",
         "adt/bopf.ts",
+        "adt/class-interfaces.ts",
         "adt/element-info.ts",
         "adt/enhancement-bridge.ts",
         "adt/enhancement-hook.ts",

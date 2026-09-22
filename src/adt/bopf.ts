@@ -52,6 +52,7 @@ import { AbapError, isAbapError, describeUnknownError } from "./errors.js";
 import type { AuthorizedTarget, MutatingOperation, SafetyCorr, SafetyGate } from "../safety.js";
 import { parseModel, mintGuid } from "./bopf-xml.js";
 import { isCrossBoTarget, splitTargetNodeRef } from "./bopf-node-kinds.js";
+import { checkClassImplements, hasImplementationPart } from "./class-interfaces.js";
 import { parsePackageRef } from "./package-ref.js";
 import type {
   BoModel,
@@ -1554,11 +1555,12 @@ export async function checkReferences(
 }
 
 /**
- * Required interface per owning-element role, substring-matched against
- * source (can't see inherited interfaces, so a mismatch is the WARNING-grade
- * `"wrong-interface"`, not a hard error). Keyed by owner kind since
- * `implementationClassRef`'s required interface depends on the owner
- * (association's has no framework-mandated interface).
+ * Required interface per owning-element role. Checked via `checkClassImplements`
+ * (`./class-interfaces.js`) — the ADT type hierarchy when reachable (sees
+ * inherited interfaces), falling back to the definition part otherwise, so a
+ * mismatch is the WARNING-grade `"wrong-interface"`, not a hard error. Keyed
+ * by owner kind since `implementationClassRef`'s required interface depends
+ * on the owner (association's has no framework-mandated interface).
  */
 const IMPL_INTERFACE_BY_OWNER: Record<string, string> = {
   determination: "/BOBF/IF_FRW_DETERMINATION",
@@ -1754,16 +1756,15 @@ async function evaluateClassRef(conn: AbapConnection, site: ClassRefSite): Promi
     return { site, verdict: "unchecked", detail: "readCurrentSource returned no source for a target marked exists" };
   }
 
-  const verdict: RefVerdict = source.includes("IMPLEMENTATION") ? "present" : "declaration-only";
+  const verdict: RefVerdict = hasImplementationPart(source) ? "present" : "declaration-only";
   if (verdict === "declaration-only") {
     return { site, verdict, detail: "class exists but has no IMPLEMENTATION section" };
   }
-  if (site.requiredInterface && !source.includes(site.requiredInterface)) {
-    return {
-      site,
-      verdict: "wrong-interface",
-      detail: `source does not mention ${site.requiredInterface} (substring match only — cannot see inherited interfaces)`,
-    };
+  if (site.requiredInterface) {
+    const check = await checkClassImplements(conn, className, source, site.requiredInterface);
+    if (check.implemented === true) return { site, verdict: "present" };
+    if (check.implemented === false) return { site, verdict: "wrong-interface", detail: check.detail };
+    return { site, verdict: "unchecked", detail: check.detail };
   }
-  return { site, verdict };
+  return { site, verdict: "present" };
 }
