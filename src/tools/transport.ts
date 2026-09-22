@@ -506,13 +506,20 @@ function messageRows(messages: readonly TrReleaseMessage[]): Array<Record<string
 // Input validation
 // ---------------------------------------------------------------------------
 
-function normTrkorr(value: string | undefined, operation: string): string {
+/** A request/task number shape, e.g. A4HK900123 — used to guess a misnamed `object=`. */
+const TRKORR_LIKE = /^[A-Z0-9]{3}K\d{6}$/i;
+
+function normTrkorr(value: string | undefined, operation: string, objectValue?: string): string {
   const raw = (value ?? "").trim().toUpperCase();
   if (raw === "") {
+    const guess = (objectValue ?? "").trim();
+    const looksLikeTransport = TRKORR_LIKE.test(guess);
     throw new AbapError(
       "BAD_INPUT",
-      `Operation "${operation}" needs "transport" (a request/task number, e.g. A4HK900123).`,
+      `Operation "${operation}" needs "transport" (a request/task number, e.g. A4HK900123).` +
+        (looksLikeTransport ? ` Did you mean transport="${guess}"?` : ""),
       { operation, arg: "transport" },
+      looksLikeTransport ? `Retry with transport="${guess}".` : undefined,
     );
   }
   if (!isTrkorr(raw)) {
@@ -920,7 +927,7 @@ async function opShow(
   journal?: TransportJournalDeps,
   ownership?: SessionTrOwner,
 ): Promise<BuiltResponse> {
-  const trkorr = normTrkorr(input.transport, "show");
+  const trkorr = normTrkorr(input.transport, "show", input.object);
   const r = await trShow(conn, trkorr);
   const subject = subjectOf(trkorr, r);
   // Read-only: the journal is only ever consulted here, never written to.
@@ -1113,14 +1120,22 @@ async function opCheck(
  * A `transport` value with no format check — `readTransportLogViaBridge` (`src/adt/
  * transport-log.ts`) validates the shape itself via its own `assertTrkorr`, so this only
  * covers the "missing entirely" case, in the same BAD_INPUT shape `normTrkorr` uses for it.
+ *
+ * `objectValue` is the caller's `object=` argument, if any (issue #156: a common mix-up is
+ * passing the request number as `object` instead of `transport`) — when it looks like a
+ * request/task number, the refusal points the caller at the fix instead of a bare "missing".
  */
-function requireTransportArg(value: string | undefined, operation: string): string {
+function requireTransportArg(value: string | undefined, operation: string, objectValue?: string): string {
   const raw = (value ?? "").trim().toUpperCase();
   if (raw === "") {
+    const guess = (objectValue ?? "").trim();
+    const looksLikeTransport = TRKORR_LIKE.test(guess);
     throw new AbapError(
       "BAD_INPUT",
-      `Operation "${operation}" needs "transport" (a request/task number, e.g. A4HK900123).`,
+      `Operation "${operation}" needs "transport" (a request/task number, e.g. A4HK900123).` +
+        (looksLikeTransport ? ` Did you mean transport="${guess}"?` : ""),
       { operation, arg: "transport" },
+      looksLikeTransport ? `Retry with transport="${guess}".` : undefined,
     );
   }
   return raw;
@@ -1186,7 +1201,7 @@ async function opLog(
   input: TransportInput,
   maxChars: number,
 ): Promise<BuiltResponse> {
-  const trkorr = requireTransportArg(input.transport, "log");
+  const trkorr = requireTransportArg(input.transport, "log", input.object);
   const result: TransportLogResult = await readTransportLogViaBridge(conn, gate, { trkorr });
 
   const sections: Array<{ title: string; content: string }> = [];
@@ -1759,7 +1774,7 @@ async function opAddUser(
   gate: SafetyGate,
   journal?: TransportJournalDeps,
 ): Promise<BuiltResponse> {
-  const trkorr = normTrkorr(input.transport, "addUser");
+  const trkorr = normTrkorr(input.transport, "addUser", input.object);
   const user = required(input.user, "user", "addUser").toUpperCase();
   assertCeiling(gate, "plain", "addUser");
   // Guaranteed to succeed: assertCeiling above already threw on denial via
@@ -1830,7 +1845,7 @@ async function opSetOwner(
   gate: SafetyGate,
   journal?: TransportJournalDeps,
 ): Promise<BuiltResponse> {
-  const trkorr = normTrkorr(input.transport, "setOwner");
+  const trkorr = normTrkorr(input.transport, "setOwner", input.object);
   const user = required(input.user, "user", "setOwner").toUpperCase();
   assertCeiling(gate, "plain", "setOwner");
   const proof = authorizeCeiling(gate, "transport");
@@ -1882,7 +1897,7 @@ async function opDelete(
   gate: SafetyGate,
   journal?: TransportJournalDeps,
 ): Promise<BuiltResponse> {
-  const trkorr = normTrkorr(input.transport, "delete");
+  const trkorr = normTrkorr(input.transport, "delete", input.object);
   const confirm = input.confirm;
   if (confirm === undefined) {
     throw new AbapError(
@@ -1963,7 +1978,7 @@ async function opRemoveObject(
   gate: SafetyGate,
   journal?: TransportJournalDeps,
 ): Promise<BuiltResponse> {
-  const trkorr = normTrkorr(input.transport, "removeObject");
+  const trkorr = normTrkorr(input.transport, "removeObject", input.object);
   const objectName = required(input.object, "object", "removeObject").trim().toUpperCase();
   const confirm = input.confirm;
   if (confirm === undefined) {
