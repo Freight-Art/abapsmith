@@ -353,6 +353,12 @@ export const ConfigSchema = z.object({
     )
     .optional(),
   timeoutMs: z.coerce.number().int().positive().default(60_000),
+  /** Per-request timeout for BOPF create_bo POST and BOPF activation (`ABAP_BOPF_TIMEOUT_MS`). */
+  bopfTimeoutMs: z.coerce.number().int().positive().default(180_000),
+  /** Per-request timeout for every POST /sap/bc/adt/activation (single and mass/DDIC) (`ABAP_ACTIVATE_TIMEOUT_MS`). */
+  activateTimeoutMs: z.coerce.number().int().positive().default(180_000),
+  /** Per-request timeout for abap_run classrun execution (`ABAP_RUN_TIMEOUT_MS`). */
+  runTimeoutMs: z.coerce.number().int().positive().default(180_000),
   /** How long to wait for the cross-process journal index lock before giving up. */
   lockWaitMs: z.coerce.number().int().positive().default(5_000),
   /** Directory for cross-process state — the journal index lockfile and the durable auth latch. Default `<cwd>/.abapsmith`. */
@@ -1432,6 +1438,9 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     terminalId: env.ABAP_TERMINAL_ID,
     ideId: env.ABAP_IDE_ID,
     timeoutMs: env.ABAP_TIMEOUT_MS ?? 60_000,
+    bopfTimeoutMs: env.ABAP_BOPF_TIMEOUT_MS ?? 180_000,
+    activateTimeoutMs: env.ABAP_ACTIVATE_TIMEOUT_MS ?? 180_000,
+    runTimeoutMs: env.ABAP_RUN_TIMEOUT_MS ?? 180_000,
     lockWaitMs: env.ABAP_LOCK_WAIT_MS ?? 5_000,
     stateDir: env.ABAP_STATE_DIR ?? ".abapsmith",
     maxResponseChars: env.ABAP_MAX_RESPONSE_CHARS,

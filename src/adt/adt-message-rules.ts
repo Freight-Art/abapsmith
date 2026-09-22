@@ -19,10 +19,17 @@ export interface AdtMessageRule {
   readonly t100No?: string;
   /** Prose fallback for servers that send no T100 key. */
   readonly match?: RegExp;
+  /** `exc:exception`'s `type` id (e.g. `"ExceptionInvalidData"`) this rule matches on, in addition to (or instead of) a T100 key / prose match. */
+  readonly exceptionType?: string;
+  /** A property key that must be present and non-empty for this rule to match — only meaningful together with `exceptionType`. */
+  readonly property?: string;
   /** Whether a retry could ever succeed is stated in this prose, not as a field:
    * `retryable: false` is reserved for `"UNSUPPORTED"` capability-registry
-   * refusals (see `test/refusal-terminality.test.ts`). */
-  readonly hint: string;
+   * refusals (see `test/refusal-terminality.test.ts`). A function hint is
+   * given the classified message and properties, for a rule whose advice
+   * depends on what the server actually sent (e.g. naming the offending
+   * XML_PATH element). */
+  readonly hint: string | ((message: string, properties: Record<string, string>) => string);
 }
 
 /**
@@ -62,6 +69,91 @@ const CONTAINER_PARENT_MISSING_HINT =
   '"FUNCTION-POOL <name>." — then retry the include/function-module create. Retrying it ' +
   "unchanged fails again until the group exists.";
 
+/**
+ * `bo:*` element name (the last segment of an `XML_PATH`) -> what BOPF calls
+ * it and which of that element's spec fields the server actually validates.
+ * Keys are exactly what `bo:nodes(10)bo:actions(18)`'s final segment parses
+ * out to (before the `(n)` index) — see `lastXmlPathSegment`.
+ */
+const XML_PATH_ELEMENTS: Readonly<
+  Record<string, { readonly kind: string; readonly fieldsLabel: string; readonly fields: readonly string[] }>
+> = {
+  "bo:actions": {
+    kind: "action",
+    fieldsLabel: "enum-valued spec fields",
+    fields: ["instanceMultiplicity", "exportingParameterCategoryType", "category"],
+  },
+  "bo:associations": {
+    kind: "association",
+    fieldsLabel: "enum-valued spec fields",
+    fields: ["multiplicity", "implementationType", "targetNodeRef"],
+  },
+  "bo:determinations": {
+    kind: "determination",
+    fieldsLabel: "spec fields",
+    fields: ["category", "triggers", "relations"],
+  },
+  "bo:validations": {
+    kind: "validation",
+    fieldsLabel: "spec fields",
+    fields: ["category", "triggers"],
+  },
+  "bo:queries": {
+    kind: "query",
+    fieldsLabel: "enum-valued spec fields",
+    fields: ["category"],
+  },
+  "bo:alternativeKeys": {
+    kind: "alternative key",
+    fieldsLabel: "enum-valued spec fields",
+    fields: ["uniqueness"],
+  },
+  "bo:nodes": {
+    kind: "node",
+    fieldsLabel: "flags",
+    fields: ["rootNode", "textNode", "isDependentObjectNode", "createEnabled", "updateEnabled", "deleteEnabled"],
+  },
+};
+
+/**
+ * An `XML_PATH` is a run of `<prefix:elementName>(<index>)` segments with no
+ * separator, e.g. `bo:businessObject(1)bo:nodes(10)bo:actions(18)`. Returns
+ * the last segment's name (without its `(n)` index), or `undefined` if the
+ * path doesn't parse as that shape at all.
+ */
+function lastXmlPathSegment(xmlPath: string): string | undefined {
+  const matches = [...xmlPath.matchAll(/([A-Za-z0-9_:]+)\(\d+\)/g)];
+  return matches.length > 0 ? matches[matches.length - 1]![1] : undefined;
+}
+
+/**
+ * Turns an `ExceptionInvalidData` response's `XML_PATH` (and, if present,
+ * `XML_OFFSET`) into a hint naming the offending element and the fields on
+ * it the server actually validates — so "the document was rejected" becomes
+ * "check *this* field on *this* element" instead of a document-wide guess.
+ * A path whose last element isn't one this module knows about (not a BOPF
+ * `bo:*` element, or a `bo:*` element with no known enum fields) gets the
+ * generic fallback.
+ */
+export function describeXmlPath(xmlPath: string, properties?: Record<string, string>): string {
+  const offset = properties?.["XML_OFFSET"];
+  const offsetText = offset ? ` (offset ${offset})` : "";
+  const last = lastXmlPathSegment(xmlPath);
+  const info = last !== undefined ? XML_PATH_ELEMENTS[last] : undefined;
+  if (last !== undefined && info !== undefined) {
+    return (
+      `The server rejected the document at ${xmlPath}${offsetText}: the last path element is ${last}, a BOPF ` +
+      `${info.kind} — the one this call added or changed. The value it refused is almost certainly in one of ` +
+      `that element's ${info.fieldsLabel}: ${info.fields.join(", ")}. Fix the value and retry; retrying ` +
+      `unchanged fails again.`
+    );
+  }
+  return (
+    `The server rejected the document at ${xmlPath}${offsetText}: an element or attribute value there is not ` +
+    `one the object model accepts. Retrying unchanged fails again.`
+  );
+}
+
 export const ADT_MESSAGE_RULES: readonly AdtMessageRule[] = [
   {
     id: "package-software-component-refused",
@@ -80,15 +172,22 @@ export const ADT_MESSAGE_RULES: readonly AdtMessageRule[] = [
     match: /cannot be created without a package/i,
     hint: CONTAINER_PARENT_MISSING_HINT,
   },
+  {
+    id: "invalid-data-xml-path",
+    exceptionType: "ExceptionInvalidData",
+    property: "XML_PATH",
+    hint: (_message, properties) => describeXmlPath(properties["XML_PATH"] ?? "", properties),
+  },
 ];
 
-// Fail closed at load time, not just at match time: a rule declaring neither
-// match form can never fire, which would silently break the "first match
-// wins" contract below into "this row is dead code".
+// Fail closed at load time, not just at match time: a rule declaring none of
+// a T100 key, a prose match, or an exception-type match can never fire,
+// which would silently break the "first match wins" contract below into
+// "this row is dead code".
 for (const rule of ADT_MESSAGE_RULES) {
-  if (rule.t100Id === undefined && rule.t100No === undefined && rule.match === undefined) {
+  if (rule.t100Id === undefined && rule.t100No === undefined && rule.match === undefined && rule.exceptionType === undefined) {
     throw new Error(
-      `adt-message-rules: rule "${rule.id}" declares neither a T100 key nor a prose match`,
+      `adt-message-rules: rule "${rule.id}" declares neither a T100 key, a prose match, nor an exception type`,
     );
   }
 }
@@ -96,11 +195,14 @@ for (const rule of ADT_MESSAGE_RULES) {
 /**
  * First match wins; `undefined` when nothing matches — never a guess. A rule
  * matches when its `t100Id`+`t100No` are both set and both equal the
- * response's T100 key, OR its `match` regex tests true against `message`.
+ * response's T100 key, OR its `match` regex tests true against `message`,
+ * OR its `exceptionType` equals the given `exceptionType` AND (if `property`
+ * is set) that property is present and non-empty on `properties`.
  */
 export function classifyAdtMessage(
   message: string,
   properties: Record<string, string>,
+  exceptionType?: string,
 ): AdtMessageRule | undefined {
   const id = properties["T100KEY-ID"];
   const no = properties["T100KEY-NO"];
@@ -112,7 +214,11 @@ export function classifyAdtMessage(
       no !== undefined &&
       sameT100No(no, rule.t100No);
     const proseHit = rule.match !== undefined && rule.match.test(message);
-    if (t100Hit || proseHit) return rule;
+    const exceptionHit =
+      rule.exceptionType !== undefined &&
+      exceptionType === rule.exceptionType &&
+      (rule.property === undefined || !!properties[rule.property]);
+    if (t100Hit || proseHit || exceptionHit) return rule;
   }
   return undefined;
 }

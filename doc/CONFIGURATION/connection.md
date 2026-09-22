@@ -35,8 +35,17 @@ that schema and fails differently; see its row.
 | `ABAP_SID` | `UNKNOWN` | System ID. Used to namespace the journal and the debugger identity seed. |
 | `ABAP_LANGUAGE` | `""` | ADT logon language (`sap-language`), two-letter SAP code. Empty = the user's own default. |
 | `ABAP_INSECURE` | `false` | Disables TLS certificate verification. |
-| `ABAP_TIMEOUT_MS` | `60000` | Per-request HTTP timeout, ms. |
+| `ABAP_TIMEOUT_MS` | `60000` | Per-request HTTP timeout, ms. Default for every request family not covered by one of the three overrides below. |
+| `ABAP_BOPF_TIMEOUT_MS` | `180000` | Per-request HTTP timeout, ms, for `abap_bopf_edit`'s `create_bo` and the BOPF-specific first phase of its `activate`. Overrides `ABAP_TIMEOUT_MS` for that request family — BOPF create and activate can take over a minute on a larger model. |
+| `ABAP_ACTIVATE_TIMEOUT_MS` | `180000` | Per-request HTTP timeout, ms, for every activation request, including BOPF `activate` and mass/DDIC activation. Overrides `ABAP_TIMEOUT_MS` for that request family. |
+| `ABAP_RUN_TIMEOUT_MS` | `180000` | Per-request HTTP timeout, ms, for `abap_run`'s classrun execution. Overrides `ABAP_TIMEOUT_MS` for that request family. |
 | `ABAP_STARTUP_PROBE` | `true` | Whether `start()` runs one authenticated probe (same lazy `ensureConnected()` path every tool call uses — logon → discovery → T000 role probe → `ato/settings`) before printing `ready on stdio`. Success prints a `connected — authenticated to …` line naming the resolved SID/user/client. Failure prints the classified error code, message, and remediation hint, then still starts — `ready on stdio` prints anyway, marked `NOT CONNECTED`; a probe failure never blocks startup, since the next tool call retries via the same path. Set to `false`/`0`/`no`/`off` (case-insensitive) to skip the probe entirely — cost is reverting to the old behaviour: a bad `ABAP_URL`, down VPN, or wrong client then surfaces only on the first tool call, inside an agent's transcript, instead of loudly at startup. Same `boolishRejectDefaultTrue` idiom as `ABAP_CROSS_PROCESS_DEBUG_LOCK` in [journal-diagnostics-and-tooling.md](journal-diagnostics-and-tooling.md#debugger-identity). |
+
+The session lock's own wait time is derived from these, not just
+`ABAP_TIMEOUT_MS`: it is `ABAP_SESSION_WAIT_MS` plus the largest of
+`ABAP_TIMEOUT_MS`, `ABAP_BOPF_TIMEOUT_MS`, `ABAP_ACTIVATE_TIMEOUT_MS` and
+`ABAP_RUN_TIMEOUT_MS`, so a caller waiting on the pool never times out
+before the slowest in-flight request could have finished.
 
 `ABAP_CLIENT` and `ABAP_SID` both have code defaults and will not fail
 startup if left unset — but an unset `ABAP_SID` means every journal entry

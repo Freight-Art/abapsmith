@@ -332,8 +332,8 @@ describe("fully-populated valid specs for every operation that takes one", () =>
   it("add_association", () => {
     expectOk("add_association", {
       xmlName: "TO_ITEM",
-      multiplicity: "1:CN",
-      implementationType: "generated",
+      multiplicity: "0_N",
+      implementationType: "Association",
       objectModelGenerated: false,
       doEmbeddingName: "ITEM_EMB",
       targetNodeRef: { name: "ITEM", type: "BOBF/BON" },
@@ -346,8 +346,8 @@ describe("fully-populated valid specs for every operation that takes one", () =>
     expectOk("add_action", {
       xmlName: "DO_IT",
       category: "01",
-      instanceMultiplicity: "1:1",
-      exportingParameterCategoryType: "structure",
+      instanceMultiplicity: "2",
+      exportingParameterCategoryType: "Type",
       exportParameterLink: false,
       isExtensible: false,
       objectModelGenerated: false,
@@ -432,8 +432,8 @@ describe("fully-populated valid specs for every operation that takes one", () =>
   it("set_association_fields", () => {
     expectOk("set_association_fields", {
       xmlName: "TO_ITEM_V2",
-      multiplicity: "1:CN",
-      implementationType: "generated",
+      multiplicity: "0_N",
+      implementationType: "Association",
       doEmbeddingName: "ITEM_EMB",
       objectModelGenerated: false,
       targetNodeRef: { name: "ITEM", type: "BOBF/BON" },
@@ -446,8 +446,8 @@ describe("fully-populated valid specs for every operation that takes one", () =>
     expectOk("set_action_fields", {
       xmlName: "DO_IT_V2",
       category: "01",
-      instanceMultiplicity: "1:1",
-      exportingParameterCategoryType: "structure",
+      instanceMultiplicity: "1",
+      exportingParameterCategoryType: "Type",
       exportParameterLink: false,
       isExtensible: false,
       objectModelGenerated: false,
@@ -521,5 +521,188 @@ describe("errors are always AbapError BAD_INPUT", () => {
   ] as const)("%s / %o", (operation, spec) => {
     const e = expectBadInput(() => validateSpecKeys(operation, spec as Record<string, unknown>));
     expect((e as Error).name).toBe("AbapError");
+  });
+});
+
+describe("enum-valued spec fields are checked against the model's value sets", () => {
+  // Value/meaning pairs copied verbatim from the BOPF_ENUM_FIELDS tables (issue #153).
+  const MULTIPLICITY = [
+    ["0_1", "optional to-one: at most one target instance"],
+    ["0_N", "optional to-many: any number of target instances"],
+    ["1_1", "mandatory to-one: exactly one target instance"],
+    ["1_N", "mandatory to-many: at least one target instance (schema-only, never observed on the wire)"],
+  ] as const;
+  const IMPLEMENTATION_TYPE = [
+    ["Composition", "parent-child composition: the target node is a child of the source node"],
+    ["DoComposition", "composition to a delegated (dependent) object"],
+    ["Association", "cross-node or cross-BO association resolved by the association class"],
+    ["C", "schema short form of Composition (not observed on the wire)"],
+    ["A", "schema short form of Association (not observed on the wire)"],
+  ] as const;
+  const INSTANCE_MULTIPLICITY = [
+    ["0", "static: runs without a node instance (SC_ACT_CARD_STATIC)"],
+    ["1", "single instance: exactly one node instance per call (SC_ACT_CARD_ONE)"],
+    ["2", "multiple instances: any number of node instances per call (SC_ACT_CARD_MANY; what SAP's own actions use)"],
+  ] as const;
+  const EXPORTING_PARAMETER_CATEGORY_TYPE = [
+    ["None", "the action exports nothing"],
+    ["Type", "the action exports data of the DDIC type named in parameterStructureRef"],
+    ["Node", "the action exports instances of a node"],
+  ] as const;
+  const DETERMINATION_CATEGORY = [
+    ["reactAfterModification", "runs after instances of the trigger node are created/updated/deleted"],
+    ["calculateTransientAttributes", "fills transient attributes when instances are loaded or changed"],
+    ["calculateTransientSubNodeInstances", "fills transient sub-node instances when the parent is loaded"],
+    ["calculateProperties", "computes field/action/association properties (enabled, read-only, mandatory)"],
+    ["reactOnCheckAndDetermine", "runs when the consumer calls check-and-determine"],
+    ["reactBeforeSave", "runs at the start of the save sequence, before validations"],
+    ["drawNumbersDuringCreate", "draws numbers for new instances at creation time"],
+    ["drawNumbersDuringSave", "draws numbers for new instances during save"],
+    ["reactDuringSave", "runs during the save sequence after validations"],
+    ["reactAfterSuccessfulSave", "runs after the database commit succeeded"],
+    ["reactAfterCleanupTransaction", "runs when the transaction is cleaned up (after commit or rollback)"],
+    ["reactAfterFailedSave", "runs after the save failed"],
+  ] as const;
+  const VALIDATION_CATEGORY = [
+    ["consistencyCheck", "checks the trigger node's instances and reports messages; runs on check-and-determine and during save"],
+    ["actionCheck", "decides whether the trigger action may run on the given instances"],
+  ] as const;
+  const QUERY_CATEGORY = [
+    ["selectAll", "returns every instance of the node"],
+    ["selectByElements", "filters instances by node attributes passed as selection parameters (generated implementation)"],
+    ["customQuery", "implemented by the query class"],
+  ] as const;
+  const UNIQUENESS = [
+    ["unique", "key values must be unique across all instances"],
+    ["uniqueIfNotInitial", "unique unless the key value is initial (what SAP's own keys use)"],
+    ["notUnique", "no uniqueness enforced (a plain secondary access path)"],
+  ] as const;
+  const RELATION_TYPE = [
+    ["predecessor", "the named determination runs before this one"],
+    ["successor", "the named determination runs after this one"],
+  ] as const;
+
+  function expectEnumRejected(
+    operation: string,
+    spec: Record<string, unknown>,
+    path: string,
+    value: string,
+    allowed: readonly (readonly [string, string])[],
+  ): void {
+    const e = expectBadInput(() => validateSpecKeys(operation, spec));
+    const message = (e as Error).message;
+    expect(message).toContain(`${path} "${value}" is not one of`);
+    for (const [v, meaning] of allowed) {
+      expect(message).toContain(`"${v}" (${meaning})`);
+    }
+    if (isAbapError(e)) {
+      const issues = e.details.issues as ReadonlyArray<{ allowed: readonly string[] }>;
+      expect(issues[0]!.allowed).toEqual(allowed.map(([v]) => v));
+    }
+  }
+
+  it('add_association: spec.multiplicity "2_N" is rejected, listing the four allowed values', () => {
+    expectEnumRejected("add_association", { multiplicity: "2_N" }, "spec.multiplicity", "2_N", MULTIPLICITY);
+  });
+
+  it('add_association: spec.implementationType "Comp" is rejected, listing the five allowed values', () => {
+    expectEnumRejected(
+      "add_association",
+      { implementationType: "Comp" },
+      "spec.implementationType",
+      "Comp",
+      IMPLEMENTATION_TYPE,
+    );
+  });
+
+  it('add_action: spec.instanceMultiplicity "1_1" is rejected (the reported live case)', () => {
+    expectEnumRejected(
+      "add_action",
+      { class: "ZCL_X", instanceMultiplicity: "1_1" },
+      "spec.instanceMultiplicity",
+      "1_1",
+      INSTANCE_MULTIPLICITY,
+    );
+  });
+
+  it('add_action: spec.exportingParameterCategoryType "none" is rejected (wrong case)', () => {
+    expectEnumRejected(
+      "add_action",
+      { class: "ZCL_X", exportingParameterCategoryType: "none" },
+      "spec.exportingParameterCategoryType",
+      "none",
+      EXPORTING_PARAMETER_CATEGORY_TYPE,
+    );
+  });
+
+  it('add_determination: spec.category "afterModify" is rejected', () => {
+    expectEnumRejected(
+      "add_determination",
+      { class: "ZCL_X", category: "afterModify" },
+      "spec.category",
+      "afterModify",
+      DETERMINATION_CATEGORY,
+    );
+  });
+
+  it('add_determination: spec.relations[0].relationType "before" is rejected', () => {
+    expectEnumRejected(
+      "add_determination",
+      { class: "ZCL_X", relations: [{ node: "ROOT", determination: "OTHER_DET", relationType: "before" }] },
+      "spec.relations[0].relationType",
+      "before",
+      RELATION_TYPE,
+    );
+  });
+
+  it('add_validation: spec.category "check" is rejected', () => {
+    expectEnumRejected("add_validation", { class: "ZCL_X", category: "check" }, "spec.category", "check", VALIDATION_CATEGORY);
+  });
+
+  it('add_query: spec.category "selectByKey" is rejected', () => {
+    expectEnumRejected("add_query", { class: "ZCL_X", category: "selectByKey" }, "spec.category", "selectByKey", QUERY_CATEGORY);
+  });
+
+  it('add_alternative_key: spec.uniqueness "uniq" is rejected', () => {
+    expectEnumRejected("add_alternative_key", { uniqueness: "uniq" }, "spec.uniqueness", "uniq", UNIQUENESS);
+  });
+
+  it('set_action_fields: spec.instanceMultiplicity "1_1" is rejected', () => {
+    expectEnumRejected(
+      "set_action_fields",
+      { instanceMultiplicity: "1_1" },
+      "spec.instanceMultiplicity",
+      "1_1",
+      INSTANCE_MULTIPLICITY,
+    );
+  });
+
+  it('set_association_fields: spec.multiplicity "9" is rejected', () => {
+    expectEnumRejected("set_association_fields", { multiplicity: "9" }, "spec.multiplicity", "9", MULTIPLICITY);
+  });
+
+  it('set_determination_fields: spec.category "undefined" is rejected — the allowed list omits it', () => {
+    expectEnumRejected(
+      "set_determination_fields",
+      { category: "undefined" },
+      "spec.category",
+      "undefined",
+      DETERMINATION_CATEGORY,
+    );
+  });
+
+  it("valid enum values pass", () => {
+    expectOk("add_action", { class: "ZCL_X", instanceMultiplicity: "2", exportingParameterCategoryType: "None" });
+  });
+
+  it("set_action_fields.instanceMultiplicity accepts null (clears the field)", () => {
+    expectOk("set_action_fields", { instanceMultiplicity: null });
+  });
+
+  it("a non-string value for an enum field gets the type message, not the enum message", () => {
+    const e = expectBadInput(() => validateSpecKeys("add_action", { class: "ZCL_X", instanceMultiplicity: 2 }));
+    const message = (e as Error).message;
+    expect(message).toContain("must be a string, got number");
+    expect(message).not.toContain("is not one of");
   });
 });

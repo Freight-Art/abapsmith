@@ -701,7 +701,7 @@ export function translateAdtError(e: unknown, ctx: ErrorContext): AbapError {
   // catch-all (e.g. TR/462, "may not be assigned to software component") —
   // checked before the generic envelope below is built, so a recognised
   // message gets its own hint instead of the "not diagnosed" admission.
-  const classified = classifyAdtMessage(unclassifiedMessage, unclassifiedProperties);
+  const classified = classifyAdtMessage(unclassifiedMessage, unclassifiedProperties, info?.type);
   if (classified) {
     return new AbapError(
       "ADT_ERROR",
@@ -716,7 +716,7 @@ export function translateAdtError(e: unknown, ctx: ErrorContext): AbapError {
         ...(Object.keys(unclassifiedProperties).length ? { properties: unclassifiedProperties } : {}),
         classifiedBy: classified.id,
       },
-      classified.hint,
+      typeof classified.hint === "function" ? classified.hint(unclassifiedMessage, unclassifiedProperties) : classified.hint,
     );
   }
 

@@ -92,11 +92,14 @@ export type AbapErrorCode =
   /** The executed ABAP code short-dumped. */
   | "RUNTIME_DUMP"
   /**
-   * The ABAP system did not answer within `ABAP_TIMEOUT_MS` and the request
-   * was abandoned client-side. Raised by `abap_run`, which first looks the
+   * A request outran its per-family client timeout and was abandoned
+   * client-side: `abap_run` classrun execution (`ABAP_RUN_TIMEOUT_MS`);
+   * BOPF create_bo/activate (`ABAP_BOPF_TIMEOUT_MS`); activation
+   * (`ABAP_ACTIVATE_TIMEOUT_MS`). Retryability is decided per site from
+   * what a re-read of the object shows — e.g. `abap_run` first looks the
    * dumps feed up for a short dump of the same user and program: with one
-   * found, `details.dump` names it and the error is NOT retryable; with none,
-   * the run most likely ran long and `retryable` is `true`.
+   * found, `details.dump` names it and the error is NOT retryable; with
+   * none, the run most likely ran long and `retryable` is `true`.
    */
   | "TIMEOUT"
   // ---- journal + undo ----
