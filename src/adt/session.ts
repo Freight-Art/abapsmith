@@ -704,7 +704,7 @@ export function translateAdtError(e: unknown, ctx: ErrorContext): AbapError {
   const classified = classifyAdtMessage(unclassifiedMessage, unclassifiedProperties, info?.type);
   if (classified) {
     return new AbapError(
-      "ADT_ERROR",
+      classified.code ?? "ADT_ERROR",
       unclassifiedMessage,
       {
         operation: ctx.operation,
@@ -715,6 +715,7 @@ export function translateAdtError(e: unknown, ctx: ErrorContext): AbapError {
         adtExceptionType: info?.type,
         ...(Object.keys(unclassifiedProperties).length ? { properties: unclassifiedProperties } : {}),
         classifiedBy: classified.id,
+        ...classified.details?.(unclassifiedMessage, unclassifiedProperties),
       },
       typeof classified.hint === "function" ? classified.hint(unclassifiedMessage, unclassifiedProperties) : classified.hint,
     );
