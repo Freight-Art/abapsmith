@@ -176,7 +176,11 @@ export const packagePart: ClassicAbapPart = {
           lt_tadir          TYPE STANDARD TABLE OF tadir WITH EMPTY KEY,
           ls_tadir          TYPE tadir,
           lo_package        TYPE REF TO if_package,
-          lv_content_count  TYPE i.
+          lv_content_count  TYPE i,
+          lv_holder         TYPE trkorr,
+          lv_strkorr        TYPE trkorr,
+          lv_request        TYPE trkorr,
+          lv_task           TYPE trkorr.
     DATA lv_package TYPE devclass.
     lv_package = s( 'package_name' ).
     DATA lv_corr_nr TYPE trkorr.
@@ -206,7 +210,33 @@ export const packagePart: ClassicAbapPart = {
         CONTINUE.
       ENDIF.
       lv_content_count = lv_content_count + 1.
-      line( |ZMCP-PKG-CONTENT> KIND=OBJECT PGMID={ ls_tadir-pgmid } OBJECT={ ls_tadir-object } NAME={ ls_tadir-obj_name }| ).
+      CLEAR: lv_holder, lv_strkorr, lv_request, lv_task.
+      IF ls_tadir-delflag = 'X'.
+        " Object is already gone from TADIR's point of view; find the open
+        " request/task that actually holds the deletion, so the caller can be
+        " told to release it instead of "empty the package".
+        SELECT e071~trkorr, e070~strkorr
+          FROM e071
+          INNER JOIN e070 ON e070~trkorr = e071~trkorr
+          WHERE e071~pgmid = @ls_tadir-pgmid
+            AND e071~object = @ls_tadir-object
+            AND e071~obj_name = @ls_tadir-obj_name
+            AND e070~trstatus IN ( 'D', 'L' )
+          ORDER BY e071~trkorr DESCENDING
+          INTO ( @lv_holder, @lv_strkorr )
+          UP TO 1 ROWS.
+        ENDSELECT.
+        IF lv_holder IS NOT INITIAL.
+          IF lv_strkorr IS NOT INITIAL.
+            " The E071 row sits on a task; its parent request is the real holder.
+            lv_request = lv_strkorr.
+            lv_task    = lv_holder.
+          ELSE.
+            lv_request = lv_holder.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+      line( |ZMCP-PKG-CONTENT> KIND=OBJECT PGMID={ ls_tadir-pgmid } OBJECT={ ls_tadir-object } NAME={ ls_tadir-obj_name } DELFLAG={ ls_tadir-delflag } TRKORR={ lv_request } TASK={ lv_task }| ).
     ENDLOOP.
 
     " Step 3 - delete is only attempted on a provably empty package; any

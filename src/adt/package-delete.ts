@@ -33,6 +33,11 @@
  * at that call site in `abap-package.ts`. (`./package-create.ts` additionally
  * supplies `i_super_package_name`, unverified the same way — this file has
  * no `set_super_package_name` call.)
+ *
+ * `ZMCP-PKG-CONTENT>` OBJECT rows also carry TADIR `DELFLAG` and, when it is
+ * `X`, the E071/E070 request/task already holding that object's deletion
+ * (issue #185) — a TADIR row with `DELFLAG=X` is not still "in" the package,
+ * only pending a transport release, and `beforeAssert` below treats it as such.
  */
 
 import type { AbapConnection } from "./connection.js";
@@ -111,6 +116,12 @@ export interface PackageContent {
   pgmid: string;
   object: string;
   name: string;
+  /** Present only when the ABAP reported TADIR DELFLAG=X for this row. */
+  deleted?: true;
+  /** The open request holding the deletion, when E071/E070 found one. */
+  trkorr?: string;
+  /** The task the E071 row sits on, when the request was found via a task. */
+  task?: string;
 }
 
 /**
@@ -144,7 +155,14 @@ export function parsePackageContents(raw: string): { contents: PackageContent[] 
     // `contents.length > 0`, so an empty array here isn't proof of emptiness.
     if (pgmid === undefined || object === undefined || name === undefined) continue;
     if (kind !== "OBJECT" && kind !== "SUBPKG") continue;
-    contents.push({ kind, pgmid, object, name });
+    const entry: PackageContent = { kind, pgmid, object, name };
+    // DELFLAG/TRKORR/TASK only exist on OBJECT rows (SUBPKG lines never emit them).
+    if (fields["DELFLAG"] === "X") {
+      entry.deleted = true;
+      if (fields["TRKORR"]) entry.trkorr = fields["TRKORR"];
+      if (fields["TASK"]) entry.task = fields["TASK"];
+    }
+    contents.push(entry);
   }
   return { contents };
 }
@@ -210,12 +228,60 @@ export async function deletePackageViaBridge(
   const beforeAssert = (transcript: DdicTranscript): void => {
     const { contents } = parsePackageContents(transcript.raw);
     if (contents.length > 0) {
-      const listed = contents
+      const live = contents.filter((c) => c.deleted === undefined);
+      const pending = contents.filter((c) => c.deleted !== undefined);
+
+      const liveList = live
         .map((c) => `${c.kind === "SUBPKG" ? "sub-package" : "object"} ${c.pgmid} ${c.object} ${c.name}`)
         .join(", ");
+      const pendingList = pending
+        .map((c) => {
+          if (c.trkorr === undefined) {
+            return (
+              `object ${c.pgmid} ${c.object} ${c.name} (deleted, awaiting release of a request this ` +
+              "server could not find — no open E071 row)"
+            );
+          }
+          const taskPart = c.task !== undefined ? `, task ${c.task}` : "";
+          return `object ${c.pgmid} ${c.object} ${c.name} (deleted, awaiting release of request ${c.trkorr}${taskPart})`;
+        })
+        .join(", ");
+      // unique, in order of first appearance
+      const pendingRequests: string[] = [];
+      for (const c of pending) {
+        if (c.trkorr !== undefined && !pendingRequests.includes(c.trkorr)) pendingRequests.push(c.trkorr);
+      }
+
+      if (live.length === 0 && pending.length > 0) {
+        const releaseSentence =
+          pendingRequests.length > 0
+            ? `Releasing ${pendingRequests.join(", ")} will make the package deletable ` +
+              "(abap_transport_release); abapsmith does not release a request on the caller's behalf."
+            : "The request holding the deletion could not be found from E071; check the objects' " +
+              "transport entries (abap_transport check) before retrying.";
+        throw new AbapError(
+          "TRANSPORT_PENDING",
+          `Package ${packageName} was NOT deleted: everything left in it is already deleted and waits ` +
+            `for a transport release — ${pendingList}. ${releaseSentence}`,
+          { packageName, contents, pendingRequests },
+        );
+      }
+
+      if (pending.length > 0) {
+        throw new AbapError(
+          "CHECK_FAILED",
+          `Package ${packageName} is not empty and was NOT deleted. It still contains: ${liveList}. ` +
+            `Also pending release: ${pendingList}.` +
+            " Empty the package first (move or delete its objects and sub-packages, or reassign its " +
+            "sub-packages elsewhere) and retry — abapsmith will not delete a package's contents on the " +
+            "caller's behalf.",
+          { packageName, contents, pendingRequests },
+        );
+      }
+
       throw new AbapError(
         "CHECK_FAILED",
-        `Package ${packageName} is not empty and was NOT deleted. It still contains: ${listed}.` +
+        `Package ${packageName} is not empty and was NOT deleted. It still contains: ${liveList}.` +
           " Empty the package first (move or delete its objects and sub-packages, or reassign its " +
           "sub-packages elsewhere) and retry — abapsmith will not delete a package's contents on the " +
           "caller's behalf.",

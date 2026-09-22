@@ -58,6 +58,22 @@ This is the generated capability table for `abap_write`, `abap_read`, `abap_acti
 
 <!-- END generated -->
 
+### Deleting a package
+
+A package (`DEVC/K`) delete only succeeds against an empty package — no
+sub-packages, no TADIR objects. An object already deleted but not yet
+released still counts as present: TADIR's DELFLAG marks it pending removal,
+it does not remove the TADIR entry, so the package isn't empty yet as far
+as the delete check is concerned. When everything left in the package is in
+that state, the delete answers the classified error code
+`TRANSPORT_PENDING`, naming the request (and task) whose release would
+actually empty the package (verified live 2026-09-22 on ZAS_PKG184). A
+DELFLAG object whose E071 row was removed from its request is listed as
+"awaiting release of a request this server could not find — no open E071
+row"; it still blocks the delete. abapsmith never releases a request for you to
+make a delete succeed — release is a separate, irreversible action the
+caller takes deliberately, through `abap_transport_release`.
+
 The **Not reachable by any write** bucket is the write-side list: those types have no write route
 at all, so searching for a workaround wastes turns — say it is out of scope and stop. The "not
 readable either" bullet is the read-side list and registry-wide, not bucket-scoped: it can name

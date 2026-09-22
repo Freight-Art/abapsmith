@@ -125,6 +125,14 @@ export type AbapErrorCode =
    */
   | "TRANSPORT_GONE"
   /**
+   * A package could not be deleted because every object still listed inside
+   * it is already deleted (TADIR `DELFLAG='X'`) but its deletion sits on a
+   * transport request that has not been released yet. Details name the
+   * request(s) (`pendingRequests`). Not `CHECK_FAILED`: that code covers a
+   * package still holding live (non-deleted) content.
+   */
+  | "TRANSPORT_PENDING"
+  /**
    * `abap_transport operation=removeObject` cannot drop the entry because the
    * request's object list holds two or more E071 rows for the same
    * PGMID+OBJECT+OBJ_NAME. E071's key is TRKORR+AS4POS, not object identity,
@@ -456,6 +464,7 @@ export const RETRYABILITY: Record<AbapErrorCode, Retryability> = {
   JOURNAL_IO: "conditional",
   TRANSPORT_LOCKED: "conditional",
   TRANSPORT_GONE: "conditional",
+  TRANSPORT_PENDING: "conditional", // retry after the named request is released
   CTS_DUPLICATE_ENTRY: "terminal", // the duplicate E071 rows persist until a human edits the object list
   HTTP_PATH_DENIED: "terminal", // policy denial checked before any network activity
   BOPF_DANGLING_REF: "conditional",
