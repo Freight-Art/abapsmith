@@ -52,32 +52,49 @@ object just lost the lock that recorded its change and protected it from
 being edited under a different request — the object itself is untouched, but
 notes on the response call this out.
 
-CTS refuses the underlying call outright when the request's object list
-holds two or more E071 rows for the object's PGMID+OBJECT+OBJ_NAME — legal
-because E071's key is TRKORR+AS4POS, not object identity. Duplicates have
-been observed live, but not reliably produced: a request holding a create
-and a delete of the same class, tried live on A4H on 2026-09-12, held one
-row, not two, and `removeObject` removed it cleanly (`removedCount: 1`).
-`TR_DELETE_COMM_OBJECT_KEYS` (by way of `TRINT_DELETE_COMM_OBJECT_KEYS`)
-counts those rows before touching anything and raises `w_duplicate_entry`
-(`MESSAGE e292(tr)`) at two or more; exactly one row is the only case that
-proceeds. The bridge counts the same rows itself before calling the
-function module, so it refuses up front rather than removing one row and
-leaving the operation to fail on the next — this surfaces as the terminal
-error code `CTS_DUPLICATE_ENTRY`, whose message names the object, the
-holder, the row count and the AS4POS values, and whose hint explains the
-guard and the manual remedy. A late `TR 292` from the function module itself
-maps to the same code. Any other refusal in this family still comes back as
-`CHECK_FAILED`, with a `msg=` fragment carrying the `sy-subrc` and, when CTS
-set one, the `sy-msg*` T100 message (it can legitimately be blank).
+A request's object list can legally hold two or more E071 rows for the
+same object's PGMID+OBJECT+OBJ_NAME — legal because E071's key is
+TRKORR+AS4POS, not object identity. `show` marks a repeated key in its
+`OBJECTS` table when it finds one, e.g. `ZAS_T184 (x2, duplicate E071
+rows)`, with a note that `removeObject` collapses them; it does not alter
+anything itself.
 
-SE03's "Unlock Objects (Expert Tool)" does **not** fix a duplicate-entry
-refusal: it clears CTS's TLOCK row and lockflag, not E071 rows, and the
-refusal is driven by the E071 row count, not the lock. The only route out is
-outside abapsmith: edit the request's object list in SE09/SE10 so at most
-one row remains for the object, then retry `removeObject`; or release the
-request (irreversible) — neither is something abapsmith can verify will
-succeed under a lock. See `doc/LIMITATIONS/not-implemented-and-unproven.md`.
+SAP itself produces duplicates this way: creating, deleting, recreating and
+then deleting a table again in one request leaves `R3TR TABL ZAS_T184`
+twice — one row `OBJFUNC` blank (create), one row `OBJFUNC D` (delete) —
+reproduced live on A4H on 2026-09-22, task A4HK900347. The simpler two-step
+recipe does not reproduce it: a request holding just a create and a delete
+of the same class, tried live on A4H on 2026-09-12, held one row, not two.
+abapsmith's own writes do not add to this — a DDIC delete through abapsmith
+appends no E071 row of its own, so there is nothing to dedupe on the write
+side; the duplicate rows are ones SAP's own create/delete/recreate/delete
+sequence left behind before abapsmith ever calls `removeObject`.
+
+`removeObject` no longer refuses a duplicate outright. The bridge collapses
+the group itself first: it keeps the row with the lowest AS4POS and, in the
+same LUW, deletes the surplus E071 rows by
+TRKORR+AS4POS, then calls `TR_DELETE_COMM_OBJECT_KEYS` once — against the
+one remaining row — for the actual removal. The response carries a note
+naming what it did, e.g. `Collapsed 2 duplicate E071 rows for R3TR TABL
+ZAS_T184 (AS4POS 000002, 000003) to one row before removing it.`, and the
+header carries `collapsedRows` with the count. `TR_DELETE_COMM_OBJECT_KEYS`
+(by way of `TRINT_DELETE_COMM_OBJECT_KEYS`) still counts rows before
+touching anything and still raises `w_duplicate_entry` (`MESSAGE e292(tr)`)
+if it ever sees two or more — now only reachable if the collapse step
+itself failed to bring the count to one, or an older bridge body without
+the collapse is deployed. That case still surfaces as the terminal error
+code `CTS_DUPLICATE_ENTRY`, whose message names the object, the holder, the
+row count and the AS4POS values. Any other refusal in this family still
+comes back as `CHECK_FAILED`, with a `msg=` fragment carrying the
+`sy-subrc` and, when CTS set one, the `sy-msg*` T100 message (it can
+legitimately be blank).
+
+SE03's "Unlock Objects (Expert Tool)" is unrelated to any of this: it
+clears CTS's TLOCK row and lockflag, not E071 rows, and never fixed a
+duplicate-entry situation. With the collapse in place there is no longer a
+manual SE09/SE10 remedy to reach for in the ordinary case (collapse
+verified live 2026-09-22 on a task holding a table twice; details in
+`doc/LIMITATIONS/not-implemented-and-unproven.md`).
 
 Journalling follows what the ABAP transcript actually proves. `removeObject`
 is journalled as `transport-remove-object`; a refusal from

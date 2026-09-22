@@ -189,6 +189,8 @@ export interface TrObject {
   /** `tm:lock_status === "X"`. */
   locked: boolean;
   uri?: string;
+  /** Present only when 2+ E071 rows shared this key (duplicate rows; see issue #184). */
+  rows?: number;
 }
 
 /** A task nested under a request. */
@@ -814,17 +816,28 @@ function objectFromTm(n: Node): TrObject {
  * the two shapes, but this triple is). A `CORR/RELE` "Comment Entry" pseudo-object exists
  * only directly and survives de-duplication intact.
  */
+function countByKey(objs: TrObject[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const obj of objs) {
+    const key = `${obj.pgmid}::${obj.type}::${obj.name}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+
 function objectsOf(n: Node): TrObject[] {
-  const wrapped = many(child(node(child(n, "all_objects")), "abap_object"));
-  const direct = many(child(n, "abap_object"));
+  const wrapped = many(child(node(child(n, "all_objects")), "abap_object")).map(objectFromTm);
+  const direct = many(child(n, "abap_object")).map(objectFromTm);
+  const wrappedCounts = countByKey(wrapped);
+  const directCounts = countByKey(direct);
   const seen = new Set<string>();
   const out: TrObject[] = [];
-  for (const raw of [...wrapped, ...direct]) {
-    const obj = objectFromTm(raw);
+  for (const obj of [...wrapped, ...direct]) {
     const key = `${obj.pgmid}::${obj.type}::${obj.name}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push(obj);
+    const rows = Math.max(wrappedCounts.get(key) ?? 0, directCounts.get(key) ?? 0);
+    out.push(rows >= 2 ? { ...obj, rows } : obj);
   }
   return out;
 }

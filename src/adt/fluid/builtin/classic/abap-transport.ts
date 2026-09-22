@@ -9,6 +9,15 @@ import type { ClassicAbapPart } from "./abap-core.js";
  * which cannot share a name with a value bound by inline `DATA(...)`. That
  * cursor is `lv_cursor` here; behaviour is unchanged, only the local name.
  *
+ * `remove_transport_entry` step 4 no longer refuses when the holder's E071
+ * rows for the object hold 2+ rows sharing pgmid+object+obj_name (issue
+ * #184: legal, since E071's key is TRKORR+AS4POS, not object identity —
+ * SAP's own DDIC delete recording can append such a row). It collapses each
+ * such group to the row with the lowest AS4POS, deleting the surplus E071
+ * rows directly and reporting each collapsed group via a
+ * `ZMCP-TREN-DEDUP` line, before calling `TR_DELETE_COMM_OBJECT_KEYS` on
+ * what remains.
+ *
  * `read_transport_log`, `read_import_queue` and `create_transport_of_copies`
  * (issue #88, "Transport landscape support") were added the same way: no raw
  * ADT call exists for any of the three (see the "why not ADT" comments on
@@ -40,7 +49,11 @@ export const transportPart: ClassicAbapPart = {
           lv_readerr    TYPE string,
           ls_other      TYPE e071,
           lv_n          TYPE i,
-          lv_positions  TYPE string.
+          lv_positions  TYPE string,
+          lt_surplus    TYPE STANDARD TABLE OF e071 WITH EMPTY KEY,
+          ls_surplus    TYPE e071,
+          lv_key        TYPE string,
+          lv_prev_key   TYPE string.
 
     " Step 1: resolve which of trkorr or its tasks holds the entry.
     APPEND lv_trkorr TO lt_candidates.
@@ -84,8 +97,18 @@ export const transportPart: ClassicAbapPart = {
     " Step 3: name the resolved holder.
     line( |ZMCP-TREN-HOLDER { lv_holder }| ).
 
-    " Step 4: CTS refuses a removal when 2+ E071 rows share pgmid+object+obj_name.
+    " Step 4: 2+ E071 rows can share pgmid+object+obj_name (E071's key is
+    " TRKORR+AS4POS, so this is legal) — collapse each such group to the row
+    " with the lowest AS4POS. Surplus rows are collected here, into a table
+    " lt_rows is not being read from, and only deleted afterwards.
+    SORT lt_rows BY pgmid object obj_name as4pos.
+    CLEAR lv_prev_key.
     LOOP AT lt_rows INTO ls_e071.
+      lv_key = |{ ls_e071-pgmid }/{ ls_e071-object }/{ ls_e071-obj_name }|.
+      IF lv_key = lv_prev_key.
+        CONTINUE.
+      ENDIF.
+      lv_prev_key = lv_key.
       lv_n = 0.
       CLEAR lv_positions.
       LOOP AT lt_rows INTO ls_other WHERE pgmid = ls_e071-pgmid AND object = ls_e071-object
@@ -96,14 +119,31 @@ export const transportPart: ClassicAbapPart = {
         ELSE.
           lv_positions = |{ lv_positions },{ ls_other-as4pos }|.
         ENDIF.
+        IF ls_other-as4pos <> ls_e071-as4pos.
+          APPEND ls_other TO lt_surplus.
+        ENDIF.
       ENDLOOP.
       IF lv_n >= 2.
-        fail( |duplicate E071 entries for { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name } on { lv_holder }: { lv_n } rows at AS4POS { lv_positions }| ).
-        RETURN.
+        line( |ZMCP-TREN-DEDUP { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name } { lv_n } AS4POS { lv_positions }| ).
       ENDIF.
     ENDLOOP.
 
-    " Step 5: remove every collected row.
+    LOOP AT lt_surplus INTO ls_surplus.
+      DELETE FROM e071 WHERE trkorr = @lv_holder AND as4pos = @ls_surplus-as4pos.
+      lv_subrc = sy-subrc.
+      IF lv_subrc <> 0.
+        ROLLBACK WORK.
+        fail( |could not collapse duplicate E071 row { ls_surplus-pgmid } { ls_surplus-object } { ls_surplus-obj_name } at AS4POS { ls_surplus-as4pos } on { lv_holder }, sy-subrc={ lv_subrc }| ).
+        RETURN.
+      ENDIF.
+      " E071K is keyed by TRKORR+PGMID+OBJECT+OBJNAME+its own AS4POS, not by the
+      " E071 position, and the surviving E071 row still covers the object's key
+      " rows; TR_DELETE_COMM_OBJECT_KEYS drops them with that row in step 5.
+      DELETE ls_req-objects WHERE as4pos = ls_surplus-as4pos.
+      DELETE lt_rows WHERE as4pos = ls_surplus-as4pos.
+    ENDLOOP.
+
+    " Step 5: remove every remaining (unique) row.
     LOOP AT lt_rows INTO ls_e071.
       CALL FUNCTION 'TR_DELETE_COMM_OBJECT_KEYS'
         EXPORTING iv_dialog_flag = space is_e071_delete = ls_e071
@@ -113,6 +153,9 @@ export const transportPart: ClassicAbapPart = {
       MOVE-CORRESPONDING sy TO ls_msg.
       IF lv_subrc <> 0.
         lv_msgtext = |{ ls_msg-msgty } { ls_msg-msgid } { ls_msg-msgno } v1={ ls_msg-msgv1 } v2={ ls_msg-msgv2 } v3={ ls_msg-msgv3 } v4={ ls_msg-msgv4 }|.
+        IF lt_surplus IS NOT INITIAL.
+          ROLLBACK WORK.
+        ENDIF.
         fail( |TR_DELETE_COMM_OBJECT_KEYS failed for { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name }, sy-subrc={ lv_subrc }, msg={ lv_msgtext }| ).
         RETURN.
       ENDIF.

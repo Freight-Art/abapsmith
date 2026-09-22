@@ -153,19 +153,23 @@ object transported. An auto-created request is therefore
 mostly not disposable: don't spin one up as a scratch request, and don't
 reach for release just to clean one up (see Releasing, below).
 
-**Do not delete an object using the same request that created it, unless
-you're willing to strand that request.** CTS records a separate E071 row for
-the create and for the delete (its row key is TRKORR+AS4POS, not object
-identity, so both rows coexist legally), and once a request holds two rows
-for the same object, CTS refuses to remove either one — there is no retry
-that clears it. If you do this, expect `removeObject` to return
-`CTS_DUPLICATE_ENTRY` (naming the row count) instead of clearing the entry,
-and `delete` to keep returning `TRANSPORT_LOCKED` on the request. The only
-way out needs a human: editing the request's object list in SE09/SE10, or
-releasing the request outright — neither is something you can do yourself.
-Prefer deleting an object under a different request than the one that
-created it, or check back with the user before deleting it under its own
-creating request.
+**Deleting an object under the same request that created it can leave a
+duplicate E071 row, but `removeObject` clears it for you now.** CTS records
+a separate E071 row for the create and for the delete (its row key is
+TRKORR+AS4POS, not object identity, so both rows can coexist legally) — SAP
+itself reliably does this for a create/delete/recreate/delete sequence on
+the same object in one request. `removeObject` collapses a duplicate itself
+before removing the entry: it keeps the lowest-AS4POS row, drops the
+surplus E071 rows, then removes the one that's left — the response
+names what it collapsed, and there's no longer a stranded request or a
+human-only remedy for this case. `removeObject` returns `CTS_DUPLICATE_ENTRY`
+only if the collapse itself can't bring the count to one (a late `TR 292`
+from CTS, or an older bridge body without the collapse step) — in that
+residual case `delete` keeps returning `TRANSPORT_LOCKED` on the request,
+and the only way out needs a human: editing the request's object list in
+SE09/SE10, or releasing the request outright. Still prefer deleting an
+object under a different request than the one that created it when you have
+the choice — it avoids the duplicate in the first place.
 
 ## Transport of copies
 
