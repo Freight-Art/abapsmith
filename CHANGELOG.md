@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.24] - 2026-09-22
+
 ### Added
 
 - **`abap_write fixed_point_arithmetic`** (#179). A new `PROG/P` opt-out for the default below — `false` omits `abapsource:fixPointArithmetic` from the create payload instead of sending it `"true"`. Named against any other type it is `BAD_INPUT`, before any request. A whole-object `abap_read` of a `PROG/P` reports `fixed_point_arithmetic: true|false` in the header, read off the program's descriptor; the line is omitted when that descriptor could not be read.
