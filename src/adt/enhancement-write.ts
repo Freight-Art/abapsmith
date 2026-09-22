@@ -41,12 +41,12 @@ import {
   ENHOXHH_COLLECTION,
   ENHSXS_COLLECTION,
   ENHOXH_ACCEPT,
-  ENHOXHH_ACCEPT,
   ENHSXS_ACCEPT,
   buildEnhancementUri,
   readBadiImplementation,
   readSourceCodePlugin,
   readEnhancementSpot,
+  enhoxhhMediaType,
 } from "./enhancement.js";
 import {
   patchEnhancementRootAttribute,
@@ -104,7 +104,7 @@ interface EnhancementDocSpec {
   /** Bare collection name (`collection`'s trailing path segment), matching
    *  `Discovery.assertEnhancementCapable`'s key space. */
   readonly bareCollection: EnhancementCollection;
-  readonly accept: string;
+  readonly accept: (conn: AbapConnection) => string;
   /** Capture citation proving whole-document PUT returns 200 for this
    *  collection, or `undefined` when there is none — see the module header's
    *  "PUT verification matrix". */
@@ -117,7 +117,7 @@ const ENHANCEMENT_SPECS: Readonly<Record<EnhancementDocType, EnhancementDocSpec>
     type: "ENHO/XH",
     collection: ENHOXH_COLLECTION,
     bareCollection: "enhoxh",
-    accept: ENHOXH_ACCEPT,
+    accept: () => ENHOXH_ACCEPT,
     // Undefined deliberately — one live success, no citation file yet. See
     // module header's "PUT verification matrix".
     putVerifiedBy: undefined,
@@ -127,7 +127,7 @@ const ENHANCEMENT_SPECS: Readonly<Record<EnhancementDocType, EnhancementDocSpec>
     type: "ENHO/XHH",
     collection: ENHOXHH_COLLECTION,
     bareCollection: "enhoxhh",
-    accept: ENHOXHH_ACCEPT,
+    accept: (conn) => enhoxhhMediaType(conn.discovery),
     // Backed by the fixture below plus a live end-to-end
     // writeAndActivateEnhancementDescription run after the LOCK Accept-header
     // fix (see withRelockRetry below) — before that fix every attempt died
@@ -139,7 +139,7 @@ const ENHANCEMENT_SPECS: Readonly<Record<EnhancementDocType, EnhancementDocSpec>
     type: "ENHS/XS",
     collection: ENHSXS_COLLECTION,
     bareCollection: "enhsxs",
-    accept: ENHSXS_ACCEPT,
+    accept: () => ENHSXS_ACCEPT,
     // Undefined deliberately — one live success, no citation file yet. See
     // module header's "PUT verification matrix".
     putVerifiedBy: undefined,
@@ -582,7 +582,7 @@ export async function writeEnhancementDescription(
         void lock;
         let body: string;
         try {
-          const resp = await conn.get(uri, { headers: { Accept: spec.accept } });
+          const resp = await conn.get(uri, { headers: { Accept: spec.accept(conn) } });
           body = resp.body;
         } catch (e) {
           if (isAbapError(e)) throw e;
@@ -642,7 +642,7 @@ export async function writeEnhancementDescription(
             authorized,
             uri,
             {
-              headers: { "Content-Type": spec.accept, Accept: spec.accept },
+              headers: { "Content-Type": spec.accept(conn), Accept: spec.accept(conn) },
               qs: corr.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr.corrNr } : { lockHandle: lock.handle },
               body: payload,
             },
@@ -1028,7 +1028,7 @@ export async function setBadiImplementationActive(
           void lock;
           let body: string;
           try {
-            const resp = await conn.get(uri, { headers: { Accept: spec.accept } });
+            const resp = await conn.get(uri, { headers: { Accept: spec.accept(conn) } });
             body = resp.body;
           } catch (e) {
             if (isAbapError(e)) throw e;
@@ -1083,7 +1083,7 @@ export async function setBadiImplementationActive(
               authorized,
               uri,
               {
-                headers: { "Content-Type": spec.accept, Accept: spec.accept },
+                headers: { "Content-Type": spec.accept(conn), Accept: spec.accept(conn) },
                 qs: corr.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr.corrNr } : { lockHandle: lock.handle },
                 body: payload,
               },
@@ -1375,7 +1375,7 @@ export async function deleteEnhancementObject(
         void lock;
         let body: string;
         try {
-          const resp = await conn.get(uri, { headers: { Accept: spec.accept } });
+          const resp = await conn.get(uri, { headers: { Accept: spec.accept(conn) } });
           body = resp.body;
         } catch (e) {
           if (isAbapError(e)) throw e;

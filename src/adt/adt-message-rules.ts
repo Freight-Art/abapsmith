@@ -178,6 +178,28 @@ export const ADT_MESSAGE_RULES: readonly AdtMessageRule[] = [
     property: "XML_PATH",
     hint: (_message, properties) => describeXmlPath(properties["XML_PATH"] ?? "", properties),
   },
+  {
+    id: "unsupported-media-type",
+    t100Id: "SADT_RESOURCE",
+    t100No: "039",
+    exceptionType: "ExceptionUnsupportedMediaType",
+    hint:
+      "The server rejected the request's media type (HTTP 415). For enhancement implementations " +
+      "this means it does not accept the v2 enhancement-implementation payload " +
+      "application/vnd.sap.adt.enh.enhoxhh.v2+xml; abapsmith sends the highest enhoxhh version " +
+      "/sap/bc/adt/discovery advertises, so reconnect to refresh the cached inventory and retry. " +
+      "A server advertising no enhoxhh media type cannot create hooks over ADT.",
+  },
+  {
+    id: "not-acceptable",
+    t100Id: "SADT_RESOURCE",
+    t100No: "037",
+    exceptionType: "ExceptionResourceNotAcceptable",
+    hint:
+      "The server cannot produce the requested representation (HTTP 406). abapsmith asks for the " +
+      "highest media-type version /sap/bc/adt/discovery advertises for the collection; reconnect " +
+      "to refresh the cached inventory and retry.",
+  },
 ];
 
 // Fail closed at load time, not just at match time: a rule declaring none of
