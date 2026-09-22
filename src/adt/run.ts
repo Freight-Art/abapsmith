@@ -732,7 +732,7 @@ function translateRunFailure(conn: AbapConnection, className: string, e: unknown
   // would queue behind it.
   if (resp === undefined && isTimeoutError(e)) {
     invalidateSession(conn);
-    return discloseMutationRisk(timeoutError(className, conn.cfg.timeoutMs, e));
+    return discloseMutationRisk(timeoutError(className, conn.cfg.runTimeoutMs, e));
   }
 
   // Anything else is an ordinary ADT failure. session.translateAdtError() owns
@@ -755,11 +755,11 @@ function translateRunFailure(conn: AbapConnection, className: string, e: unknown
 function timeoutError(className: string, timeoutMs: number, cause: unknown): AbapError {
   const err = new AbapError(
     "TIMEOUT",
-    `${className} did not answer within ${timeoutMs} ms (ABAP_TIMEOUT_MS); the request was ` +
+    `${className} did not answer within ${timeoutMs} ms (ABAP_RUN_TIMEOUT_MS); the request was ` +
       "abandoned client-side.",
-    { class: className, timeoutMs },
+    { class: className, timeoutMs, envVar: "ABAP_RUN_TIMEOUT_MS" },
     "The ABAP session was abandoned, not stopped — the program may still be running on the " +
-      "server. If it legitimately needs longer, raise ABAP_TIMEOUT_MS or make it do less per run.",
+      "server. If it legitimately needs longer, raise ABAP_RUN_TIMEOUT_MS or make it do less per run.",
     { retryable: true }, // TIMEOUT is `conditional`; before the dumps feed is asked the likeliest story is "ran long", and withDumpLookup withdraws this the moment a dump says otherwise
   );
   err.cause = cause;
@@ -977,13 +977,17 @@ export async function runClass(
   // it costs a tool that lies with a straight face.
   let raw: string;
   try {
-    raw = await conn.withFreshSession(async (client) => {
-      try {
-        return await client.runClass(name);
-      } catch (e) {
-        throw translateRunFailure(conn, name, e);
-      }
-    });
+    // Issue #154: the whole fresh-session classrun gets its own (longer)
+    // client timeout instead of sharing ABAP_TIMEOUT_MS.
+    raw = await conn.withRequestTimeout(conn.cfg.runTimeoutMs, () =>
+      conn.withFreshSession(async (client) => {
+        try {
+          return await client.runClass(name);
+        } catch (e) {
+          throw translateRunFailure(conn, name, e);
+        }
+      }),
+    );
   } catch (e) {
     // Outside `withFreshSession`: the feed lookup needs the session lock this
     // callback holds. Only TIMEOUT is looked up; everything else passes through.

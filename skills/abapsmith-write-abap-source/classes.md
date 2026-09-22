@@ -43,3 +43,9 @@ by reading the class.
 `abap_run` executes an `IF_OO_ADT_CLASSRUN` class and captures `out->write` output.
 `abap_test` runs the tests in `testclasses` and reports each method's verdict; it says
 NO TESTS RAN when the include has no test class, which is not a pass.
+
+`abap_run` in class mode captures only what the class writes through
+`out->write( )` (the `IF_OO_ADT_CLASSRUN` `out` parameter). Classic `WRITE` /
+`WRITE:` statements in a class produce no console output there — an empty
+result after `WRITE` is not a failure of the run; move the output to
+`out->write( )` instead. Verified live on A4H, 2026-09-22.

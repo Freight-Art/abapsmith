@@ -1753,12 +1753,16 @@ export const PROPERTIES_SHAPE_TYPES: readonly string[] = codesWith((c) => c.writ
 /**
  * The one caller-facing sentence naming what `abap_write` accepts, composed
  * from the sets above so it cannot go stale — the single place both refusal
- * sites in `src/adt/write.ts` render it, so they cannot drift apart.
+ * sites in `src/adt/write.ts` render it, so they cannot drift apart. The
+ * first sentence lists `ABAP_WRITE_TYPES` (the same list refusals carry as
+ * `details.writable`) rather than the narrower `WRITABLE_TYPES`, so the
+ * prose and the structured list never disagree; the clauses after it are
+ * qualifications of types already named in that first sentence.
  */
 export function writableTypesHint(): string {
-  const clauses: string[] = [`Writable types are ${WRITABLE_TYPES.join(", ")}.`];
+  const clauses: string[] = [`Writable types are ${ABAP_WRITE_TYPES.join(", ")}.`];
   if (CREATE_ONLY_TYPES.length) {
-    clauses.push(`${CREATE_ONLY_TYPES.join(", ")} can only be created, never rewritten — no source to write.`);
+    clauses.push(`Of these, ${CREATE_ONLY_TYPES.join(", ")} can only be created, never rewritten — no source to write.`);
   }
   // Split, not merged: a type whose bridge create is refused is still an
   // `abap_write` type (it can be deleted), but saying it "is created through
@@ -1766,16 +1770,16 @@ export function writableTypesHint(): string {
   const bridgeAttempted = BRIDGE_ONLY_CREATE_TYPES.filter((c) => !BRIDGE_CREATE_REFUSED_TYPES.includes(c));
   if (bridgeAttempted.length) {
     clauses.push(
-      `${bridgeAttempted.join(", ")} are created through a generated classrun bridge, also with no \`source\`.`,
+      `Of these, ${bridgeAttempted.join(", ")} are created through a generated classrun bridge, also with no \`source\`.`,
     );
   }
   if (BRIDGE_CREATE_REFUSED_TYPES.length) {
     clauses.push(
-      `${BRIDGE_CREATE_REFUSED_TYPES.join(", ")} cannot be created here at all, in any package — only deleted.`,
+      `Of these, ${BRIDGE_CREATE_REFUSED_TYPES.join(", ")} cannot be created here at all, in any package — only deleted.`,
     );
   }
   if (ENHANCEABLE_TYPES.length) {
-    clauses.push(`${ENHANCEABLE_TYPES.join(", ")} can be edited (not created) here.`);
+    clauses.push(`Of these, ${ENHANCEABLE_TYPES.join(", ")} can be edited (not created) here.`);
   }
   if (ACTIVATION_ONLY_TYPES.length) {
     clauses.push(

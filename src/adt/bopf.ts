@@ -39,6 +39,7 @@ import { toAbapError } from "./session-transport.js";
 import { transportFromLock, readCurrentSource, type ResolvedTarget } from "./write.js";
 import { buildUri, specForType } from "./types.js";
 import { withRelockRetry } from "./relock.js";
+import { isTransportTimeout, transportTimeoutError } from "./timeouts.js";
 import {
   mapActivationMessages,
   mapInactiveObjects,
@@ -285,12 +286,31 @@ export async function createBusinessObject(
   const body = buildCreateBody(input);
   try {
     // 201 answers with a 0-byte body; nothing in it is consumed, since the
-    // created model is always fetched fresh below.
-    await conn.post(BOPF_COLLECTION, {
-      headers: { "Content-Type": BOPF_ACCEPT_V4, Accept: BOPF_ACCEPT_V4 },
-      body,
-    });
+    // created model is always fetched fresh below. Issue #154: this POST
+    // regularly outruns the instance default on a live system, so it gets
+    // its own (longer) client timeout instead of sharing `ABAP_TIMEOUT_MS`.
+    await conn.withRequestTimeout(conn.cfg.bopfTimeoutMs, () =>
+      conn.post(BOPF_COLLECTION, {
+        headers: { "Content-Type": BOPF_ACCEPT_V4, Accept: BOPF_ACCEPT_V4 },
+        body,
+      }),
+    );
   } catch (e) {
+    // Issue #154: a transport timeout gets its own TIMEOUT error, minted
+    // BEFORE the non-atomic-create recovery below — the tool layer
+    // (src/tools/bopf.ts) re-reads the BO on a fresh session slot itself,
+    // polling for it to appear, rather than this single same-connection GET.
+    if (isTransportTimeout(e)) {
+      throw transportTimeoutError({
+        family: "bopf",
+        operation: "create_bo",
+        name: input.name,
+        type: BOPF_TYPE,
+        uri,
+        timeoutMs: conn.cfg.bopfTimeoutMs,
+        cause: e,
+      });
+    }
     // Non-atomic create: re-GET before trusting the error (see doc comment above).
     try {
       const recovered = await readModel(conn, input.name);
@@ -547,21 +567,37 @@ export async function activateBusinessObject(
   let bodyVerdict: { activated: boolean; messages: readonly unknown[] };
   let preaudit: InactiveObjectRef[] | undefined;
   try {
-    let result = await conn.adt.activate(bo, uri, undefined, true);
-    const phase2 = await activateWithPreauditSet(conn, [seed], result);
-    if (phase2) {
-      result = phase2.result;
-      preaudit = phase2.preaudit;
-    }
-    const messages = mapActivationMessages(result);
-    const inactive = mapInactiveObjects(result);
-    const hasFailure = messages.some((m) => isFailureSeverity(m.severity));
-    bodyVerdict = {
-      activated: result.success !== false && !hasFailure && inactive.length === 0,
-      messages: [...messages, ...inactive.map((i) => ({ inactiveDependent: i }))],
-    };
+    // Issue #154: phase one AND `activateWithPreauditSet`'s phase two share
+    // one timeout frame — either POST can outrun the instance default on a
+    // live system, and the caller can't tell which one hung.
+    bodyVerdict = await conn.withRequestTimeout(conn.cfg.bopfTimeoutMs, async () => {
+      let result = await conn.adt.activate(bo, uri, undefined, true);
+      const phase2 = await activateWithPreauditSet(conn, [seed], result);
+      if (phase2) {
+        result = phase2.result;
+        preaudit = phase2.preaudit;
+      }
+      const messages = mapActivationMessages(result);
+      const inactive = mapInactiveObjects(result);
+      const hasFailure = messages.some((m) => isFailureSeverity(m.severity));
+      return {
+        activated: result.success !== false && !hasFailure && inactive.length === 0,
+        messages: [...messages, ...inactive.map((i) => ({ inactiveDependent: i }))],
+      };
+    });
   } catch (e) {
     if (isAbapError(e)) throw e;
+    if (isTransportTimeout(e)) {
+      throw transportTimeoutError({
+        family: "bopf",
+        operation: "activate",
+        name: bo,
+        type: BOPF_TYPE,
+        uri: bopfUri(bo),
+        timeoutMs: conn.cfg.bopfTimeoutMs,
+        cause: e,
+      });
+    }
     throw translateAdtError(e, { operation: "write", uri, name: bo, type: BOPF_TYPE });
   }
 

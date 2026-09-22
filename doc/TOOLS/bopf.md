@@ -68,6 +68,107 @@ reaching SAP.
 | `description` | string | `create_bo` only | — | Description of the new BO. |
 | `rootNodeName` | string | `create_bo` only | `"ROOT"` | Name for the root node. |
 
+### Enum-valued spec fields
+
+Some `spec` fields are closed enumerations, checked client-side before
+anything is sent to the server. An `add_*` operation requires a value from
+the set; the matching `set_*_fields` operation also accepts `null` to clear
+the field. A value outside the set is refused as `BAD_INPUT` before any
+request is sent, naming every accepted value and its meaning:
+
+```
+spec.instanceMultiplicity "1_1" is not one of "0" (static: runs without a node instance), "1" (single instance: exactly one node instance per call), "2" (multiple instances: any number of node instances per call).
+```
+
+`category` on `add_action`/`set_action_fields` is the one exception: it is
+an opaque numeric code (`ActionCategoryCode`), not checked client-side.
+
+`spec.multiplicity` (`add_association`, `set_association_fields`):
+
+| Value | Meaning |
+|---|---|
+| `0_1` | optional to-one: at most one target instance |
+| `0_N` | optional to-many: any number of target instances |
+| `1_1` | mandatory to-one: exactly one target instance |
+| `1_N` | mandatory to-many: at least one target instance (schema-only, never observed on the wire) |
+
+`spec.implementationType` (`add_association`, `set_association_fields`):
+
+| Value | Meaning |
+|---|---|
+| `Composition` | parent-child composition: the target node is a child of the source node |
+| `DoComposition` | composition to a delegated (dependent) object |
+| `Association` | cross-node or cross-BO association resolved by the association class |
+| `C` | schema short form of `Composition` (not observed on the wire) |
+| `A` | schema short form of `Association` (not observed on the wire) |
+
+`spec.instanceMultiplicity` (`add_action`, `set_action_fields`), from
+`/BOBF/IF_CONF_C` on the live system:
+
+| Value | Meaning |
+|---|---|
+| `0` | static: runs without a node instance (`SC_ACT_CARD_STATIC`) |
+| `1` | single instance: exactly one node instance per call (`SC_ACT_CARD_ONE`) |
+| `2` | multiple instances: any number of node instances per call (`SC_ACT_CARD_MANY`; what SAP's own actions use) |
+
+`spec.exportingParameterCategoryType` (`add_action`, `set_action_fields`):
+
+| Value | Meaning |
+|---|---|
+| `None` | the action exports nothing |
+| `Type` | the action exports data of the DDIC type named in `parameterStructureRef` |
+| `Node` | the action exports instances of a node |
+
+`spec.category` on a determination (`add_determination`,
+`set_determination_fields`). `"undefined"` is in the type but refused — it
+is BOPF's own server-side default for an omitted category, and a
+determination left there never fires:
+
+| Value | Meaning |
+|---|---|
+| `reactAfterModification` | runs after instances of the trigger node are created/updated/deleted |
+| `calculateTransientAttributes` | fills transient attributes when instances are loaded or changed |
+| `calculateTransientSubNodeInstances` | fills transient sub-node instances when the parent is loaded |
+| `calculateProperties` | computes field/action/association properties (enabled, read-only, mandatory) |
+| `reactOnCheckAndDetermine` | runs when the consumer calls check-and-determine |
+| `reactBeforeSave` | runs at the start of the save sequence, before validations |
+| `drawNumbersDuringCreate` | draws numbers for new instances at creation time |
+| `drawNumbersDuringSave` | draws numbers for new instances during save |
+| `reactDuringSave` | runs during the save sequence after validations |
+| `reactAfterSuccessfulSave` | runs after the database commit succeeded |
+| `reactAfterCleanupTransaction` | runs when the transaction is cleaned up (after commit or rollback) |
+| `reactAfterFailedSave` | runs after the save failed |
+
+`spec.category` on a validation (`add_validation`, `set_validation_fields`):
+
+| Value | Meaning |
+|---|---|
+| `consistencyCheck` | checks the trigger node's instances and reports messages; runs on check-and-determine and during save |
+| `actionCheck` | decides whether the trigger action may run on the given instances |
+
+`spec.category` on a query (`add_query`, `set_query_fields`):
+
+| Value | Meaning |
+|---|---|
+| `selectAll` | returns every instance of the node |
+| `selectByElements` | filters instances by node attributes passed as selection parameters (generated implementation) |
+| `customQuery` | implemented by the query class |
+
+`spec.uniqueness` (`add_alternative_key`, `set_alternative_key_fields`):
+
+| Value | Meaning |
+|---|---|
+| `unique` | key values must be unique across all instances |
+| `uniqueIfNotInitial` | unique unless the key value is initial (what SAP's own keys use) |
+| `notUnique` | no uniqueness enforced (a plain secondary access path) |
+
+`spec.relations[].relationType` (`add_determination` only):
+
+| Value | Meaning |
+|---|---|
+| `predecessor` | the named determination runs before this one |
+| `successor` | the named determination runs after this one |
+
 Example (add an action):
 
 ```json
@@ -76,9 +177,77 @@ Example (add an action):
   "operation": "add_action",
   "node": "ROOT",
   "name": "RECALCULATE",
-  "spec": { "class": "ZCL_DEMO_ORDER_ACTION" }
+  "spec": {
+    "xmlName": "RECALCULATE",
+    "category": "0",
+    "instanceMultiplicity": "2",
+    "exportingParameterCategoryType": "None",
+    "exportParameterLink": false,
+    "isExtensible": false,
+    "objectModelGenerated": false,
+    "parameterStructureRef": { "name": "ZBOPF_S_RECALC_PARAMS", "type": "TABL/DS" },
+    "implementationClassRef": { "name": "ZCL_DEMO_ORDER_ACTION", "type": "CLAS/OC" }
+  }
 }
 ```
+
+### When the server rejects the document (`ExceptionInvalidData`)
+
+Occasionally the PUT itself is accepted but a server-side check on one
+element's value throws `ExceptionInvalidData`, naming the rejected element
+by an `XML_PATH` property (e.g.
+`bo:businessObject(1)bo:nodes(10)bo:actions(18)`) instead of by field name.
+abapsmith decodes that path back to the element it names — from the LAST
+path segment: `bo:actions` → action, `bo:associations` → association,
+`bo:determinations` → determination, `bo:validations` → validation,
+`bo:queries` → query, `bo:alternativeKeys` → alternative key, `bo:nodes` →
+node — and lists the spec fields on that element kind whose values the
+server itself validates:
+
+| Element | Candidate fields |
+|---|---|
+| action | `instanceMultiplicity`, `exportingParameterCategoryType`, `category` |
+| association | `multiplicity`, `implementationType`, `targetNodeRef` |
+| determination | `category`, `triggers`, `relations` |
+| validation | `category`, `triggers` |
+| query | `category` |
+| alternative key | `uniqueness` |
+| node | the node flags (`rootNode`, `textNode`, `isDependentObjectNode`, `createEnabled`, `updateEnabled`, `deleteEnabled`) |
+
+The hint names both, e.g. for an action: "the last path element is
+`bo:actions`, a BOPF action — the one this call added or changed. The value
+it refused is almost certainly in one of that element's enum-valued spec
+fields: instanceMultiplicity, exportingParameterCategoryType, category." —
+and `error.details.specElement` carries `{ operation, node, name }` for the
+`abap_bopf_edit` call that produced it, naming which call is at fault
+without having to re-derive it. `error.details.classifiedBy` is
+`"invalid-data-xml-path"`.
+
+### Timeouts
+
+`create_bo` and `activate` can take a minute or more on a larger model.
+Both run under `ABAP_BOPF_TIMEOUT_MS` (default 180000 ms) instead of the
+general `ABAP_TIMEOUT_MS`. If the client gives up before the server
+answers, `abap_bopf_edit` re-reads the object on a fresh session — up to 6
+reads, 5 seconds apart — before reporting:
+
+- **Found, after a `create_bo` timeout**: success, with a note that the
+  create "completed on the server after the client timeout"; no activation
+  is attempted on that call even if `activate: true` was requested.
+- **Found and active, after an `activate` timeout**: success, with the same
+  "completed on the server after the client timeout" note.
+- **Found but still inactive, after an `activate` timeout that followed a
+  `create_bo` on the same call**: `TIMEOUT`, `retryable: false` — the
+  object exists, so the next call is `abap_bopf_edit operation: "activate"`,
+  not another `create_bo`.
+- **Found but still inactive, after a standalone `activate` timeout**:
+  `TIMEOUT`, `retryable: true` — retry the `activate`.
+- **Not found at all, after a `create_bo` timeout**: `TIMEOUT`,
+  `retryable: true` — the create most likely never landed.
+
+The error code is `TIMEOUT` — the same code `abap_run` uses for its own
+classrun timeout (see
+[execute-and-test.md](execute-and-test.md#timeouts-and-short-dumps-149)).
 
 Example (add a node):
 

@@ -1303,3 +1303,58 @@ describe("config: resolveStaticCapabilities.canUseFluidApi", () => {
     expect(resolveStaticCapabilities(cfg).canUseFluidApi).toBe(false);
   });
 });
+
+// Issue #154 gave BOPF create_bo/activate (and abap_run) their own per-family
+// request timeouts, each 3x ABAP_TIMEOUT_MS's default, since a live system
+// regularly outran the shared 60s default on those specific operations.
+describe("config: per-family timeouts (bopfTimeoutMs/activateTimeoutMs/runTimeoutMs, issue #154)", () => {
+  it("all three default to 180_000, independently of ABAP_TIMEOUT_MS", () => {
+    const cfg = loadConfig({ env: env({ ABAP_TIMEOUT_MS: "60000" }), warn: () => {}, skipDotenv: true });
+    expect(cfg.timeoutMs).toBe(60_000);
+    expect(cfg.bopfTimeoutMs).toBe(180_000);
+    expect(cfg.activateTimeoutMs).toBe(180_000);
+    expect(cfg.runTimeoutMs).toBe(180_000);
+  });
+
+  it("ABAP_BOPF_TIMEOUT_MS overrides bopfTimeoutMs alone", () => {
+    const cfg = loadConfig({ env: env({ ABAP_BOPF_TIMEOUT_MS: "240000" }), warn: () => {}, skipDotenv: true });
+    expect(cfg.bopfTimeoutMs).toBe(240_000);
+    expect(cfg.activateTimeoutMs).toBe(180_000);
+    expect(cfg.runTimeoutMs).toBe(180_000);
+  });
+
+  it("ABAP_ACTIVATE_TIMEOUT_MS overrides activateTimeoutMs alone", () => {
+    const cfg = loadConfig({ env: env({ ABAP_ACTIVATE_TIMEOUT_MS: "240000" }), warn: () => {}, skipDotenv: true });
+    expect(cfg.activateTimeoutMs).toBe(240_000);
+    expect(cfg.bopfTimeoutMs).toBe(180_000);
+    expect(cfg.runTimeoutMs).toBe(180_000);
+  });
+
+  it("ABAP_RUN_TIMEOUT_MS overrides runTimeoutMs alone", () => {
+    const cfg = loadConfig({ env: env({ ABAP_RUN_TIMEOUT_MS: "240000" }), warn: () => {}, skipDotenv: true });
+    expect(cfg.runTimeoutMs).toBe(240_000);
+    expect(cfg.bopfTimeoutMs).toBe(180_000);
+    expect(cfg.activateTimeoutMs).toBe(180_000);
+  });
+
+  // Same `z.coerce.number().int().positive()` shape as ABAP_TIMEOUT_MS
+  // itself, so "0" is rejected through the same issue-list mechanism as the
+  // ABAP_MODE=bogus / ABAP_ENHANCE_TARGETS='' cases above.
+  for (const [envVar, field] of [
+    ["ABAP_TIMEOUT_MS", "timeoutMs"],
+    ["ABAP_BOPF_TIMEOUT_MS", "bopfTimeoutMs"],
+    ["ABAP_ACTIVATE_TIMEOUT_MS", "activateTimeoutMs"],
+    ["ABAP_RUN_TIMEOUT_MS", "runTimeoutMs"],
+  ] as const) {
+    it(`${envVar}="0" is rejected through the same "Invalid abapsmith configuration" issue list, naming ${field}`, () => {
+      try {
+        loadConfig({ env: env({ [envVar]: "0" }), warn: () => {}, skipDotenv: true });
+        expect.unreachable("loadConfig should have thrown");
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        expect(message).toContain("Invalid abapsmith configuration:");
+        expect(message).toContain(field);
+      }
+    });
+  }
+});

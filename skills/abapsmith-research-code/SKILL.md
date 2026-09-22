@@ -134,8 +134,8 @@ inference from a search snippet.
      slow, but it answers what actually runs when nothing else can.
    - `abap_ui {"mode":"press", ...}` — **commits business data and cannot be
      rolled back**; needs `ABAP_MODE=admin` **and** `ABAP_ALLOW_UI_PRESS=true`
-     **and** `confirm:true`. Never the first move, and never a substitute
-     for reading the code.
+     **and** `confirm:true`, both checked at call time, not at registration.
+     Never the first move, and never a substitute for reading the code.
 5. Report the chain button → code, one hop per line, each hop carrying the
    tool call that proved it.
 
@@ -153,6 +153,13 @@ class into `$ABAPSMITH_FLUID_API` in order to read, so they are absent under
 mode blocks a step, fall back to where-used plus `abap_read` of the module
 source located by hand — slower and more manual, but it does not need write
 capability.
+
+`abap_fpm_read` is one MCP tool, registered or not as a whole — it is
+read-only in effect but absent under `read` in every mode (`find`, `outline`,
+`app`, `events`), not just `events`: `find`/`outline`/`app` install the fluid
+`fpm` tool's body class the same way `events` does, and `locks` installs a
+per-call bridge class — installing a class is itself a write, so all four
+modes go dark together, never one at a time.
 
 ## Live transcript (A4H, 2026-09-15)
 

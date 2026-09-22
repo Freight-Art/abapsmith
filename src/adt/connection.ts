@@ -27,6 +27,7 @@ import {
 } from "./discovery-cache.js";
 import { StatefulSession, classifySessionFailure } from "./session.js";
 import { SessionLock } from "./session-lock.js";
+import { longestRequestTimeoutMs } from "./timeouts.js";
 import { registerShutdownHandler, type ShutdownSignal } from "../shutdown-hook.js";
 // System-role detection lives in system-role.ts; classifyT000Response/SystemRoleDetection/ProductiveRole are re-exported below for existing import sites.
 import { detectSystemRole, type SystemRoleProbes } from "./system-role.js";
@@ -435,6 +436,16 @@ export class AbapConnection {
   /** F1b — the generation a single in-flight transport request is riding. Per-instance, NOT module-scope: a pooled `runOn` callback can nest connection B's dispatch inside connection A's frame. */
   private readonly dispatchContext = new AsyncLocalStorage<DispatchTicket>();
   /**
+   * The per-family timeout (issue #154) a caller of {@link withRequestTimeout}
+   * wants every request dispatched inside its callback to carry, overriding
+   * the instance default (`cfg.timeoutMs`). Per-instance, NOT module-scope —
+   * same reasoning as `dispatchContext`. Read in `observedTransport.request`,
+   * so it covers `get`/`post`/`put`/`del`, every `conn.adt.*` call, and
+   * `withFreshSession` bodies alike — everything dispatches through that one
+   * observation point.
+   */
+  private readonly requestTimeoutContext = new AsyncLocalStorage<number>();
+  /**
    * The budget of the logical request currently in flight, if any — set by
    * `request()`, visible to `login()`/`refreshCsrfToken()` inside `attempt()`.
    * Async-scoped rather than a field: `request()` is not serialised, so a plain
@@ -586,8 +597,14 @@ export class AbapConnection {
       // this closure, never getStore(), so a nested dispatch from another
       // connection can never be mistaken for this one's.
       const ticket: DispatchTicket = { generation: this.currentGeneration, dispatched: false };
+      // Issue #154: a `withRequestTimeout()` frame overrides this one
+      // request's timeout (axios honours a per-request `timeout`); outside
+      // such a frame `override` is `undefined` and `o` goes through
+      // unchanged, so the instance default (`cfg.timeoutMs`) applies as before.
+      const override = this.requestTimeoutContext.getStore();
+      const dispatched = override === undefined ? o : { ...o, timeout: override };
       try {
-        const response = await this.dispatchContext.run(ticket, () => this.guard.request(o));
+        const response = await this.dispatchContext.run(ticket, () => this.guard.request(dispatched));
         this.noteWireResponse(response, ticket.generation, "resolved");
         return response;
       } catch (e) {
@@ -626,11 +643,14 @@ export class AbapConnection {
     // SessionLock's own 10s default is smaller than a request's own timeout, so
     // a caller queued behind one healthy request could be refused SESSION_BUSY
     // before that request could finish. Live-measured work-process starvation
-    // alone queued 14,075ms — see the git history.
+    // alone queued 14,075ms — see the git history. Issue #154: derived from the
+    // LONGEST per-family request timeout, not just `cfg.timeoutMs` — a caller
+    // queued behind a 180s BOPF create (or activation, or run) must not be
+    // refused SESSION_BUSY before that request can finish either.
     this.lock =
       opts.sessionLock ??
       new SessionLock({
-        waitTimeoutMs: cfg.sessionWaitMs + cfg.timeoutMs,
+        waitTimeoutMs: cfg.sessionWaitMs + longestRequestTimeoutMs(cfg),
         log: this.log,
       });
 
@@ -768,6 +788,20 @@ export class AbapConnection {
   /** Cached CSRF token. "fetch" until the first response supplies one. */
   csrfToken(): string {
     return this.client.httpClient.csrfToken;
+  }
+
+  /**
+   * Issue #154: run `fn`, giving every HTTP request dispatched inside it
+   * (`get`/`post`/`put`/`del`, every `conn.adt.*` call, and a
+   * `withFreshSession` body) `timeoutMs` instead of the instance default
+   * (`cfg.timeoutMs`). Read by `observedTransport.request` via
+   * `AsyncLocalStorage`, so it covers nested calls without threading the
+   * value through every signature. Not re-entrant-aware by design: a nested
+   * `withRequestTimeout` frame simply overrides the outer one for its own
+   * duration.
+   */
+  withRequestTimeout<T>(timeoutMs: number, fn: () => Promise<T>): Promise<T> {
+    return this.requestTimeoutContext.run(timeoutMs, fn);
   }
 
   /** Requests actually put on the wire — used by tests and the probe budget. */

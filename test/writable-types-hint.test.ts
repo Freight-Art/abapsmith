@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import type { AbapConnection } from "../src/adt/connection.js";
 import { isAbapError, type AbapError } from "../src/adt/errors.js";
-import { resolveWriteTarget } from "../src/adt/write.js";
+import { refuseUnwritableType, resolveWriteTarget } from "../src/adt/write.js";
 import {
   ABAP_WRITE_TYPES,
   BRIDGE_ONLY_CREATE_TYPES,
@@ -62,5 +62,51 @@ describe("writableTypesHint", () => {
     const expected = new Set([...CREATABLE_TYPES, ...BRIDGE_ONLY_CREATE_TYPES, ...ENHANCEABLE_TYPES]);
     expect(new Set(ABAP_WRITE_TYPES)).toEqual(expected);
     expect(ABAP_WRITE_TYPES.length).toBe(expected.size);
+  });
+
+  it("the prose sentence lists every type in details.writable", async () => {
+    const e = await catchErr(resolveWriteTarget(offline, { type: "ZZZZ/QQ", name: "ZTMD_X" }));
+    const firstSentence = e.hint?.split(".")[0] ?? "";
+    for (const code of e.details.writable as string[]) {
+      expect(firstSentence).toContain(code);
+    }
+    expect(e.details.writable).toEqual([...ABAP_WRITE_TYPES]);
+  });
+
+  it("unknown type close to a writable one gets a suggestion", async () => {
+    const e = await catchErr(resolveWriteTarget(offline, { type: "TRAN/P", name: "ZAS_X" }));
+    expect(e.code).toBe("BAD_INPUT");
+    expect(e.message).toMatch(/Unknown object type "TRAN\/P"\. Did you mean TRAN\/T\?/);
+    expect(e.details.suggestions).toEqual(["TRAN/T"]);
+  });
+
+  it("unknown type far from everything gets no suggestion", async () => {
+    const e = await catchErr(resolveWriteTarget(offline, { type: "ZZZZ/QQ", name: "ZTMD_X" }));
+    expect(e.message).not.toMatch(/Did you mean/);
+    expect(e.details.suggestions).toBeUndefined();
+  });
+});
+
+describe("refuseUnwritableType", () => {
+  it("returns undefined for a writable type and its keyword form", () => {
+    expect(refuseUnwritableType("CLAS/OC", "ZCL_FOO")).toBeUndefined();
+    expect(refuseUnwritableType("class", "ZCL_FOO")).toBeUndefined();
+  });
+
+  it("throws UNSUPPORTED, retryable false, for a REGISTRY-unsupported type", async () => {
+    const e = await catchErr(
+      (async () => refuseUnwritableType("PROG/PS", "ZSCREEN"))(),
+    );
+    expect(e.code).toBe("UNSUPPORTED");
+    expect(e.retryable).toBe(false);
+  });
+
+  it("throws UNSUPPORTED for ENHO/XH with op write", async () => {
+    const e = await catchErr((async () => refuseUnwritableType("ENHO/XH", "ZBADI", "write"))());
+    expect(e.code).toBe("UNSUPPORTED");
+  });
+
+  it("does not throw for op delete on a deletable type", () => {
+    expect(refuseUnwritableType("CLAS/OC", "ZCL_FOO", "delete")).toBeUndefined();
   });
 });
