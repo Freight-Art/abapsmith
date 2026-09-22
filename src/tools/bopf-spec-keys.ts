@@ -14,27 +14,173 @@
  *
  * This module is the reusable check for both failure modes, driven by a
  * per-operation table of the keys each builder in `bopf.ts` actually reads
- * (traced by grep, not guessed). It does not replace `strEnum`'s value-level
- * checks (category/uniqueness) — those stay in `bopf.ts` — this only checks
- * "is this key recognised, and is its value the right JS shape".
+ * (traced by grep, not guessed). It also checks enum membership for the
+ * spec fields whose values are a closed set (multiplicity, category codes,
+ * uniqueness, ...) — see `BOPF_ENUM_FIELDS` — reporting every accepted
+ * value with its meaning so a wrong guess doesn't need a second round trip
+ * to the docs. `category` on `add_action`/`set_action_fields` stays a plain
+ * string: `ActionCategoryCode` is an opaque numeric code, not a closed enum.
  *
  * Called from `validateEditInputShape` in `bopf.ts`, before any lock or
  * network call.
  */
 import { AbapError } from "../adt/errors.js";
+import type {
+  MultiplicityType,
+  AssociationImplementationType,
+  ActionInstanceMultiplicityType,
+  ExportingParameterCategoryType,
+  DeterminationCategoryType,
+  ValidationCategoryType,
+  QueryCategoryType,
+  KeyUniquenessType,
+  RelationType,
+} from "../adt/bopf-types.js";
 
 type Shape = "string" | "stringOrNull" | "boolean" | "booleanOrNull" | "ref" | "refOrNull" | "stringArray" | "objectArray";
 
 type FieldTable = Readonly<Record<string, Shape>>;
 
+/** One accepted enum value and its human-readable meaning, surfaced verbatim in a mismatch message. */
+export interface EnumValue {
+  readonly value: string;
+  readonly meaning: string;
+}
+
+/** An enum-valued spec field. `"enumOrNull"` is the `set_*_fields` counterpart of `"enum"` — `null` clears the field, same as `stringOrNull`. */
+export interface EnumShape {
+  readonly kind: "enum" | "enumOrNull";
+  readonly values: readonly EnumValue[];
+}
+
+/** A field table entry: either a plain shape, or an enum descriptor. */
+export type SpecFieldSpec = Shape | EnumShape;
+
+type SpecFieldTableInternal = Readonly<Record<string, SpecFieldSpec>>;
+
+/** The plain `Shape` an enum descriptor dispatches as for non-enum-aware callers (`patchChildFields` et al. in `bopf.ts`). */
+export function baseShape(spec: SpecFieldSpec): Shape {
+  if (typeof spec === "string") return spec;
+  return spec.kind === "enum" ? "string" : "stringOrNull";
+}
+
 /** For `src/tools/bopf.ts` to drive its own attribute-vs-ref-child dispatch off this module's whitelist instead of duplicating it. */
 export type SpecShape = Shape;
-export type SpecFieldTable = FieldTable;
+export type SpecFieldTable = SpecFieldTableInternal;
 
 interface Issue {
   readonly message: string;
   readonly detail: Record<string, unknown>;
 }
+
+/**
+ * Builds a table's values into `readonly EnumValue[]`, in table order.
+ * `exclude` drops members that are valid on the wire-level union but make no
+ * sense as an accepted input (e.g. `DeterminationCategoryType`'s
+ * `"undefined"`, which leaves the determination inert).
+ */
+function enumOf<K extends string>(
+  table: Readonly<Record<K, string>>,
+  opts?: { readonly exclude?: readonly string[] },
+): readonly EnumValue[] {
+  const exclude = new Set(opts?.exclude ?? []);
+  return (Object.keys(table) as K[])
+    .filter((k) => !exclude.has(k))
+    .map((k) => ({ value: k, meaning: table[k] }));
+}
+
+const MULTIPLICITY_MEANINGS = {
+  "0_1": "optional to-one: at most one target instance",
+  "0_N": "optional to-many: any number of target instances",
+  "1_1": "mandatory to-one: exactly one target instance",
+  "1_N": "mandatory to-many: at least one target instance (schema-only, never observed on the wire)",
+} satisfies Readonly<Record<MultiplicityType, string>>;
+
+const IMPLEMENTATION_TYPE_MEANINGS = {
+  Composition: "parent-child composition: the target node is a child of the source node",
+  DoComposition: "composition to a delegated (dependent) object",
+  Association: "cross-node or cross-BO association resolved by the association class",
+  C: "schema short form of Composition (not observed on the wire)",
+  A: "schema short form of Association (not observed on the wire)",
+} satisfies Readonly<Record<AssociationImplementationType, string>>;
+
+const INSTANCE_MULTIPLICITY_MEANINGS = {
+  "0": "static: runs without a node instance (SC_ACT_CARD_STATIC)",
+  "1": "single instance: exactly one node instance per call (SC_ACT_CARD_ONE)",
+  "2": "multiple instances: any number of node instances per call (SC_ACT_CARD_MANY; what SAP's own actions use)",
+} satisfies Readonly<Record<ActionInstanceMultiplicityType, string>>;
+
+const EXPORTING_PARAMETER_CATEGORY_TYPE_MEANINGS = {
+  None: "the action exports nothing",
+  Type: "the action exports data of the DDIC type named in parameterStructureRef",
+  Node: "the action exports instances of a node",
+} satisfies Readonly<Record<ExportingParameterCategoryType, string>>;
+
+/** All 13 union members, including `"undefined"` — the enum passed to `add_determination`/`set_determination_fields` EXCLUDES it: it leaves the determination inert, so it is not an accepted input. */
+const DETERMINATION_CATEGORY_MEANINGS = {
+  reactAfterModification: "runs after instances of the trigger node are created/updated/deleted",
+  calculateTransientAttributes: "fills transient attributes when instances are loaded or changed",
+  calculateTransientSubNodeInstances: "fills transient sub-node instances when the parent is loaded",
+  calculateProperties: "computes field/action/association properties (enabled, read-only, mandatory)",
+  reactOnCheckAndDetermine: "runs when the consumer calls check-and-determine",
+  reactBeforeSave: "runs at the start of the save sequence, before validations",
+  drawNumbersDuringCreate: "draws numbers for new instances at creation time",
+  drawNumbersDuringSave: "draws numbers for new instances during save",
+  reactDuringSave: "runs during the save sequence after validations",
+  reactAfterSuccessfulSave: "runs after the database commit succeeded",
+  reactAfterCleanupTransaction: "runs when the transaction is cleaned up (after commit or rollback)",
+  reactAfterFailedSave: "runs after the save failed",
+  undefined: "leaves the determination inert — not a usable value, schema-only",
+} satisfies Readonly<Record<DeterminationCategoryType, string>>;
+
+const VALIDATION_CATEGORY_MEANINGS = {
+  consistencyCheck:
+    "checks the trigger node's instances and reports messages; runs on check-and-determine and during save",
+  actionCheck: "decides whether the trigger action may run on the given instances",
+} satisfies Readonly<Record<ValidationCategoryType, string>>;
+
+const QUERY_CATEGORY_MEANINGS = {
+  selectAll: "returns every instance of the node",
+  selectByElements: "filters instances by node attributes passed as selection parameters (generated implementation)",
+  customQuery: "implemented by the query class",
+} satisfies Readonly<Record<QueryCategoryType, string>>;
+
+const UNIQUENESS_MEANINGS = {
+  unique: "key values must be unique across all instances",
+  uniqueIfNotInitial: "unique unless the key value is initial (what SAP's own keys use)",
+  notUnique: "no uniqueness enforced (a plain secondary access path)",
+} satisfies Readonly<Record<KeyUniquenessType, string>>;
+
+const RELATION_TYPE_MEANINGS = {
+  predecessor: "the named determination runs before this one",
+  successor: "the named determination runs after this one",
+} satisfies Readonly<Record<RelationType, string>>;
+
+/** Every enum-valued spec field's accepted values, keyed by field name — the single source of truth `shapeIssue`'s enum branch reports from. */
+export const BOPF_ENUM_FIELDS: Readonly<
+  Record<
+    | "multiplicity"
+    | "implementationType"
+    | "instanceMultiplicity"
+    | "exportingParameterCategoryType"
+    | "determinationCategory"
+    | "validationCategory"
+    | "queryCategory"
+    | "uniqueness"
+    | "relationType",
+    readonly EnumValue[]
+  >
+> = {
+  multiplicity: enumOf(MULTIPLICITY_MEANINGS),
+  implementationType: enumOf(IMPLEMENTATION_TYPE_MEANINGS),
+  instanceMultiplicity: enumOf(INSTANCE_MULTIPLICITY_MEANINGS),
+  exportingParameterCategoryType: enumOf(EXPORTING_PARAMETER_CATEGORY_TYPE_MEANINGS),
+  determinationCategory: enumOf(DETERMINATION_CATEGORY_MEANINGS, { exclude: ["undefined"] }),
+  validationCategory: enumOf(VALIDATION_CATEGORY_MEANINGS),
+  queryCategory: enumOf(QUERY_CATEGORY_MEANINGS),
+  uniqueness: enumOf(UNIQUENESS_MEANINGS),
+  relationType: enumOf(RELATION_TYPE_MEANINGS),
+};
 
 const NO_SPEC_FIELDS: FieldTable = {};
 
@@ -75,10 +221,10 @@ const ADD_NODE_FIELDS: FieldTable = {
 };
 
 /** `buildAssociationFields` (bopf.ts). */
-const ADD_ASSOCIATION_FIELDS: FieldTable = {
+const ADD_ASSOCIATION_FIELDS: SpecFieldTableInternal = {
   xmlName: "string",
-  multiplicity: "string",
-  implementationType: "string",
+  multiplicity: { kind: "enum", values: BOPF_ENUM_FIELDS.multiplicity },
+  implementationType: { kind: "enum", values: BOPF_ENUM_FIELDS.implementationType },
   objectModelGenerated: "boolean",
   doEmbeddingName: "string",
   targetNodeRef: "ref",
@@ -87,11 +233,11 @@ const ADD_ASSOCIATION_FIELDS: FieldTable = {
 };
 
 /** `buildActionFields` (bopf.ts). `category` is `str()`, not `strEnum()` — `ActionCategoryCode` is an opaque numeric string, not a closed enum. */
-const ADD_ACTION_FIELDS: FieldTable = {
+const ADD_ACTION_FIELDS: SpecFieldTableInternal = {
   xmlName: "string",
   category: "string",
-  instanceMultiplicity: "string",
-  exportingParameterCategoryType: "string",
+  instanceMultiplicity: { kind: "enum", values: BOPF_ENUM_FIELDS.instanceMultiplicity },
+  exportingParameterCategoryType: { kind: "enum", values: BOPF_ENUM_FIELDS.exportingParameterCategoryType },
   exportParameterLink: "boolean",
   isExtensible: "boolean",
   objectModelGenerated: "boolean",
@@ -100,9 +246,9 @@ const ADD_ACTION_FIELDS: FieldTable = {
 };
 
 /** `buildDeterminationFields` (bopf.ts). `triggers`/`relations` shape checked at the array level here; each entry is checked separately (see `DETERMINATION_TRIGGER_FIELDS`/`RELATION_FIELDS`). */
-const ADD_DETERMINATION_FIELDS: FieldTable = {
+const ADD_DETERMINATION_FIELDS: SpecFieldTableInternal = {
   xmlName: "string",
-  category: "string",
+  category: { kind: "enum", values: BOPF_ENUM_FIELDS.determinationCategory },
   objectModelGenerated: "boolean",
   triggers: "objectArray",
   relations: "objectArray",
@@ -110,9 +256,9 @@ const ADD_DETERMINATION_FIELDS: FieldTable = {
 };
 
 /** `buildValidationFields` (bopf.ts). No `relations` — only `buildDeterminationFields` reads that. */
-const ADD_VALIDATION_FIELDS: FieldTable = {
+const ADD_VALIDATION_FIELDS: SpecFieldTableInternal = {
   xmlName: "string",
-  category: "string",
+  category: { kind: "enum", values: BOPF_ENUM_FIELDS.validationCategory },
   checkBeforeSave: "boolean",
   createNode: "boolean",
   updateNode: "boolean",
@@ -123,18 +269,18 @@ const ADD_VALIDATION_FIELDS: FieldTable = {
 };
 
 /** `buildQueryFields` (bopf.ts). */
-const ADD_QUERY_FIELDS: FieldTable = {
+const ADD_QUERY_FIELDS: SpecFieldTableInternal = {
   xmlName: "string",
-  category: "string",
+  category: { kind: "enum", values: BOPF_ENUM_FIELDS.queryCategory },
   objectModelGenerated: "boolean",
   dataTypeRef: "ref",
   ...CLASS_REF_FIELDS,
 };
 
 /** `buildAlternativeKeyFields` (bopf.ts). Whether these are jointly REQUIRED is `validateAlternativeKeySpec`'s job, not this module's — this only checks shape for whatever is present. */
-const ADD_ALTERNATIVE_KEY_FIELDS: FieldTable = {
+const ADD_ALTERNATIVE_KEY_FIELDS: SpecFieldTableInternal = {
   xmlName: "string",
-  uniqueness: "string",
+  uniqueness: { kind: "enum", values: BOPF_ENUM_FIELDS.uniqueness },
   checkAfterModify: "boolean",
   checkBeforeSave: "boolean",
   noCheck: "boolean",
@@ -175,10 +321,10 @@ const SET_NODE_FLAGS_FIELDS: FieldTable = {
 };
 
 /** bopf.ts's set_association_fields patch path: attribute fields via `patchOpenTagAttrs`, ref fields via `spliceSetElementRef` — every one `unsettable`, so `null` clears it. No `name` (see `RECOGNISED_BUT_REFUSED_FIELDS`). */
-const SET_ASSOCIATION_FIELDS: FieldTable = {
+const SET_ASSOCIATION_FIELDS: SpecFieldTableInternal = {
   xmlName: "stringOrNull",
-  multiplicity: "stringOrNull",
-  implementationType: "stringOrNull",
+  multiplicity: { kind: "enumOrNull", values: BOPF_ENUM_FIELDS.multiplicity },
+  implementationType: { kind: "enumOrNull", values: BOPF_ENUM_FIELDS.implementationType },
   doEmbeddingName: "stringOrNull",
   objectModelGenerated: "booleanOrNull",
   targetNodeRef: "refOrNull",
@@ -189,11 +335,11 @@ const SET_ASSOCIATION_FIELDS: FieldTable = {
 };
 
 /** bopf.ts's set_action_fields patch path. No `name` (see `RECOGNISED_BUT_REFUSED_FIELDS`). */
-const SET_ACTION_FIELDS: FieldTable = {
+const SET_ACTION_FIELDS: SpecFieldTableInternal = {
   xmlName: "stringOrNull",
   category: "stringOrNull",
-  instanceMultiplicity: "stringOrNull",
-  exportingParameterCategoryType: "stringOrNull",
+  instanceMultiplicity: { kind: "enumOrNull", values: BOPF_ENUM_FIELDS.instanceMultiplicity },
+  exportingParameterCategoryType: { kind: "enumOrNull", values: BOPF_ENUM_FIELDS.exportingParameterCategoryType },
   exportParameterLink: "booleanOrNull",
   isExtensible: "booleanOrNull",
   objectModelGenerated: "booleanOrNull",
@@ -204,9 +350,9 @@ const SET_ACTION_FIELDS: FieldTable = {
 };
 
 /** bopf.ts's set_determination_fields patch path. `triggers`/`relations` are write-once (see `DETERMINATION_WRITE_ONCE_MESSAGES`); no `name` (see `RECOGNISED_BUT_REFUSED_FIELDS`). */
-const SET_DETERMINATION_FIELDS: FieldTable = {
+const SET_DETERMINATION_FIELDS: SpecFieldTableInternal = {
   xmlName: "stringOrNull",
-  category: "stringOrNull",
+  category: { kind: "enumOrNull", values: BOPF_ENUM_FIELDS.determinationCategory },
   objectModelGenerated: "booleanOrNull",
   implementationClassRef: "refOrNull",
   class: "string",
@@ -214,9 +360,9 @@ const SET_DETERMINATION_FIELDS: FieldTable = {
 };
 
 /** bopf.ts's set_validation_fields patch path. `triggers` is write-once (see `VALIDATION_WRITE_ONCE_MESSAGES`); no `name` (see `RECOGNISED_BUT_REFUSED_FIELDS`). */
-const SET_VALIDATION_FIELDS: FieldTable = {
+const SET_VALIDATION_FIELDS: SpecFieldTableInternal = {
   xmlName: "stringOrNull",
-  category: "stringOrNull",
+  category: { kind: "enumOrNull", values: BOPF_ENUM_FIELDS.validationCategory },
   checkBeforeSave: "booleanOrNull",
   createNode: "booleanOrNull",
   updateNode: "booleanOrNull",
@@ -228,9 +374,9 @@ const SET_VALIDATION_FIELDS: FieldTable = {
 };
 
 /** bopf.ts's set_query_fields patch path. No `name` (see `RECOGNISED_BUT_REFUSED_FIELDS`). */
-const SET_QUERY_FIELDS: FieldTable = {
+const SET_QUERY_FIELDS: SpecFieldTableInternal = {
   xmlName: "stringOrNull",
-  category: "stringOrNull",
+  category: { kind: "enumOrNull", values: BOPF_ENUM_FIELDS.queryCategory },
   objectModelGenerated: "booleanOrNull",
   dataTypeRef: "refOrNull",
   implementationClassRef: "refOrNull",
@@ -239,9 +385,9 @@ const SET_QUERY_FIELDS: FieldTable = {
 };
 
 /** bopf.ts's set_alternative_key_fields patch path. `keyElements` is refused, not write-once-worded (see `KEY_ELEMENTS_REFUSED_MESSAGE`); no `class`/`implementationClass` — an alternative key has no implementation class. No `name` (see `RECOGNISED_BUT_REFUSED_FIELDS`). */
-const SET_ALTERNATIVE_KEY_FIELDS: FieldTable = {
+const SET_ALTERNATIVE_KEY_FIELDS: SpecFieldTableInternal = {
   xmlName: "stringOrNull",
-  uniqueness: "stringOrNull",
+  uniqueness: { kind: "enumOrNull", values: BOPF_ENUM_FIELDS.uniqueness },
   checkAfterModify: "booleanOrNull",
   checkBeforeSave: "booleanOrNull",
   noCheck: "booleanOrNull",
@@ -260,7 +406,7 @@ export const SET_CHILD_FIELD_TABLES: Readonly<Record<string, SpecFieldTable>> = 
   set_alternative_key_fields: SET_ALTERNATIVE_KEY_FIELDS,
 };
 
-const OPERATION_FIELDS: Readonly<Record<string, FieldTable>> = {
+const OPERATION_FIELDS: Readonly<Record<string, SpecFieldTableInternal>> = {
   create_bo: NO_SPEC_FIELDS,
   add_node: ADD_NODE_FIELDS,
   remove_node: NO_SPEC_FIELDS,
@@ -314,10 +460,10 @@ const VALIDATION_TRIGGER_FIELDS: FieldTable = {
 };
 
 /** `buildRelationFragments` (bopf.ts). */
-const RELATION_FIELDS: FieldTable = {
+const RELATION_FIELDS: SpecFieldTableInternal = {
   node: "string",
   determination: "string",
-  relationType: "string",
+  relationType: { kind: "enum", values: BOPF_ENUM_FIELDS.relationType },
 };
 
 /** remove_* / add_* pair for each `set_*_fields` operation's rename-refusal message below. */
@@ -440,7 +586,27 @@ function refShapeIssue(path: string, value: unknown): Issue | undefined {
   };
 }
 
-function shapeIssue(path: string, shape: Shape, value: unknown): Issue | undefined {
+/**
+ * Enum mismatch: reports every accepted value with its meaning so a wrong
+ * guess doesn't need a second round trip to the docs. A single-issue call
+ * this message IS the whole `BAD_INPUT` message (see `validateSpecKeys`).
+ */
+function enumShapeIssue(path: string, spec: EnumShape, value: unknown): Issue | undefined {
+  if (spec.kind === "enumOrNull" && value === null) return undefined;
+  if (typeof value !== "string") {
+    const kindText = spec.kind === "enumOrNull" ? "a string or null" : "a string";
+    return { message: `${path} must be ${kindText}, got ${describeType(value)}.`, detail: { path, value } };
+  }
+  if (spec.values.some((v) => v.value === value)) return undefined;
+  return {
+    message: `${path} "${value}" is not one of ${spec.values.map((v) => `"${v.value}" (${v.meaning})`).join(", ")}.`,
+    detail: { path, value, allowed: spec.values.map((v) => v.value) },
+  };
+}
+
+function shapeIssue(path: string, spec: SpecFieldSpec, value: unknown): Issue | undefined {
+  if (typeof spec !== "string") return enumShapeIssue(path, spec, value);
+  const shape = spec;
   switch (shape) {
     case "string":
       return typeof value === "string"
@@ -555,7 +721,7 @@ function validateArrayEntries(
   pathBase: string,
   entryLabel: string,
   entries: readonly unknown[],
-  table: FieldTable,
+  table: SpecFieldTableInternal,
 ): Issue[] {
   const accepted = Object.keys(table);
   const issues: Issue[] = [];

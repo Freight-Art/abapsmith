@@ -15,6 +15,7 @@ import { fromException } from "abap-adt-api/build/AdtException.js";
 import {
   ADT_MESSAGE_RULES,
   classifyAdtMessage,
+  describeXmlPath,
   unclassifiedMessageKey,
 } from "../src/adt/adt-message-rules.js";
 import { translateAdtError } from "../src/adt/session.js";
@@ -138,10 +139,17 @@ describe("classifyAdtMessage — unit", () => {
   });
 
   it("every rule declares at least one match form (load-time invariant, re-asserted here)", () => {
+    // issue #153 added a fourth match form (`exceptionType`, matched
+    // independently of T100 key / prose) for "invalid-data-xml-path" — kept
+    // in sync with the module's own load-time check at the bottom of
+    // adt-message-rules.ts, which already accounts for it.
     for (const rule of ADT_MESSAGE_RULES) {
-      expect(rule.t100Id !== undefined || rule.t100No !== undefined || rule.match !== undefined).toBe(
-        true,
-      );
+      expect(
+        rule.t100Id !== undefined ||
+          rule.t100No !== undefined ||
+          rule.match !== undefined ||
+          rule.exceptionType !== undefined,
+      ).toBe(true);
     }
   });
 
@@ -292,5 +300,103 @@ describe("translateAdtError — container-parent-missing wired into the UNCLASSI
     expect(err.details.status).toBe(500);
     expect(err.hint).not.toMatch(/was not recognised by any specific rule here/);
     expect(err.hint).toMatch(/FUNCTION-POOL/);
+  });
+});
+
+// Modeled on test/fixtures/enhancement/badi/1119-post-activation-activate.xml
+// (an ExceptionInvalidData body carrying an XML_PATH property).
+const XML_PATH_ACTION_MESSAGE = "Check of condition failed";
+const XML_PATH_ACTION_XML = `<?xml version="1.0" encoding="utf-8"?>
+<exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework">
+  <namespace id="com.sap.adt"/>
+  <type id="ExceptionInvalidData"/>
+  <message lang="EN">${XML_PATH_ACTION_MESSAGE}</message>
+  <localizedMessage lang="EN">${XML_PATH_ACTION_MESSAGE}</localizedMessage>
+  <properties>
+    <entry key="XML_PATH">bo:businessObject(1)bo:nodes(10)bo:actions(18)</entry>
+    <entry key="XML_OFFSET">4711</entry>
+  </properties>
+</exc:exception>`;
+
+const XML_PATH_NON_BOPF_XML = `<?xml version="1.0" encoding="utf-8"?>
+<exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework">
+  <namespace id="com.sap.adt"/>
+  <type id="ExceptionInvalidData"/>
+  <message lang="EN">Check of condition failed</message>
+  <localizedMessage lang="EN">Check of condition failed</localizedMessage>
+  <properties>
+    <entry key="XML_PATH">enqu:lockObject(1)</entry>
+  </properties>
+</exc:exception>`;
+
+const XML_PATH_MISSING_XML = `<?xml version="1.0" encoding="utf-8"?>
+<exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework">
+  <namespace id="com.sap.adt"/>
+  <type id="ExceptionInvalidData"/>
+  <message lang="EN">Check of condition failed</message>
+  <localizedMessage lang="EN">Check of condition failed</localizedMessage>
+  <properties>
+    <entry key="T100KEY-ID">00</entry>
+  </properties>
+</exc:exception>`;
+
+const XML_PATH_ASSOCIATION_XML = `<?xml version="1.0" encoding="utf-8"?>
+<exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework">
+  <namespace id="com.sap.adt"/>
+  <type id="ExceptionInvalidData"/>
+  <message lang="EN">Check of condition failed</message>
+  <localizedMessage lang="EN">Check of condition failed</localizedMessage>
+  <properties>
+    <entry key="XML_PATH">bo:businessObject(1)bo:nodes(5)bo:associations(3)</entry>
+  </properties>
+</exc:exception>`;
+
+describe("translateAdtError — invalid-data-xml-path wired into the UNCLASSIFIED tail", () => {
+  it("ExceptionInvalidData with XML_PATH ending in bo:actions names the action fields and the offset", () => {
+    const e = thrownByLibrary(400, "Bad Request", OK_XML, XML_PATH_ACTION_XML);
+    const err = translateAdtError(e, ctx);
+
+    expect(err.code).toBe("ADT_ERROR");
+    expect(err.details.classifiedBy).toBe("invalid-data-xml-path");
+    expect(err.hint).toContain("bo:actions");
+    expect(err.hint).toContain("action");
+    expect(err.hint).toContain("instanceMultiplicity");
+    expect(err.hint).toContain("exportingParameterCategoryType");
+    expect(err.hint).toContain("offset 4711");
+  });
+
+  it("a non-BOPF XML_PATH is classified with the generic 'not one the object model accepts' hint", () => {
+    const e = thrownByLibrary(400, "Bad Request", OK_XML, XML_PATH_NON_BOPF_XML);
+    const err = translateAdtError(e, ctx);
+
+    expect(err.code).toBe("ADT_ERROR");
+    expect(err.details.classifiedBy).toBe("invalid-data-xml-path");
+    expect(err.hint).toContain("enqu:lockObject(1)");
+    expect(err.hint).toContain("not one the object model accepts");
+    expect(err.hint).not.toContain("instanceMultiplicity");
+  });
+
+  it("ExceptionInvalidData without XML_PATH is not classified by this rule", () => {
+    const e = thrownByLibrary(400, "Bad Request", OK_XML, XML_PATH_MISSING_XML);
+    const err = translateAdtError(e, ctx);
+
+    expect(err.details.classifiedBy).toBeUndefined();
+  });
+
+  it("XML_PATH ending in bo:associations names the association fields", () => {
+    const e = thrownByLibrary(400, "Bad Request", OK_XML, XML_PATH_ASSOCIATION_XML);
+    const err = translateAdtError(e, ctx);
+
+    expect(err.details.classifiedBy).toBe("invalid-data-xml-path");
+    expect(err.hint).toContain("association");
+    expect(err.hint).toContain("multiplicity");
+  });
+});
+
+describe("describeXmlPath — unit", () => {
+  it("names the alternative-key element and its uniqueness field", () => {
+    const hint = describeXmlPath("bo:businessObject(1)bo:nodes(10)bo:alternativeKeys(2)");
+    expect(hint).toContain("alternative key");
+    expect(hint).toContain("uniqueness");
   });
 });
