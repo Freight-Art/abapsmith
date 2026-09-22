@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.16] - 2026-09-22
+
 ### Added
 
 - `abap_fpm_read mode=find` rows gain `loadable`, `app_config_id`, `component_config_id` and `reason` (#155): for a type-02 row the bridge reads the configuration XML and reports the component and component configuration it references, checking that the component configuration exists; for a type-00 row it checks whether an application configuration with the same id exists. `mode=app` now accepts either a component or an application configuration id — when the given id fails to load as an application config, the bridge's `resolve` action looks it up in both tables and, when exactly one application configuration references it, loads that one instead and reports `config_id` (loaded) and `resolvedFrom` (given) in the header.
