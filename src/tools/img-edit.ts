@@ -164,11 +164,12 @@ export const imgEditInputSchema = {
         "Defaults to the resolved view/cluster (or table if the resolved target is a table); with table, defaults to table.",
     ),
   master_type: z
-    .enum(["VDAT", "CDAT"])
+    .enum(["VDAT", "CDAT", "TABU"])
     .optional()
     .describe(
-      'upsert/delete: the transport entry\'s object type — "VDAT" for a maintenance view (default), ' +
-        '"CDAT" for a customizing object recorded directly.',
+      'upsert/delete: the transport entry\'s object type — "VDAT" for a maintenance view (default when the ' +
+        'target is a view), "CDAT" for a customizing object recorded directly, "TABU" for a table maintained ' +
+        'directly without a maintenance view (default when view equals table).',
     ),
   language: z
     .string()
@@ -260,7 +261,7 @@ interface RowEditArgs {
   keyFields: string[];
   rows: readonly { key: Record<string, string>; values?: Record<string, string> }[];
   view: string;
-  masterType: "VDAT" | "CDAT";
+  masterType: "VDAT" | "CDAT" | "TABU";
   language: string;
   corrNr?: string;
   confirm?: string;
@@ -288,7 +289,7 @@ function parseRowEditArgs(mode: "preview" | "upsert" | "delete", input: ImgEditI
     keyFields,
     rows,
     view: (input.view ?? table).trim(),
-    masterType: input.master_type ?? "VDAT",
+    masterType: input.master_type ?? defaultMasterType(table, (input.view ?? table).trim()),
     language: assertImgLanguage(input.language ?? (cfg.language || IMG_DEFAULT_LANGUAGE)),
     corrNr: input.corr_nr,
     confirm: input.confirm,
@@ -303,6 +304,11 @@ function bridgeRows(rows: RowEditArgs["rows"]): ImgWriteRow[] {
 /** `evaluateImgWrite`'s row-count rule only looks at `.length` — a flat merge of key+values satisfies its type without inventing a second row shape. */
 function policyRows(rows: RowEditArgs["rows"]): Record<string, string>[] {
   return rows.map((r) => ({ ...r.key, ...(r.values ?? {}) }));
+}
+
+/** SM30 records a table maintained without a view as R3TR TABU <table> (E071K MASTERTYPE TABU); a KO200 header of VDAT <table> is refused by CTS with TK323. */
+function defaultMasterType(table: string, view: string): "VDAT" | "TABU" {
+  return targetKind(table, view) === "table" ? "TABU" : "VDAT";
 }
 
 /** This tool only ever targets a table directly or a view distinct from it — "cluster"/"other" are not reachable through these arguments. */
@@ -1687,7 +1693,7 @@ async function runRowEditMode(deps: ImgEditToolDeps, mode: "preview" | "upsert" 
   if (rows.length < 1) {
     throw new AbapError("BAD_INPUT", `mode "${mode}" requires at least one row.`, { mode });
   }
-  const masterType = input.master_type ?? "VDAT";
+  const masterTypeInput = input.master_type;
   const language = assertImgLanguage(input.language ?? (deps.cfg.language || IMG_DEFAULT_LANGUAGE));
   const corrNr = input.corr_nr;
   const confirm = input.confirm;
@@ -1733,6 +1739,7 @@ async function runRowEditMode(deps: ImgEditToolDeps, mode: "preview" | "upsert" 
   // Mirrors parseRowEditArgs's raw-table `view` handling: an explicitly supplied view (even "") wins
   // over the computed default — only an absent `input.view` falls back.
   const view = (input.view ?? computedView).trim();
+  const masterType = masterTypeInput ?? defaultMasterType(resolvedTable.table, view);
 
   const realTable = policyTableFromResolved(resolvedTable, clientField);
   // Full rule set, before the probe bridge is deployed — see preflightResolved's own doc comment.

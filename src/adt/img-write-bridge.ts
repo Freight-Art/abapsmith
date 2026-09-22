@@ -180,7 +180,7 @@ export interface ImgApplyPlan extends ImgProbePlan {
    * customizing object recorded directly (`/AIF/ACTIONS` in the measured
    * evidence).
    */
-  readonly masterType: "VDAT" | "CDAT";
+  readonly masterType: "VDAT" | "CDAT" | "TABU";
 }
 
 // ---------------------------------------------------------------------------
@@ -305,8 +305,8 @@ export function validateApplyPlan(p: ImgApplyPlan): void {
   }
 
   assertDdicIdentifier(p.view, "view");
-  if (p.masterType !== "VDAT" && p.masterType !== "CDAT") {
-    throw new AbapError("BAD_INPUT", `master_type must be "VDAT" or "CDAT".`, { masterType: p.masterType });
+  if (p.masterType !== "VDAT" && p.masterType !== "CDAT" && p.masterType !== "TABU") {
+    throw new AbapError("BAD_INPUT", `master_type must be "VDAT", "CDAT" or "TABU".`, { masterType: p.masterType });
   }
 
   const fieldNamesUpper = new Set<string>();

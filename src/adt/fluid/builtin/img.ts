@@ -290,9 +290,9 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
           RETURN.
         ENDIF.
 
-        IF lv_master_type <> 'VDAT' AND lv_master_type <> 'CDAT'.
+        IF lv_master_type <> 'VDAT' AND lv_master_type <> 'CDAT' AND lv_master_type <> 'TABU'.
           zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
-            iv_text = |masterType must be "VDAT" or "CDAT", got "{ lv_master_type }"| ).
+            iv_text = |masterType must be "VDAT", "CDAT" or "TABU", got "{ lv_master_type }"| ).
           zcl_zmcp_fluid_rt=>end( 1 ).
           RETURN.
         ENDIF.
@@ -732,6 +732,7 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
     FIELD-SYMBOLS <fs_key> TYPE any.
     FIELD-SYMBOLS <key_c>  TYPE c.
     DATA lv_tabkey        TYPE string.
+    DATA lv_has_client    TYPE abap_bool.
     DATA lv_cts_ok        TYPE abap_bool.
     DATA lt_val_names     TYPE ty_strings.
     DATA lv_val_name      TYPE string.
@@ -791,7 +792,7 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
       RETURN.
     ENDIF.
 
-    IF lv_delclass <> iv_exp_delclass OR boolc( lv_clidep = 'X' ) <> iv_exp_clidep.
+    IF lv_delclass <> iv_exp_delclass OR xsdbool( lv_clidep = 'X' ) <> iv_exp_clidep.
       emit( |ZMCP-DDIC-ERR> DD02L for { lv_table_lower } changed since the probe | &&
         |(delclass=[{ lv_delclass }] clidep=[{ lv_clidep }]): re-probe before applying.| ).
       rv_ok = abap_false.
@@ -826,13 +827,17 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
     ENDDO.
 
     READ TABLE lt_comp INTO ls_comp WITH KEY name = to_upper( iv_client_field ).
-    IF sy-subrc <> 0.
+    IF sy-subrc = 0.
+      lv_has_client = abap_true.
+    ELSEIF iv_exp_clidep = abap_true.
       zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'apply'
-        iv_text = |client field "{ iv_client_field }" not found on { lv_table_lower } — this table has no | &&
-          |such component, so it cannot be client-stamped. A table shaped this way is client-independent | &&
-          |and cannot be written through this tool at all; maintain it by hand (SM30/SM34) instead.| ).
+        iv_text = |client field "{ iv_client_field }" not found on { lv_table_lower } — DD02L marks this | &&
+          |table client-dependent, but it has no such component, so it cannot be client-stamped. | &&
+          |Check client_field, or the table's key, before retrying.| ).
       rv_ok = abap_false.
       RETURN.
+    ELSE.
+      lv_has_client = abap_false.
     ENDIF.
 
     TRY.
@@ -867,7 +872,11 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
         ENDIF.
         APPEND |{ to_lower( lv_fld_name ) } = '{ lv_fld_val }'| TO lt_where.
       ENDDO.
-      lv_tabkey = |{ sy-mandt }{ <key_c> }|.
+      IF lv_has_client = abap_true.
+        lv_tabkey = |{ sy-mandt }{ <key_c> }|.
+      ELSE.
+        lv_tabkey = |{ <key_c> }|.
+      ENDIF.
 
       lv_row_ok = abap_true.
       lv_subrc = 4.
@@ -915,9 +924,11 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
         ENDIF.
       ENDIF.
 
-      ASSIGN COMPONENT to_upper( iv_client_field ) OF STRUCTURE <fs_wa> TO <fs_val>.
-      IF sy-subrc = 0.
-        <fs_val> = sy-mandt.
+      IF lv_has_client = abap_true.
+        ASSIGN COMPONENT to_upper( iv_client_field ) OF STRUCTURE <fs_wa> TO <fs_val>.
+        IF sy-subrc = 0.
+          <fs_val> = sy-mandt.
+        ENDIF.
       ENDIF.
 
       IF iv_op = 'upsert'.
@@ -1052,9 +1063,10 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
 
   METHOD cts_record.
     DATA ls_ko200      TYPE ko200.
-    DATA lt_ko200      TYPE STANDARD TABLE OF ko200 WITH DEFAULT KEY.
+    DATA lt_ko200      TYPE tredt_objects.
     DATA ls_e071k      TYPE e071k.
-    DATA lt_e071k      TYPE STANDARD TABLE OF e071k WITH DEFAULT KEY.
+    DATA lt_e071k      TYPE tredt_keys.
+    DATA lv_wi_order   TYPE trkorr.
     DATA lv_we_order   TYPE trkorr.
     DATA lv_we_task    TYPE trkorr.
     DATA lx_cts        TYPE REF TO cx_root.
@@ -1066,6 +1078,7 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
 
     rv_ok = abap_true.
     lv_view_upper = to_upper( iv_view ).
+    lv_wi_order = iv_corr.
 
     ls_ko200-pgmid    = 'R3TR'.
     ls_ko200-object   = iv_master_type.
@@ -1099,31 +1112,33 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
           MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
             WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4 INTO lv_msg.
           emit( |ZMCP-DDIC-ERR> TR_OBJECTS_CHECK failed for row { iv_row } on { iv_table }, | &&
-            |sy-subrc={ sy-subrc }| ).
+            |sy-subrc={ sy-subrc }: { lv_msg }| ).
           rv_ok = abap_false.
           RETURN.
         ENDIF.
 
-        CALL FUNCTION 'TR_OBJECTS_INSERT'
+        " TR_OBJECTS_INSERT forces iv_with_dialog = 'X' and pops SAPLSTRD dynpros
+        " (request choice, task classification) that a classrun cannot answer;
+        " 'D' is the headless insert mode (space would only check).
+        CALL FUNCTION 'TRINT_OBJECTS_CHECK_AND_INSERT'
           EXPORTING
-            iv_no_standard_editor   = 'X'
-            iv_no_show_option       = 'X'
-            wi_order                = iv_corr
+            iv_order              = lv_wi_order
+            iv_with_dialog        = 'D'
+            iv_no_standard_editor = 'X'
+            iv_no_show_option     = 'X'
           IMPORTING
-            we_order                = lv_we_order
-            we_task                 = lv_we_task
-          TABLES
-            wt_ko200                = lt_ko200
-            wt_e071k                = lt_e071k
+            ev_order              = lv_we_order
+            ev_task               = lv_we_task
+          CHANGING
+            ct_ko200              = lt_ko200
+            ct_e071k              = lt_e071k
           EXCEPTIONS
-            cancel_edit_other_error = 1
-            show_only_other_error   = 2
-            OTHERS                  = 3.
+            OTHERS                = 1.
         IF sy-subrc <> 0.
           MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
             WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4 INTO lv_msg.
-          emit( |ZMCP-DDIC-ERR> TR_OBJECTS_INSERT failed for row { iv_row } on { iv_table }, | &&
-            |sy-subrc={ sy-subrc }| ).
+          emit( |ZMCP-DDIC-ERR> TRINT_OBJECTS_CHECK_AND_INSERT failed for row { iv_row } on { iv_table }, | &&
+            |sy-subrc={ sy-subrc } { sy-msgid }{ sy-msgno }: { lv_msg }| ).
           rv_ok = abap_false.
           RETURN.
         ENDIF.
@@ -1319,8 +1334,8 @@ export const imgManifest: FluidManifest = {
           },
           masterType: {
             type: "string",
-            enum: ["VDAT", "CDAT"],
-            description: "KO200/E071K-OBJECT/MASTERTYPE: VDAT for a maintenance view, CDAT for a customizing object.",
+            enum: ["VDAT", "CDAT", "TABU"],
+            description: "KO200/E071K-OBJECT/MASTERTYPE: VDAT for a maintenance view, CDAT for a customizing object, TABU for a table maintained directly (no maintenance view).",
           },
         },
       },
