@@ -36614,6 +36614,8 @@ var init_errors = __esm({
       JOURNAL_IO: "conditional",
       TRANSPORT_LOCKED: "conditional",
       TRANSPORT_GONE: "conditional",
+      TRANSPORT_PENDING: "conditional",
+      // retry after the named request is released
       CTS_DUPLICATE_ENTRY: "terminal",
       // the duplicate E071 rows persist until a human edits the object list
       HTTP_PATH_DENIED: "terminal",
@@ -58357,17 +58359,27 @@ function objectFromTm(n) {
     uri: optional2(attr(n, "dummy_uri"))
   };
 }
+function countByKey(objs) {
+  const counts = /* @__PURE__ */ new Map();
+  for (const obj of objs) {
+    const key = `${obj.pgmid}::${obj.type}::${obj.name}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
 function objectsOf(n) {
-  const wrapped = many(child(node(child(n, "all_objects")), "abap_object"));
-  const direct = many(child(n, "abap_object"));
+  const wrapped = many(child(node(child(n, "all_objects")), "abap_object")).map(objectFromTm);
+  const direct = many(child(n, "abap_object")).map(objectFromTm);
+  const wrappedCounts = countByKey(wrapped);
+  const directCounts = countByKey(direct);
   const seen = /* @__PURE__ */ new Set();
   const out = [];
-  for (const raw of [...wrapped, ...direct]) {
-    const obj = objectFromTm(raw);
+  for (const obj of [...wrapped, ...direct]) {
     const key = `${obj.pgmid}::${obj.type}::${obj.name}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push(obj);
+    const rows = Math.max(wrappedCounts.get(key) ?? 0, directCounts.get(key) ?? 0);
+    out.push(rows >= 2 ? { ...obj, rows } : obj);
   }
   return out;
 }
@@ -80959,7 +80971,11 @@ var packagePart = {
           lt_tadir          TYPE STANDARD TABLE OF tadir WITH EMPTY KEY,
           ls_tadir          TYPE tadir,
           lo_package        TYPE REF TO if_package,
-          lv_content_count  TYPE i.
+          lv_content_count  TYPE i,
+          lv_holder         TYPE trkorr,
+          lv_strkorr        TYPE trkorr,
+          lv_request        TYPE trkorr,
+          lv_task           TYPE trkorr.
     DATA lv_package TYPE devclass.
     lv_package = s( 'package_name' ).
     DATA lv_corr_nr TYPE trkorr.
@@ -80989,7 +81005,33 @@ var packagePart = {
         CONTINUE.
       ENDIF.
       lv_content_count = lv_content_count + 1.
-      line( |ZMCP-PKG-CONTENT> KIND=OBJECT PGMID={ ls_tadir-pgmid } OBJECT={ ls_tadir-object } NAME={ ls_tadir-obj_name }| ).
+      CLEAR: lv_holder, lv_strkorr, lv_request, lv_task.
+      IF ls_tadir-delflag = 'X'.
+        " Object is already gone from TADIR's point of view; find the open
+        " request/task that actually holds the deletion, so the caller can be
+        " told to release it instead of "empty the package".
+        SELECT e071~trkorr, e070~strkorr
+          FROM e071
+          INNER JOIN e070 ON e070~trkorr = e071~trkorr
+          WHERE e071~pgmid = @ls_tadir-pgmid
+            AND e071~object = @ls_tadir-object
+            AND e071~obj_name = @ls_tadir-obj_name
+            AND e070~trstatus IN ( 'D', 'L' )
+          ORDER BY e071~trkorr DESCENDING
+          INTO ( @lv_holder, @lv_strkorr )
+          UP TO 1 ROWS.
+        ENDSELECT.
+        IF lv_holder IS NOT INITIAL.
+          IF lv_strkorr IS NOT INITIAL.
+            " The E071 row sits on a task; its parent request is the real holder.
+            lv_request = lv_strkorr.
+            lv_task    = lv_holder.
+          ELSE.
+            lv_request = lv_holder.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+      line( |ZMCP-PKG-CONTENT> KIND=OBJECT PGMID={ ls_tadir-pgmid } OBJECT={ ls_tadir-object } NAME={ ls_tadir-obj_name } DELFLAG={ ls_tadir-delflag } TRKORR={ lv_request } TASK={ lv_task }| ).
     ENDLOOP.
 
     " Step 3 - delete is only attempted on a provably empty package; any
@@ -81094,7 +81136,11 @@ var transportPart = {
           lv_readerr    TYPE string,
           ls_other      TYPE e071,
           lv_n          TYPE i,
-          lv_positions  TYPE string.
+          lv_positions  TYPE string,
+          lt_surplus    TYPE STANDARD TABLE OF e071 WITH EMPTY KEY,
+          ls_surplus    TYPE e071,
+          lv_key        TYPE string,
+          lv_prev_key   TYPE string.
 
     " Step 1: resolve which of trkorr or its tasks holds the entry.
     APPEND lv_trkorr TO lt_candidates.
@@ -81138,8 +81184,18 @@ var transportPart = {
     " Step 3: name the resolved holder.
     line( |ZMCP-TREN-HOLDER { lv_holder }| ).
 
-    " Step 4: CTS refuses a removal when 2+ E071 rows share pgmid+object+obj_name.
+    " Step 4: 2+ E071 rows can share pgmid+object+obj_name (E071's key is
+    " TRKORR+AS4POS, so this is legal) \u2014 collapse each such group to the row
+    " with the lowest AS4POS. Surplus rows are collected here, into a table
+    " lt_rows is not being read from, and only deleted afterwards.
+    SORT lt_rows BY pgmid object obj_name as4pos.
+    CLEAR lv_prev_key.
     LOOP AT lt_rows INTO ls_e071.
+      lv_key = |{ ls_e071-pgmid }/{ ls_e071-object }/{ ls_e071-obj_name }|.
+      IF lv_key = lv_prev_key.
+        CONTINUE.
+      ENDIF.
+      lv_prev_key = lv_key.
       lv_n = 0.
       CLEAR lv_positions.
       LOOP AT lt_rows INTO ls_other WHERE pgmid = ls_e071-pgmid AND object = ls_e071-object
@@ -81150,14 +81206,31 @@ var transportPart = {
         ELSE.
           lv_positions = |{ lv_positions },{ ls_other-as4pos }|.
         ENDIF.
+        IF ls_other-as4pos <> ls_e071-as4pos.
+          APPEND ls_other TO lt_surplus.
+        ENDIF.
       ENDLOOP.
       IF lv_n >= 2.
-        fail( |duplicate E071 entries for { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name } on { lv_holder }: { lv_n } rows at AS4POS { lv_positions }| ).
-        RETURN.
+        line( |ZMCP-TREN-DEDUP { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name } { lv_n } AS4POS { lv_positions }| ).
       ENDIF.
     ENDLOOP.
 
-    " Step 5: remove every collected row.
+    LOOP AT lt_surplus INTO ls_surplus.
+      DELETE FROM e071 WHERE trkorr = @lv_holder AND as4pos = @ls_surplus-as4pos.
+      lv_subrc = sy-subrc.
+      IF lv_subrc <> 0.
+        ROLLBACK WORK.
+        fail( |could not collapse duplicate E071 row { ls_surplus-pgmid } { ls_surplus-object } { ls_surplus-obj_name } at AS4POS { ls_surplus-as4pos } on { lv_holder }, sy-subrc={ lv_subrc }| ).
+        RETURN.
+      ENDIF.
+      " E071K is keyed by TRKORR+PGMID+OBJECT+OBJNAME+its own AS4POS, not by the
+      " E071 position, and the surviving E071 row still covers the object's key
+      " rows; TR_DELETE_COMM_OBJECT_KEYS drops them with that row in step 5.
+      DELETE ls_req-objects WHERE as4pos = ls_surplus-as4pos.
+      DELETE lt_rows WHERE as4pos = ls_surplus-as4pos.
+    ENDLOOP.
+
+    " Step 5: remove every remaining (unique) row.
     LOOP AT lt_rows INTO ls_e071.
       CALL FUNCTION 'TR_DELETE_COMM_OBJECT_KEYS'
         EXPORTING iv_dialog_flag = space is_e071_delete = ls_e071
@@ -81167,6 +81240,9 @@ var transportPart = {
       MOVE-CORRESPONDING sy TO ls_msg.
       IF lv_subrc <> 0.
         lv_msgtext = |{ ls_msg-msgty } { ls_msg-msgid } { ls_msg-msgno } v1={ ls_msg-msgv1 } v2={ ls_msg-msgv2 } v3={ ls_msg-msgv3 } v4={ ls_msg-msgv4 }|.
+        IF lt_surplus IS NOT INITIAL.
+          ROLLBACK WORK.
+        ENDIF.
         fail( |TR_DELETE_COMM_OBJECT_KEYS failed for { ls_e071-pgmid } { ls_e071-object } { ls_e071-obj_name }, sy-subrc={ lv_subrc }, msg={ lv_msgtext }| ).
         RETURN.
       ENDIF.
@@ -86242,6 +86318,7 @@ var IMG_SOURCE = `CLASS zcl_zmcp_fluid_img DEFINITION
       IMPORTING
         iv_description TYPE string
         iv_owner       TYPE string
+        iv_type        TYPE trfunction
       RETURNING
         VALUE(rv_ok)   TYPE abap_bool.
 
@@ -86294,6 +86371,7 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
     DATA lv_probe_ok     TYPE abap_bool.
     DATA lv_description  TYPE string.
     DATA lv_owner        TYPE string.
+    DATA lv_request_type TYPE trfunction.
     DATA lv_request_ok   TYPE abap_bool.
     DATA lv_client_field TYPE string.
     DATA lv_op           TYPE string.
@@ -86355,6 +86433,7 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
         zcl_zmcp_fluid_rt=>scan( iv_json ).
         lv_description = zcl_zmcp_fluid_rt=>s( 'description' ).
         lv_owner       = zcl_zmcp_fluid_rt=>s( 'owner' ).
+        lv_request_type = zcl_zmcp_fluid_rt=>s( 'request_type' ).
 
         IF lv_description IS INITIAL.
           zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
@@ -86370,7 +86449,17 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
           RETURN.
         ENDIF.
 
-        lv_request_ok = create_request( iv_description = lv_description iv_owner = lv_owner ).
+        IF lv_request_type IS INITIAL.
+          lv_request_type = 'W'.
+        ELSEIF lv_request_type <> 'W' AND lv_request_type <> 'K'.
+          zcl_zmcp_fluid_rt=>err( iv_kind = 'exception' iv_step = 'args'
+            iv_text = |request_type must be W or K, got "{ lv_request_type }"| ).
+          zcl_zmcp_fluid_rt=>end( 1 ).
+          RETURN.
+        ENDIF.
+
+        lv_request_ok = create_request( iv_description = lv_description iv_owner = lv_owner
+          iv_type = lv_request_type ).
 
         IF lv_request_ok = abap_false.
           zcl_zmcp_fluid_rt=>end( 1 ).
@@ -86758,13 +86847,17 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
     lv_text = iv_description.
 
     ls_user-user = sy-uname.
-    ls_user-type = 'Q'.
+    IF iv_type = 'W'.
+      ls_user-type = 'Q'.
+    ELSE.
+      ls_user-type = 'S'.
+    ENDIF.
     INSERT ls_user INTO TABLE lt_users.
 
     IF iv_owner IS NOT INITIAL.
       CALL FUNCTION 'TR_INSERT_REQUEST_WITH_TASKS'
         EXPORTING
-          iv_type           = 'W'
+          iv_type           = iv_type
           iv_text           = lv_text
           iv_owner          = iv_owner
           it_users          = lt_users
@@ -86778,7 +86871,7 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
     ELSE.
       CALL FUNCTION 'TR_INSERT_REQUEST_WITH_TASKS'
         EXPORTING
-          iv_type           = 'W'
+          iv_type           = iv_type
           iv_text           = lv_text
           it_users          = lt_users
         IMPORTING
@@ -86817,6 +86910,7 @@ CLASS zcl_zmcp_fluid_img IMPLEMENTATION.
     ENDIF.
 
     emit( |CTSW> REQUEST len=[{ strlen( ls_request_header-trkorr ) }] value=[{ ls_request_header-trkorr }]| ).
+    emit( |CTSW> REQTYPE len=[1] value=[{ iv_type }]| ).
 
     READ TABLE lt_task_headers INTO ls_task_header INDEX 1.
     IF sy-subrc <> 0.
@@ -87350,7 +87444,7 @@ var imgManifest = {
     {
       name: "create_request",
       category: "mutate",
-      description: "Creates a customizing (type W) transport request via TR_INSERT_REQUEST_WITH_TASKS, with a type-Q task recorded for the logon user.",
+      description: "Creates a transport request via TR_INSERT_REQUEST_WITH_TASKS: type W (customizing, task type Q, the default) or type K (workbench, task type S). CTS refuses to record a client-independent table entry on a customizing request (TK599), so those need K.",
       input: {
         type: "object",
         required: ["description"],
@@ -87364,6 +87458,11 @@ var imgManifest = {
             type: "string",
             maxLength: 12,
             description: "Request owner; defaults to the logon user when omitted."
+          },
+          request_type: {
+            type: "string",
+            enum: ["W", "K"],
+            description: "W (customizing, default) or K (workbench)."
           }
         }
       },
@@ -111270,7 +111369,13 @@ function parsePackageContents(raw) {
     const name = fields["NAME"];
     if (pgmid === void 0 || object3 === void 0 || name === void 0) continue;
     if (kind !== "OBJECT" && kind !== "SUBPKG") continue;
-    contents.push({ kind, pgmid, object: object3, name });
+    const entry = { kind, pgmid, object: object3, name };
+    if (fields["DELFLAG"] === "X") {
+      entry.deleted = true;
+      if (fields["TRKORR"]) entry.trkorr = fields["TRKORR"];
+      if (fields["TASK"]) entry.task = fields["TASK"];
+    }
+    contents.push(entry);
   }
   return { contents };
 }
@@ -111291,10 +111396,38 @@ async function deletePackageViaBridge(conn, gate, params) {
   const beforeAssert = (transcript2) => {
     const { contents: contents2 } = parsePackageContents(transcript2.raw);
     if (contents2.length > 0) {
-      const listed = contents2.map((c) => `${c.kind === "SUBPKG" ? "sub-package" : "object"} ${c.pgmid} ${c.object} ${c.name}`).join(", ");
+      const live = contents2.filter((c) => c.deleted === void 0);
+      const pending = contents2.filter((c) => c.deleted !== void 0);
+      const liveList = live.map((c) => `${c.kind === "SUBPKG" ? "sub-package" : "object"} ${c.pgmid} ${c.object} ${c.name}`).join(", ");
+      const pendingList = pending.map((c) => {
+        if (c.trkorr === void 0) {
+          return `object ${c.pgmid} ${c.object} ${c.name} (deleted, awaiting release of a request this server could not find \u2014 no open E071 row)`;
+        }
+        const taskPart = c.task !== void 0 ? `, task ${c.task}` : "";
+        return `object ${c.pgmid} ${c.object} ${c.name} (deleted, awaiting release of request ${c.trkorr}${taskPart})`;
+      }).join(", ");
+      const pendingRequests = [];
+      for (const c of pending) {
+        if (c.trkorr !== void 0 && !pendingRequests.includes(c.trkorr)) pendingRequests.push(c.trkorr);
+      }
+      if (live.length === 0 && pending.length > 0) {
+        const releaseSentence = pendingRequests.length > 0 ? `Releasing ${pendingRequests.join(", ")} will make the package deletable (abap_transport_release); abapsmith does not release a request on the caller's behalf.` : "The request holding the deletion could not be found from E071; check the objects' transport entries (abap_transport check) before retrying.";
+        throw new AbapError(
+          "TRANSPORT_PENDING",
+          `Package ${packageName} was NOT deleted: everything left in it is already deleted and waits for a transport release \u2014 ${pendingList}. ${releaseSentence}`,
+          { packageName, contents: contents2, pendingRequests }
+        );
+      }
+      if (pending.length > 0) {
+        throw new AbapError(
+          "CHECK_FAILED",
+          `Package ${packageName} is not empty and was NOT deleted. It still contains: ${liveList}. Also pending release: ${pendingList}. Empty the package first (move or delete its objects and sub-packages, or reassign its sub-packages elsewhere) and retry \u2014 abapsmith will not delete a package's contents on the caller's behalf.`,
+          { packageName, contents: contents2, pendingRequests }
+        );
+      }
       throw new AbapError(
         "CHECK_FAILED",
-        `Package ${packageName} is not empty and was NOT deleted. It still contains: ${listed}. Empty the package first (move or delete its objects and sub-packages, or reassign its sub-packages elsewhere) and retry \u2014 abapsmith will not delete a package's contents on the caller's behalf.`,
+        `Package ${packageName} is not empty and was NOT deleted. It still contains: ${liveList}. Empty the package first (move or delete its objects and sub-packages, or reassign its sub-packages elsewhere) and retry \u2014 abapsmith will not delete a package's contents on the caller's behalf.`,
         { packageName, contents: contents2 }
       );
     }
@@ -139100,6 +139233,7 @@ init_errors();
 init_enhancement_templates();
 init_transports();
 var TREN_ROW_RE = /^ZMCP-TREN-ROW (\S+) (\S+) (\S+)/;
+var TREN_DEDUP_RE = /^ZMCP-TREN-DEDUP (\S+) (\S+) (\S+) (\d+) AS4POS (\S+)$/;
 async function removeTransportEntryViaBridge(conn, gate, params, proof) {
   void proof;
   const trkorr = assertTrkorr(params.trkorr, "removeTransportEntry");
@@ -139129,7 +139263,14 @@ async function removeTransportEntryViaBridge(conn, gate, params, proof) {
         "CTS_DUPLICATE_ENTRY",
         `CTS refused to remove ${objName} from ${holder2}: ${count} E071 rows share ${pgmid} ${object3} ${objName} (AS4POS ${positions.join(", ")}) \u2014 nothing was removed. Raw ABAP-side detail: ${transcript2.errorLine}`,
         { trkorr, objectName, holder: holder2, pgmid, object: object3, count, positions, raw: transcript2.raw },
-        `TRINT_DELETE_COMM_OBJECT_KEYS counts the request's E071 rows matching PGMID+OBJECT+OBJ_NAME and raises w_duplicate_entry (message TR 292) at two or more; TR_DELETE_COMM_OBJECT_KEYS has no parameter naming which AS4POS to drop, and the guard has no bypass. E071's key is TRKORR+AS4POS, so the duplicate rows are legal \u2014 abapsmith cannot say what produced them here. SE03's "Unlock Objects (Expert Tool)" does NOT fix this on its own \u2014 the refusal counts E071 rows, not locks. The remedy is outside abapsmith: edit the request's object list in SE09/SE10 so at most one row remains for the object, then retry removeObject; or release the request, which is irreversible.`
+        "The bridge now collapses duplicate E071 rows before removing the entry, so it should no longer emit this line \u2014 seeing it means an older bridge body is still deployed. Redeploy the fluid classic tool and retry."
+      );
+    }
+    if (transcript2.errorLine?.startsWith("TR_DELETE_COMM_OBJECT_KEYS failed") && transcript2.errorLine.includes(" TR 292")) {
+      throw new AbapError(
+        "CTS_DUPLICATE_ENTRY",
+        `CTS refused to remove ${objectName} from ${trkorr}: TR_DELETE_COMM_OBJECT_KEYS still raised TR 292 after the bridge's collapse \u2014 nothing further was removed. Raw ABAP-side detail: ${transcript2.errorLine}`,
+        { trkorr, objectName, raw: transcript2.raw }
       );
     }
     if (transcript2.errorLine?.startsWith("no entry for")) {
@@ -139149,6 +139290,7 @@ async function removeTransportEntryViaBridge(conn, gate, params, proof) {
   });
   let holder = trkorr;
   const removed = [];
+  const collapsed = [];
   for (const line2 of transcript.raw.split("\n")) {
     const trimmed = line2.trim();
     const holderMatch = trimmed.match(/^ZMCP-TREN-HOLDER (\S+)/);
@@ -139157,15 +139299,28 @@ async function removeTransportEntryViaBridge(conn, gate, params, proof) {
       continue;
     }
     const rowMatch = trimmed.match(TREN_ROW_RE);
-    if (rowMatch) removed.push({ pgmid: rowMatch[1], object: rowMatch[2], name: rowMatch[3] });
+    if (rowMatch) {
+      removed.push({ pgmid: rowMatch[1], object: rowMatch[2], name: rowMatch[3] });
+      continue;
+    }
+    const dedupMatch = trimmed.match(TREN_DEDUP_RE);
+    if (dedupMatch) {
+      collapsed.push({
+        pgmid: dedupMatch[1],
+        object: dedupMatch[2],
+        name: dedupMatch[3],
+        rows: Number(dedupMatch[4]),
+        positions: dedupMatch[5].split(",")
+      });
+    }
   }
-  return { run, transcript, holder, removed };
+  return { run, transcript, holder, removed, collapsed };
 }
 function removalTouchedNothing(e) {
   if (!(e instanceof AbapError)) return false;
   const raw = e.details.raw;
   if (typeof raw !== "string") return false;
-  return !raw.split("\n").some((line2) => TREN_ROW_RE.test(line2.trim()));
+  return !raw.split("\n").some((line2) => TREN_ROW_RE.test(line2.trim()) || TREN_DEDUP_RE.test(line2.trim()));
 }
 
 // src/adt/transport-log.ts
@@ -139519,7 +139674,7 @@ function objectRows(objects) {
   return objects.map((o) => ({
     pgmid: o.pgmid,
     type: o.type,
-    name: o.name,
+    name: o.rows !== void 0 && o.rows >= 2 ? `${o.name} (x${o.rows}, duplicate E071 rows)` : o.name,
     locked: o.locked ? "yes" : "no",
     description: o.description ?? ""
   }));
@@ -139537,7 +139692,12 @@ function unionedObjects(r) {
   const byKey = /* @__PURE__ */ new Map();
   for (const obj of [...r.objects, ...r.tasks.flatMap((t) => t.objects)]) {
     const key = `${obj.pgmid}::${obj.type}::${obj.name}`;
-    if (!byKey.has(key)) byKey.set(key, obj);
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, obj);
+    } else if (obj.rows !== void 0 && (existing.rows === void 0 || obj.rows > existing.rows)) {
+      byKey.set(key, { ...existing, rows: obj.rows });
+    }
   }
   return [...byKey.values()];
 }
@@ -139907,6 +140067,12 @@ async function opShow(conn, input, maxChars, journal, ownership) {
     });
   }
   const notes = subjectNotes(subject, r);
+  const duplicateRowsCount = objects.filter((o) => o.rows !== void 0 && o.rows >= 2).length;
+  if (duplicateRowsCount > 0) {
+    notes.push(
+      `${duplicateRowsCount} object(s) have duplicate E071 rows (E071's key is TRKORR+AS4POS, so CTS accepts them); removeObject collapses the duplicates to one row before removing the entry.`
+    );
+  }
   if (!subject.substituted && r.status === "released") {
     notes.push("Already released \u2014 it can no longer be changed.");
   } else if (subject.substituted) {
@@ -140659,6 +140825,11 @@ async function opRemoveObject(conn, input, maxChars, gate, journal) {
       "Removed: " + res.removed.map((r) => `${r.pgmid} ${r.object} ${r.name}`).join(", ") + "."
     );
   }
+  for (const c of res.collapsed) {
+    notes.push(
+      `Collapsed ${c.rows} duplicate E071 rows for ${c.pgmid} ${c.object} ${c.name} (AS4POS ${c.positions.join(", ")}) to one row before removing it.`
+    );
+  }
   notes.push(
     `This only removes the entry \u2014 it does not say ${res.holder} is now deletable. Follow up with operation "delete" to find out.`
   );
@@ -140679,6 +140850,7 @@ async function opRemoveObject(conn, input, maxChars, gate, journal) {
       object: objectName,
       objectOnSystem,
       removedCount: res.removed.length,
+      collapsedRows: res.collapsed.reduce((sum, c) => sum + (c.rows - 1), 0),
       gone: res.transcript.tags.includes("TREN-GONE")
     },
     notes,
@@ -149133,30 +149305,31 @@ var IMGW_LINE_PREFIX = "IMGW> ";
 var IMGW_MAX_ROWS = 50;
 var CTS_INSERT_FM = Object.freeze({
   checkFm: "TR_OBJECTS_CHECK",
-  insertFm: "TR_OBJECTS_INSERT",
+  insertFm: "TRINT_OBJECTS_CHECK_AND_INSERT",
   params: Object.freeze({
-    order: "wi_order",
+    order: "iv_order",
     noStandardEditor: "iv_no_standard_editor",
     noShowOption: "iv_no_show_option",
-    objects: "wt_ko200",
-    keys: "wt_e071k",
+    withDialog: "iv_with_dialog",
+    objects: "ct_ko200",
+    keys: "ct_e071k",
     /**
-     * `TR_OBJECTS_INSERT`-only exports (`TRKORR`-typed): CTS may record the
-     * object into a *task* beneath the requested order rather than the
-     * order itself, so `weOrder`/`weTask` are what was actually chosen, not
-     * necessarily what `order` (`wi_order`) above asked for. Not present on
-     * `TR_OBJECTS_CHECK` — that FM never files anything, so it has nothing
-     * to report back.
+     * `TRINT_OBJECTS_CHECK_AND_INSERT`-only exports (`TRKORR`-typed): CTS may
+     * record the object into a *task* beneath the requested order rather
+     * than the order itself, so `weOrder`/`weTask` are what was actually
+     * chosen, not necessarily what `order` (`iv_order`) above asked for. Not
+     * present on `TR_OBJECTS_CHECK` — that FM never files anything, so it
+     * has nothing to report back.
      */
-    weOrder: "we_order",
-    weTask: "we_task"
+    weOrder: "ev_order",
+    weTask: "ev_task"
   }),
   exceptions: Object.freeze({
     cancelEditOtherError: "cancel_edit_other_error",
     showOnlyOtherError: "show_only_other_error"
   }),
   confidence: "high",
-  note: "PROVEN FROM HERE: TR_OBJECTS_CHECK and TR_OBJECTS_INSERT were both called from this server, on 2026-09-06, and both succeeded \u2014 on an upsert into TB004 and again on the delete of that same row. What landed: an E071 header R3TR VDAT V_TB004 with OBJFUNC K, LOCKFLAG blank, AS4POS 000001; and exactly one E071K row, R3TR TABU TB004 000001 VDAT V_TB004, with TABKEY 001ZTMD (3-char client followed by the key, no padding beyond the field), SORTFLAG blank, LANG blank, OBJFUNC/FLAG/ACTIVITY blank. That E071K row sits on the request TRKORR, not on the task. The delete leg added no second E071K row \u2014 the same single row was still there unchanged afterwards. So the parameter names, types and the check-then-insert ordering are now confirmed by a successful call, not merely read from the dictionaries. STILL UNPROVEN FROM HERE: every failure path either FM can take \u2014 authority, lock, or request-type refusal, and both CANCEL_EDIT_OTHER_ERROR and SHOW_ONLY_OTHER_ERROR \u2014 none of which has been triggered from this server, which is exactly why the exception names and the sy-msg* capture still exist; and any table with more than one non-client key field \u2014 round 6 never got a multi-key probe past activation, so no multi-field TABKEY has ever been recorded from here. Measured shape: objects table is WT_KO200 (type KO200), not WT_E071/E071; TR_OBJECTS_CHECK must run before TR_OBJECTS_INSERT; IV_NO_STANDARD_EDITOR and IV_NO_SHOW_OPTION must both be 'X' on both calls to suppress the dialog; both raise CANCEL_EDIT_OTHER_ERROR and SHOW_ONLY_OTHER_ERROR, the latter carrying the real reason in sy-msg*. TR_APPEND_TO_COMM_OBJS_KEYS also exists but its own long text calls it obsolete \u2014 deliberately not used."
+  note: "TR_OBJECTS_CHECK proven 2026-09-06; TR_OBJECTS_INSERT hard-codes iv_with_dialog='X' and popped SAPLSTRD dynpros 0300/0352 in a classrun on 2026-09-22 (CX_SY_SEND_DYNPRO_NO_RECEIVER); TRINT_OBJECTS_CHECK_AND_INSERT with 'D' proven 2026-09-22 (E071 R3TR TABU BALOBJ OBJFUNC K on task A4HK900351 with one E071K row per key); space is check-only and writes nothing; a customizing (W) request refuses a client-independent table entry with TK599. Still unproven: the FM's failure paths."
 });
 var DDIC_IDENTIFIER_RE = /^[A-Za-z0-9_/]{1,30}$/;
 function assertDdicIdentifier(value, what) {
@@ -149546,6 +149719,11 @@ function validateCustomizingRequestPlan(p) {
   if (p.owner !== void 0) {
     assertCustomizingOwner(p.owner);
   }
+  if (p.requestType !== void 0 && p.requestType !== "W" && p.requestType !== "K") {
+    throw new AbapError("BAD_INPUT", `request type must be "W" or "K", got ${JSON.stringify(p.requestType)}.`, {
+      value: p.requestType
+    });
+  }
 }
 function extractCustReqValue(afterHead, fieldsRe) {
   const m = fieldsRe.exec(afterHead);
@@ -149588,6 +149766,11 @@ function parseCustomizingRequestTranscript(text5) {
         case "TASKTYPE": {
           const parsed = extractCustReqValue(remainder, CUSTREQ_VAL_RE);
           if (parsed) result.taskType = parsed.value;
+          break;
+        }
+        case "REQTYPE": {
+          const parsed = extractCustReqValue(remainder, CUSTREQ_VAL_RE);
+          if (parsed) result.requestType = parsed.value;
           break;
         }
         case "ERROR": {
@@ -149711,7 +149894,11 @@ async function runCreateCustomizingRequest(conn, gate, plan, cfg) {
     {
       tool: "img",
       action: "create_request",
-      args: { description: plan.description, ...plan.owner !== void 0 ? { owner: plan.owner } : {} },
+      args: {
+        description: plan.description,
+        ...plan.owner !== void 0 ? { owner: plan.owner } : {},
+        ...plan.requestType !== void 0 ? { request_type: plan.requestType } : {}
+      },
       caller: { tool: "abap_img_edit", action: "create_request" }
     }
   );
@@ -149763,6 +149950,11 @@ var CHAR_LIKE_KEY_TYPES = /* @__PURE__ */ new Set([
 function normalizedCorrNr(corrNr) {
   const trimmed = corrNr?.trim();
   return trimmed === void 0 || trimmed === "" ? void 0 : trimmed;
+}
+function transportAllowlistHasAuto(cfg) {
+  const allowlist = cfg.allowTransports ?? ["*"];
+  if (allowlist.length === 0) return false;
+  return allowlist.map((t) => t.trim().toUpperCase()).includes("AUTO");
 }
 function classifyCccoractiv(raw) {
   if (raw === void 0) return "unknown";
@@ -149860,10 +150052,19 @@ function evaluateImgWrite(probe3, req, cfg, opts) {
   const recordingProvenOff = cccoractiv === "off";
   const corrRequired = !(table.clientDependent === true && recordingProvenOff);
   const namedCorrNr = normalizedCorrNr(req.corrNr);
-  const corrNrMissingMessage = corrRequired && namedCorrNr === void 0 ? `No corr_nr was supplied. A transport request is required here because ${table.clientDependent === false ? "the table is client-independent" : `automatic recording is not confirmed to be switched off for this client (T000-CCCORACTIV read as ${describeCccoractiv(probe3.cccoractiv)})`}.` : void 0;
-  if (corrNrMissingMessage) {
-    if (req.mode !== "preview") return refuse("corr-nr-required", corrNrMissingMessage);
-    notes.push(`Applying this change would refuse unless a transport request is supplied: ${corrNrMissingMessage}`);
+  const allowlistHasAuto = transportAllowlistHasAuto(cfg);
+  let corrNrResolution = "none";
+  if (corrRequired && namedCorrNr === void 0) {
+    if (opts?.autoResolve === true && allowlistHasAuto) {
+      notes.push(
+        "No corr_nr was supplied; this session resolves one because ABAP_ALLOW_TRANSPORTS contains auto (a customizing request for a client-dependent table, a workbench request for a client-independent one)."
+      );
+      corrNrResolution = "session";
+    } else {
+      const corrNrMissingMessage = `No corr_nr was supplied. A transport request is required here because ${table.clientDependent === false ? "the table is client-independent" : `automatic recording is not confirmed to be switched off for this client (T000-CCCORACTIV read as ${describeCccoractiv(probe3.cccoractiv)})`}.`;
+      if (req.mode !== "preview") return refuse("corr-nr-required", corrNrMissingMessage);
+      notes.push(`Applying this change would refuse unless a transport request is supplied: ${corrNrMissingMessage}`);
+    }
   }
   let corrNrDeniedMessage;
   if (namedCorrNr !== void 0) {
@@ -149873,13 +150074,22 @@ function evaluateImgWrite(probe3, req, cfg, opts) {
     } else {
       const normalized = allowlist.map((t) => t.trim().toUpperCase());
       if (!normalized.includes("*") && !normalized.includes(namedCorrNr.toUpperCase())) {
-        corrNrDeniedMessage = `Transport ${namedCorrNr} is not permitted by the configured transport allowlist [${allowlist.join(", ")}]. Use one of the allowed requests, or ask the operator to widen it.`;
+        if (normalized.includes("AUTO") && opts?.sessionCreated?.(namedCorrNr.toUpperCase()) === true) {
+          notes.push(
+            `Transport ${namedCorrNr} was created by this session (abap_img_edit create_request or abap_transport create) and is accepted under ABAP_ALLOW_TRANSPORTS=auto.`
+          );
+        } else {
+          corrNrDeniedMessage = `Transport ${namedCorrNr} is not permitted by the configured transport allowlist [${allowlist.join(", ")}]. Use one of the allowed requests, or ask the operator to widen it.` + (normalized.includes("AUTO") ? " Under auto, pass a request this session created (abap_img_edit mode=create_request or abap_transport create), or omit corr_nr to let this session resolve one." : "");
+        }
       }
     }
   }
   if (corrNrDeniedMessage) {
     if (req.mode !== "preview") return refuse("corr-nr-not-allowed", corrNrDeniedMessage);
     notes.push(`Applying this change would refuse: ${corrNrDeniedMessage}`);
+  }
+  if (namedCorrNr !== void 0 && corrNrDeniedMessage === void 0) {
+    corrNrResolution = "named";
   }
   const baseTable = table.table.trim();
   if (req.mode === "upsert" || req.mode === "delete") {
@@ -149898,7 +150108,7 @@ function evaluateImgWrite(probe3, req, cfg, opts) {
   if (req.mode === "preview") {
     notes.push("This was a preview: rows were validated but nothing was written.");
   }
-  return { allowed: true, notes };
+  return { allowed: true, notes, corrRequired, corrNrResolution };
 }
 
 // src/adt/img-checks.ts
@@ -150126,7 +150336,7 @@ var imgEditInputSchema = {
     "Only meaningful with object: which catalog to resolve object against. Omitted: tries table, view, cluster, transaction, customizing object, in that order, first match wins."
   ),
   table: external_exports.string().optional().describe(
-    "Expert escape hatch: the base DDIC table to read/write directly, bypassing activity/object resolution. Exactly one of activity/object/table is required. Requires key_fields; a genuinely client-independent table cannot be written."
+    "Expert escape hatch: the base DDIC table to read/write directly, bypassing activity/object resolution. Exactly one of activity/object/table is required. Requires key_fields; a client-independent table needs allow_cross_client=true."
   ),
   client_field: external_exports.string().optional().describe(
     "table (expert escape hatch) only: the table's client field name, e.g. MANDT. Conflicts with activity/object."
@@ -150152,10 +150362,22 @@ var imgEditInputSchema = {
     "Clears the policy refusal for a client-independent (affects-every-client) table. Does not make it writable \u2014 the apply class always sets the client field from sy-mandt."
   ),
   description: external_exports.string().optional().describe("create_request only: the request's description text."),
-  owner: external_exports.string().optional().describe("create_request only: the request owner. Defaults to the logged-in user.")
+  owner: external_exports.string().optional().describe("create_request only: the request owner. Defaults to the logged-in user."),
+  request_type: external_exports.enum(["customizing", "workbench"]).optional().describe(
+    'create_request only: "customizing" (type W, the default) or "workbench" (type K) \u2014 a client-independent table needs workbench, since CTS refuses to record it on a customizing request. Also: when ABAP_ALLOW_TRANSPORTS is auto and corr_nr is omitted on upsert/delete, this session resolves (and, if needed, creates) the matching kind of request itself.'
+  )
 };
 var ImgEditInput = external_exports.object(imgEditInputSchema);
 var ok14 = (text5) => ({ content: [{ type: "text", text: text5 }] });
+var sessionImgRequests = /* @__PURE__ */ new WeakMap();
+function rememberSessionImgRequest(owner, kind, trkorr) {
+  const rec = sessionImgRequests.get(owner) ?? {};
+  rec[kind] = trkorr;
+  sessionImgRequests.set(owner, rec);
+}
+function lookupSessionImgRequest(owner, kind) {
+  return sessionImgRequests.get(owner)?.[kind];
+}
 function requireString(mode, field, value) {
   const v = (value ?? "").trim();
   if (!v) throw new AbapError("BAD_INPUT", `mode "${mode}" requires ${field}.`, { mode, field });
@@ -150169,6 +150391,7 @@ function rejectForMode2(mode, field, value) {
 function parseRowEditArgs(mode, input, cfg) {
   rejectForMode2(mode, "description", input.description);
   rejectForMode2(mode, "owner", input.owner);
+  rejectForMode2(mode, "request_type", input.request_type);
   const table = requireString(mode, "table", input.table);
   const keyFields = input.key_fields ?? [];
   if (keyFields.length < 1) {
@@ -150187,6 +150410,7 @@ function parseRowEditArgs(mode, input, cfg) {
     masterType: input.master_type ?? defaultMasterType(table, (input.view ?? table).trim()),
     language: assertImgLanguage(input.language ?? (cfg.language || IMG_DEFAULT_LANGUAGE)),
     corrNr: input.corr_nr,
+    corrNrSource: input.corr_nr !== void 0 ? "caller" : void 0,
     confirm: input.confirm,
     allowCrossClient: input.allow_cross_client ?? false
   };
@@ -150266,11 +150490,7 @@ function splitClientField(table, objectLabel) {
   const clientKeyField = table.keyFields.find((f) => f.dataType.trim().toUpperCase() === "CLNT");
   if (!clientKeyField) {
     if (!table.clientDependent) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `"${objectLabel}" resolves to base table ${table.table}, which is client-independent (no CLNT-typed key field) \u2014 this tool cannot write a client-independent table at all, through this path or the table/key_fields/client_field expert escape hatch: the shared apply class refuses outright, before touching any row, when the declared client field is not a component of the table \u2014 which a table shaped this way never has. Maintain this table by hand (SM30/SM34) instead.`,
-        { table: table.table }
-      );
+      return { clientField: "MANDT", keyFields: table.keyFields.map((f) => f.field) };
     }
     throw new AbapError(
       "BAD_INPUT",
@@ -150460,7 +150680,7 @@ function policyTableFromProbe(args, probe3) {
     fields
   };
 }
-function evaluateReal(args, mode, probe3, safety) {
+function evaluateReal(deps, args, mode, probe3, safety) {
   const realProbe = {
     table: policyTableFromProbe(args, probe3),
     targetKind: resolvedPolicyTargetKind(args),
@@ -150474,7 +150694,9 @@ function evaluateReal(args, mode, probe3, safety) {
     allowCrossClient: args.allowCrossClient
   };
   const verdict = evaluateImgWrite(realProbe, req, safety.config, {
-    previewDenyExtra: safety.config.dataPreviewDenyTables
+    previewDenyExtra: safety.config.dataPreviewDenyTables,
+    autoResolve: deps.transport !== void 0,
+    sessionCreated: (t) => deps.transport?.createdThisSession(t) ?? false
   });
   if (!verdict.allowed) {
     throw new AbapError("SAFETY_DENIED", verdict.reason, { operation: mode, rule: verdict.rule, table: args.table });
@@ -150768,7 +150990,7 @@ function armedDeleteRowsTable(args, apply) {
   }));
   return textTable(rows, ["row", "key", "change", "changed", "result"]);
 }
-function renderArmed(mode, args, apply, notes, checks, journalNote, maxChars) {
+function renderArmed(mode, args, apply, notes, checks, journalNote, table, maxChars) {
   const t = apply.transcript;
   const finalNotes = [...notes];
   if (journalNote) finalNotes.push(journalNote);
@@ -150791,14 +151013,15 @@ function renderArmed(mode, args, apply, notes, checks, journalNote, maxChars) {
   const CTS_OBJECT = "TABU";
   const identityLine = `${CTS_PGMID} ${CTS_OBJECT} ${args.table.toUpperCase()} (master ${args.masterType} ${args.view.toUpperCase()})`;
   const mandt = t.client?.mandt;
+  const clientDependent = table.clientDependent === true;
   const trkeyRows = t.trkeys.map((k) => ({
     row: String(k.row),
-    tabkey: mandt !== void 0 ? `${mandt}${k.value}` : k.value,
+    tabkey: clientDependent && mandt !== void 0 ? `${mandt}${k.value}` : k.value,
     trkorr: k.trkorr,
     recorded_order: k.recordedOrder ?? "",
     recorded_task: k.recordedTask ?? ""
   }));
-  if (trkeyRows.length && mandt === void 0) {
+  if (trkeyRows.length && clientDependent && mandt === void 0) {
     finalNotes.push(
       "The transport entry's tabkey below is the key portion only (no IMGW> CLIENT line was parsed to supply the client prefix SAP actually stored)."
     );
@@ -150820,6 +151043,7 @@ ${textTable(trkeyRows, ["row", "tabkey", "trkorr", "recorded_order", "recorded_t
       view: args.view,
       masterType: args.masterType,
       corrNr: args.corrNr,
+      corrNrSource: args.corrNrSource,
       applied: t.applied ?? void 0,
       bridgeClass: apply.bridgeClass,
       bridgeRefreshed: apply.bridgeRefreshed
@@ -150854,6 +151078,7 @@ function renderCreateRequest(plan, result, maxChars) {
       mode: "create_request",
       description: plan.description,
       owner: plan.owner,
+      requestType: plan.requestType === "K" ? "workbench" : "customizing",
       request: t.request,
       task: t.task,
       taskType: t.taskType,
@@ -150916,7 +151141,7 @@ async function recordRowMutation(deps, mode, args, probe3, apply, failure) {
     irreversible: true,
     systemKey: systemKey({ sid: deps.cfg.sid, url: deps.cfg.url, client: deps.cfg.client }),
     ...args.corrNr !== void 0 ? { corrNr: args.corrNr } : {},
-    trSource: "caller",
+    trSource: args.corrNrSource ?? "caller",
     tool: "abap_img_edit"
   };
   let entry;
@@ -150943,6 +151168,57 @@ async function recordRowMutation(deps, mode, args, probe3, apply, failure) {
     return `Journal entry ${entry.id} could not be settled \u2014 see server log.`;
   }
 }
+async function journalCreatedRequest(deps, description, transcript, trSource) {
+  const t = transcript;
+  const warn = deps.warn ?? ((m) => void process.stderr.write(`${m}
+`));
+  const sysKey = systemKey({ sid: deps.cfg.sid, url: deps.cfg.url, client: deps.cfg.client });
+  if (t.request) {
+    try {
+      const entry = await deps.journal.begin({
+        operation: "transport-create",
+        object: {
+          name: t.request,
+          type: "CTS/TR",
+          uri: `/sap/bc/adt/cts/transportrequests/${t.request}`,
+          package: "",
+          description
+        },
+        existedBefore: false,
+        beforeCapture: "confirmed-absent",
+        systemKey: sysKey,
+        corrNr: t.request,
+        trSource,
+        tool: "abap_img_edit"
+      });
+      if (entry) {
+        const settled = await deps.journal.settle(entry.id, { outcome: "succeeded" });
+        if (!settled.settled) warn(`[abapsmith] WARNING: ${t.request} \u2014 journal entry ${entry.id} could not be settled (${settled.reason}).`);
+      }
+    } catch (e) {
+      warn(`[abapsmith] WARNING: ${t.request} \u2014 created but NOT journalled: ${e.message}.`);
+    }
+    return;
+  }
+  const reason = t.errors.length ? t.errors.join("; ") : "no request number was parsed from the bridge transcript";
+  try {
+    const entry = await deps.journal.begin({
+      operation: "transport-create",
+      object: { name: "(unknown)", type: "CTS/TR", uri: "", package: "", description },
+      existedBefore: false,
+      beforeCapture: "confirmed-absent",
+      systemKey: sysKey,
+      trSource,
+      tool: "abap_img_edit"
+    });
+    if (entry) {
+      const settled = await deps.journal.settle(entry.id, { outcome: "failed", error: reason });
+      if (!settled.settled) warn(`[abapsmith] WARNING: suspected orphan customizing request \u2014 journal entry ${entry.id} could not be settled (${settled.reason}).`);
+    }
+  } catch (e) {
+    warn(`[abapsmith] WARNING: suspected orphan customizing request \u2014 NOT journalled: ${e.message}.`);
+  }
+}
 function buildApplyPlan(args, op, table) {
   const fields = table.fields.map((f) => ({ ...f }));
   return {
@@ -150959,6 +151235,49 @@ function buildApplyPlan(args, op, table) {
     view: args.view,
     masterType: args.masterType
   };
+}
+function imgSessionRequestKind(table) {
+  return table.clientDependent === false ? "workbench" : "customizing";
+}
+function previewSessionCorrNr(deps, table) {
+  const owner = deps.transport;
+  if (!owner) return void 0;
+  const kind = imgSessionRequestKind(table);
+  const cached2 = kind === "workbench" ? lookupSessionImgRequest(owner, "workbench") ?? owner.trkorr : lookupSessionImgRequest(owner, "customizing");
+  return cached2 ? { corrNr: cached2, kind } : void 0;
+}
+async function resolveSessionCorrNr(deps, table) {
+  const owner = deps.transport;
+  if (!owner) {
+    throw new AbapError("CHECK_FAILED", "No session transport is available to resolve a request.", {});
+  }
+  const kind = imgSessionRequestKind(table);
+  const cached2 = kind === "workbench" ? lookupSessionImgRequest(owner, "workbench") ?? owner.trkorr : lookupSessionImgRequest(owner, "customizing");
+  if (cached2) return { corrNr: cached2, source: "session-cached", kind };
+  const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  const plan = {
+    description: `abapsmith ${kind} request ${today}`,
+    requestType: kind === "workbench" ? "K" : "W"
+  };
+  const result = await deps.pool.withWrite(
+    "abap_img_edit",
+    imgManifest.entry,
+    (conn) => runCreateCustomizingRequest(conn, deps.safety, plan, deps.cfg)
+  );
+  const t = result.transcript;
+  await journalCreatedRequest(deps, plan.description, t, "session-created");
+  if (!t.request) {
+    throw new AbapError("CHECK_FAILED", createRequestFailureMessage(t, plan.description), {
+      description: plan.description,
+      task: t.task,
+      taskType: t.taskType,
+      errors: t.errors,
+      warnings: t.warnings
+    });
+  }
+  owner.noteCreated(t.request);
+  rememberSessionImgRequest(owner, kind, t.request);
+  return { corrNr: t.request, source: "session-created", kind };
 }
 async function runProbeAndApply(deps, mode, args, opts) {
   if (opts.needsReadAndConnect) deps.safety.assert("read");
@@ -150980,14 +151299,30 @@ async function runProbeAndApply(deps, mode, args, opts) {
     imgManifest.entry,
     (conn) => runImgProbe(conn, deps.safety, probePlan, deps.cfg, mode)
   );
-  const verdict = evaluateReal(args, mode, probe3, deps.safety);
+  const verdict = evaluateReal(deps, args, mode, probe3, deps.safety);
+  const notes = [...verdict.notes];
   const table = policyTableFromProbe(args, probe3);
+  let effectiveArgs = args;
+  if (verdict.corrNrResolution === "session") {
+    if (mode === "preview") {
+      const preview = previewSessionCorrNr(deps, table);
+      notes.push(
+        preview ? `Applying this change would record on ${preview.corrNr} (${preview.kind} request known to this session).` : `Applying this change would create a new ${imgSessionRequestKind(table)} request (ABAP_ALLOW_TRANSPORTS contains auto and this session has none yet) and record on it.`
+      );
+    } else {
+      const resolved = await resolveSessionCorrNr(deps, table);
+      effectiveArgs = { ...args, corrNr: resolved.corrNr, corrNrSource: resolved.source };
+      notes.push(
+        `corr_nr was not supplied; this session recorded on ${resolved.corrNr} (${resolved.kind} request ${resolved.source === "session-created" ? "created now" : "created earlier in this session"}).`
+      );
+    }
+  }
   const planOp = mode === "preview" ? "upsert" : mode;
-  const applyPlan = buildApplyPlan(args, planOp, table);
+  const applyPlan = buildApplyPlan(effectiveArgs, planOp, table);
   validateApplyPlan(applyPlan);
-  const checks = await readChecksSafely(deps, args, mode);
+  const checks = await readChecksSafely(deps, effectiveArgs, mode);
   if (mode === "preview") {
-    return ok14(renderPreview(args, probe3, verdict.notes, checks, deps.cfg.maxResponseChars));
+    return ok14(renderPreview(effectiveArgs, probe3, notes, checks, deps.cfg.maxResponseChars));
   }
   deps.safety.assert(
     "write",
@@ -150999,11 +151334,11 @@ async function runProbeAndApply(deps, mode, args, opts) {
     imgManifest.entry,
     (conn) => runImgApply(conn, deps.safety, applyPlan, deps.cfg, mode)
   );
-  const failure = applyFailure(mode, args.rows, apply);
-  const journalNote = await recordRowMutation(deps, mode, args, probe3, apply, failure);
+  const failure = applyFailure(mode, effectiveArgs.rows, apply);
+  const journalNote = await recordRowMutation(deps, mode, effectiveArgs, probe3, apply, failure);
   if (failure) {
-    throw new AbapError("CHECK_FAILED", applyFailureMessage(mode, args, apply, failure, journalNote), {
-      table: args.table,
+    throw new AbapError("CHECK_FAILED", applyFailureMessage(mode, effectiveArgs, apply, failure, journalNote), {
+      table: effectiveArgs.table,
       mode,
       bridgeClass: apply.bridgeClass,
       mayHaveExecuted: failure.mayHaveExecuted,
@@ -151011,11 +151346,12 @@ async function runProbeAndApply(deps, mode, args, opts) {
       reasons: failure.reasons
     });
   }
-  return ok14(renderArmed(mode, args, apply, verdict.notes, checks, journalNote, deps.cfg.maxResponseChars));
+  return ok14(renderArmed(mode, effectiveArgs, apply, notes, checks, journalNote, table, deps.cfg.maxResponseChars));
 }
 async function runRowEditMode(deps, mode, input) {
   rejectForMode2(mode, "description", input.description);
   rejectForMode2(mode, "owner", input.owner);
+  rejectForMode2(mode, "request_type", input.request_type);
   const selector = selectTarget(mode, input);
   if (selector.kind === "table") {
     const args2 = parseRowEditArgs(mode, input, deps.cfg);
@@ -151078,6 +151414,7 @@ async function runRowEditMode(deps, mode, input) {
     masterType,
     language,
     corrNr,
+    corrNrSource: corrNr !== void 0 ? "caller" : void 0,
     confirm,
     allowCrossClient,
     resolution
@@ -151095,7 +151432,8 @@ async function runCreateRequestMode(deps, input) {
   rejectForMode2("create_request", "corr_nr", input.corr_nr);
   rejectForMode2("create_request", "confirm", input.confirm);
   const description = requireString("create_request", "description", input.description);
-  const plan = { description, owner: input.owner };
+  const requestType = input.request_type === "workbench" ? "K" : "W";
+  const plan = { description, owner: input.owner, requestType };
   await ensureRoleVerdict(deps);
   deps.safety.assert("read");
   deps.safety.assert(
@@ -151110,60 +151448,7 @@ async function runCreateRequestMode(deps, input) {
     (conn) => runCreateCustomizingRequest(conn, deps.safety, plan, deps.cfg)
   );
   const t = result.transcript;
-  const warn = deps.warn ?? ((m) => void process.stderr.write(`${m}
-`));
-  const sysKey = systemKey({ sid: deps.cfg.sid, url: deps.cfg.url, client: deps.cfg.client });
-  if (t.request) {
-    try {
-      const entry = await deps.journal.begin({
-        operation: "transport-create",
-        object: {
-          name: t.request,
-          type: "CTS/TR",
-          uri: `/sap/bc/adt/cts/transportrequests/${t.request}`,
-          package: "",
-          description
-        },
-        existedBefore: false,
-        beforeCapture: "confirmed-absent",
-        systemKey: sysKey,
-        corrNr: t.request,
-        trSource: "caller",
-        tool: "abap_img_edit"
-      });
-      if (entry) {
-        const settled = await deps.journal.settle(entry.id, { outcome: "succeeded" });
-        if (!settled.settled) warn(`[abapsmith] WARNING: ${t.request} \u2014 journal entry ${entry.id} could not be settled (${settled.reason}).`);
-      }
-    } catch (e) {
-      warn(`[abapsmith] WARNING: ${t.request} \u2014 created but NOT journalled: ${e.message}.`);
-    }
-  } else {
-    const reason = t.errors.length ? t.errors.join("; ") : "no request number was parsed from the bridge transcript";
-    try {
-      const entry = await deps.journal.begin({
-        operation: "transport-create",
-        object: {
-          name: "(unknown)",
-          type: "CTS/TR",
-          uri: "",
-          package: "",
-          description
-        },
-        existedBefore: false,
-        beforeCapture: "confirmed-absent",
-        systemKey: sysKey,
-        trSource: "caller",
-        tool: "abap_img_edit"
-      });
-      if (entry) {
-        const settled = await deps.journal.settle(entry.id, { outcome: "failed", error: reason });
-        if (!settled.settled) warn(`[abapsmith] WARNING: suspected orphan customizing request \u2014 journal entry ${entry.id} could not be settled (${settled.reason}).`);
-      }
-    } catch (e) {
-      warn(`[abapsmith] WARNING: suspected orphan customizing request \u2014 NOT journalled: ${e.message}.`);
-    }
-  }
+  await journalCreatedRequest(deps, description, t, "caller");
   if (t.errors.length || !t.request) {
     throw new AbapError(
       "CHECK_FAILED",
@@ -151171,9 +151456,13 @@ async function runCreateRequestMode(deps, input) {
       { description, task: t.task, taskType: t.taskType, errors: t.errors, warnings: t.warnings }
     );
   }
+  if (deps.transport) {
+    deps.transport.noteCreated(t.request);
+    rememberSessionImgRequest(deps.transport, requestType === "K" ? "workbench" : "customizing", t.request);
+  }
   return ok14(renderCreateRequest(plan, result, deps.cfg.maxResponseChars));
 }
-var IMG_EDIT_TOOL_DESCRIPTION = "Write IMG customizing rows. preview validates rows against policy and shows current vs. prospective rows without writing; upsert/delete write rows and need confirm equal to table (case-insensitive) \u2014 corr_nr is usually required; create_request (description, owner) mints a customizing (type W) transport request. First call per mode deploys and activates a bridge class in $ABAPSMITH_FLUID_API. Details: doc/TOOLS/abap-img-edit.md.";
+var IMG_EDIT_TOOL_DESCRIPTION = "Write IMG customizing rows. preview validates rows against policy and shows current vs. prospective rows without writing; upsert/delete write rows and need confirm equal to table (case-insensitive) \u2014 corr_nr is usually required, but when ABAP_ALLOW_TRANSPORTS contains auto and corr_nr is omitted, this session resolves (and, if needed, creates) a matching request itself; create_request (description, owner, request_type: customizing default or workbench \u2014 workbench is required for a client-independent table) mints a transport request. First call per mode deploys and activates a bridge class in $ABAPSMITH_FLUID_API. Details: doc/TOOLS/abap-img-edit.md.";
 async function runImgEditTool(deps, args) {
   const input = args;
   switch (input.mode) {
