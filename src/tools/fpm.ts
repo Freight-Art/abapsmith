@@ -40,10 +40,11 @@ export const fpmReadInputSchema = {
   mode: z
     .enum(["find", "outline", "app", "locks", "events"])
     .describe(
-      "find: search configs. outline: one config's node tree. app: an application config's full " +
-        "UIBB hierarchy. locks: who holds enqueue locks on a config. events: trace which toolbar/" +
-        "button-row/FBI-action elements raise which FPM event, and what handles it (standard FPM, " +
-        "BOPF, feeder, app controller, ACTION_IMPL class, or unresolved).",
+      "find: search configs by component/config_id/package. outline: one config's XML plus " +
+        "metadata. app: an application config's full UIBB hierarchy (feeder/BOPF hints with " +
+        "resolve). locks: enqueue lock holders. events: which toolbar/button-row/FBI-action " +
+        "raises which FPM event and what handles it (FPM, BOPF, feeder, app controller, " +
+        "ACTION_IMPL class, or unresolved).",
     ),
   config_id: z
     .string()
@@ -824,13 +825,8 @@ function buildLocksResponse(
 }
 
 const FPM_TOOL_DESCRIPTION =
-  "Read SAP FPM/FBI screen configurations — no ADT read endpoint exists. find: search by " +
-  "component/config_id pattern/package. outline: one configuration's XML plus delta/package " +
-  "metadata. app: an application configuration's full UIBB hierarchy with feeder/BOPF hints " +
-  "(resolve, default true). events: trace which toolbar/button-row/FBI-action raises which FPM " +
-  "event and what handles it (standard FPM, BOPF, feeder, app controller, ACTION_IMPL class, or unresolved), " +
-  "optionally cross-checked against the CL_FPM_EVENT and BOPF catalogues (resolve, default true). " +
-  "locks: enqueue lock holders. Read-only; every call deploys a throwaway bridge class into " +
+  "Read SAP FPM/FBI screen configurations (no ADT read endpoint exists): find, outline, app, " +
+  "events, locks — see mode. Read-only; every call deploys a throwaway bridge class into " +
   "abapsmith's own package.";
 
 export async function runFpmReadTool(deps: FpmToolDeps, args: unknown): Promise<CallToolResult> {

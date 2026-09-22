@@ -409,6 +409,7 @@ export async function buildCallGraph(
     },
     body: lines.join("\n"),
     bodyLabel: "CALL GRAPH",
+    size: true,
     notes,
     hints: [
       direction === "callers"

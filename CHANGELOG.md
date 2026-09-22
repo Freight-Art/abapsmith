@@ -12,6 +12,22 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.15] - 2026-09-22
+
+### Added
+
+- **`abap_read pattern=`** (#148). A case-insensitive regex over the object's source returns only the matching lines, numbered like `grep -n -C` — `NNN:` for a match, `NNN-` for the `context` lines around it (default 2), `--` between groups — so the numbers feed straight into `offset=`, `abap_quick_fix` or `view="definition"`. At most 50 matches per response (`limit=` overrides); past that a `--- TRUNCATED ---` line names the `offset=` to continue from. The etag of a pattern read is marked `partial:` (an `edit=` write accepts it, a full-source rewrite is refused). An empty or invalid regex, or `pattern` next to `outline=true`/`method`/`full`, is `BAD_INPUT` before any request; next to a `view` or on a DDIC/raw path it is `UNSUPPORTED`.
+- **`abap_read full=`** (#148). Explicitly asks for the whole source of a large object (the same as `outline=false`); refused next to anything narrower.
+- **`size:` line** (#148). Every `abap_read` and `abap_search` response (all four search modes) states its own size — `size: <chars> chars, <lines> lines, truncated=<bool>` — exactly, counted on the emitted text including the line itself.
+
+### Changed
+
+- **Large sources answer with their outline by default** (#148). A source read of a `CLAS`/`INTF`/`PROG`/`FUGR` object above 150 lines or 8000 characters returns the outline (`outline: default (large source)`, with `totalLines`/`totalChars` and a note naming the threshold and every way to get the text) unless the call passes `method`, `include`, `offset`, `limit`, `pattern`, `full=true` or `outline=false`. Below the threshold, for every other kind and for every `view` nothing changes. Measured on the standard objects the issue quotes, this turns 10K–31K-character reads paged over 2–3 calls into one outline.
+- **`PROG`/`FUGR` outline** (#148). `outline=true` on a program or function group is no longer "NOT SUPPORTED": it is a statement scan of the text (`FORM`/`FUNCTION`/`MODULE`/`CLASS`/`METHOD`/`INCLUDE`, event blocks) with line ranges, disclosed as a scan in the response. Other kinds keep the unsupported answer.
+- **`abap_search mode=source` groups hits per object** (#148). One `<TYPE> <NAME>  (<n> hits)` header per object, then `<line>: <text>` rows (with an `include <NAME>` sub-header where the include is not the object itself); at most 20 hits per object, the rest as a count naming how to narrow. The `NOTE:` block appears once at the top. The header gains `objectsWithHits`.
+- **`context`** is now shared by `view="diff"` (per hunk, default 3) and `pattern` (around each match, default 2); it is still refused when neither is given.
+- **Shorter tool schemas** (#148). Tool and parameter descriptions in `tools/list` are trimmed to the parameters plus one line of intent: explanatory paragraphs (why a check exists, which function module runs, how a section is rendered) now live in `doc/TOOLS/*.md` and the skills, which the descriptions point to. Every gating or refusal statement an agent must see before calling stays as a one-liner (what is refused, with which code, whether before any request). Measured over all 29 tools in admin mode (`JSON.stringify({name, description, inputSchema})`), the `tools/list` payload shrinks from 81967 to 75147 chars (-8.3%) even though `abap_read` gained three parameters.
+
 ## [0.6.14] - 2026-09-21
 
 ### Added

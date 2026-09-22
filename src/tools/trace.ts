@@ -93,8 +93,8 @@ export const traceInputSchema = {
     .string()
     .optional()
     .describe(
-      "A trace run id (op=read) or a trace run/request id (op=delete). Accepts either the bare " +
-        "id or the full path a previous list/create answered with.",
+      "A trace run id (op=read) or run/request id (op=delete); bare id or the full path a " +
+        "previous list/create answered with.",
     ),
   kind: z
     .enum(TRACE_LIST_KINDS)
@@ -114,16 +114,16 @@ export const traceInputSchema = {
     .int()
     .optional()
     .describe(
-      "Max call-tree depth, relative to the traced object's own entry node (that node is " +
-        "depth 0), not the ADT dispatch root. Default 4, max 12. op=read view=tree only.",
+      "Max call-tree depth relative to the traced object's own entry node. Default 4, max 12. " +
+        "op=read view=tree only.",
     ),
   root: z
     .string()
     .optional()
     .describe(
-      "Anchor the tree view at the first call-tree node whose description or calling-program " +
-        "name matches this text (case-insensitive substring; matched uppercased). Overrides the " +
-        "automatic anchor, which is the traced object's own entry node. op=read view=tree only.",
+      "Anchor the tree view at the first call-tree node matching this text (case-insensitive " +
+        "substring on description or calling-program name), overriding the automatic entry-node " +
+        "anchor. op=read view=tree only.",
     ),
   description: z
     .string()
@@ -160,8 +160,8 @@ export const traceInputSchema = {
     .int()
     .optional()
     .describe(
-      `How many executions the request stays armed for. Default ${TRACE_DEFAULT_EXECUTIONS}, max ` +
-        `${TRACE_MAX_EXECUTIONS}. op=start only — op=run always creates a single-execution request.`,
+      `How many executions the request stays armed for, default ${TRACE_DEFAULT_EXECUTIONS}, max ` +
+        `${TRACE_MAX_EXECUTIONS}. op=start only — op=run always arms a single execution.`,
     ),
 };
 

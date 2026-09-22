@@ -366,10 +366,9 @@ export function registerQuickFixTools(mcp: McpServer, deps: QuickFixToolDeps): v
     {
       description:
         'ADT quick fixes at one source position. mode="list" enumerates proposals; mode="apply" ' +
-        "applies one by id through the journalled abap_write pipeline (undoable via abap_journal " +
-        "mode=undo). v1 applies deterministic proposals only — a parameterized one is refused, not " +
-        'guessed at. Gated as a write in BOTH modes: list POSTs the whole object source for ' +
-        "evaluation, so it is unavailable on a read-only server.",
+        "applies one by id through the journalled abap_write pipeline (undoable). Deterministic " +
+        "proposals only — a parameterized one is refused. Gated as a write in BOTH modes (list " +
+        "POSTs the object source), so unavailable on a read-only server.",
       inputSchema: quickFixInputSchema,
       annotations: {
         readOnlyHint: false,

@@ -254,6 +254,9 @@ not guessed.
 
 Input: `transport` (the existing field; no new parameter for this op).
 
+A request that has never been exported has zero log lines; that is not a
+failure, it is the log of a request nothing has happened to yet.
+
 `TRINT_GET_LOG_OVERVIEW` answers `sy-subrc 0` even for a request number that
 does not exist at all (tried live with `A4HK999999`), returning the same
 plausible-looking row as for a real one. abapsmith therefore checks E070

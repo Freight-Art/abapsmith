@@ -224,16 +224,15 @@ export const writeInputSchema = {
         .string()
         .optional()
         .describe(
-          "DTEL/DE only: search help attached to this data element (DD04L-SHLPNAME). Must name an " +
-            "existing, active SHLP/DH — not checked before send. Uppercased, max 30 chars.",
+          "DTEL/DE only: search help attached to this data element (DD04L-SHLPNAME). Not checked " +
+            "before send. Uppercased, max 30 chars.",
         ),
       searchHelpParameter: z
         .string()
         .optional()
         .describe(
           "DTEL/DE only: the search help's own interface parameter this data element binds to " +
-            "(DD04L-SHLPFIELD, e.g. DD32P-FIELDNAME on the search help itself) — not the data " +
-            "element's own name. Refused without `searchHelp`. Uppercased, max 30 chars.",
+            "(DD04L-SHLPFIELD). Refused without `searchHelp`. Uppercased, max 30 chars.",
         ),
     })
     .strict()
@@ -253,8 +252,7 @@ export const writeInputSchema = {
         .optional()
         .describe(
           "DD30V-SELMETHOD: table or view the search help selects from. Omit for a collective search " +
-            "help, or an elementary one driven by a search-help exit instead of a table/view — both " +
-            "are normal and have no selection method at all.",
+            "help, or an elementary one driven by a search-help exit instead of a table/view.",
         ),
       selectionMethodType: z
         .enum(["T", "V", "M"])
@@ -286,9 +284,7 @@ export const writeInputSchema = {
         .describe(
           "Other search helps included by this one (DD31V), in order. Optional — empty or omitted is " +
             "fine, including for elementary: false. Each name must exist as an ACTIVE search help " +
-            "(DD30L); refused before registration otherwise (CHECK_FAILED), rather than passing " +
-            "DDIF_SHLP_PUT and stranding this help as inactive-only when DDIF_SHLP_ACTIVATE then fails " +
-            "(DH109).",
+            "(DD30L); refused before registration otherwise (CHECK_FAILED).",
         ),
       assignments: z
         .array(
@@ -309,26 +305,22 @@ export const writeInputSchema = {
               .string()
               .describe(
                 "DD33V-SUBFIELD. Must be an ACTIVE interface parameter (DD32S) of `includedHelp`; " +
-                  "checked server-side before RS_CORR_INSERT and refused otherwise (CHECK_FAILED) — " +
-                  "this needs that other search help's own DD32P/DD32S, so it is not checked " +
-                  "zero-network.",
+                  "checked server-side before RS_CORR_INSERT, not zero-network, and refused " +
+                  "otherwise (CHECK_FAILED).",
               ),
             direction: z
               .enum(["I", "E"])
               .describe(
-                "DD33V-VALUEDIREC: I=import into, E=export from the included help. DDIC may normalise " +
-                  'the stored value to C ("both import and export") on read-back when the target ' +
-                  "parameter is both import and export.",
+                'DD33V-VALUEDIREC: I=import into, E=export from the included help. May read back as ' +
+                  'C ("both import and export") when the target parameter is both import and export.',
               ),
           }),
         )
         .optional()
         .describe(
-          "Field assignments (DD33V) between an included search help and this one's interface. A " +
-            "`field`/`includedHelp` not found in this call's own `fields`/`includes`, or an " +
-            "`includedField` that is not an active parameter of `includedHelp`, would otherwise pass " +
-            "DDIF_SHLP_PUT and fail DDIF_SHLP_ACTIVATE (DH109) — all three are refused first instead; " +
-            "see each field below.",
+          "Field assignments (DD33V) between an included search help and this one's interface. " +
+            "`field`, `includedHelp` and `includedField` are each validated against this call's own " +
+            "fields/includes/target help; see each field below.",
         ),
     })
     .strict()
@@ -340,9 +332,8 @@ export const writeInputSchema = {
     .optional()
     .describe(
       "Default write (create for most types). \"update\" retargets/replaces an EXISTING " +
-        "VIEW/DV, TRAN/T or SHLP/DH in place (DDIF_VIEW_PUT / RPY_TRANSACTION_DELETE+INSERT / " +
-        "DDIF_SHLP_PUT replace the whole definition/target) — refused zero-network for every " +
-        "other type.",
+        "VIEW/DV, TRAN/T or SHLP/DH in place (whole definition replaced) — refused zero-network " +
+        "for every other type.",
     ),
   activate: z.boolean().optional().describe("Default true."),
   verify: z.boolean().optional().describe("Force verified mode; reads back after write."),
@@ -351,9 +342,8 @@ export const writeInputSchema = {
     .boolean()
     .optional()
     .describe(
-      "Preview only: resolve, read, apply the edit locally, run the safety gate, and return the " +
-        "diff and the expect_etag a real write would assert. Makes no lock, PUT, DELETE, " +
-        "activation, unlock or transport call and journals nothing.",
+      "Preview only: returns the diff and the expect_etag a real write would assert. Makes no " +
+        "lock, PUT, DELETE, activation, unlock or transport call and journals nothing.",
     ),
   corr_nr: z
     .string()
@@ -423,21 +413,17 @@ export const writeInputSchema = {
     .optional()
     .describe(
       "VIEW/DV delete: overrides the bridge's refusal when the view still has a generated " +
-        "SE54 maintenance dialog (TVDIR) — deleting the view leaves that dialog broken. The " +
-        "bridge's refusal names the specific dialog (function group area, package, type, screen) " +
-        "so a caller can read it and decide before passing this. Refused zero-network for any " +
-        "other type/mode combination.",
+        "SE54 maintenance dialog (TVDIR), which the delete leaves broken; the refusal names the " +
+        "dialog. Refused zero-network for any other type/mode combination.",
     ),
   confirm_in_role_menu: z
     .boolean()
     .optional()
     .describe(
       "TRAN/T mode=\"delete\" or mode=\"update\" (retarget): overrides the bridge's refusal " +
-        "when the tcode is already assigned to one or more roles' menus (AGR_TCODES). Deleting " +
-        "it removes it from those role menus; retargeting it changes what those menu entries " +
-        "launch. The bridge's refusal names the specific roles so a caller can read it and " +
-        "decide before passing this. An SM01 transaction lock is not checked either way. " +
-        "Refused zero-network for any other type/mode combination.",
+        "when the tcode is assigned to role menus (AGR_TCODES) — deleting removes it from them, " +
+        "retargeting changes what they launch; the refusal names the roles. An SM01 lock is not " +
+        "checked. Refused zero-network for any other type/mode combination.",
     ),
   // Same shape/wording as abap_enh's `affects` field (src/tools/enh.ts), so
   // callers share one vocabulary. Required for an enhancement-type write
