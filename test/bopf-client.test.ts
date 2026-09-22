@@ -32,6 +32,7 @@ import {
   bopfStore,
   bopfLockTransportRoute,
   classSourceRoute,
+  typeHierarchyRoute,
   ddicProbeRoute,
   activationRoute,
   activationFailureXml,
@@ -430,12 +431,13 @@ describe("dangling class refs found via SOURCE GET, not object-URI GET", () => {
     // to `"wrong-interface"` — the `INTERFACES` line below is what keeps this
     // a clean `"present"`, matching what the real framework class actually
     // implements.
-    // bopf.ts's substring check is case-sensitive against the literal
-    // "/BOBF/IF_FRW_ACTION" (IMPL_INTERFACE_BY_OWNER.action) — matching real
-    // ABAP pretty-printer convention of upper-casing framework type names.
+    // The interface check goes through the ADT type hierarchy first; with no
+    // typeHierarchyRoute wired here, it falls back to a case-insensitive scan
+    // of the definition part, so lower-case `interfaces /bobf/if_frw_action.`
+    // (real ABAP pretty-printer output) is still recognized.
     const realClassSource =
       `CLASS /bobf/cl_lib_a_lock DEFINITION PUBLIC.\n` +
-      `  PUBLIC SECTION.\n    INTERFACES /BOBF/IF_FRW_ACTION.\nENDCLASS.\n` +
+      `  PUBLIC SECTION.\n    interfaces /bobf/if_frw_action.\nENDCLASS.\n` +
       `CLASS /bobf/cl_lib_a_lock IMPLEMENTATION.\nENDCLASS.`;
 
     // Any DDIC ref this model touches — answered generically as "present" so
@@ -503,6 +505,107 @@ describe("dangling class refs found via SOURCE GET, not object-URI GET", () => {
     const httpFindings = findings.filter((f) => f.site.element !== "targetNodeRef");
     expect(httpFindings.length).toBeGreaterThan(0);
     expect(httpFindings.every((f) => f.verdict === "unchecked")).toBe(true);
+  });
+
+  it("an interface inherited from a superclass is present via the type hierarchy", async () => {
+    const model = parseModel(FX_ACTIVE_DANGLING);
+    const inheritingSource =
+      `class /bobf/cl_lib_a_lock definition public inheriting from /bobf/cl_lib_base.\n` +
+      `endclass.\n` +
+      `CLASS /bobf/cl_lib_a_lock IMPLEMENTATION.\n` +
+      `ENDCLASS.`;
+    const ddicCatchAll: FakeRoute = (r) => {
+      const accept = String(r.headers["accept"] ?? "");
+      if (r.method === "GET" && accept === "*/*") {
+        return fakeResponse(200, `<tabl:table xmlns:tabl="http://www.sap.com/wbobj/tables"/>`, {
+          "content-type": "application/xml",
+        });
+      }
+      return undefined;
+    };
+
+    const { conn } = await wired({
+      routes: [
+        classSourceRoute({ name: "/BOBF/CL_LIB_A_LOCK", body: inheritingSource }),
+        typeHierarchyRoute({
+          name: "/BOBF/CL_LIB_A_LOCK",
+          superclasses: ["/BOBF/CL_LIB_BASE"],
+          interfaces: ["/BOBF/IF_FRW_ACTION"],
+        }),
+        classSourceRoute({ name: "ZCL_BOPF_NOPE_ACT", body: undefined }),
+        classSourceRoute({ name: "ZCL_BOPF_NOPE_DET", body: undefined }),
+        classSourceRoute({ name: "ZCL_BOPF_NOPE_VAL", body: undefined }),
+      ],
+      catchAll: ddicCatchAll,
+    });
+
+    const findings = await checkReferences(conn, model);
+    const byName = (name: string) => findings.find((f) => f.site.ref.name === name);
+    expect(byName("/BOBF/CL_LIB_A_LOCK")?.verdict).toBe("present");
+  });
+
+  it("an inheriting class with the type hierarchy unavailable degrades to unchecked, not wrong-interface", async () => {
+    const model = parseModel(FX_ACTIVE_DANGLING);
+    const inheritingSource =
+      `class /bobf/cl_lib_a_lock definition public inheriting from /bobf/cl_lib_base.\n` +
+      `endclass.\n` +
+      `CLASS /bobf/cl_lib_a_lock IMPLEMENTATION.\n` +
+      `ENDCLASS.`;
+    const ddicCatchAll: FakeRoute = (r) => {
+      const accept = String(r.headers["accept"] ?? "");
+      if (r.method === "GET" && accept === "*/*") {
+        return fakeResponse(200, `<tabl:table xmlns:tabl="http://www.sap.com/wbobj/tables"/>`, {
+          "content-type": "application/xml",
+        });
+      }
+      return undefined;
+    };
+
+    const { conn } = await wired({
+      routes: [
+        // No typeHierarchyRoute: the POST is unrouted, which the fake raises as a throw.
+        classSourceRoute({ name: "/BOBF/CL_LIB_A_LOCK", body: inheritingSource }),
+        classSourceRoute({ name: "ZCL_BOPF_NOPE_ACT", body: undefined }),
+        classSourceRoute({ name: "ZCL_BOPF_NOPE_DET", body: undefined }),
+        classSourceRoute({ name: "ZCL_BOPF_NOPE_VAL", body: undefined }),
+      ],
+      catchAll: ddicCatchAll,
+    });
+
+    const findings = await checkReferences(conn, model);
+    const byName = (name: string) => findings.find((f) => f.site.ref.name === name);
+    expect(byName("/BOBF/CL_LIB_A_LOCK")?.verdict).toBe("unchecked");
+  });
+
+  it("a class source GET answering 403 degrades to unchecked, not wrong-interface", async () => {
+    const model = parseModel(FX_ACTIVE_DANGLING);
+    const ddicCatchAll: FakeRoute = (r) => {
+      const accept = String(r.headers["accept"] ?? "");
+      if (r.method === "GET" && accept === "*/*") {
+        return fakeResponse(200, `<tabl:table xmlns:tabl="http://www.sap.com/wbobj/tables"/>`, {
+          "content-type": "application/xml",
+        });
+      }
+      return undefined;
+    };
+
+    const { conn } = await wired({
+      routes: [
+        classSourceRoute({
+          name: "/BOBF/CL_LIB_A_LOCK",
+          body: `<exc:exception><type id="ExceptionSecurity"/></exc:exception>`,
+          status: 403,
+        }),
+        classSourceRoute({ name: "ZCL_BOPF_NOPE_ACT", body: undefined }),
+        classSourceRoute({ name: "ZCL_BOPF_NOPE_DET", body: undefined }),
+        classSourceRoute({ name: "ZCL_BOPF_NOPE_VAL", body: undefined }),
+      ],
+      catchAll: ddicCatchAll,
+    });
+
+    const findings = await checkReferences(conn, model);
+    const byName = (name: string) => findings.find((f) => f.site.ref.name === name);
+    expect(byName("/BOBF/CL_LIB_A_LOCK")?.verdict).toBe("unchecked");
   });
 
   it("ARCH-09 P7: maxSites caps how many reference sites are probed, never silently — findings.length tracks the cap, not the model's true site count", async () => {
