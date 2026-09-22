@@ -12,6 +12,15 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+### Added
+
+- **`add_query`/`set_query_fields` flag a missing `RETRIEVE_DEFAULT_PARAM` implementation** (#188). A query class must implement `/BOBF/IF_FRW_QUERY~RETRIEVE_DEFAULT_PARAM` even though the interface marks it `DEFAULT IGNORE` — the ABAP syntax check accepts a class without it, but BOPF activation of the business object then fails on the missing method. When the class source is readable, the preflight now checks case-insensitively for the method's implementation and adds a NOTE naming it if absent.
+
+### Fixed
+
+- **BOPF dangling-class-ref interface check is no longer case-sensitive** (#186). It used to test for `/BOBF/IF_FRW_ACTION` etc. as an exact-case substring, so a lower-case `INTERFACES /bobf/if_frw_action` was flagged `wrong-interface`. It now asks ADT's type hierarchy (own and inherited interfaces), falls back to a case-insensitive scan of the definition part, and reports `unchecked` — not `wrong-interface` — when it can't decide (an inheriting class whose hierarchy is unavailable, or a class whose source can't be read at all, e.g. a 403 on a delivered SAP class). The edit no longer throws on an unreadable source.
+- **`add_association`/`set_association_fields` qualify a bare `targetNodeRef.name`** (#187). BOPF requires `<BO>~<NODE>`, same-BO included — a bare name like `"ITEM"` activated with "Association has no Target Node defined". A bare name is now qualified with the current business object's name before the PUT and reported in a NOTE; `spec.targetNodeRef.type` defaults to `BOBF`. An unknown node (bare, or qualified with the same BO) is refused `BAD_INPUT` before any lock or PUT, listing the nodes that exist.
+
 ## [0.6.19] - 2026-09-22
 
 ### Added
