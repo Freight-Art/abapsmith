@@ -49,6 +49,7 @@ import { missingEnhancementWrapperError } from "./enhancement-refusals.js";
 import { AbapError, describeUnknownError, isAbapError } from "./errors.js";
 import { deletePackageViaBridge } from "./package-delete.js";
 import { activationFromVersion, identifyByName, parseObjectRef, type ActivationState } from "./resolve.js";
+import { levenshtein } from "./source.js";
 import { toAbapError, type SessionTransport } from "./session-transport.js";
 import {
   adtExceptionInfo,
@@ -1182,6 +1183,104 @@ function refuseDelete(spec: TypeSpec): never {
 }
 
 /**
+ * Closest `ABAP_WRITE_TYPES` codes to an unrecognised type, for a "did you
+ * mean" — case-insensitive, max edit distance `max(1, ceil(len/3))`, at
+ * most 3, closest first.
+ */
+function suggestTypeCodes(type: string): string[] {
+  const needle = type.trim().toUpperCase();
+  const maxDistance = Math.max(1, Math.ceil(needle.length / 3));
+  return ABAP_WRITE_TYPES.map((code) => ({ code, distance: levenshtein(needle, code) }))
+    .filter((c) => c.distance <= maxDistance)
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, 3)
+    .map((c) => c.code);
+}
+
+/** "A", "A or B", "A, B or C". */
+function joinOr(items: readonly string[]): string {
+  return items.length <= 1
+    ? (items[0] ?? "")
+    : `${items.slice(0, -1).join(", ")} or ${items[items.length - 1]}`;
+}
+
+/**
+ * Offline refusal for a type that cannot be written/deleted/activated,
+ * decided purely from `type`, `op` and the REGISTRY — no network use. The
+ * same checks `resolveWriteTarget` runs once a spec is known, pulled
+ * forward so `src/tools/write.ts` can refuse an explicit bad type before
+ * anything else (the `source`-required guard included). Returns normally
+ * when `type` is acceptable for `op`; `name` is used only in the details of
+ * the two REGISTRY-driven refusals below.
+ */
+export function refuseUnwritableType(
+  type: string,
+  name: string,
+  op: "write" | "delete" | "activate" = "write",
+): void {
+  const explicit = specForType(type) ?? specForKeyword(type);
+
+  const unsupportedCap = capabilitiesFor(type);
+  if (unsupportedCap?.unsupported) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `${unsupportedCap.label} (${type.trim().toUpperCase()}) cannot be written by ` +
+        `abapsmith. ${unsupportedCap.unsupported.reason} ${TERMINAL_REFUSAL_NOTE}`,
+      { type: type.trim().toUpperCase(), name },
+      unsupportedCap.unsupported.alternative,
+      { retryable: false }, // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
+    );
+  }
+  if (unsupportedCap?.bridgeCreate && isBridgeOnlyCreateType(type)) {
+    const code = type.trim().toUpperCase();
+    throw new AbapError(
+      "UNSUPPORTED",
+      `${unsupportedCap.label} (${code}) has no writable ADT collection to resolve a URI ` +
+        `against, so it cannot be written as source. ${unsupportedCap.bridgeCreate.adtRest} ` +
+        TERMINAL_REFUSAL_NOTE,
+      { type: code, name },
+      `abapsmith implements no update route for this type — the bridge is create and delete ` +
+        `only. ` +
+        (unsupportedCap.bridgeCreate.createRefused ??
+          `To create a NEW ${unsupportedCap.label}, call abap_write with type="${code}" and ` +
+            `no \`source\` (there is no mode=create — abap_write's mode is write/delete, and a ` +
+            `create is a write to a name that does not exist yet). ` +
+            unsupportedCap.bridgeCreate.limits),
+      { retryable: false }, // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
+    );
+  }
+
+  if (!explicit) {
+    const suggestions = suggestTypeCodes(type);
+    const message = suggestions.length
+      ? `Unknown object type ${JSON.stringify(type)}. Did you mean ${joinOr(suggestions)}?`
+      : `Unknown object type ${JSON.stringify(type)}.`;
+    throw new AbapError(
+      "BAD_INPUT",
+      message,
+      { type, writable: [...ABAP_WRITE_TYPES], ...(suggestions.length ? { suggestions } : {}) },
+      writableTypesHint(),
+    );
+  }
+
+  const activatable = op === "activate" && ACTIVATE_ONLY.has(explicit.type);
+  if (!CREATABLE.has(explicit.type) && !ENHANCEABLE.has(explicit.type) && !activatable) {
+    if (op === "delete") refuseDelete(explicit);
+    throw new AbapError(
+      "UNSUPPORTED",
+      `${explicit.label} (${explicit.type}) cannot be written by abapsmith. ${TERMINAL_REFUSAL_NOTE}`,
+      { type: explicit.type, writable: [...ABAP_WRITE_TYPES] },
+      writableTypesHint(),
+      { retryable: false }, // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
+    );
+  }
+
+  if (op === "delete" && !DELETABLE.has(explicit.type) && !isBridgeDeletableType(explicit.type)) {
+    refuseDelete(explicit);
+  }
+}
+
+/**
  * Resolve a write target without requiring the object to exist.
  *
  * Two phases, in this order and for a reason:
@@ -1221,57 +1320,10 @@ export async function resolveWriteTarget(
   // Explicit-type refusal, before the types.ts lookup below: SHLP/DH,
   // VIEW/DV, TRAN/T, PROG/PS, PROG/PC, PROG/PT, SUSO/B aren't in types.ts's
   // TYPES array, so without this they'd fall into a generic "Unknown object
-  // type" instead of their specific, actionable refusal.
-  if (target.type) {
-    const unsupportedCap = capabilitiesFor(target.type);
-    if (unsupportedCap?.unsupported) {
-      throw new AbapError(
-        "UNSUPPORTED",
-        `${unsupportedCap.label} (${target.type.trim().toUpperCase()}) cannot be written by ` +
-          `abapsmith. ${unsupportedCap.unsupported.reason} ${TERMINAL_REFUSAL_NOTE}`,
-        { type: target.type.trim().toUpperCase(), name: parsed.name },
-        unsupportedCap.unsupported.alternative,
-        { retryable: false }, // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
-      );
-    }
-    // bridgeCreate types (VIEW/DV, TRAN/T) are creatable, but not by
-    // RESOLVING — ADT has no writable collection for them. abapWrite routes
-    // them to the classrun bridge before reaching here; a direct caller
-    // still gets UNSUPPORTED, but with the working route named.
-    //
-    // DEVC/K also declares bridgeCreate but is excluded — its writable
-    // collection handles LOCAL create; TRANSPORTABLE create is routed by
-    // src/tools/write.ts's isPackageType branch instead. Mirrors resolve.ts.
-    if (unsupportedCap?.bridgeCreate && isBridgeOnlyCreateType(target.type)) {
-      const code = target.type.trim().toUpperCase();
-      throw new AbapError(
-        "UNSUPPORTED",
-        `${unsupportedCap.label} (${code}) has no writable ADT collection to resolve a URI ` +
-          `against, so it cannot be written as source. ${unsupportedCap.bridgeCreate.adtRest} ` +
-          TERMINAL_REFUSAL_NOTE,
-        { type: code, name: parsed.name },
-        // Routing a caller to the bridge create is only honest while the
-        // bridge create is actually attempted — `createRefused` says it isn't.
-        `abapsmith implements no update route for this type — the bridge is create and delete ` +
-          `only. ` +
-          (unsupportedCap.bridgeCreate.createRefused ??
-            `To create a NEW ${unsupportedCap.label}, call abap_write with type="${code}" and ` +
-              `no \`source\` (there is no mode=create — abap_write's mode is write/delete, and a ` +
-              `create is a write to a name that does not exist yet). ` +
-              unsupportedCap.bridgeCreate.limits),
-        { retryable: false }, // matches UNSUPPORTED's own default; reaffirmed for readability at the throw site
-      );
-    }
-  }
-
-  if (target.type && !explicit) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `Unknown object type ${JSON.stringify(target.type)}.`,
-      { type: target.type, writable: [...ABAP_WRITE_TYPES] },
-      writableTypesHint(),
-    );
-  }
+  // type" instead of their specific, actionable refusal. Also catches an
+  // unknown type outright. Both offline, both shared with
+  // `src/tools/write.ts`'s pre-source-guard check via `refuseUnwritableType`.
+  if (target.type) refuseUnwritableType(target.type, parsed.name, op);
 
   // ARCH-09 §5.2: ask the server for the type rather than refuse outright —
   // a type it reports for an existing name is a fact, not a guess, and can

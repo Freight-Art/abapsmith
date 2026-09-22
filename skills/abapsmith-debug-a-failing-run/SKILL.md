@@ -94,8 +94,11 @@ passing to any abapsmith tool.
 
 `kap10` "Selected Variables" was listed in the index but is only returned
 with `"variables": true`, which requires the operator to have set
-`ABAP_ALLOW_DUMP_VARIABLES`. Those are real business data and land
-permanently in the transcript.
+`ABAP_ALLOW_DUMP_VARIABLES`. That flag is independent of `ABAP_MODE` and
+allowed even under `read` — it is enforced twice: the `variables` field is
+absent from the advertised schema when the flag is off, and refused again
+at call time if it somehow arrives anyway. Those are real business data and
+land permanently in the transcript.
 
 **e. `abap_debug { "action": "start", "breakpoints": [{ "kind": "line", "object": "ZCL_I92_PROBE", "line": 19 }], "run": { "object": "ZCL_I92_PROBE", "mode": "class" } }`**
 returned `status: suspended`, a `stateId`, a STACK section, **and a VARIABLES

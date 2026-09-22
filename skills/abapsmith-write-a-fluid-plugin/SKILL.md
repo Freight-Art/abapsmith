@@ -90,6 +90,13 @@ MCP server's env and restart it:
 | `ABAP_ALLOW_FLUID_CALL_FM` | `true` only if step 5 found `CALL FUNCTION` |
 
 Read-only mode or a productive system disables the fluid API entirely, plugins included.
+`abap_fluid` is abapsmith's single entry point to the fluid API — functions
+that only work by installing generated ABAP into `$ABAPSMITH_FLUID_API` —
+and even its read-shaped ops (`list`, `describe`, `status`, `verify`) need
+write access to exist at all: the whole tool is absent from `tools/list`
+under `ABAP_MODE=read`, and it refuses `FLUID_API_DISABLED` again if a
+system that started writable later proves productive or trips the write
+lockout. See `doc/TOOLS/abap-fluid.md`.
 
 ## 7. Verify after the restart
 

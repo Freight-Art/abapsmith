@@ -167,7 +167,7 @@ const adt = vi.hoisted(() => ({
   stripListHeader: vi.fn(),
 }));
 
-vi.mock("../src/adt/write.js", () => ({
+vi.mock("../src/adt/write.js", async (importActual) => ({
   resolveWriteTarget: adt.resolveWriteTarget,
   authorizeMutation: adt.authorizeMutation,
   writeObject: adt.writeObject,
@@ -184,6 +184,12 @@ vi.mock("../src/adt/write.js", () => ({
   // than carrying its own copy of the wording — real string, not a `vi.fn()`,
   // so a test here that ever pins the hint text sees the real thing.
   PACKAGE_SOFTWARE_COMPONENT_HINT: adt.PACKAGE_SOFTWARE_COMPONENT_HINT,
+  // Real implementation, not a canned fake (issue #157) — same reasoning as
+  // `isPackageType`/`assertNoDuplicateDeleteTargets` above: it is a pure,
+  // offline predicate over `type`/`op`, so faking it to a constant would let
+  // a bad explicit `type` sail through routing tests here instead of being
+  // caught the way test/write-type-first.test.ts exercises directly.
+  refuseUnwritableType: (await importActual<typeof import("../src/adt/write.js")>()).refuseUnwritableType,
 }));
 // The DEVC/K classrun bridge. Faked whole: `src/tools/write.ts`
 // imports both of these unconditionally at module scope, so they must exist,

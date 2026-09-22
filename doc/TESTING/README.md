@@ -155,5 +155,5 @@ itself depends on. Nothing there talks to a real system.
 |---|---|
 | `check-no-leaks.mjs` | Behind `npm run check:leaks`; scans every git-tracked file for a routable IPv4 or real SAP hostname pattern. Never reads `.env`, and does not itself embed the value it guards against |
 | `lint-hint-params.mjs` | Behind `npm run lint:hints`; flags caller-facing hint and error strings that name a tool parameter in camelCase where the zod schema field is snake_case |
-| `gen-capability-table.mjs` | Regenerates the writable-type table in `skills/abapsmith-orient/SKILL.md` from the capability registry; `--check` fails when the shipped table is stale |
+| `gen-capability-table.mjs` | Regenerates the writable-type table in `skills/abapsmith-create-an-object/writable-types.md` from the capability registry; `--check` fails when the shipped table is stale |
 | `lib/first-line.mjs` | Shared helper, covered by `test/first-line.test.ts`; not run standalone |

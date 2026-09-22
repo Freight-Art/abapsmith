@@ -463,12 +463,20 @@ describe("terminality overrides are deliberate and explained", () => {
   // `create_bo`/`activate` re-reads the object before answering, and the
   // TIMEOUT it (re-)mints carries the re-read's own verdict rather than
   // RETRYABILITY's default, one override per outcome the re-read can land on.
-  it("exactly 34 call sites pass a 5th argument to `new AbapError(...)` — 2 in adt/resolve.ts, 8 in adt/write.ts, 2 in adt/datapreview.ts and 1 in adt/locked-holders.ts (re-wraps that carry the classified retryability through unchanged), 1 in adt/resolved-package.ts, 1 in adt/index-create.ts, 3 in adt/undo.ts, 5 in adt/run.ts (the TIMEOUT mint and four re-wraps), 2 in tools/write.ts, 4 in tools/debug.ts, 1 in tools/ui.ts, 1 in debug/session.ts and 3 in tools/bopf.ts (TIMEOUT re-read verdicts: create never landed → true, created-but-inactive → false, activate still inactive → true): all 34 are per-site overrides of RETRYABILITY's default (terminal-by-code UNSUPPORTED/SAFETY_DENIED sites whose own prose promises a working retry, plus BAD_INPUT sites whose own prose forbids a retry); most terminal codes still get retryable:false automatically from RETRYABILITY with no 5th argument at all", () => {
+  // 34 became 35 with issue #157: `refuseUnwritableType` (adt/write.ts) is
+  // the offline "not CREATABLE/ENHANCEABLE/activatable" refusal pulled out of
+  // `resolveWriteTarget` so `tools/write.ts` can run it on an explicit type
+  // before the `source`-required guard. `resolveWriteTarget` still runs the
+  // same check itself afterwards, for a spec parsed from the name or
+  // identified live rather than passed as `target.type` — so both sites keep
+  // their own `{ retryable: false }` override, bringing adt/write.ts from 8
+  // sites to 9.
+  it("exactly 35 call sites pass a 5th argument to `new AbapError(...)` — 2 in adt/resolve.ts, 9 in adt/write.ts, 2 in adt/datapreview.ts and 1 in adt/locked-holders.ts (re-wraps that carry the classified retryability through unchanged), 1 in adt/resolved-package.ts, 1 in adt/index-create.ts, 3 in adt/undo.ts, 5 in adt/run.ts (the TIMEOUT mint and four re-wraps), 2 in tools/write.ts, 4 in tools/debug.ts, 1 in tools/ui.ts, 1 in debug/session.ts and 3 in tools/bopf.ts (TIMEOUT re-read verdicts: create never landed → true, created-but-inactive → false, activate still inactive → true): all 35 are per-site overrides of RETRYABILITY's default (terminal-by-code UNSUPPORTED/SAFETY_DENIED sites whose own prose promises a working retry, plus BAD_INPUT sites whose own prose forbids a retry); most terminal codes still get retryable:false automatically from RETRYABILITY with no 5th argument at all", () => {
     const { calls } = scanSrc();
     expect(
       calls.length,
       `found: ${calls.map((c) => `${c.file}:${c.line}`).join(", ")}`,
-    ).toBe(34);
+    ).toBe(35);
   });
 });
 

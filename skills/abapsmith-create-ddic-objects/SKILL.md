@@ -51,7 +51,10 @@ only; `outputLength`/`lowercase`/`signExists`/`fixedValues`/`valueTable` are
 Live-verified on A4H (NetWeaver 7.54) on 2026-09-16 — objects created through
 `ddic`, activated, read back with every value intact, deleted: a `DTEL/DE`
 with all four labels (`ZAS_DTEL_LBL`), a `CHAR 1` domain with three fixed
-values (`ZAS_DOMA_ST`), a `DEC 13,3` signed amount domain (`ZAS_DOMA_AMT`).
+values (`ZAS_DOMA_ST`), a `DEC 13,3` signed amount domain (`ZAS_DOMA_AMT`);
+repeated on 2026-09-22 with a `CHAR 3` domain and a data element on it, both
+named `ZAS_DDIC_CHK`. Prefer `ddic` over hand-written `source` for these
+three types.
 The builder puts `adtcore:masterLanguage="EN"` on the root itself, so the
 label / fixed-value-text discard described under "Per-type traps" cannot
 happen through `ddic`. Still refused, because never proven in a PUT body:

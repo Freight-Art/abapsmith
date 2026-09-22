@@ -12,6 +12,16 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.18] - 2026-09-22
+
+### Changed
+
+- **`abap_write` validates `type` first** (#157). The type code is checked against the writable set before any type-specific required-field check, so `{"object":"ZFOO","type":"TRAN/P"}` with no `source` now answers `BAD_INPUT` `Unknown object type "TRAN/P". Did you mean TRAN/T?` (with `details.suggestions` and `details.writable`) instead of `source is required`, and a bridge-only or unsupported explicit type is refused the same way before any request. The suggestion is an edit-distance match over the writable codes; nothing about the accepted types changed.
+- **`Writable types are ...` names the same list as `details.writable`** (#157). The sentence in the refusal is built from the registry's write set, so every code in `details.writable` appears in the prose and the two cannot drift.
+- **`abapsmith-orient` is a router** (#158). The skill is down from 21.8 KB to about 5 KB: the generated writable-type table, the `abap_read` refusal list and the two write shapes now live in `skills/abapsmith-create-an-object/writable-types.md` (`scripts/gen-capability-table.mjs` and `test/capability-table-census.test.ts` follow it); the per-feature ceiling details moved into the area skills they belong to (transport ceilings to `abapsmith-put-work-on-a-transport`, `abap_ui press` and `abap_fpm_read` gating to `abapsmith-research-code`, `abap_dumps variables` to `abapsmith-debug-a-failing-run`, `abap_data_preview` and the package-first read to `abapsmith-explore-a-package`, `abap_fluid` gating to `abapsmith-write-a-fluid-plugin`). `test/skills-orient-router.test.ts` pins the size and that every skill is reachable from the router.
+- **`abapsmith-put-work-on-a-transport` describes the `ABAP_ALLOW_TRANSPORTS=auto` flow** (#158). Omit `corr_nr`, read the request from the write response's `transport:` line, and call `transport_create` only when the gate mode requires a named request; the "call `transport_create` first regardless" and "AUTO" wording is gone. `abapsmith-orient` no longer claims `corr_nr` is required outside `$TMP`.
+- **Skill corrections** (#158). `abapsmith-write-abap-source/classes.md` states that `abap_run` in class mode captures only `out->write( )` output — classic `WRITE` statements produce nothing there (verified on A4H). `abapsmith-edit-a-bopf-object` adds that a classrun calling the BOPF transaction manager must `COMMIT WORK` after `save( )` or nothing persists. `abapsmith-create-an-object` and `abapsmith-put-work-on-a-transport` state that a `SAFETY_DENIED` / `retryable:false` answer is terminal for that object and package: do not vary arguments, report the rule the hint names and, if the task allows, use `$TMP`. `abapsmith-create-ddic-objects` records that `ddic` for domains and data elements was re-verified live (`ZAS_DDIC_CHK`, 2026-09-22) instead of calling it unverified.
+
 ## [0.6.17] - 2026-09-22
 
 ### Added
