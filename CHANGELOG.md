@@ -19,7 +19,7 @@ version was set to `0.3.0`, which is intended.
 
 ### Added
 
-- **`abap_run` `keep_blank_lines`** (#180). `true` returns the captured list unfiltered — no page-header/rule strip, no trailing-blank pop, no right-trim (only unprefixed bridge lines are still dropped). Default `false` keeps today's filtering, and the dropped-lines `NOTE` now says why and where, e.g. "Dropped 2 blank lines at positions 4 and 5 (trailing list padding); dropped the list header and rule line at positions 1 and 2; dropped 1 non-list line of bridge output at bridge line 3." A response-cap cut leaves an in-place `… (N lines omitted) …` marker in the `OUTPUT` instead of just cutting it off silently.
+- **`abap_run` `keep_blank_lines`** (#180). `true` returns the captured list unfiltered — no page-header/rule strip and no trailing-blank pop (lines are still right-trimmed, and unprefixed bridge lines are still dropped). Default `false` keeps today's filtering, and the dropped-lines `NOTE` now says why and where, e.g. "Dropped 2 blank lines at positions 4 and 5 (trailing list padding); dropped the list header and rule line at positions 1 and 2; dropped 1 non-list line of bridge output at bridge line 3." A response-cap cut leaves an in-place `… (N lines omitted) …` marker in the `OUTPUT` instead of just cutting it off silently.
 
 ### Changed
 
