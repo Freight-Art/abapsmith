@@ -1,0 +1,22 @@
+{
+  "n": 992,
+  "label": "i177-fmodule-put-rfc-response",
+  "expect": "the PUT response is not the server state: only a subsequent GET (993) shows the inactive version and the rfcScope/rfcVersion attributes",
+  "note": "200 body of the descriptor PUT that set fmodule:processingType=rfc under lock: echoes the descriptor with processingType=rfc but still version=active and no rfcScope/rfcVersion - an acceptance echo, not a read-back (issue 177)",
+  "requestMethod": "PUT",
+  "requestUrl": "/sap/bc/adt/functions/groups/zas_fg171/fmodules/zas_fm_one?lockHandle=...&corrNr=A4HK900306&sap-client=001",
+  "requestHeaders": {
+    "Content-Type": "application/vnd.sap.adt.functions.fmodules.v3+xml"
+  },
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "application/xml"
+  },
+  "responseHeadersNote": "only content-type known: body captured with a direct ADT GET/PUT (scripts outside the repo); other response headers were not recorded",
+  "byteLength": 2322,
+  "zeroByteBody": false,
+  "sha256": "42b7e4b01c89baffc88ae1455bf459764f6e1d6f6a131089c1e1daa28a902912",
+  "utcTimestamp": "2026-09-22T15:16:00Z",
+  "timestampNote": "approximate (minute precision) - taken from the capture session notes, not a recorded clock",
+  "sessionName": "LIVE-I171-I177"
+}

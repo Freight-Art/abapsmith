@@ -1,0 +1,22 @@
+{
+  "n": 993,
+  "label": "i177-fmodule-get-after-rfc-put",
+  "expect": "the descriptor PUT is honoured by ADT on A4H and leaves an inactive version that activation must then pick up",
+  "note": "read-back after the processingType=rfc PUT: processingType=rfc, rfcScope=notClassified, rfcVersion=any, adtcore:version=inactive (issue 177)",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/functions/groups/zas_fg171/fmodules/zas_fm_one?sap-client=001",
+  "requestHeaders": {
+    "Accept": "application/*"
+  },
+  "responseStatus": 200,
+  "responseHeaders": {
+    "content-type": "application/xml"
+  },
+  "responseHeadersNote": "only content-type known: body captured with a direct ADT GET/PUT (scripts outside the repo); other response headers were not recorded",
+  "byteLength": 2628,
+  "zeroByteBody": false,
+  "sha256": "6fe5124bc5b321df42c7477b59c39b82aead6f5da984130d94462ae643e29e51",
+  "utcTimestamp": "2026-09-22T15:17:00Z",
+  "timestampNote": "approximate (minute precision) - taken from the capture session notes, not a recorded clock",
+  "sessionName": "LIVE-I171-I177"
+}

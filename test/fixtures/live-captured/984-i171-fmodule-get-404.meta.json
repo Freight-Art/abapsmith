@@ -1,0 +1,22 @@
+{
+  "n": 984,
+  "label": "i171-fmodule-get-404",
+  "expect": "the module resolve GET answers 404 with T100 FL/110, so resolveWriteTarget takes its not-found branch and must derive the package from the group instead of defaulting to $TMP",
+  "note": "resolveWriteTarget GET of a not-yet-existing function module: 404 ExceptionResourceNotFound FL/110 - the create branch entry point (issue 171)",
+  "requestMethod": "GET",
+  "requestUrl": "/sap/bc/adt/functions/groups/zas_fg171/fmodules/zas_fm_one?sap-client=001",
+  "requestHeaders": {
+    "Accept": "application/*"
+  },
+  "responseStatus": 404,
+  "responseHeaders": {
+    "content-type": "application/xml"
+  },
+  "responseHeadersNote": "only content-type known: body captured via an HTTP trace hook on abapsmith's own guarded transport (trace-i171-fm1e); other response headers were not recorded",
+  "byteLength": 1374,
+  "zeroByteBody": false,
+  "sha256": "c706e5f037eabe71f6dd2f96e060acb3e73643d2cf12709c69b8e54289d300d5",
+  "utcTimestamp": "2026-09-22T15:11:00Z",
+  "timestampNote": "approximate (minute precision) - taken from the capture session notes, not a recorded clock",
+  "sessionName": "LIVE-I171-I177"
+}

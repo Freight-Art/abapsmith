@@ -505,12 +505,14 @@ const PINNED_MUTATION_CENSUS: ReadonlyMap<string, { calls: number; note: string 
   [
     "adt/write.ts",
     {
-      calls: 7,
+      calls: 8,
       note:
         "writeObject/createObject/deleteObject's create/update/delete/includes calls: two " +
         "conn.adt.createObject (class + include), conn.post x2 (create-by-post path, includes), " +
-        "conn.put (content update), conn.del x2 (delete + include cleanup). All journalled via " +
-        "abapWrite's withJournalledMutation (tools/write.ts).",
+        "conn.put (content update), conn.put (FUGR/FF processing-type descriptor, #177: runs " +
+        "inside writeObject after the content PUT, under the same lock, so only once " +
+        "onBeforeImage -> journal.begin has fired), conn.del x2 (delete + include cleanup). " +
+        "All journalled via abapWrite's withJournalledMutation (tools/write.ts).",
     },
   ],
   [
