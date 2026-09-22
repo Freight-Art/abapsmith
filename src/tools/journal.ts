@@ -920,11 +920,14 @@ export function registerJournalTools(mcp: McpServer, deps: JournalToolDeps): voi
     "abap_journal",
     {
       description:
-        "History and undo for writes abapsmith made. mode=list: recent writes with entry " +
-        "ids. mode=show: one entry with its before-image. mode=undo: revert it — refuses " +
-        "on drift, delete-gate, or an enhancement object; see abapsmith-recover-a-bad-write " +
-        "for details. mode=reconcile: close a stranded `pending` entry with a stated outcome " +
-        "and reason — journal bookkeeping only, nothing is sent to SAP.",
+        "History and undo for writes abapsmith made. Parameters: mode (list|show|undo|reconcile, " +
+        "default list), entry, object, detail, limit, session, force, activate, outcome, reason. Common " +
+        "calls: mode=list (recent writes with entry ids); mode=show entry=<id> (one entry with " +
+        "its before-image; detail=full for the complete images); mode=undo entry=<id> " +
+        "activate=true (revert it — refuses on drift, delete-gate, or an enhancement object; " +
+        "see abapsmith-recover-a-bad-write); mode=reconcile entry=<id> outcome=<succeeded|failed> " +
+        "reason=<text> (close a stranded `pending` entry — journal bookkeeping only, nothing is " +
+        "sent to SAP).",
       inputSchema: journalInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true },
     },

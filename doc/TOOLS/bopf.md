@@ -38,6 +38,26 @@ wrong-interface, pending, or unchecked — a cross-BO `targetNodeRef` (e.g.
 object, rather than a false `missing`, because `check_refs` reads one
 business object and does not fetch another to verify it.
 
+For a class ref (an action/determination/validation/query
+`implementationClassRef`), the verdict is one of: `present` — the class
+exists, has an `IMPLEMENTATION` section, and implements the interface its
+role requires; `declaration-only` — the class exists but has no
+`IMPLEMENTATION` section; `wrong-interface` — the class exists but
+does not implement, directly or through a superclass, the interface its
+role requires (`/BOBF/IF_FRW_ACTION`, `_DETERMINATION`, `_VALIDATION`, or
+`_QUERY`); `unchecked` — the check could not decide, never a problem
+count; `missing` — no source artifact (404). The interface check first
+asks ADT's type hierarchy (`POST /sap/bc/adt/abapsource/typehierarchy?
+type=superTypes`, which lists the class's own AND inherited interfaces —
+the class outline/objectstructure lists only its own `INTERFACES`
+statements, verified live); if that resource is unavailable, the
+definition part is scanned case-insensitively for `INTERFACES`
+statements, and if that finds nothing and the class has `INHERITING
+FROM`, the verdict is `unchecked` rather than `wrong-interface` (the
+interface may be inherited). If the class source cannot be read at all —
+anything but a 404, e.g. a 403 on a delivered SAP class — the verdict is
+`unchecked` instead of `wrong-interface`, and the edit proceeds.
+
 ## abap_bopf_edit
 
 Apply one structural edit to a BOPF business object (add/remove a node,
@@ -101,6 +121,19 @@ an opaque numeric code (`ActionCategoryCode`), not checked client-side.
 | `Association` | cross-node or cross-BO association resolved by the association class |
 | `C` | schema short form of `Composition` (not observed on the wire) |
 | `A` | schema short form of `Association` (not observed on the wire) |
+
+`spec.targetNodeRef.name` (`add_association`, `set_association_fields`)
+must always be `<BO>~<NODE>` — same-BO included, e.g. `"ZBOPF_PRB1~ITEM"`,
+never a bare `"ITEM"`. A bare name activates with "Association has no
+Target Node defined"; abapsmith qualifies a bare name with the
+current business object's name before the PUT and the response carries a
+NOTE recording the substitution (`targetNodeRef "ITEM" had no "~" and was
+qualified to "ZBOPF_PRB1~ITEM" — ...`). If the node — bare, or qualified
+with the same BO — is not in the freshly-read model, the edit is refused
+`BAD_INPUT` before any lock or PUT, listing the nodes that exist.
+`spec.targetNodeRef.type` defaults to `BOBF` when omitted. A cross-BO
+target (`/BOBF/DEMO_CUSTOMER~ROOT`) passes through unchanged and is not
+validated locally.
 
 `spec.instanceMultiplicity` (`add_action`, `set_action_fields`), from
 `/BOBF/IF_CONF_C` on the live system:
@@ -190,6 +223,47 @@ Example (add an action):
   }
 }
 ```
+
+### Query classes: RETRIEVE_DEFAULT_PARAM
+
+A query class bound with `add_query` must implement
+`/BOBF/IF_FRW_QUERY~RETRIEVE_DEFAULT_PARAM`, even though the interface
+declares that method `DEFAULT IGNORE`: the ABAP syntax check accepts a
+class without it, but BOPF activation of the business object then fails
+on the missing method. When the class source is readable, the
+`add_query`/`set_query_fields` preflight checks case-insensitively for a
+`METHOD ... retrieve_default_param` implementation and adds a NOTE naming
+the missing method if it is absent, e.g. "Class ZCL_X has no METHOD
+/bobf/if_frw_query~retrieve_default_param implementation — ... Add an
+empty implementation before activating."
+
+Minimal query-class skeleton:
+
+```abap
+CLASS zcl_as_qry DEFINITION PUBLIC FINAL CREATE PUBLIC.
+  PUBLIC SECTION.
+    INTERFACES /bobf/if_frw_query.
+ENDCLASS.
+
+CLASS zcl_as_qry IMPLEMENTATION.
+  METHOD /bobf/if_frw_query~query.
+    " select the keys, fill et_key / et_data
+  ENDMETHOD.
+
+  METHOD /bobf/if_frw_query~retrieve_default_param.
+    " required by BOPF activation even though the interface marks it DEFAULT IGNORE
+  ENDMETHOD.
+ENDCLASS.
+```
+
+`/BOBF/IF_FRW_ACTION` likewise has `prepare` and `retrieve_default_param`
+as `DEFAULT IGNORE` (only `execute` is mandatory), and
+`/BOBF/IF_FRW_DETERMINATION`/`/BOBF/IF_FRW_VALIDATION` have `check_delta`
+and `check` as `DEFAULT IGNORE` (only `execute` mandatory). For actions
+BOPF activation does not enforce them: on A4H a business object activated
+with an action bound to a class implementing only `execute`. Determination
+and validation classes were not exercised, so their `DEFAULT IGNORE`
+methods stay unverified — this NOTE is implemented for the query case only.
 
 ### When the server rejects the document (`ExceptionInvalidData`)
 
@@ -457,6 +531,12 @@ operation's patchable fields. `set_action_fields`/`set_determination_fields`/
 `set_validation_fields`/`set_query_fields` run the same dangling-class-ref
 preflight as their `add_*` counterparts: a class name that has no source
 artifact refuses with `BOPF_DANGLING_REF` unless `allow_dangling_ref: true`.
+When the class exists but its source cannot be read (anything but a 404,
+e.g. a 403 on a delivered class), the preflight reports `unchecked`
+instead of refusing. `add_query`/`set_query_fields` additionally check,
+when the source is readable, whether the class implements
+`/BOBF/IF_FRW_QUERY~RETRIEVE_DEFAULT_PARAM` and add a NOTE naming the
+missing method if not — see "Query classes: RETRIEVE_DEFAULT_PARAM" above.
 
 There is no operation that writes a representative node or an embedded
 dependent object directly. A live discovery run against a real SAP system
@@ -468,7 +548,9 @@ nothing left to remove). What still works for each:
 **Representative node — get one via a cross-BO `add_association`.** A
 plain `Association` on the node that should carry the link —
 `spec.implementationType: "Association"`, `spec.targetNodeRef` naming
-another BO's node, and `spec.implementationClassRef` naming an XBO class
+another BO's node as `<BO>~<NODE>` (see `spec.targetNodeRef.name` above —
+this is the cross-BO case; a same-BO association needs the same shape),
+and `spec.implementationClassRef` naming an XBO class
 — answers 200, and the server mints a parentless, non-root node alongside
 it, named `REP_<random>` (observed `REP_TYVJRJ3REEP6DKVELQE77P7WKA`),
 carrying only the fixed `KEY`/`PARENT_KEY`/`ROOT_KEY` properties — the

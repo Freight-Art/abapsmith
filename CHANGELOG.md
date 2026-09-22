@@ -19,6 +19,30 @@ version was set to `0.3.0`, which is intended.
 ### Fixed
 
 - **Function module create no longer collides with its own group's transport lock** (#171). A module create with no `package` used to resolve to `$TMP` and send the create POST with no `corrNr`; CTS refused it with 403 `CTS_WBO_API/019` — the group's generated `L<GROUP>UXX` include was already locked by the request the group itself was created in. The create path now reads the group's own `adtcore:packageRef` and uses that package: transportchecks answers `KORRFLAG X` with the locking request, the POST carries `corrNr=<that request>`, and the response's `transport:` line reports the request actually used, with `package_source: container` saying the package came from the group. A `package` that disagrees with the group's is refused `BAD_INPUT` — no move. A create that still hits `CTS_WBO_API/019` (e.g. a forced `corr_nr`) is now classified `TRANSPORT_LOCKED`, `details.classifiedBy: "cts-object-locked-in-other-request"`, with `details.holdingRequest`, `details.holdingUser`, `details.lockedObject`, and a hint naming the request to pass as `corr_nr`.
+## [0.6.21] - 2026-09-22
+
+### Added
+
+- **`add_query`/`set_query_fields` flag a missing `RETRIEVE_DEFAULT_PARAM` implementation** (#188). A query class must implement `/BOBF/IF_FRW_QUERY~RETRIEVE_DEFAULT_PARAM` even though the interface marks it `DEFAULT IGNORE` — the ABAP syntax check accepts a class without it, but BOPF activation of the business object then fails on the missing method. When the class source is readable, the preflight now checks case-insensitively for the method's implementation and adds a NOTE naming it if absent.
+
+### Fixed
+
+- **BOPF dangling-class-ref interface check is no longer case-sensitive** (#186). It used to test for `/BOBF/IF_FRW_ACTION` etc. as an exact-case substring, so a lower-case `INTERFACES /bobf/if_frw_action` was flagged `wrong-interface`. It now asks ADT's type hierarchy (own and inherited interfaces), falls back to a case-insensitive scan of the definition part, and reports `unchecked` — not `wrong-interface` — when it can't decide (an inheriting class whose hierarchy is unavailable, or a class whose source can't be read at all, e.g. a 403 on a delivered SAP class). The edit no longer throws on an unreadable source.
+- **`add_association`/`set_association_fields` qualify a bare `targetNodeRef.name`** (#187). BOPF requires `<BO>~<NODE>`, same-BO included — a bare name like `"ITEM"` activated with "Association has no Target Node defined". A bare name is now qualified with the current business object's name before the PUT and reported in a NOTE; `spec.targetNodeRef.type` defaults to `BOBF`. An unknown node (bare, or qualified with the same BO) is refused `BAD_INPUT` before any lock or PUT, listing the nodes that exist.
+## [0.6.20] - 2026-09-22
+
+### Fixed
+
+- **`abap_search` no longer throws on a bare `*` query under a type filter** (#172). `conn.adt.searchObject` parses object-name attributes numerically, so a whitespace-padded numeric name like `"                                00"` (a real WDCC/YG row) becomes the number `0` and the library's own `result["adtcore:name"].match(...)` throws `TypeError: match is not a function` before our code ever sees a row. `abap_search` now retries that one call with a string-preserving parse of the raw ADT XML when it hits exactly this failure; any other error is rethrown unchanged. `*` stays supported, with or without `type`, within the existing fetch cap.
+- **`abap_test` on a class with no test-classes include reports `NO TESTS RAN`, not `UNKNOWN`** (#181). A class whose `testclasses` include is missing or empty now reports `NO TESTS RAN` with a reason naming which — there was nothing for ABAP Unit to run, not a run that reported nothing for no evident reason. `UNKNOWN` is now reserved for that latter case: the include exists and is non-empty but the run still came back empty, or the include could not be probed.
+
+### Added
+
+- **`abap_run` `keep_blank_lines`** (#180). `true` returns the captured list unfiltered — no page-header/rule strip and no trailing-blank pop (lines are still right-trimmed, and unprefixed bridge lines are still dropped). Default `false` keeps today's filtering, and the dropped-lines `NOTE` now says why and where, e.g. "Dropped 2 blank lines at positions 4 and 5 (trailing list padding); dropped the list header and rule line at positions 1 and 2; dropped 1 non-list line of bridge output at bridge line 3." A response-cap cut leaves an in-place `… (N lines omitted) …` marker in the `OUTPUT` instead of just cutting it off silently.
+
+### Changed
+
+- **`abap_journal`'s description lists its parameters and common calls** (#183): `mode=list`, `mode=show entry=<id>` (`detail=full` for the complete images), `mode=undo entry=<id> activate=true`, `mode=reconcile entry=<id> outcome=<succeeded|failed> reason=<text>`. `operation`/`action`/`op` are now suggested as `mode` and `target` as `object` in the `BAD_INPUT` for an unknown parameter; `abapsmith-orient`'s tool-set row shows the same calls.
 
 ## [0.6.19] - 2026-09-22
 

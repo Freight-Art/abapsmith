@@ -30,7 +30,7 @@ import type { SessionPool } from "../adt/pool.js";
 import type { SessionTransport } from "../adt/session-transport.js";
 import type { Config } from "../config.js";
 import type { SafetyCorr, SafetyGate } from "../safety.js";
-import { AbapError, isAbapError } from "../adt/errors.js";
+import { AbapError, isAbapError, describeUnknownError } from "../adt/errors.js";
 import { buildResponse } from "../compact.js";
 import { renderCoActivated } from "./activate.js";
 import { readCurrentSource, type ResolvedTarget } from "../adt/write.js";
@@ -120,7 +120,14 @@ import {
   ALTERNATIVE_KEY_CHILD_ORDER,
 } from "../adt/bopf-types.js";
 import { validateSpecKeys, SET_CHILD_FIELD_TABLES, baseShape, type SpecFieldTable } from "./bopf-spec-keys.js";
-import { classifyNodes, classifyAssociation, describeNodeKind, describeAssociationKind } from "../adt/bopf-node-kinds.js";
+import {
+  classifyNodes,
+  classifyAssociation,
+  describeNodeKind,
+  describeAssociationKind,
+  splitTargetNodeRef,
+} from "../adt/bopf-node-kinds.js";
+import { checkClassImplements, hasImplementationPart, hasMethodImplementation } from "../adt/class-interfaces.js";
 import {
   isDelegationOperation,
   validateDelegationShape,
@@ -561,7 +568,9 @@ function danglingRefElementLabel(operation: string): string {
 
 interface DanglingVerdict {
   readonly className: string;
-  readonly verdict: "present" | "declaration-only" | "wrong-interface" | "allowed";
+  readonly verdict: "present" | "declaration-only" | "wrong-interface" | "unchecked" | "allowed";
+  readonly detail?: string;
+  readonly missingMethods?: readonly string[];
 }
 
 function str(v: unknown): string | undefined {
@@ -642,7 +651,12 @@ function specClassName(spec: Record<string, unknown> | undefined): string | unde
  * (which can 200 for a class that was never created).
  *
  * Only "missing" refuses (`BOPF_DANGLING_REF`), and only when `allowDangling`
- * is false; `declaration-only`/`wrong-interface` are informational notes.
+ * is false; `declaration-only`/`wrong-interface`/`unchecked` are
+ * informational notes. The interface check reads the ADT type hierarchy
+ * (`checkClassImplements`, `../adt/class-interfaces.js`) — own and inherited
+ * interfaces — falling back to the definition part when that resource is
+ * unreachable; a read failure never throws here, it just downgrades to
+ * `"unchecked"`.
  */
 async function danglingRefPreflight(
   conn: AbapConnection,
@@ -683,17 +697,28 @@ async function danglingRefPreflight(
         "Create the class first, or pass allow_dangling_ref: true to proceed anyway.",
       );
     }
-    throw e;
+    return { className, verdict: "unchecked", detail: describeUnknownError(e) };
   }
 
-  if (source === undefined || !source.includes("IMPLEMENTATION")) {
+  if (source === undefined || !hasImplementationPart(source)) {
     return { className, verdict: "declaration-only" };
   }
+
   const requiredInterface = IMPL_INTERFACE_BY_OP[operation];
-  if (requiredInterface && !source.includes(requiredInterface)) {
-    return { className, verdict: "wrong-interface" };
+  let verdict: DanglingVerdict = { className, verdict: "present" };
+  if (requiredInterface) {
+    const check = await checkClassImplements(conn, className, source, requiredInterface);
+    if (check.implemented === false) verdict = { className, verdict: "wrong-interface", detail: check.detail };
+    else if (check.implemented === undefined) verdict = { className, verdict: "unchecked", detail: check.detail };
   }
-  return { className, verdict: "present" };
+  // #188: the interface marks it DEFAULT IGNORE so the syntax check passes, but BOPF activation fails without it.
+  if (
+    (operation === "add_query" || operation === "set_query_fields") &&
+    !hasMethodImplementation(source, "retrieve_default_param")
+  ) {
+    verdict = { ...verdict, missingMethods: ["/BOBF/IF_FRW_QUERY~RETRIEVE_DEFAULT_PARAM"] };
+  }
+  return verdict;
 }
 
 /**
@@ -2186,9 +2211,21 @@ function buildEditResponse(
             "silently never fires."
           : danglingVerdict.verdict === "declaration-only"
             ? " — the class exists but has no IMPLEMENTATION section yet."
-            : " — the class exists but does not (yet) implement the interface this element's role requires " +
-              "(substring match only; inherited interfaces are not visible here)."),
+            : danglingVerdict.verdict === "wrong-interface"
+              ? ` — the class exists but does not implement the interface this element's role requires ` +
+                `(${danglingVerdict.detail ?? "see check_refs"}).`
+              : ` — could not determine whether the class implements the required interface ` +
+                `(${danglingVerdict.detail ?? "source or type hierarchy unreadable"}); proceeding.`),
     );
+  }
+  if (danglingVerdict?.missingMethods?.length) {
+    for (const m of danglingVerdict.missingMethods) {
+      notes.push(
+        `Class ${danglingVerdict.className} has no METHOD ${m.toLowerCase()} implementation — the interface marks ` +
+          "it DEFAULT IGNORE so the syntax check passes, but BOPF activation fails on the missing method. Add an " +
+          "empty implementation before activating.",
+      );
+    }
   }
   if (activation) {
     notes.push(
@@ -2259,6 +2296,50 @@ function resolveTargetNodeName(ref: AdtObjectRef | undefined): string | undefine
   }
   const tilde = ref.name.lastIndexOf("~");
   return tilde >= 0 ? ref.name.slice(tilde + 1) : ref.name;
+}
+
+/** add_association / set_association_fields: qualify a bare targetNodeRef.name as `<BO>~<NODE>`, refuse an unknown same-BO node. */
+function qualifyTargetNodeRef(
+  model: BoModel,
+  operation: string,
+  spec: Record<string, unknown> | undefined,
+): { spec: Record<string, unknown> | undefined; note?: string } {
+  const targetNodeRef = spec?.targetNodeRef;
+  if (!targetNodeRef || typeof targetNodeRef !== "object") return { spec };
+  const targetNodeRefObj = targetNodeRef as Record<string, unknown>;
+  const raw = targetNodeRefObj.name;
+  if (typeof raw !== "string") return { spec };
+
+  const { bo, node } = splitTargetNodeRef(raw);
+  if (bo !== undefined && bo.toLowerCase() !== model.name.toLowerCase()) {
+    // Cross-BO target — outside what this function qualifies or validates.
+    return { spec };
+  }
+
+  const wantNode = (node ?? "").toLowerCase();
+  const found = model.nodes.find((n) => n.name.toLowerCase() === wantNode);
+  if (!found) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `${operation} on ${model.name}: targetNodeRef "${raw}" names node "${node}", which does not exist on ` +
+        `${model.name}. Available nodes: ${model.nodes.map((n) => n.name).join(", ")}.`,
+      { bo: model.name, targetNodeRef: raw, availableNodes: model.nodes.map((n) => n.name) },
+      `Use "<BO>~<NODE>" — for a same-BO target that is "${model.name}~<NODE>".`,
+    );
+  }
+
+  const qualified = `${model.name}~${found.name}`;
+  const newRef = {
+    ...targetNodeRefObj,
+    name: bo === undefined ? qualified : raw,
+    type: typeof targetNodeRefObj.type === "string" ? targetNodeRefObj.type : "BOBF",
+  };
+  const note =
+    bo === undefined
+      ? `targetNodeRef "${raw}" had no "~" and was qualified to "${qualified}" — the target node is always ` +
+        "<BO>~<NODE>, same-BO included."
+      : undefined;
+  return { spec: { ...spec, targetNodeRef: newRef }, note };
 }
 
 /**
@@ -2563,6 +2644,8 @@ interface EditMutationResult {
   readonly entryId: string | undefined;
   /** Set on outcome (e): a note to surface in the success response. */
   readonly timeoutNote?: string;
+  /** Extra notes to fold into the final response — e.g. a targetNodeRef auto-qualification. */
+  readonly notes?: readonly string[];
 }
 
 export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<BopfCallResult> {
@@ -2861,6 +2944,13 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
   const result: EditMutationResult = await deps.pool.withWrite("abap_bopf_edit", gateKey, (conn) =>
     conn.withStatefulSession(async (session): Promise<EditMutationResult> => {
       const initial: BopfModelRead = await readModel(conn, bo);
+
+      let targetNodeNote: string | undefined;
+      if (input.operation === "add_association" || input.operation === "set_association_fields") {
+        const q = qualifyTargetNodeRef(initial.model, input.operation, input.spec as Record<string, unknown> | undefined);
+        (input as { spec?: unknown }).spec = q.spec;
+        targetNodeNote = q.note;
+      }
 
       if (input.operation === "remove_node") {
         const target = requireNode(input).node.toLowerCase();
@@ -3204,7 +3294,13 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
         activation = await activateBusinessObject(conn, bo);
       }
 
-      return { model: afterMutate.model, danglingVerdict, activation, entryId };
+      return {
+        model: afterMutate.model,
+        danglingVerdict,
+        activation,
+        entryId,
+        notes: targetNodeNote ? [targetNodeNote] : [],
+      };
     }),
   ).catch(async (e): Promise<EditMutationResult> => {
     // Issue #154 outcomes (e)/(f): a standalone `operation: "activate"`
@@ -3222,6 +3318,7 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
           danglingVerdict: undefined,
           activation: { activated: true, messages: [], version: "active" },
           entryId: undefined,
+          notes: [],
           timeoutNote:
             `activation of ${bo} did not answer within ${timeoutMs} ms (${envVar}) but completed on the server ` +
             `after the client timeout: a fresh session re-read shows version active.`,
@@ -3259,9 +3356,14 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
       false,
       result.entryId,
       deps.cfg.maxResponseChars,
-      [categoryNote, addNodeNote, altKeyNote, result.timeoutNote, ...delegationNotes(input as DelegationInput)].filter(
-        (n): n is string => n !== undefined,
-      ),
+      [
+        categoryNote,
+        addNodeNote,
+        altKeyNote,
+        result.timeoutNote,
+        ...delegationNotes(input as DelegationInput),
+        ...(result.notes ?? []),
+      ].filter((n): n is string => n !== undefined),
     ),
     result.entryId,
   );
