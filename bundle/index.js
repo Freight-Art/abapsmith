@@ -36871,6 +36871,13 @@ function sameT100No(a, b) {
   if (/^\d+$/.test(a) && /^\d+$/.test(b)) return Number(a) === Number(b);
   return false;
 }
+function ctsObjectLockedHint(message, properties) {
+  const m = /is already locked in request (\w+) of user (\w+)/i.exec(message);
+  const request = properties["T100KEY-V3"] ?? m?.[1] ?? "";
+  const user = properties["T100KEY-V4"] ?? m?.[2] ?? "";
+  const object3 = properties["T100KEY-V1"] ?? "";
+  return `Transport request ${request} (owner ${user}) already holds a lock on ${object3}, so CTS will not record this change in a different request. Pass corr_nr=${request} \u2014 or a task of your own under it \u2014 so the write is recorded there, or have ${request} released first. For a function module the locked object is the group's L<GROUP>UXX include, held by the request the group was created in: omit \`package\` and \`corr_nr\` so abapsmith derives the module's package from its group and records the create in that request.`;
+}
 function lastXmlPathSegment(xmlPath) {
   const matches = [...xmlPath.matchAll(/([A-Za-z0-9_:]+)\(\d+\)/g)];
   return matches.length > 0 ? matches[matches.length - 1][1] : void 0;
@@ -36968,6 +36975,25 @@ var init_adt_message_rules = __esm({
         exceptionType: "ExceptionInvalidData",
         property: "XML_PATH",
         hint: (_message, properties) => describeXmlPath(properties["XML_PATH"] ?? "", properties)
+      },
+      {
+        id: "cts-object-locked-in-other-request",
+        t100Id: "CTS_WBO_API",
+        t100No: "019",
+        match: /is already locked in request (\w+) of user (\w+)/i,
+        hint: ctsObjectLockedHint,
+        code: "TRANSPORT_LOCKED",
+        details: (message, properties) => {
+          const m = /is already locked in request (\w+) of user (\w+)/i.exec(message);
+          const holdingRequest = properties["T100KEY-V3"] ?? m?.[1];
+          const holdingUser = properties["T100KEY-V4"] ?? m?.[2];
+          const lockedObject = properties["T100KEY-V1"];
+          return {
+            ...holdingRequest !== void 0 ? { holdingRequest } : {},
+            ...holdingUser !== void 0 ? { holdingUser } : {},
+            ...lockedObject !== void 0 ? { lockedObject } : {}
+          };
+        }
       }
     ];
     for (const rule of ADT_MESSAGE_RULES) {
@@ -37199,7 +37225,7 @@ function translateAdtError(e, ctx) {
   const classified = classifyAdtMessage(unclassifiedMessage, unclassifiedProperties, info?.type);
   if (classified) {
     return new AbapError(
-      "ADT_ERROR",
+      classified.code ?? "ADT_ERROR",
       unclassifiedMessage,
       {
         operation: ctx.operation,
@@ -37209,7 +37235,8 @@ function translateAdtError(e, ctx) {
         status: info?.status,
         adtExceptionType: info?.type,
         ...Object.keys(unclassifiedProperties).length ? { properties: unclassifiedProperties } : {},
-        classifiedBy: classified.id
+        classifiedBy: classified.id,
+        ...classified.details?.(unclassifiedMessage, unclassifiedProperties)
       },
       typeof classified.hint === "function" ? classified.hint(unclassifiedMessage, unclassifiedProperties) : classified.hint
     );
@@ -111572,6 +111599,24 @@ async function containerPackage(conn, spec, containerName) {
     return void 0;
   }
 }
+var FMODULE_PROCESSING_TYPE_ATTR_RE = /(?:^|\s)(?:[A-Za-z_][\w.-]*:)?processingType\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
+function parseProcessingType(body) {
+  const m = FMODULE_PROCESSING_TYPE_ATTR_RE.exec(body.replace(XML_COMMENT_RE, ""));
+  const value = (m?.[1] ?? m?.[2] ?? "").trim();
+  return value || void 0;
+}
+var FMODULE_DESCRIPTION_ATTR_RE = /(?:^|\s)adtcore:description\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
+function unescapeXmlAttr(value) {
+  return value.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+}
+function parseFmoduleDescription(body) {
+  const m = FMODULE_DESCRIPTION_ATTR_RE.exec(body.replace(XML_COMMENT_RE, ""));
+  const value = (m?.[1] ?? m?.[2] ?? "").trim();
+  return value ? unescapeXmlAttr(value) : void 0;
+}
+function processingTypeXml(name, containerName, containerUri, processingType, description) {
+  return `<?xml version="1.0" encoding="UTF-8"?><fmodule:abapFunctionModule xmlns:fmodule="http://www.sap.com/adt/functions/fmodules" xmlns:adtcore="http://www.sap.com/adt/core" fmodule:processingType="${processingType}" adtcore:name="${escapeXmlAttr3(name.toUpperCase())}" adtcore:type="FUGR/FF" adtcore:description="${escapeXmlAttr3(description)}"><adtcore:containerRef adtcore:uri="${escapeXmlAttr3(containerUri)}" adtcore:type="FUGR/F" adtcore:name="${escapeXmlAttr3(containerName.toUpperCase())}"/></fmodule:abapFunctionModule>`;
+}
 function refuseDelete(spec) {
   const enhancementRoute = isEnhancementType(spec.type) ? ` \`abap_enh operation=delete\` removes ENHO/XH, ENHO/XHH and ENHS/XS today (needs \`ABAP_ALLOW_ENHANCEMENT_DELETE=true\`).` : "";
   throw new AbapError(
@@ -111773,6 +111818,19 @@ async function resolveWriteTarget(conn, target, op = "write") {
           ...requestedPackage ? { superPackage: requestedPackage } : {}
         };
       }
+      const inherited = await containerPackage(conn, spec, containerName);
+      if (inherited !== void 0) {
+        const inheritedPackage = inherited.toUpperCase();
+        if (requestedPackage && requestedPackage !== inheritedPackage) {
+          throw new AbapError(
+            "BAD_INPUT",
+            `${spec.label} ${name} would be created inside ${containerName}, which is in package ${inheritedPackage}, but the request asked for ${requestedPackage}. A function module has no package of its own; it lives in its group's package.`,
+            { name, type: spec.type, uri, containerName, containerPackage: inheritedPackage, requestedPackage },
+            `Drop the \`package\` argument, or pass the group's package ${inheritedPackage}.`
+          );
+        }
+        return { ...base, exists: false, packageName: inheritedPackage, packageSource: "container" };
+      }
       return {
         ...base,
         exists: false,
@@ -111804,13 +111862,17 @@ async function resolveWriteTarget(conn, target, op = "write") {
       "Drop the `package` argument to edit the object where it already is. Moving an object between packages is a transport-organiser operation and needs a human."
     );
   }
+  const processingType = spec.type === "FUGR/FF" ? parseProcessingType(body) : void 0;
+  const descriptionOverride = spec.type === "FUGR/FF" && !target.description?.trim() ? parseFmoduleDescription(body) : void 0;
   return {
     ...base,
+    ...descriptionOverride !== void 0 ? { description: descriptionOverride } : {},
     exists: true,
     packageName,
     packageSource: "server",
     masterSystem: parseMasterSystem(body),
-    activation: activationFromBody(body)
+    activation: activationFromBody(body),
+    ...processingType !== void 0 ? { processingType } : {}
   };
 }
 async function readCurrentSource(conn, t) {
@@ -112328,6 +112390,16 @@ async function writeObject(conn, target, opts) {
       "Packages are create-only."
     );
   }
+  if (opts.remoteEnabled !== void 0 && t.type !== "FUGR/FF") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `remote_enabled applies to function modules (FUGR/FF) only; ${targetLabel(t)} is a ${t.type}.`,
+      { name: t.name, type: t.type },
+      "Drop `remote_enabled`."
+    );
+  }
+  const desiredProcessingType = opts.remoteEnabled === void 0 ? void 0 : opts.remoteEnabled ? "rfc" : "normal";
+  const processingTypeChangeWanted = desiredProcessingType !== void 0 && desiredProcessingType !== (t.processingType ?? "normal");
   assertFunctionGroupImplementationInclude(t, opts.source);
   if (subInclude(t) && !t.exists) {
     throw new AbapError(
@@ -112357,11 +112429,12 @@ async function writeObject(conn, target, opts) {
     assertNotPartialReadSource(t, opts.expectEtag, current);
     assertEtagMatches(t, current, opts.expectEtag, "write");
   }
-  if (current !== void 0 && sourceEquals(current, opts.source)) {
+  if (current !== void 0 && sourceEquals(current, opts.source) && !processingTypeChangeWanted) {
     return {
       target: t,
       created: false,
       changed: false,
+      ...t.processingType !== void 0 ? { processingType: t.processingType } : {},
       // The etag of what is ACTUALLY on the server, not of the caller's buffer.
       // Those differ by whatever trailing newlines the server strips, and
       // handing back the caller's hash would produce an etag that fails its own
@@ -112485,6 +112558,9 @@ async function writeObject(conn, target, opts) {
       noteTransportDead(opts.transport, corr, e);
       throw created && e instanceof AbapError ? await reportCreatePutRejection(conn, session, t, preflight2, e) : e;
     }
+    if (desiredProcessingType !== void 0 && processingTypeChangeWanted) {
+      await setFunctionModuleProcessingType(conn, t, desiredProcessingType, lock.handle, corr);
+    }
     if (!created && writeShapeOf(t.type) === "properties") {
       postWriteSource = await readCurrentSource(conn, t);
     }
@@ -112516,7 +112592,9 @@ async function writeObject(conn, target, opts) {
     // create — where they are `undefined` either way.
     previousSource,
     ...preflight2?.kind === "transport" ? { corrNrSent: preflight2.corrNr } : {},
-    ...preflight2?.kind === "transport" && preflight2.overrodeCorrNr !== void 0 ? { corrNrOverrode: preflight2.overrodeCorrNr } : {}
+    ...preflight2?.kind === "transport" && preflight2.overrodeCorrNr !== void 0 ? { corrNrOverrode: preflight2.overrodeCorrNr } : {},
+    ...(desiredProcessingType ?? t.processingType) !== void 0 ? { processingType: desiredProcessingType ?? t.processingType } : {},
+    ...processingTypeChangeWanted ? { processingTypeChanged: true } : {}
   };
 }
 var PACKAGE_SOFTWARE_COMPONENT_HINT = "Use HOME (or another real software component) for a transportable package. LOCAL only works for a $-named local package \u2014 abapsmith's default Z*/Y* names are not eligible, and SAP refuses the assignment with TR/462.";
@@ -112735,6 +112813,23 @@ async function createClassInclude(conn, t, lockHandle, corr) {
       },
       `Nothing was written and the lock was released. The CLASS is fine \u2014 it is the ${inc} include that could not be brought into existence. Create it once in Eclipse ADT or SE24 (for test classes: the class editor's Test Classes tab) and write it again.`
     );
+  }
+}
+async function setFunctionModuleProcessingType(conn, t, processingType, lockHandle, corr) {
+  const containerName = t.containerName ?? "";
+  const containerUri = t.spec.parentPath ? t.spec.parentPath.replace("{parent}", encodeURIComponent(containerName.toLowerCase())) : "";
+  const body = processingTypeXml(t.name, containerName, containerUri, processingType, t.description);
+  try {
+    await conn.put(t.uri, {
+      body,
+      headers: {
+        "Content-Type": "application/vnd.sap.adt.functions.fmodules.v3+xml",
+        Accept: "application/vnd.sap.adt.functions.fmodules.v3+xml"
+      },
+      qs: corr.kind === "transport" ? { lockHandle, corrNr: corr.corrNr } : { lockHandle }
+    });
+  } catch (e) {
+    throw translateAdtError(e, { operation: "write", uri: t.uri, name: t.name, type: t.type });
   }
 }
 async function putContent(conn, t, source, lockHandle, corr) {
@@ -125268,6 +125363,9 @@ var writeInputSchema = {
   corr_nr: external_exports.string().optional().describe(
     "Transport request. $TMP needs none. Optional for every transportable create, including the bridge types TRAN/T, VIEW/DV, SHLP/DH and TABL/DI: omitted, one is resolved under ABAP_ALLOW_TRANSPORTS (auto reuses a modifiable request this session created for the package, else creates one; under auto a NAMED request is refused, so omit it). Refused for a $ package, and on VIEW/DV or TRAN/T delete. TABL/DI delete: same package-derived resolution as its create, not refused. If the object is already recorded in a DIFFERENT request, CTS imposes that one instead: mode=write proceeds under it and reports corr_nr_honoured: false; mode=delete is refused outright with TRANSPORT_ERROR (CORR_NR_NOT_HONOURED) and deletes nothing."
   ),
+  remote_enabled: external_exports.boolean().optional().describe(
+    "FUGR/FF only: true makes the module remote-enabled (processing type rfc), false makes it a normal module. Refused for every other type and for mode=delete."
+  ),
   software_component: external_exports.string().optional().describe("DEVC/K required: LOCAL or transportable."),
   package_type: external_exports.string().optional().describe("DEVC/K only. Default development."),
   transport_layer: external_exports.string().optional().describe("DEVC/K only. Default empty."),
@@ -125866,6 +125964,24 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
   if (input.type !== void 0 && !isPackageType(earlyTypeSpec?.type) && !isBridgeOnlyCreateType(input.type)) {
     refuseUnwritableType(input.type, target.name, (input.mode ?? "write") === "delete" ? "delete" : "write");
   }
+  if (input.remote_enabled !== void 0) {
+    if (target.type !== "FUGR/FF") {
+      throw new AbapError(
+        "BAD_INPUT",
+        target.type ? `remote_enabled applies to function modules (FUGR/FF) only; ${input.object} was given as ${target.type}.` : 'remote_enabled applies to function modules (FUGR/FF) only; pass type "FUGR/FF" explicitly.',
+        { type: target.type, object: input.object },
+        'Drop `remote_enabled`, or pass type "FUGR/FF" and name the module as "<GROUP>/<MODULE>".'
+      );
+    }
+    if ((input.mode ?? "write") === "delete") {
+      throw new AbapError(
+        "BAD_INPUT",
+        "remote_enabled applies to function modules (FUGR/FF) only, and not to mode=delete.",
+        { type: target.type, object: input.object },
+        "Drop `remote_enabled` for a delete."
+      );
+    }
+  }
   if (input.ddic !== void 0) {
     if ((input.mode ?? "write") === "delete") {
       throw new AbapError(
@@ -126129,6 +126245,7 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
         source,
         ...trOpts,
         ...resolvedExpectEtag ? { expectEtag: resolvedExpectEtag } : {},
+        ...input.remote_enabled !== void 0 ? { remoteEnabled: input.remote_enabled } : {},
         onBeforeImage
       })
     ));
@@ -126349,6 +126466,11 @@ ${renderInactive(activation.inactive)}`);
   const notes = [
     written.corrNrOverrode !== void 0 && written.corrNrSent !== void 0 ? corrNrOverriddenWriteNote(written.corrNrOverrode, written.corrNrSent, written.target.type, written.target.name) : transportNote(written.transport, gate.config?.abapMode)
   ];
+  if (written.processingTypeChanged) {
+    notes.push(
+      `Processing type set to ${written.processingType} via the ADT function-module descriptor (PUT under the same lock as the source). The descriptor PUT leaves an inactive version, which activation picks up.`
+    );
+  }
   if (input.method !== void 0 && resolvedMethodVersion !== void 0) {
     notes.push(
       `method="${input.method}" was resolved against the ${resolvedMethodVersion.toUpperCase()} version's component structure` + (resolvedMethodVersion === "inactive" ? " \u2014 a newer inactive version existed (e.g. after a CHECK_FAILED write) and its line ranges were used." : ".")
@@ -126472,6 +126594,7 @@ ${renderInactive(activation.inactive)}`);
       etag: finalEtag,
       previousEtag: written.previousEtag,
       transport: transportHeaderText(written.transport),
+      ...written.processingType !== void 0 ? { processing_type: written.processingType } : {},
       ...written.corrNrOverrode !== void 0 ? { corr_nr_honoured: false } : {},
       check: propertiesShape ? "n/a (XML descriptor \u2014 validated by the server on write)" : check2.ok ? "clean" : `${check2.errors} error(s), ${check2.warnings} warning(s)`,
       activated: activation ? activation.activated : activationSuppressed ? "n/a (always active)" : "skipped",
@@ -136332,10 +136455,21 @@ async function abapRead(conn, input, maxChars, gate) {
       etag
     );
   }
+  let fmoduleHeader = {};
+  if (obj.type === "FUGR/FF") {
+    try {
+      const descriptor = await conn.get(obj.uri, { headers: { Accept: "application/*" } });
+      const processingType = parseProcessingType(descriptor.body ?? "");
+      if (processingType !== void 0) {
+        fmoduleHeader = { processing_type: processingType, remote_enabled: processingType === "rfc" ? "yes" : "no" };
+      }
+    } catch {
+    }
+  }
   const window2 = sliceLines(source, input.offset ?? 1, input.limit);
   return buildSourceResponse(
     {
-      header: { ...header, totalLines: window2.total, totalChars },
+      header: { ...header, ...fmoduleHeader, totalLines: window2.total, totalChars },
       body: window2.text,
       bodyLabel: "SOURCE",
       bodyOffset: window2.offset,
