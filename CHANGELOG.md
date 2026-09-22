@@ -12,6 +12,12 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.26] - 2026-09-22
+
+### Fixed
+
+- **`abap_write mode=delete type=DEVC/K` no longer refuses its own server-pinned request under `ABAP_ALLOW_TRANSPORTS=auto`** (#195). When CTS already held the package in a request (the usual case for a transportable package), `preflightCorr` admitted that request as auto-selected but the classic bridge's own targets gate was never told its provenance and judged it as caller-named — refusing "Transport A4HK9003xx is not permitted by ABAP_ALLOW_TRANSPORTS [auto]" for a call that named nothing. `deletePackageViaBridge` now hands the bridge the same `corrSource` the domain gate judged, exactly as the package create does; a caller-named request is still refused under `auto`. Verified live on A4H 2026-09-22 (the #185 probe package ZAS_PKG184, previously deletable only with the request pinned in the allowlist).
+
 ## [0.6.25] - 2026-09-22
 
 ### Fixed
