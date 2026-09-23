@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.34] - 2026-09-23
+
 ### Added
 
 - **`abap_enh` create-family operations take `package`, `corr_nr` and `activate`** (#215). `create_spot`, `add_badi_def`, `add_filter_def`, `create_impl` and `set_filter_values` now take an optional `package` (default `$TMP`) and, against a transportable package, `corr_nr`, following the same transport rules as `abap_write` — the safety gate's verdict is taken before the session resolver gets a chance to create a request. `activate` (default `true`) set to `false` leaves the object saved but inactive, ready for `abap_read enhancements:true` and a later `abap_activate` (with `affects`, as the response's NOTE spells out); `add_badi_def`'s marker interface is still always activated, since the BAdI definition needs it active. `exercise` and `create_hook` are unchanged.
