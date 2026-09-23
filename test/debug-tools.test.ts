@@ -50,7 +50,7 @@ import {
 import type { DebugRequestOptions, LongPollHandle } from "../src/debug/transport.js";
 import { translateDebugError } from "../src/debug/transport.js";
 import { parseAdtError } from "../src/debug/xml-response.js";
-import type { RawResponse } from "../src/debug/types.js";
+import type { DebugVariable, RawResponse } from "../src/debug/types.js";
 import {
   abapDebug,
   abapDebugValue,
@@ -61,6 +61,7 @@ import {
   DebugVarsInput,
   MAX_TABLE_ROWS,
   shutdownDebugTools,
+  validateDebugValue,
   type DebugToolDeps,
 } from "../src/tools/debug.js";
 
@@ -186,6 +187,30 @@ function buildVariablesXml(rows: Array<{ id: string; name: string; metaType: str
 <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0"><asx:values><DATA>${body}</DATA></asx:values></asx:abap>`;
 }
 
+/** `getVariables` rows carrying the fields `set_value` (#198) reads: `TECHNICAL_TYPE`/`LENGTH`/`READ_ONLY`. */
+function buildSetValueVariablesXml(
+  rows: Array<{
+    id: string;
+    name?: string;
+    metaType?: string;
+    value: string;
+    technicalType?: string;
+    length?: number;
+    readOnly?: boolean;
+  }>,
+): string {
+  const body = rows
+    .map(
+      (r) =>
+        `<STPDA_ADT_VARIABLE><ID>${r.id}</ID><NAME>${r.name ?? r.id}</NAME><META_TYPE>${r.metaType ?? "simple"}</META_TYPE>` +
+        `<VALUE>${r.value}</VALUE><TECHNICAL_TYPE>${r.technicalType ?? "C"}</TECHNICAL_TYPE>` +
+        `<LENGTH>${r.length ?? 1}</LENGTH><READ_ONLY>${r.readOnly ? "X" : ""}</READ_ONLY></STPDA_ADT_VARIABLE>`,
+    )
+    .join("");
+  return `<?xml version="1.0" encoding="utf-8"?>
+<asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0"><asx:values><DATA>${body}</DATA></asx:values></asx:abap>`;
+}
+
 const okResponse = (body = ""): RawResponse => ({ status: 200, headers: {}, body });
 
 /**
@@ -222,6 +247,7 @@ function classify(opts: DebugRequestOptions): string {
   if (methodParam === "attach") return "attach";
   if (methodParam === "terminateDebuggee") return "terminateDebuggee";
   if (methodParam === "getVariables") return "getVariables";
+  if (methodParam === "setVariableValue") return "setVariableValue";
   if (methodParam === "getChildVariables") return body?.includes("@ROOT") ? "getChildVariables:root" : "getChildVariables:scopes";
   const stepKinds = new Set(["stepInto", "stepOver", "stepReturn", "stepContinue", "stepRunToLine", "stepJumpToLine"]);
   if (methodParam && stepKinds.has(decodeURIComponent(methodParam))) return "step";
@@ -5096,7 +5122,8 @@ describe("jumpToLine is gated separately from the general write gate", () => {
 // It must move the read cursor (dispatch `method=setStackPosition`), re-survey
 // variables from the NEW frame, and require an active session/stateId/frame —
 // same input-validation shape as `step`/`stack`. It must never accept a value
-// to write (that stays `setVariableValue`, permanently unexposed).
+// to write — `setVariableValue` is exposed (#198), but only via
+// `action:"set_value"`, never through `frame`.
 // ---------------------------------------------------------------------------
 
 describe('action:"frame" exposes setStackPosition read-only', () => {
@@ -6552,5 +6579,465 @@ describe("M16 — start auto-continues past framework stops outside the run obje
     // "idle" exactly like the pre-existing natural-death-mid-step test does.
     const stopResult = await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, UNUSED_DEPS, writableGate());
     expect(stopResult.text).toContain("status: idle");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #198 — `action:"set_value"`: change one simple/string variable at a
+// suspended stop. Modelled on A4H live wire facts: `LV_FLAG` is a writable
+// `C(1)` ("A"), `LC_CONST` the same shape but read-only, `LS_S-FLAG`/
+// `LT_T[1]-FLAG` a structure component / table cell whose canonical id on
+// the wire is exactly that string, `LV_INT` an `I(4)` ("5 ").
+// ---------------------------------------------------------------------------
+
+describe("set_value (#198)", () => {
+  it("changes LV_FLAG A -> B: old/new in the body, status suspended, stateId unchanged, exactly one setVariableValue POST", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        getVariables: () =>
+          okResponse(buildSetValueVariablesXml([{ id: "LV_FLAG", value: "A", technicalType: "C", length: 1 }])),
+        setVariableValue: () => okResponse("B"),
+      }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+    const stateId = await startSuspended(deps, listener, "SV1");
+
+    const result = await abapDebug(
+      DUMMY_CONN,
+      { action: "set_value", stateId, variable: "LV_FLAG", value: "B" } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+    expect(result.text).toContain("old: A");
+    expect(result.text).toContain("new: B");
+    expect(result.text).toMatch(/^status: suspended$/m);
+    expect(result.text).toContain(`stateId: ${stateId}`);
+
+    const setCalls = transport.calls.filter((c) => c.path.includes("method=setVariableValue"));
+    expect(setCalls).toHaveLength(1);
+    expect(setCalls[0]!.body).toBe("B");
+    expect(decodeURIComponent(setCalls[0]!.path)).toContain("variableName=LV_FLAG");
+  });
+
+  it("uses the canonical id on the wire for a structure component and a table cell", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        getVariables: (opts) => {
+          if (opts.body?.includes("LS_S-FLAG")) {
+            return okResponse(buildSetValueVariablesXml([{ id: "LS_S-FLAG", value: "A", technicalType: "C", length: 1 }]));
+          }
+          if (opts.body?.includes("LT_T[1]-FLAG")) {
+            return okResponse(buildSetValueVariablesXml([{ id: "LT_T[1]-FLAG", value: "A", technicalType: "C", length: 1 }]));
+          }
+          throw new Error(`unexpected getVariables body: ${opts.body}`);
+        },
+        setVariableValue: () => okResponse("B"),
+      }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+    const stateId = await startSuspended(deps, listener, "SV2");
+
+    await abapDebug(
+      DUMMY_CONN,
+      { action: "set_value", stateId, variable: "LS_S-FLAG", value: "B" } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+    let setCall = transport.calls.filter((c) => c.path.includes("method=setVariableValue")).pop();
+    expect(decodeURIComponent(setCall!.path)).toContain("variableName=LS_S-FLAG");
+
+    await abapDebug(
+      DUMMY_CONN,
+      { action: "set_value", stateId, variable: "LT_T[1]-FLAG", value: "B" } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+    setCall = transport.calls.filter((c) => c.path.includes("method=setVariableValue")).pop();
+    expect(decodeURIComponent(setCall!.path)).toContain("variableName=LT_T[1]-FLAG");
+  });
+
+  it("refuses a constant (read-only) variable with DEBUG_VALUE_NOT_WRITABLE, no setVariableValue POST", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        getVariables: () =>
+          okResponse(
+            buildSetValueVariablesXml([{ id: "LC_CONST", value: "A", technicalType: "C", length: 1, readOnly: true }]),
+          ),
+      }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+    const stateId = await startSuspended(deps, listener, "SV3");
+
+    await expect(
+      abapDebug(
+        DUMMY_CONN,
+        { action: "set_value", stateId, variable: "LC_CONST", value: "B" } as DebugInput,
+        60_000,
+        deps,
+        writableGate(),
+      ),
+    ).rejects.toSatisfy((e: unknown) => isAbapError(e) && e.code === "DEBUG_VALUE_NOT_WRITABLE");
+    expect(transport.calls.some((c) => c.path.includes("method=setVariableValue"))).toBe(false);
+  });
+
+  it.each(["structure", "table", "dataref"] as const)(
+    "refuses a %s variable with DEBUG_VALUE_NOT_WRITABLE, no setVariableValue POST",
+    async (metaType) => {
+      const log: string[] = [];
+      const listener = new FakeListener(log);
+      const transport = new FakeTransport(
+        log,
+        HAPPY_TABLE({
+          getVariables: () =>
+            okResponse(buildSetValueVariablesXml([{ id: "LV_COMPLEX", value: "", metaType, technicalType: "C", length: 1 }])),
+        }),
+      );
+      const deps = makeDeps({ log, transport, listener });
+      const stateId = await startSuspended(deps, listener, `SV4-${metaType}`);
+
+      await expect(
+        abapDebug(
+          DUMMY_CONN,
+          { action: "set_value", stateId, variable: "LV_COMPLEX", value: "B" } as DebugInput,
+          60_000,
+          deps,
+          writableGate(),
+        ),
+      ).rejects.toSatisfy((e: unknown) => isAbapError(e) && e.code === "DEBUG_VALUE_NOT_WRITABLE");
+      expect(transport.calls.some((c) => c.path.includes("method=setVariableValue"))).toBe(false);
+    },
+  );
+
+  it("refuses an I(4) variable given a non-numeric value with BAD_INPUT, no setVariableValue POST", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        getVariables: () =>
+          okResponse(buildSetValueVariablesXml([{ id: "LV_INT", value: "5 ", technicalType: "I", length: 4 }])),
+      }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+    const stateId = await startSuspended(deps, listener, "SV5");
+
+    await expect(
+      abapDebug(
+        DUMMY_CONN,
+        { action: "set_value", stateId, variable: "LV_INT", value: "abc" } as DebugInput,
+        60_000,
+        deps,
+        writableGate(),
+      ),
+    ).rejects.toSatisfy((e: unknown) => isAbapError(e) && e.code === "BAD_INPUT");
+    expect(transport.calls.some((c) => c.path.includes("method=setVariableValue"))).toBe(false);
+  });
+
+  it("refuses a C(1) variable given a too-long value with BAD_INPUT, no setVariableValue POST", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        getVariables: () =>
+          okResponse(buildSetValueVariablesXml([{ id: "LV_FLAG", value: "A", technicalType: "C", length: 1 }])),
+      }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+    const stateId = await startSuspended(deps, listener, "SV6");
+
+    await expect(
+      abapDebug(
+        DUMMY_CONN,
+        { action: "set_value", stateId, variable: "LV_FLAG", value: "TOOLONG" } as DebugInput,
+        60_000,
+        deps,
+        writableGate(),
+      ),
+    ).rejects.toSatisfy((e: unknown) => isAbapError(e) && e.code === "BAD_INPUT");
+    expect(transport.calls.some((c) => c.path.includes("method=setVariableValue"))).toBe(false);
+  });
+
+  it('notes a SAP-side conversion when the stored value differs from what was sent ("SAP converted")', async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        getVariables: () =>
+          okResponse(buildSetValueVariablesXml([{ id: "LV_FLAG", value: "A", technicalType: "C", length: 1 }])),
+        // SAP silently stores something other than what was sent (live-proven: A4H
+        // truncates "TOOLONG" into a C(1) as "T") — here modelled with a plain
+        // same-length substitution, since the type check above already covers length.
+        setVariableValue: () => okResponse("Q"),
+      }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+    const stateId = await startSuspended(deps, listener, "SV7");
+
+    const result = await abapDebug(
+      DUMMY_CONN,
+      { action: "set_value", stateId, variable: "LV_FLAG", value: "B" } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+    expect(result.text).toContain("new: Q");
+    expect(result.text).toMatch(/SAP converted the value on assignment: sent "B", stored "Q"/);
+  });
+
+  it("refuses set_value with DEBUG_NOT_STOPPED and zero transport requests when no session is active", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(log, {});
+    const deps = makeDeps({ log, transport, listener });
+
+    await expect(
+      abapDebug(
+        DUMMY_CONN,
+        { action: "set_value", stateId: "x", variable: "LV_FLAG", value: "B" } as DebugInput,
+        60_000,
+        deps,
+        writableGate(),
+      ),
+    ).rejects.toSatisfy((e: unknown) => isAbapError(e) && e.code === "DEBUG_NOT_STOPPED");
+    expect(transport.calls).toHaveLength(0);
+  });
+
+  it("refuses set_value with DEBUG_NOT_STOPPED when the lane's session died underneath it (no explicit stop yet)", async () => {
+    // attach() always sets status "suspended" (src/debug/session.ts), even for a
+    // post-mortem/PMORTEM catch — so that is NOT a reachable "registered but not
+    // suspended" state. What IS reachable: the session's OWN idle timer fires in
+    // the background (session.terminate("idle_timeout", ...), no tools/debug.ts
+    // action in progress) and flips status to "dead" — tools/debug.ts's debugLanes
+    // entry is untouched until the NEXT explicit action notices. Simulated here by
+    // calling terminate() directly, exactly as that background timer would.
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(log, HAPPY_TABLE());
+    let capturedSession: DebugSession | undefined;
+    const baseDeps = makeDeps({ log, transport, listener });
+    const deps: DebugToolDeps = {
+      ...baseDeps,
+      createSession(conn, safety, sessionOpts) {
+        const s = baseDeps.createSession(conn, safety, sessionOpts);
+        capturedSession = s;
+        return s;
+      },
+    };
+    const stateId = await startSuspended(deps, listener, "SV8");
+    expect(capturedSession).toBeDefined();
+
+    await capturedSession!.terminate("idle_timeout", "simulated idle timeout");
+    expect(capturedSession!.snapshot.status).toBe("dead");
+
+    await expect(
+      abapDebug(
+        DUMMY_CONN,
+        { action: "set_value", stateId, variable: "LV_FLAG", value: "B" } as DebugInput,
+        60_000,
+        deps,
+        writableGate(),
+      ),
+    ).rejects.toSatisfy((e: unknown) => isAbapError(e) && e.code === "DEBUG_NOT_STOPPED");
+  });
+
+  it("refuses set_value with READ_ONLY and zero transport requests under a read-only gate", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(log, {});
+    const deps = makeDeps({ log, transport, listener });
+
+    await expect(
+      abapDebug(
+        DUMMY_CONN,
+        { action: "set_value", stateId: "x", variable: "LV_FLAG", value: "B" } as DebugInput,
+        60_000,
+        deps,
+        readOnlyGate(),
+      ),
+    ).rejects.toSatisfy((e: unknown) => isAbapError(e) && e.code === "READ_ONLY");
+    expect(transport.calls).toHaveLength(0);
+  });
+
+  it("carries a set_value into the MODIFIED VALUES section of a death response (composeDeathOutput)", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        getVariables: () =>
+          okResponse(buildSetValueVariablesXml([{ id: "LV_FLAG", value: "A", technicalType: "C", length: 1 }])),
+        setVariableValue: () => okResponse("B"),
+        // Natural death mid-step (signal B) — same shape as the pre-existing
+        // "natural death mid-step" test above.
+        step: () => okResponse(buildStepXml({ debugSessionId: "SESS1", isSteppingPossible: false, isTerminationPossible: false })),
+      }),
+    );
+    const deps = makeDeps({
+      log,
+      transport,
+      listener,
+      triggerImpl: async () => ({ text: "FINAL PROGRAM OUTPUT XYZ", truncated: false, estimatedTokens: 5 }),
+    });
+    const stateId = await startSuspended(deps, listener, "SV9");
+
+    await abapDebug(
+      DUMMY_CONN,
+      { action: "set_value", stateId, variable: "LV_FLAG", value: "B" } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+
+    const stepResult = await abapDebug(
+      DUMMY_CONN,
+      { action: "step", step: "continue", stateId } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+    expect(stepResult.text).toContain("MODIFIED VALUES");
+    expect(stepResult.text).toContain("LV_FLAG: A -> B");
+  });
+
+  it("carries a set_value into the MODIFIED VALUES section of a stop response", async () => {
+    const log: string[] = [];
+    const listener = new FakeListener(log);
+    const transport = new FakeTransport(
+      log,
+      HAPPY_TABLE({
+        getVariables: () =>
+          okResponse(buildSetValueVariablesXml([{ id: "LV_FLAG", value: "A", technicalType: "C", length: 1 }])),
+        setVariableValue: () => okResponse("B"),
+      }),
+    );
+    const deps = makeDeps({ log, transport, listener });
+    const stateId = await startSuspended(deps, listener, "SV10");
+
+    await abapDebug(
+      DUMMY_CONN,
+      { action: "set_value", stateId, variable: "LV_FLAG", value: "B" } as DebugInput,
+      60_000,
+      deps,
+      writableGate(),
+    );
+
+    const stopResult = await abapDebug(DUMMY_CONN, { action: "stop" } as DebugInput, 60_000, UNUSED_DEPS, writableGate());
+    expect(stopResult.text).toContain("MODIFIED VALUES");
+    expect(stopResult.text).toContain("LV_FLAG: A -> B");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #198 — `validateDebugValue`: the local, pre-wire type check. SAP itself
+// converts silently on the wire (live on A4H: "TOOLONG" into C(1) stored
+// "T"), so this is the only check that ever catches a bad value before a
+// round trip — pinned per-technicalType against the exact rules in
+// src/tools/debug.ts.
+// ---------------------------------------------------------------------------
+
+describe("validateDebugValue (#198)", () => {
+  function makeVar(technicalType: string, length = 1, overrides: Partial<DebugVariable> = {}): DebugVariable {
+    return {
+      id: "LV_X",
+      name: "LV_X",
+      declaredTypeName: "",
+      actualTypeName: "",
+      kind: "",
+      instantiationKind: "",
+      accessKind: "",
+      metaType: "simple",
+      parameterKind: "",
+      value: "",
+      hexValue: "",
+      readOnly: false,
+      technicalType,
+      length,
+      tableBody: "",
+      isValueIncomplete: false,
+      isException: false,
+      inheritanceLevel: 0,
+      inheritanceClass: "",
+      ...overrides,
+    };
+  }
+
+  it("C: length-limited", () => {
+    const v = makeVar("C", 1);
+    expect(validateDebugValue(v, "A")).toBeUndefined();
+    expect(validateDebugValue(v, "AB")).toMatch(/C\(1\)/);
+  });
+
+  it("N: digits only, length-limited", () => {
+    const v = makeVar("N", 4);
+    expect(validateDebugValue(v, "0012")).toBeUndefined();
+    expect(validateDebugValue(v, "12a")).toMatch(/digits only/);
+    expect(validateDebugValue(v, "12345")).toMatch(/N\(4\)/);
+  });
+
+  it("D: valid/invalid calendar dates, including a leap-year edge and the zero-date sentinel", () => {
+    const v = makeVar("D", 8);
+    expect(validateDebugValue(v, "20240229")).toBeUndefined(); // 2024 is a leap year
+    expect(validateDebugValue(v, "20260230")).toMatch(/not a calendar date/); // Feb has no 30th
+    expect(validateDebugValue(v, "20261332")).toMatch(/month/); // month 13
+    expect(validateDebugValue(v, "00000000")).toBeUndefined(); // the ABAP zero-date sentinel
+  });
+
+  it("T: valid/invalid HHMMSS", () => {
+    const v = makeVar("T", 6);
+    expect(validateDebugValue(v, "125959")).toBeUndefined();
+    expect(validateDebugValue(v, "246000")).toMatch(/hour/);
+    expect(validateDebugValue(v, "")).toBeUndefined();
+  });
+
+  it("I: 32-bit signed range", () => {
+    const v = makeVar("I", 4);
+    expect(validateDebugValue(v, "2147483647")).toBeUndefined();
+    expect(validateDebugValue(v, "2147483648")).toMatch(/32-bit signed range/);
+    expect(validateDebugValue(v, "abc")).toMatch(/expected an integer/);
+  });
+
+  it("P: decimal number", () => {
+    const v = makeVar("P", 8);
+    expect(validateDebugValue(v, "123.45")).toBeUndefined();
+    expect(validateDebugValue(v, "-7")).toBeUndefined();
+    expect(validateDebugValue(v, "abc")).toMatch(/packed/);
+  });
+
+  it("F: finite number", () => {
+    const v = makeVar("F", 8);
+    expect(validateDebugValue(v, "1.5")).toBeUndefined();
+    expect(validateDebugValue(v, "abc")).toMatch(/finite number/);
+    expect(validateDebugValue(v, "")).toMatch(/finite number/);
+  });
+
+  it("X: even-length hex, length-limited", () => {
+    const v = makeVar("X", 2);
+    expect(validateDebugValue(v, "0A")).toBeUndefined();
+    expect(validateDebugValue(v, "0AB")).toMatch(/even-length hex/);
+    expect(validateDebugValue(v, "GG")).toMatch(/even-length hex/);
+  });
+
+  it("CString: anything passes", () => {
+    const v = makeVar("CString", 0);
+    expect(validateDebugValue(v, "anything at all, any length")).toBeUndefined();
+  });
+
+  it("unknown technicalType: passes (SAP's own conversion decides)", () => {
+    const v = makeVar("SOME_UNKNOWN_TYPE", 1);
+    expect(validateDebugValue(v, "whatever")).toBeUndefined();
   });
 });

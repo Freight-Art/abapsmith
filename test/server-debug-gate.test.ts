@@ -294,6 +294,21 @@ describe("abap_debug step is gated (the regression this file exists for)", () =>
   });
 });
 
+// ---------------------------------------------------------- gated: set_value (#198) ---
+
+describe("abap_debug set_value is gated (#198)", () => {
+  it("refuses set_value under the read-only default, before the network", async () => {
+    const h = await harness(cfg());
+    const err = errorOf(
+      await debugCall(h, { action: "set_value", stateId: "x", variable: "LV_FLAG", value: "B" }),
+    );
+    expect(err.error).toBe("READ_ONLY");
+    expect(debugTool.abapDebug).not.toHaveBeenCalled();
+    expect(h.http.calls).toHaveLength(0);
+    expect(h.srv.connection.isConnected).toBe(false);
+  });
+});
+
 // ------------------------------------------------------------ ungated ---
 
 describe("non-advancing abap_debug actions are not gated", () => {
