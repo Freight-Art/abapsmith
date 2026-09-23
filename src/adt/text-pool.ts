@@ -202,6 +202,7 @@ export function parseTextPoolImage(text: string, type: TextPoolObjectType): Text
   }
   const h = headingsRaw as Record<string, unknown>;
   if (h.listHeader !== undefined && typeof h.listHeader !== "string") {
+    // lint-hint-params-ignore: key of the stored journal before-image, not a tool parameter
     throw new AbapError("BAD_INPUT", 'Text pool image "headings.listHeader" must be a string.', { type });
   }
   const columnHeadersRaw = h.columnHeaders;
@@ -211,6 +212,7 @@ export function parseTextPoolImage(text: string, type: TextPoolObjectType): Text
   ) {
     throw new AbapError(
       "BAD_INPUT",
+      // lint-hint-params-ignore: key of the stored journal before-image, not a tool parameter
       'Text pool image "headings.columnHeaders" must be an array of strings.',
       { type },
     );
