@@ -27,6 +27,10 @@ import { contentHash } from "../src/compact.js";
 import { isAbapError, type AbapError } from "../src/adt/errors.js";
 // The real thing — the fingerprint contract is defined against this function.
 import { sourceEquals } from "../src/adt/write.js";
+// Issue #200: write-time undoability is computed by journal.ts at begin()/
+// settle() time via this pure module — these tests pin the WIRING, not the
+// 12 rules themselves (those are pinned directly in test/undoability.test.ts).
+import { deleteEvidenceBlockerText, TRANSPORT_GENERIC_UNDO_BLOCKER, TRANSPORT_RELEASE_UNDO_BLOCKER } from "../src/undoability.js";
 import {
   Journal,
   journalConfigFromEnv,
@@ -335,6 +339,107 @@ describe("begin — the before-image is on disk before anything is attempted", (
       expect(err.details.dir).toContain("blocked");
       expect(String(err.details.note)).toMatch(/LOCAL filesystem problem/);
       expect(err.hint).toMatch(/ABAP_JOURNAL_DIR|ABAP_JOURNAL=off/);
+    });
+  });
+
+  // Issue #200: undoable/undoBlocker are decided ONCE, at begin() time, and
+  // stored on the entry — never recomputed on read.
+  it("computes undoable/undoBlocker on every entry (issue #200)", async () => {
+    const j = new Journal(cfg(tmp), "A4H");
+    // The default fixture is a plain, fully-captured update: rule 12's happy path.
+    const ok = await begun(j);
+    expect(ok.undoable).toBe(true);
+    expect(ok.undoBlocker).toBe("");
+
+    // A create with no positive evidence the object was absent beforehand:
+    // rule 10, blocked, with a non-empty explanation naming the object.
+    const blocked = await begun(j, {
+      operation: "create",
+      object: objectRef("ZMCP_NEW"),
+      existedBefore: false,
+      beforeSource: undefined,
+      afterSource: "REPORT zmcp_new.\n",
+    });
+    expect(blocked.beforeCapture).toBe("unknown");
+    expect(blocked.undoable).toBe(false);
+    expect(blocked.undoBlocker).toBe(deleteEvidenceBlockerText("ZMCP_NEW", "unknown"));
+
+    // Both values round-trip through a fresh reader, same as every other field.
+    const reloaded = await new Journal(cfg(tmp), "A4H").get(blocked.id);
+    expect(reloaded!.undoable).toBe(false);
+    expect(reloaded!.undoBlocker).toBe(deleteEvidenceBlockerText("ZMCP_NEW", "unknown"));
+  });
+
+  describe("activate entries pick up the preceding write from disk (issue #200)", () => {
+    it("is not undoable when there is no earlier write entry for the object", async () => {
+      const j = new Journal(cfg(tmp), "A4H");
+      const entry = await j.begin({
+        operation: "activate",
+        object: objectRef(),
+        existedBefore: true,
+        beforeCapture: "unknown",
+        tool: "abap_activate",
+      });
+      expect(entry!.undoable).toBe(false);
+      expect(entry!.undoBlocker).toContain("No earlier write entry");
+    });
+
+    it("inherits true from an earlier successful, undoable write on the SAME object", async () => {
+      const j = new Journal(cfg(tmp), "A4H");
+      const write = await begun(j); // plain update, undoable true
+      await j.finish(write.id, { outcome: "succeeded" });
+
+      const activate = await j.begin({
+        operation: "activate",
+        object: objectRef(), // same name+type as the write above
+        existedBefore: true,
+        beforeCapture: "unknown",
+        tool: "abap_activate",
+      });
+      expect(activate!.undoable).toBe(true);
+      expect(activate!.undoBlocker).toBe("");
+    });
+
+    it("inherits false, and names the write entry, from an earlier successful but non-undoable write", async () => {
+      const j = new Journal(cfg(tmp), "A4H");
+      const write = await begun(j, {
+        operation: "create",
+        object: objectRef("ZMCP_UNDOABLE_NO"),
+        existedBefore: false,
+        beforeSource: undefined,
+      });
+      await j.finish(write.id, { outcome: "succeeded" });
+      expect(write.undoable).toBe(false); // sanity: the write itself is blocked
+
+      const activate = await j.begin({
+        operation: "activate",
+        object: objectRef("ZMCP_UNDOABLE_NO"),
+        existedBefore: true,
+        beforeCapture: "unknown",
+        tool: "abap_activate",
+      });
+      expect(activate!.undoable).toBe(false);
+      expect(activate!.undoBlocker).toContain(write.id);
+      expect(activate!.undoBlocker).toContain("is not undoable");
+    });
+
+    it("does not pick up a write for a DIFFERENT object, and does not pick up a still-pending write", async () => {
+      const j = new Journal(cfg(tmp), "A4H");
+      // A different object's write must not leak in.
+      const otherWrite = await begun(j, { object: objectRef("ZMCP_OTHER") });
+      await j.finish(otherWrite.id, { outcome: "succeeded" });
+      // Same object, but still pending — not a candidate.
+      const pendingWrite = await begun(j);
+
+      const activate = await j.begin({
+        operation: "activate",
+        object: objectRef(), // matches pendingWrite's object, not otherWrite's
+        existedBefore: true,
+        beforeCapture: "unknown",
+        tool: "abap_activate",
+      });
+      expect(activate!.undoable).toBe(false);
+      expect(activate!.undoBlocker).toContain("No earlier write entry");
     });
   });
 });
@@ -963,6 +1068,170 @@ describe("settle says whether the outcome actually landed", () => {
       [young.id, old.id, broken.id].sort(),
     );
   });
+
+  // Issue #200: `settle({ createdFresh })` is the ONLY way beforeCapture can
+  // move to "confirmed-absent" after begin() — HTTP evidence the create
+  // arrived, gathered only after the request round-trips.
+  describe("settle({ createdFresh }) upgrades beforeCapture after the fact (issue #200)", () => {
+    /** A `create` entry with no positive evidence of prior absence — rule 10's blocked shape. */
+    const beginBlockedCreate = (j: Journal, name = "ZMCP_FRESH") =>
+      j.begin({
+        operation: "create",
+        object: objectRef(name),
+        existedBefore: false,
+        afterSource: "REPORT zmcp_fresh.\n",
+      });
+
+    it("upgrades beforeCapture to confirmed-absent, records createEvidence, and flips undoable true", async () => {
+      const j = new Journal(cfg(tmp), "A4H");
+      const entry = await beginBlockedCreate(j);
+      expect(entry!.beforeCapture).toBe("unknown");
+      expect(entry!.undoable).toBe(false);
+      expect(entry!.undoBlocker).toBe(deleteEvidenceBlockerText("ZMCP_FRESH", "unknown"));
+
+      const res = await j.settle(entry!.id, {
+        outcome: "succeeded",
+        createdFresh: { status: 201, location: "/sap/bc/adt/programs/programs/zmcp_fresh" },
+      });
+      expect(res).toMatchObject({ settled: true });
+      const settled = res.settled ? res.entry : undefined;
+      expect(settled!.beforeCapture).toBe("confirmed-absent");
+      expect(settled!.createEvidence).toBe(
+        "HTTP 201 Created, Location /sap/bc/adt/programs/programs/zmcp_fresh",
+      );
+      expect(settled!.undoable).toBe(true);
+      expect(settled!.undoBlocker).toBe("");
+
+      // Survives a reload from disk.
+      const reloaded = await new Journal(cfg(tmp), "A4H").get(entry!.id);
+      expect(reloaded!.beforeCapture).toBe("confirmed-absent");
+      expect(reloaded!.undoable).toBe(true);
+    });
+
+    it("does not upgrade when the status is not 201", async () => {
+      const j = new Journal(cfg(tmp), "A4H");
+      const entry = await beginBlockedCreate(j);
+      const res = await j.settle(entry!.id, {
+        outcome: "succeeded",
+        createdFresh: { status: 200, location: "/sap/bc/adt/programs/programs/zmcp_fresh" },
+      });
+      const settled = res.settled ? res.entry : undefined;
+      expect(settled!.beforeCapture).toBe("unknown");
+      expect(settled!.createEvidence).toBeUndefined();
+      expect(settled!.undoable).toBe(false);
+      expect(settled!.undoBlocker).toBe(deleteEvidenceBlockerText("ZMCP_FRESH", "unknown"));
+    });
+
+    it("does not upgrade when the Location is empty or whitespace-only", async () => {
+      const j = new Journal(cfg(tmp), "A4H");
+      const empty = await beginBlockedCreate(j, "ZMCP_FRESH_EMPTY");
+      const resEmpty = await j.settle(empty!.id, {
+        outcome: "succeeded",
+        createdFresh: { status: 201, location: "" },
+      });
+      expect((resEmpty.settled ? resEmpty.entry : undefined)!.beforeCapture).toBe("unknown");
+
+      const whitespace = await beginBlockedCreate(j, "ZMCP_FRESH_WS");
+      const resWs = await j.settle(whitespace!.id, {
+        outcome: "succeeded",
+        createdFresh: { status: 201, location: "   " },
+      });
+      const settledWs = resWs.settled ? resWs.entry : undefined;
+      expect(settledWs!.beforeCapture).toBe("unknown");
+      expect(settledWs!.undoable).toBe(false);
+    });
+
+    it("does not upgrade a non-create operation, even with matching createdFresh evidence", async () => {
+      const j = new Journal(cfg(tmp), "A4H");
+      const entry = await j.begin({
+        operation: "update",
+        object: objectRef("ZMCP_FRESH_UPDATE"),
+        existedBefore: false, // unusual, but exercises the same "unknown" derivation
+      });
+      expect(entry!.operation).toBe("update");
+      const res = await j.settle(entry!.id, {
+        outcome: "succeeded",
+        createdFresh: { status: 201, location: "/sap/bc/adt/programs/programs/zmcp_fresh_update" },
+      });
+      const settled = res.settled ? res.entry : undefined;
+      expect(settled!.beforeCapture).toBe("unknown");
+      expect(settled!.createEvidence).toBeUndefined();
+    });
+
+    it("does not upgrade a create that existed before (existedBefore: true)", async () => {
+      const j = new Journal(cfg(tmp), "A4H");
+      const entry = await j.begin({
+        operation: "create",
+        object: objectRef("ZMCP_FRESH_EXISTED"),
+        existedBefore: true,
+        beforeCapture: "unknown",
+      });
+      const res = await j.settle(entry!.id, {
+        outcome: "succeeded",
+        createdFresh: { status: 201, location: "/sap/bc/adt/programs/programs/zmcp_fresh_existed" },
+      });
+      const settled = res.settled ? res.entry : undefined;
+      expect(settled!.beforeCapture).toBe("unknown");
+      expect(settled!.createEvidence).toBeUndefined();
+    });
+
+    it("does not upgrade a create whose beforeCapture is already confirmed-absent or already captured", async () => {
+      const j = new Journal(cfg(tmp), "A4H");
+      const alreadyAbsent = await j.begin({
+        operation: "create",
+        object: objectRef("ZMCP_ALREADY_ABSENT"),
+        existedBefore: false,
+        beforeCapture: "confirmed-absent",
+      });
+      const resAbsent = await j.settle(alreadyAbsent!.id, {
+        outcome: "succeeded",
+        createdFresh: { status: 201, location: "/x/zmcp_already_absent" },
+      });
+      const settledAbsent = resAbsent.settled ? resAbsent.entry : undefined;
+      expect(settledAbsent!.createEvidence).toBeUndefined(); // gate never re-fires, nothing to upgrade to
+
+      const alreadyCaptured = await j.begin({
+        operation: "create",
+        object: objectRef("ZMCP_ALREADY_CAPTURED"),
+        existedBefore: false,
+        beforeCapture: "captured",
+        beforeSource: "REPORT zmcp_already_captured.\n",
+      });
+      const resCaptured = await j.settle(alreadyCaptured!.id, {
+        outcome: "succeeded",
+        createdFresh: { status: 201, location: "/x/zmcp_already_captured" },
+      });
+      const settledCaptured = resCaptured.settled ? resCaptured.entry : undefined;
+      expect(settledCaptured!.beforeCapture).toBe("captured");
+      expect(settledCaptured!.createEvidence).toBeUndefined();
+    });
+
+    it("upgrades beforeCapture/createEvidence but leaves undoable/undoBlocker alone when the ORIGINAL refusal was a different reason (e.g. a caller blocker)", async () => {
+      const j = new Journal(cfg(tmp), "A4H");
+      const entry = await j.begin({
+        operation: "create",
+        object: objectRef("ZMCP_OTHER_BLOCKER"),
+        existedBefore: false,
+        undoBlocker: "Blocked for an unrelated reason that is not the delete-evidence one.",
+      });
+      expect(entry!.undoable).toBe(false);
+      expect(entry!.undoBlocker).toBe("Blocked for an unrelated reason that is not the delete-evidence one.");
+
+      const res = await j.settle(entry!.id, {
+        outcome: "succeeded",
+        createdFresh: { status: 201, location: "/x/zmcp_other_blocker" },
+      });
+      const settled = res.settled ? res.entry : undefined;
+      // beforeCapture/createEvidence upgrade on the primary (8-condition) gate...
+      expect(settled!.beforeCapture).toBe("confirmed-absent");
+      expect(settled!.createEvidence).toBe("HTTP 201 Created, Location /x/zmcp_other_blocker");
+      // ...but undoable/undoBlocker are untouched: the stored refusal was not
+      // the delete-evidence one, so this new evidence cannot be the reason it
+      // changes.
+      expect(settled!.undoable).toBe(false);
+      expect(settled!.undoBlocker).toBe("Blocked for an unrelated reason that is not the delete-evidence one.");
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1102,7 +1371,7 @@ describe("transport journal entries", () => {
     expect(rawFirstLine.trSource).toBe("session-created");
   });
 
-  it("marks only transport-release irreversible; everything else is left unset", async () => {
+  it("marks only transport-release irreversible; everything else is left unset — and, since issue #200, every transport-* operation is undoable:false regardless of the irreversible flag", async () => {
     const j = new Journal(cfg(tmp), "A4H");
     const released = await j.begin({
       operation: "transport-release",
@@ -1113,9 +1382,15 @@ describe("transport journal entries", () => {
     });
     expect(released!.irreversible).toBe(true);
     expect((await j.get(released!.id))!.irreversible).toBe(true);
+    // Issue #200: transport-release has its own dedicated blocker, decided at
+    // begin() time by writeTimeUndoability's rule 2 — independent of `irreversible`.
+    expect(released!.undoable).toBe(false);
+    expect(released!.undoBlocker).toBe(TRANSPORT_RELEASE_UNDO_BLOCKER);
 
     const ordinaryWrite = await begun(j);
     expect(ordinaryWrite.irreversible).toBeUndefined();
+    expect(ordinaryWrite.undoable).toBe(true);
+    expect(ordinaryWrite.undoBlocker).toBe("");
 
     const otherTransportOp = await j.begin({
       operation: "transport-add-user",
@@ -1124,6 +1399,10 @@ describe("transport journal entries", () => {
       corrNr: "A4HK900123",
     });
     expect(otherTransportOp!.irreversible).toBeUndefined();
+    // Not irreversible, but still blocked: any other transport-* operation
+    // gets the generic transport blocker, not the release-specific one.
+    expect(otherTransportOp!.undoable).toBe(false);
+    expect(otherTransportOp!.undoBlocker).toBe(TRANSPORT_GENERIC_UNDO_BLOCKER);
   });
 
   it("captures the FULL request contents as a transport-delete's before-image, not just the TRKORR", async () => {

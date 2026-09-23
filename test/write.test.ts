@@ -4322,6 +4322,70 @@ describe("properties-shape writes (DOMA, DTEL, TTYP, MSAG, ENQU)", () => {
     expect(adt.calls.find((c) => c.method === "POST" && c.url.endsWith("tabletypes"))!.body).toBe(
       xml,
     );
+    // #200: the create POST here carries no Location header (see `resp` call
+    // above), so `createByXml` has no evidence to hand back.
+    expect(res.createdFresh).toBeUndefined();
+  });
+
+  it("#200: reports createdFresh with the create POST's status and Location header (create.vendor = false)", async () => {
+    const xml = ttypXml();
+    const location = "/sap/bc/adt/ddic/tabletypes/zpropw_ttyp";
+    const { conn } = await connected((r) => {
+      if (r.url === TTYP_URI && r.method === "GET") return resp(404, NOT_FOUND_XML, OK_XML);
+      if (r.url === "/sap/bc/adt/ddic/tabletypes" && r.method === "POST")
+        return resp(201, xml, { ...OK_XML, location });
+      if (r.qs._action === "LOCK") return resp(200, LOCK_XML(), OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
+      if (r.url === TTYP_URI && r.method === "PUT") return resp(200, xml, OK_XML);
+      return undefined;
+    });
+    const res = await writeObject(
+      conn,
+      await authWrite(conn, { type: "TTYP/DA", name: "ZPROPW_TTYP" }),
+      { source: xml },
+    );
+    expect(res.created).toBe(true);
+    // Taken verbatim from the raw HTTP response: the POST's own status, not a
+    // constant, and the Location header exactly as the server sent it.
+    expect(res.createdFresh).toEqual({ status: 201, location });
+  });
+
+  it("#200: a journalled TTYP/DA create does NOT get createEvidence — the pre-create GET(404) already set beforeCapture=\"confirmed-absent\" before the POST's Location was ever seen", async () => {
+    const xml = ttypXml();
+    const location = "/sap/bc/adt/ddic/tabletypes/zpropw_ttyp";
+    const dir = await mkdtemp(join(tmpdir(), "abapsmith-ttyp-create-journal-"));
+    try {
+      const journal = new Journal({ dir, enabled: true, maxEntries: 200, maxAgeDays: 30 }, "A4H");
+      const { conn } = await connected((r) => {
+        if (r.url === TTYP_URI && r.method === "GET") return resp(404, NOT_FOUND_XML, OK_XML);
+        if (r.url === "/sap/bc/adt/ddic/tabletypes" && r.method === "POST")
+          return resp(201, xml, { ...OK_XML, location });
+        if (r.qs._action === "LOCK") return resp(200, LOCK_XML(), OK_XML);
+        if (r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
+        if (r.url === TTYP_URI && r.method === "PUT") return resp(200, xml, OK_XML);
+        return undefined;
+      });
+      const result = await abapWrite(
+        conn,
+        { object: "ZPROPW_TTYP", type: "TTYP/DA", package: "$TMP", source: xml, activate: false },
+        20_000,
+        DEFAULT_GATE,
+        journal,
+      );
+      expect(result.text).toMatch(/created:\s*true/);
+      const entries = await journal.list();
+      expect(entries).toHaveLength(1);
+      const entry = entries[0]!;
+      expect(entry.operation).toBe("create");
+      // Already "confirmed-absent" from the pre-create GET(404) at `begin()`
+      // time — `settle({createdFresh})`'s upgrade only applies when
+      // beforeCapture was NOT already confirmed-absent or captured, so the
+      // 201 + Location seen on the POST leaves no further trace here.
+      expect(entry.beforeCapture).toBe("confirmed-absent");
+      expect(entry.createEvidence).toBeUndefined();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   /**
