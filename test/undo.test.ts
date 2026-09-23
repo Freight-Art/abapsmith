@@ -49,6 +49,10 @@ import { vitBridgeUri } from "../src/adt/write-verify.js";
 import { PKG_CONTENT_PREFIX } from "../src/adt/package-delete.js";
 import { searchResultsXml, type FakeObjectRef } from "./helpers/fake-adt.js";
 import { classicFake, useFluidState, type ClassicFake } from "./helpers/fluid-classic-fake.js";
+import { canonicalArgsJson } from "../src/adt/fluid/invoke.js";
+import { SessionTransport } from "../src/adt/session-transport.js";
+import type { TrHeader } from "../src/adt/transports.js";
+import { isTstcSelect, tstcSelectRoute } from "./helpers/tstc-select-fake.js";
 
 const REPORT = "ZMCP_UNDO_REP";
 const REPORT_URI = "/sap/bc/adt/programs/programs/zmcp_undo_rep";
@@ -3497,13 +3501,18 @@ describe("undo of a TRAN/T bridge create now performs the delete via the DDIC br
   const TCODE = "ZMCPT02";
   const VIT_URI = vitBridgeUri("trant", TCODE);
   const CLASSES_COLLECTION = "/sap/bc/adt/oo/classes";
-  const REAL_PKG = "ZTM";
+  // Local ($TMP): `performBridgeCreateUndo` (src/adt/undo.ts) calls
+  // `deleteTransactionViaBridge` with no `corrNr` at all, same as an
+  // ordinary delete of a local-package object. A non-local package's own
+  // corr-resolving path is covered by the dedicated tests below. $TMP keeps
+  // this block's own tests on the dispatch mechanics they are actually about.
+  const REAL_PKG = "$TMP";
 
   const vitXml = (pkg: string): string =>
     `<vit:properties xmlns:vit="http://www.sap.com/adt/vit" xmlns:adtcore="http://www.sap.com/adt/core" ` +
     `adtcore:type="TRAN/T" adtcore:name="${TCODE}"><adtcore:packageRef adtcore:name="${pkg}"/></vit:properties>`;
 
-  const tranGate = new SafetyGate({ readOnly: false, allowPackages: ["$TMP", REAL_PKG, DDIC_BRIDGE_PACKAGE] });
+  const tranGate = new SafetyGate({ readOnly: false, allowPackages: ["$TMP", "ZTM", DDIC_BRIDGE_PACKAGE] });
   const TRAN_ALLOW: UndoOptions = {
     assertAllowed: (action, target) => tranGate.authorize(action === "delete" ? "delete" : "write", target),
     gate: tranGate,
@@ -3531,7 +3540,7 @@ describe("undo of a TRAN/T bridge create now performs the delete via the DDIC br
       beforeCapture: "confirmed-absent",
     });
 
-  it("deletes for real through the bridge, same dispatch as VIEW/DV", async () => {
+  it("deletes for real through the bridge, same dispatch as VIEW/DV — a local package sends no corr_nr", async () => {
     const { state, route, classic } = bridgeServer(["TRAN-DELETED", "TRAN-GONE"]);
     const { conn, adt } = await connected(route);
     const e = await beginEntry();
@@ -3551,6 +3560,10 @@ describe("undo of a TRAN/T bridge create now performs the delete via the DDIC br
     ).toBe(true);
     expect(adt.calls.some((c) => c.method === "DELETE")).toBe(false);
     expect((await journal.get(e!.id))!.undoneBy).toBeDefined();
+
+    const src = classic.sourceOf(invoker!);
+    const chunks = [...src!.matchAll(/`([^`]*)`/g)].map((m) => m[1]);
+    expect(chunks.join("")).toBe(canonicalArgsJson({ tcode: TCODE, package_name: REAL_PKG, corr_nr: "" }));
   });
 
   it("TRAN-DELETED/TRAN-GONE are both required — a truncated transcript is a failure", async () => {
@@ -3562,6 +3575,124 @@ describe("undo of a TRAN/T bridge create now performs the delete via the DDIC br
     const err = await catchErr(performUndo(conn, journal, (await journal.get(e!.id))!, TRAN_ALLOW));
     expect(err.code).toBe("CHECK_FAILED");
     expect((await journal.get(e!.id))!.undoneBy).toBeUndefined();
+  });
+
+  // Issue #202 made TRAN/T delete transport-aware: a non-local package needs
+  // a `corrNr`. `performBridgeCreateUndo` (src/adt/undo.ts) now resolves one
+  // the same way `resolveBridgeCreateCorr` (src/tools/write.ts) does for an
+  // ordinary delete — but only when a `SessionTransport` is wired into the
+  // undo (`UndoOptions.transport`). With none wired, this fails closed: no
+  // wire request beyond the planning reads, same as `resolveBridgeCreateCorr`
+  // itself when it has no manager and no named corrNr to fall back on.
+  it("a non-local package's TRAN/T undo with no transport manager wired is refused before the bridge runs", async () => {
+    const { route } = bridgeServer(["TRAN-DELETED", "TRAN-GONE"]);
+    const nonLocalRoute = (r: Recorded): HttpClientResponse | undefined => {
+      if (r.url === VIT_URI && r.method === "GET") return resp(200, vitXml("ZTM"), OK_XML);
+      return route(r);
+    };
+    const { conn, adt } = await connected(nonLocalRoute);
+    const e = await beginEntry();
+    await journal.finish(e!.id, { outcome: "succeeded" });
+
+    adt.calls.length = 0;
+    const err = await catchErr(performUndo(conn, journal, (await journal.get(e!.id))!, TRAN_ALLOW));
+    expect(err.code).toBe("TRANSPORT_ERROR");
+    expect((await journal.get(e!.id))!.undoneBy).toBeUndefined();
+    expect(adt.calls.some((c) => c.method === "PUT" || c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(false);
+  });
+
+  /**
+   * A `SessionTransport` in auto mode over an injected fake CTS client, same
+   * idiom as `autoMgr()` in test/bridge-create-transport-auto.test.ts: no
+   * candidates queued, so the resolver mints a fresh request via `trCreate`.
+   */
+  function autoMgr(candidates: readonly TrHeader[] = []): { mgr: SessionTransport; trCreate: ReturnType<typeof vi.fn> } {
+    const authorizeCreate = () =>
+      new SafetyGate({ readOnly: false, allowPackages: ["*"] }).authorize(
+        "transport",
+        { name: "ZTM", packageName: "ZTM" },
+        { corr: { kind: "unresolved" } },
+      );
+    const trCreate = vi.fn(async () => ({ trkorr: "A4HK900001", path: "/com.sap.cts/object_record/A4HK900001" }));
+    const trRequirement = vi.fn(async (_conn: unknown, uri: string, devClass: string) => ({
+      uri,
+      operation: "I",
+      devclass: devClass,
+      candidates: [...candidates],
+      locks: [],
+      messages: [],
+      checkFailed: false,
+      raw: { result: "S", korrflag: "X", recording: "" },
+      kind: "transport-required",
+      mustSupplyCorrNr: true,
+      serverWouldFabricate: false,
+    }));
+    const mgr = new SessionTransport({
+      allowTransports: ["auto"],
+      authorizeCreate,
+      whoami: () => "DEVELOPER",
+      cts: { trCreate, trRequirement } as never,
+    });
+    return { mgr, trCreate };
+  }
+
+  it("a non-local package's TRAN/T undo resolves a request through the wired transport manager and sends it as corr_nr", async () => {
+    const { state, route, classic } = bridgeServer(["TRAN-DELETED", "TRAN-GONE"]);
+    const nonLocalRoute = (r: Recorded): HttpClientResponse | undefined => {
+      if (r.url === VIT_URI && r.method === "GET") {
+        return state.exists ? resp(200, vitXml("ZTM"), OK_XML) : resp(404, NOT_FOUND_XML, OK_XML);
+      }
+      return route(r);
+    };
+    const { conn, adt } = await connected(nonLocalRoute);
+    const e = await beginEntry();
+    await journal.finish(e!.id, { outcome: "succeeded" });
+
+    const { mgr, trCreate } = autoMgr();
+    adt.calls.length = 0;
+    const res = await performUndo(conn, journal, (await journal.get(e!.id))!, { ...TRAN_ALLOW, transport: mgr });
+
+    expect(res.performed).toBe(true);
+    expect(state.exists).toBe(false);
+    expect(trCreate).toHaveBeenCalledTimes(1);
+    const invoker = classic.invoker();
+    expect(invoker).toBeDefined();
+    const src = classic.sourceOf(invoker!);
+    const chunks = [...src!.matchAll(/`([^`]*)`/g)].map((m) => m[1]);
+    expect(chunks.join("")).toBe(canonicalArgsJson({ tcode: TCODE, package_name: "ZTM", corr_nr: "A4HK900001" }));
+    expect((await journal.get(e!.id))!.undoneBy).toBeDefined();
+  });
+
+  it("TRAN/T undo verification cross-checks TSTC: the VIT bridge stub still answers 200, but TSTC has no row for it — undo still reports deleted", async () => {
+    const classic = classicFake({ action: "delete_transaction", lines: () => ["TRAN-DELETED", "TRAN-GONE"] });
+    const route = (r: Recorded): HttpClientResponse | undefined => {
+      if (r.url === VIT_URI && r.method === "GET") return resp(200, vitXml(REAL_PKG), OK_XML);
+      return tstcSelectRoute([])(r) ?? classic.route(r);
+    };
+    let duringConnect = true;
+    const adt = new FakeAdt((r) => {
+      if (duringConnect) {
+        const base = baseRoute(r);
+        if (base) return base;
+      }
+      const hit = route(r);
+      if (hit) return hit;
+      throw new Error(`unrouted: ${r.method} ${r.url}`);
+    });
+    const conn = new AbapConnection(cfg(), { httpClient: adt, log: () => {}, breaker: new AuthCircuitBreaker() });
+    await conn.connect();
+    duringConnect = false;
+    adt.calls.length = 0;
+
+    const e = await beginEntry();
+    await journal.finish(e!.id, { outcome: "succeeded" });
+
+    const res = await performUndo(conn, journal, (await journal.get(e!.id))!, TRAN_ALLOW);
+
+    expect(res.performed).toBe(true);
+    expect(res.deleteUnverified).toBeUndefined();
+    expect(adt.calls.some((c) => isTstcSelect(c))).toBe(true);
+    expect((await journal.get(e!.id))!.undoneBy).toBeDefined();
   });
 });
 

@@ -1,12 +1,16 @@
 /**
- * `VIEW/DV` and `TRAN/T` bridge deletes issue no CTS call, so `view-delete.ts`
- * and `tran-delete.ts` gate them with `corr: { kind: "local" }`. This file
- * pins that a PINNED `ABAP_ALLOW_TRANSPORTS` (one that does not list `auto`)
- * no longer refuses either delete, that the same pinned list still refuses a
- * real CTS-touching delete exactly as before — both via `gate.evaluate`
- * directly and via `deletePackageViaBridge`'s real `corr: {kind:"transport"}`
- * call — and that an explicit deny-all list still wins over the `local`
- * presentation.
+ * `VIEW/DV` bridge deletes issue no CTS call, so `view-delete.ts` gates them
+ * with `corr: { kind: "local" }`. `TRAN/T` bridge deletes are transport-aware
+ * (issue #202): a local ($-prefixed) package still gates as `corr: {kind:
+ * "local"}`, but a transportable package now needs a `corrNr` and gates as a
+ * real `corr: {kind:"transport"}` the same as a create. This file pins that a
+ * PINNED `ABAP_ALLOW_TRANSPORTS` (one that does not list `auto`) no longer
+ * refuses a VIEW/DV delete (still `local`) or a TRAN/T delete naming a corr on
+ * the pinned list, that the same pinned list still refuses a real
+ * CTS-touching delete exactly as before — both via `gate.evaluate` directly
+ * and via `deletePackageViaBridge`'s real `corr: {kind:"transport"}` call, and
+ * a TRAN/T delete naming a corr NOT on the pinned list — and that an explicit
+ * deny-all list still wins over the `local` presentation.
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import type {
@@ -156,7 +160,15 @@ const TRAN_SERVER_PKG: ServerPackage = (() => {
 })();
 
 const VIEW_PARAMS: ViewDeleteParams = { viewName: VIEW, packageName: VIEW_SERVER_PKG };
-const TRAN_PARAMS: TransactionDeleteBridgeParams = { tcode: TCODE, packageName: TRAN_SERVER_PKG };
+// TRAN_PKG ("ZTM") is transportable, so a corr_nr on the pinned list is required
+// (issue #202) — the whole point of this describe block is that a pinned,
+// non-"auto" allowlist does not refuse it.
+const TRAN_PARAMS: TransactionDeleteBridgeParams = {
+  tcode: TCODE,
+  packageName: TRAN_SERVER_PKG,
+  corrNr: PINNED[0],
+  corrSource: "named",
+};
 
 // ---------------------------------------------------------------------------
 // 1 — pin: a classic-view bridge delete is not refused under a PINNED allowlist
@@ -209,6 +221,31 @@ describe("pin: deleteTransactionViaBridge proceeds under a pinned ABAP_ALLOW_TRA
     expect(fake.deployed()).toEqual(expect.arrayContaining([CLASSIC_BODY_CLASS]));
     expect(fake.sourceOf(CLASSIC_BODY_CLASS)).toBeDefined();
     expect(fake.invoker()).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2b — issue #202: a corr_nr NOT on the pinned allowlist is refused, same rule
+// ---------------------------------------------------------------------------
+
+describe("pin: deleteTransactionViaBridge refuses a corr_nr NOT on the pinned ABAP_ALLOW_TRANSPORTS list", () => {
+  it("refused SAFETY_DENIED, rule 'transport allowlist', zero HTTP requests", async () => {
+    const gate = new SafetyGate({
+      readOnly: false,
+      allowPackages: [FLUID_PACKAGE, TRAN_PKG],
+      allowNamePrefixes: ["*"],
+      allowTransports: PINNED,
+      writesLockedOut: false,
+    });
+    const fake = classicFake({ action: "delete_transaction", lines: () => ["TRAN-DELETED", "TRAN-GONE"] });
+    const route = combine(fake.route, sharedRoute);
+    const { conn, inner } = await connected(route);
+    const err = await catchErr(
+      deleteTransactionViaBridge(conn, gate, { ...TRAN_PARAMS, corrNr: NOT_PINNED_CORR }),
+    );
+    expect(err.code).toBe("SAFETY_DENIED");
+    expect(err.details.rule).toBe("transport allowlist");
+    expect(inner.calls.length).toBe(0);
   });
 });
 

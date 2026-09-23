@@ -22,6 +22,22 @@ version was set to `0.3.0`, which is intended.
 
 - **`ABAP_SEARCH_TIMEOUT_MS` / `searchTimeoutMs`** (#206). Per-request HTTP timeout, ms, for `abap_search`'s repository quick search — default `60000`. Overrides `ABAP_TIMEOUT_MS` for that request family, the same pattern as `ABAP_BOPF_TIMEOUT_MS`/`ABAP_ACTIVATE_TIMEOUT_MS`/`ABAP_RUN_TIMEOUT_MS`; a timeout is reported as `TIMEOUT` naming this variable, and it counts toward the session-wait sizing alongside the other three.
 
+## [0.6.30] - 2026-09-23
+
+### Added
+
+- **`abap_write` TRAN/T create gets a `kind` parameter** (#214). `kind` is `report` (default; `program`, dynpro 1000), `dialog` (`program` + `screen`, 4-digit), `parameter` (`target_transaction`, `parameters` — array of `{field, value}` — and `skip_first_screen`), `variant` (`target_transaction`, `variant`, optional `cross_client_variant`), or `oo` (`class`, `method`, optional `update_mode` S|A|L). `oo` is stored the way SE93 stores an OO transaction WITH the transaction model: a parameter transaction on `OS_APPLICATION` (`TSTCP` `/*OS_APPLICATION CLASS=...;METHOD=...;UPDATE_MODE=...;`). An OO transaction WITHOUT the transaction model (`TSTCP` `\CLASS=...\METHOD=...`, including local classes in a program) has no SAP API — `RPY_TRANSACTION_INSERT` has no OO branch — and stays read-only. The field each kind requires (`program` for report/dialog, `target_transaction` for parameter/variant, `class` for oo) is checked before the bridge runs; a missing one is refused zero-network with `BAD_INPUT` naming the field. `abap_read type=TRAN/T` now reports `KIND`, `TARGET`, `SKIP FIRST SCREEN`, the parameter list, `VARIANT`/`CROSS-CLIENT`, and `CLASS`/`METHOD`/`UPDATE MODE`/`TRANSACTION MODEL`, decoding every `TSTCP` encoding SE93 writes. `mode="update"` still retargets report transactions only. Verified on A4H: `kind=parameter` (a transaction on SM30 with `skip_first_screen`) and `kind=oo` (a class method transaction on `ZCL_AS_T201=>RUN`) created in a transportable package and read back by `abap_read` with the fields above; `kind=dialog` and `kind=variant` are covered by offline tests only.
+- **`description` is optional on `abap_write` create for `TRAN/T`, `VIEW/DV`, `SHLP/DH` and the structured `ddic` types** (#209). Omitted, it now defaults to the object name for `TRAN/T`, `VIEW/DV`, `SHLP/DH`, `DOMA/DD`, `DTEL/DE` and `TTYP/DA`, and to `<TABLE> index <ID>` for `TABL/DI`; the response notes the default it used. `mode="update"` still requires a description. Verified on A4H for `TRAN/T`, `TTYP/DA` and `TABL/DI`.
+
+### Changed
+
+- **The `TRAN/T` description limit is now stated in the schema, and corrected to 36 characters** (#209). `TSTCT-TTEXT` is refused with `BAD_INPUT` quoting 36 — the previous code said 37. DDIC short texts stay at 60. Verified on A4H: a 37-character description is refused quoting 36.
+
+### Fixed
+
+- **`abap_write` TRAN/T create no longer refuses "already exists" on the VIT bridge's word alone** (#201). When the VIT stub answers 200 but TSTC has no row for the tcode, the create now proceeds — the response notes it — instead of refusing on a stub response that never actually checked TSTC. A genuine TSTC row is still refused. If `RPY_TRANSACTION_INSERT` itself refuses (e.g. `already_exist`), the server's own message is now returned as `CHECK_FAILED` with next steps: `abap_read type=TRAN/T` to see what's there, `mode="update"` to retarget, or delete then create. The same TSTC cross-check now settles the post-delete read-back: a VIT 200 with no TSTC row is reported as confirmed absent instead of unverified. The same cross-check now runs before a delete: a `TRAN/T` the VIT bridge answers 200 for but TSTC has no row for is `NOT_FOUND` (single delete) or reported as absent (batch `objects`) before any package or transport request is resolved, so a phantom delete creates no request. Verified on A4H: a create after a VIT 200 with no TSTC row proceeded, a second create of the same tcode was refused with the server's `already_exist` message, a delete of an absent tcode returned `NOT_FOUND` without a transport request, and the post-delete read-back of two deleted transactions came back verified via TSTC.
+- **`abap_write` TRAN/T delete no longer breaks on the SAPLSTRD 0300 request popup in a transportable package** (#202). The delete bridge now passes the transport request to `RPY_TRANSACTION_DELETE`, registering it via `RS_CORR_INSERT` with the dialog suppressed. Without `corr_nr` the request is picked the same way a create picks it (`ABAP_ALLOW_TRANSPORTS`/the session resolver); a named `corr_nr` is honoured under the normal transport allowlist rules; a `corr_nr` on a `$TMP` transaction is refused. `VIEW/DV` delete still takes no `corr_nr` — its bridge has no transport parameter. Batch delete (`objects`) now accepts `TRAN/T` entries, each resolved and gated like a single delete, one bridge call per entry, not journalled; the other bridge-only types (`VIEW/DV`, `SHLP/DH`, `TABL/DI`) in a batch now get `BAD_INPUT` naming the entry instead of a bare `UNSUPPORTED`. `abap_journal mode=undo` of a `TRAN/T` create in a transportable package now resolves the request through the session's transport manager the same way and refuses with `TRANSPORT_ERROR` when none is wired, instead of failing on the missing `corr_nr`; this undo path is covered by offline tests only. Verified on A4H: single and batch deletes without `corr_nr` in a transportable package were recorded by CTS in the request already holding each transaction's lock.
+
 ## [0.6.29] - 2026-09-23
 
 ### Added
@@ -73,6 +89,7 @@ version was set to `0.3.0`, which is intended.
 ### Changed
 
 - **`abap_img_edit preview` now prints which request would be used** (#176): "Applying this change would record on <REQ> (<kind> request known to this session)" or "would create a new <kind> request ..." — and, as before, `preview` never creates one.
+
 ## [0.6.24] - 2026-09-22
 
 ### Added
@@ -105,6 +122,7 @@ version was set to `0.3.0`, which is intended.
 ### Fixed
 
 - **Function module create no longer collides with its own group's transport lock** (#171). A module create with no `package` used to resolve to `$TMP` and send the create POST with no `corrNr`; CTS refused it with 403 `CTS_WBO_API/019` — the group's generated `L<GROUP>UXX` include was already locked by the request the group itself was created in. The create path now reads the group's own `adtcore:packageRef` and uses that package: transportchecks answers `KORRFLAG X` with the locking request, the POST carries `corrNr=<that request>`, and the response's `transport:` line reports the request actually used, with `package_source: container` saying the package came from the group. A `package` that disagrees with the group's is refused `BAD_INPUT` — no move. A create that still hits `CTS_WBO_API/019` (e.g. a forced `corr_nr`) is now classified `TRANSPORT_LOCKED`, `details.classifiedBy: "cts-object-locked-in-other-request"`, with `details.holdingRequest`, `details.holdingUser`, `details.lockedObject`, and a hint naming the request to pass as `corr_nr`.
+
 ## [0.6.21] - 2026-09-22
 
 ### Added

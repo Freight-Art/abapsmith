@@ -22,28 +22,99 @@ reaching SAP.
 | `include` | enum `main` \| `definitions` \| `implementations` \| `macros` \| `testclasses` | no | `main` | `CLAS/OC` only — which class sub-include to write. `testclasses` is the ABAP Unit test include (CCAU). A write REPLACES the whole named include; there is no partial/patch write to an include (`edit`/`method` still target `main` only). |
 | `ddic` | object | no | — | Structured create for `DOMA/DD`/`DTEL/DE`/`TTYP/DA` only — alternative to `source` (never both; an empty `source: ""` counts as absent). `DOMA/DD` takes `fixedValues: [{low, high?, text}]` and `valueTable`, and computes `outputLength` from the type unless given. See `abapsmith-create-ddic-objects` for which fields apply to which type. |
 | `package` | string | no | `$TMP` | Package for a **new** object. Must be allowlisted. For a new `DEVC/K` this is the SUPERpackage, not a sibling — omitting it would create a ROOT package, which the safety gate refuses. |
-| `description` | string | no (required for `TRAN/T`, for any `ddic` create, and for `mode="update"` on `VIEW/DV`, `TRAN/T` or `SHLP/DH`) | — | Short description for a **new** object, or the replacement description on an `update` — `DDIF_VIEW_PUT`/`RPY_TRANSACTION_INSERT`/`DDIF_SHLP_PUT` all replace the description along with everything else, so an update that wants to keep the old text must pass it again. |
+| `description` | string | no — required only for `mode="update"` on `VIEW/DV`, `TRAN/T` or `SHLP/DH` | — | Short description for a **new** object, or the replacement description on an `update` — `DDIF_VIEW_PUT`/`RPY_TRANSACTION_INSERT`/`DDIF_SHLP_PUT` all replace the description along with everything else, so an update that wants to keep the old text must pass it again. Omitted on a **create** it defaults instead of being refused: to the object name for `TRAN/T`, `VIEW/DV`, `SHLP/DH` and the structured `ddic` types (`DOMA/DD`, `DTEL/DE`, `TTYP/DA`), and to `<TABLE> index <ID>` for `TABL/DI`; the response notes which default it used. Limits, stated in the schema rather than discovered by trial: 36 characters for a `TRAN/T` description (`TSTCT-TTEXT`) — refused zero-network with `BAD_INPUT` quoting 36 — and 60 characters for DDIC short texts. |
 | `expect_etag` | string | no | — | Etag from a prior `abap_read`. Write is rejected (`ETAG_CONFLICT`) if the object changed since. Also guards `mode=delete`. |
 | `mode` | enum `write` \| `delete` \| `update` | no | `write` | `write` creates (or edits source in place for most types); `delete` removes the object; `update` retargets/replaces an EXISTING `VIEW/DV`, `TRAN/T` or `SHLP/DH` through the classic fluid bridge (`DDIF_VIEW_PUT`, `RPY_TRANSACTION_DELETE`+`RPY_TRANSACTION_INSERT`, `DDIF_SHLP_PUT` — each replaces the WHOLE definition, not a patch) — refused zero-network, no server call, for every other type. |
 | `activate` | boolean | no | `true` | Activate after a successful write. |
 | `verify` | boolean | no | — | Raise this one call to `verified` mode — reads the object back after a successful write. Raise-only: cannot lower a server `ABAP_VERIFY_WRITES=verified` default. |
 | `format` | boolean | no | — | Pretty-print the source before writing. |
-| `corr_nr` | string | no | — | Transport request to write into. Omit for `$TMP`-local objects. Never required: for every transportable create — the classic-bridge types `TRAN/T`, `SHLP/DH`, `VIEW/DV`, `TABL/DI` and `DEVC/K` included (they register via `RS_CORR_INSERT`, which needs a request, so the server resolves one) — omitting it takes the same route as a class create: the safety gate judges the write first, with no wire request, then the session resolver picks a request in the order given under "How the request is chosen" below, and the response's `transport:` field names it. Under `ABAP_ALLOW_TRANSPORTS=auto` a named value is accepted only when it is (a) a request this session created (`abap_transport operation=create`, `abap_img_edit create_request`, or one created for a package by an earlier write in this session), or (b) a modifiable workbench request owned by the connected user carrying abapsmith's own session description for the same package — exactly the requests auto would choose itself; any other named value is refused (`SAFETY_DENIED`, rule `transport allowlist`, `retryable: false`), and the refusal lists the acceptable requests ("Acceptable: A4HK900200" or "none yet — omit corr_nr to have one created"). Refused for any bridge create into a `$` package. For `mode="update"` on any of the three, `corr_nr` is always optional, never required, regardless of package — the object already exists and is already recorded wherever CTS holds it; a named value is passed through as-is (`corrSource: "named"`), nothing re-derives or requires it. Also refused for a `VIEW/DV`/`TRAN/T`/`SHLP/DH` delete — none of the three delete bridges takes a transport parameter, and none is needed: the delete registers nothing in CTS, so it is judged as a local mutation regardless of `ABAP_ALLOW_TRANSPORTS`. For any other `mode=delete`, a named `corr_nr` that disagrees with the request CTS already records the object in is refused before anything is deleted, pre-lock — see "`mode=delete` and transport requests" below; left unnamed, the request that already holds the object wins the deletion, resolved automatically. A `mode=write`/`edit` naming a different `corr_nr` is never refused this way — the write proceeds under the request CTS already holds, reported rather than silently substituted. |
+| `corr_nr` | string | no | — | Transport request to write into. Omit for `$TMP`-local objects. Never required: for every transportable create — the classic-bridge types `TRAN/T`, `SHLP/DH`, `VIEW/DV`, `TABL/DI` and `DEVC/K` included (they register via `RS_CORR_INSERT`, which needs a request, so the server resolves one) — omitting it takes the same route as a class create: the safety gate judges the write first, with no wire request, then the session resolver picks a request in the order given under "How the request is chosen" below, and the response's `transport:` field names it. Under `ABAP_ALLOW_TRANSPORTS=auto` a named value is accepted only when it is (a) a request this session created (`abap_transport operation=create`, `abap_img_edit create_request`, or one created for a package by an earlier write in this session), or (b) a modifiable workbench request owned by the connected user carrying abapsmith's own session description for the same package — exactly the requests auto would choose itself; any other named value is refused (`SAFETY_DENIED`, rule `transport allowlist`, `retryable: false`), and the refusal lists the acceptable requests ("Acceptable: A4HK900200" or "none yet — omit corr_nr to have one created"). Refused for any bridge create into a `$` package. For `mode="update"` on any of the three, `corr_nr` is always optional, never required, regardless of package — the object already exists and is already recorded wherever CTS holds it; a named value is passed through as-is (`corrSource: "named"`), nothing re-derives or requires it. Also refused for a `VIEW/DV`/`SHLP/DH` delete — neither bridge takes a transport parameter, and none is needed: the delete registers nothing in CTS, so it is judged as a local mutation regardless of `ABAP_ALLOW_TRANSPORTS`. `TRAN/T` delete is different (#202): its bridge now passes `corr_nr` to `RPY_TRANSACTION_DELETE`, which registers it via `RS_CORR_INSERT` (dialog suppressed, so the SAPLSTRD 0300 request-choice popup that used to break a delete against a transportable package never appears). Omit it and the request is picked the same way a `TRAN/T` create picks one (the session resolver, under `ABAP_ALLOW_TRANSPORTS`); name one and it is judged under the normal transport allowlist rules, exactly like a create; name one against a `$TMP`/`$`-package transaction and it is refused, same as a `TRAN/T` create into a `$` package. For any other `mode=delete`, a named `corr_nr` that disagrees with the request CTS already records the object in is refused before anything is deleted, pre-lock — see "`mode=delete` and transport requests" below; left unnamed, the request that already holds the object wins the deletion, resolved automatically. A `mode=write`/`edit` naming a different `corr_nr` is never refused this way — the write proceeds under the request CTS already holds, reported rather than silently substituted. |
 | `software_component` | string | no | — | `DEVC/K` (package) only: `LOCAL`, or a transportable component (e.g. `HOME`) — the latter needs `corr_nr` unless the package is `$TMP`-local. |
 | `package_type` | string | no | `development` | `DEVC/K` only. |
 | `transport_layer` | string | no | — | `DEVC/K` only. |
 | `base_table` | string | no (required for `VIEW/DV` create or `mode="update"`) | — | `VIEW/DV` — the single base DDIC table. An update REPLACES the whole projection, so it must be repeated even to leave it unchanged. Also accepted for `TABL/DI` create/delete — see "`TABL/DI` addressing" below; there it names the index's base table rather than a view's projection source. |
 | `view_fields` | array\<string\> | no (required for `VIEW/DV` create or `mode="update"`) | — | `VIEW/DV` only — the fields to project, in order. Same replace-the-whole-list rule as `base_table` on an update; `DDIF_VIEW_PUT` refuses a view projecting no field at all. |
-| `program` | string | no (required for `TRAN/T` create or `mode="update"`) | — | `TRAN/T` only — the existing SUBMIT-only report the transaction starts. On `mode="update"` this retargets an existing transaction to a different (already-existing) program; abapsmith checks the program exists before calling `RPY_TRANSACTION_DELETE`+`RPY_TRANSACTION_INSERT`. |
+| `program` | string | no (required for `TRAN/T` create with `kind="report"` (the default) or `kind="dialog"`, and for `mode="update"`) | — | `TRAN/T` only — the existing SUBMIT-only report the transaction starts. On `mode="update"` this retargets an existing REPORT transaction to a different (already-existing) program; abapsmith checks the program exists before calling `RPY_TRANSACTION_DELETE`+`RPY_TRANSACTION_INSERT`. `mode="update"` still retargets report transactions only — see `kind` below. |
+| `kind` | enum `report` \| `dialog` \| `parameter` \| `variant` \| `oo` | no | `report` | `TRAN/T` create only — which SE93 transaction shape to build. `report`: `program`, dynpro fixed at `1000`. `dialog`: `program` plus `screen` (a 4-digit dynpro number). `parameter`: `target_transaction`, plus optional `parameters` (array of `{field, value}`) and `skip_first_screen`. `variant`: `target_transaction` and `variant`, plus optional `cross_client_variant`. `oo`: `class` and `method`, plus optional `update_mode` (`S`\|`A`\|`L`) — stored the way SE93 stores an OO transaction WITH the transaction model: a parameter transaction on `OS_APPLICATION` (`TSTCP` `/*OS_APPLICATION CLASS=...;METHOD=...;UPDATE_MODE=...;`). The field each kind requires is checked before the bridge runs — a missing one is `BAD_INPUT` naming the field, zero-network. An OO transaction WITHOUT the transaction model (`TSTCP` `\CLASS=...\METHOD=...`, including a class local to a program) has no `RPY_TRANSACTION_INSERT` branch, so this tool cannot create one — it stays read-only; see `doc/CAPABILITIES/object-types.md`. |
+| `screen` | string | no (required for `TRAN/T` create with `kind="dialog"`) | — | `TRAN/T` `kind="dialog"` only — the 4-digit dynpro number of `program` the transaction starts on. |
+| `target_transaction` | string | no (required for `TRAN/T` create with `kind="parameter"` or `kind="variant"`) | — | `TRAN/T` `kind="parameter"`/`kind="variant"` only — the existing transaction this one is a parameter or variant transaction for. |
+| `parameters` | array of `{field, value}` | no | — | `TRAN/T` `kind="parameter"` only — SPA/GPA or screen field values set when `target_transaction` starts. |
+| `skip_first_screen` | boolean | no | — | `TRAN/T` `kind="parameter"` only — whether `target_transaction`'s first screen is skipped. |
+| `variant` | string | no (required for `TRAN/T` create with `kind="variant"`) | — | `TRAN/T` `kind="variant"` only — the existing ABAP variant of `target_transaction` this transaction starts with. |
+| `cross_client_variant` | boolean | no | — | `TRAN/T` `kind="variant"` only — whether `variant` is a cross-client variant. |
+| `class` | string | no (required for `TRAN/T` create with `kind="oo"`) | — | `TRAN/T` `kind="oo"` only — the ABAP OO class the transaction starts. |
+| `method` | string | no (required for `TRAN/T` create with `kind="oo"`) | — | `TRAN/T` `kind="oo"` only — the class method called. |
+| `update_mode` | enum `S` \| `A` \| `L` | no | — | `TRAN/T` `kind="oo"` only — the LUW update mode (Synchronous \| Asynchronous \| Local). |
 | `shlp` | object | no (required for `SHLP/DH` create or `mode="update"`) | — | `SHLP/DH` only — the search help's full DD30V/DD32P/DD31V/DD33V shape: `selectionMethod`, `selectionMethodType` (enum `T`\|`V`\|`M`), `dialogType`, `textTable`, `hotKey`, `elementary` (if true, `fields` must carry at least one import and one export parameter; if false, an empty `includes` is now accepted — it activates fine on a real system, so the old "has nothing to collect" refusal was removed), `fields` (array of `{name, dataElement, import?, export?, defaultValue?}`), `includes` (array of `{name}`, other search helps this one includes), `assignments` (array of `{field, includedHelp, includedField, direction}`, `direction` enum `I`\|`E`). Every `assignments[i].field` must name one of this call's own `fields[].name`, and every `assignments[i].includedHelp` must name one of this call's own `includes[].name` (both case-insensitive) — refused `BAD_INPUT` zero-network otherwise, before any server call; see "Search help refusals and DH109" below for why. `selectionMethod`/`selectionMethodType` are both optional — omit both for a collective search help, or for an elementary one driven by a search-help exit instead of a table/view (five standard SAP elementary helps carry a blank DD30V-SELMETHOD this way). An update REPLACES the whole interface/includes/assignments list — nothing already defined carries over; see `SearchHelpParams` in `src/adt/shlp-create.ts`. |
 | `confirm_in_use` | boolean | no | — | `SHLP/DH` `mode="delete"` only: required `true` when the search help is still attached to a data element, a table/view field, or included by a collective search help (`DD04L`/`DD35L`/`DD31S` show it in use). Refused zero-network for any other type/mode combination. Only the active version is checked for in-use; an inactive-only leftover (see below) has none of these attachments by definition and never needs it. |
 | `confirm_maintenance_dialog` | boolean | no | — | `VIEW/DV` `mode="delete"` only: overrides the bridge's refusal when the view still has a generated SE54 maintenance dialog (`TVDIR`) — deleting the view would leave that dialog broken. The refusal names the specific dialog (function group, area, package, screen) so a caller can read it before passing this. Refused zero-network for any other type/mode combination. |
 | `confirm_in_role_menu` | boolean | no | — | `TRAN/T` `mode="delete"` or `mode="update"` (retarget) only: overrides the bridge's refusal when the tcode is already assigned to one or more roles' menus (`AGR_TCODES`). Deleting it removes it from those menus; retargeting it changes what those menu entries launch. The refusal names the specific roles. An SM01 transaction lock is **not** checked either way, by design — see `doc/LIMITATIONS/editing.md`. Refused zero-network for any other type/mode combination. |
 | `affects` | object `{name, packageName, masterSystem?, spotName?}` | no (required for `ENHO/XHH`) | — | The object this write's target enhancement binds to. |
-| `objects` | array of `{object, type?, affects?}`, 1–10 entries | no | — | Batch form: delete several objects in one call, one at a time, in the order given. `mode=delete` only. Mutually exclusive with `object` — exactly one of the two, never both and never neither. |
+| `objects` | array of `{object, type?, affects?}`, 1–10 entries | no | — | Batch form: delete several objects in one call, one at a time, in the order given. `mode=delete` only. Mutually exclusive with `object` — exactly one of the two, never both and never neither. `TRAN/T` entries are supported (#202): each one is resolved and gated exactly like a single `TRAN/T` delete (auto-resolved `corr_nr`, same as any other batch entry — see below), one `RPY_TRANSACTION_DELETE` bridge call per entry, and not journalled, same as a single `TRAN/T` delete. The other bridge-only types — `VIEW/DV`, `SHLP/DH`, `TABL/DI` — are still not deletable through this batch form; naming one is refused `BAD_INPUT` naming the entry, not a bare `UNSUPPORTED`. |
 | `dry_run` | boolean | no | — | Resolve, read, apply the edit locally and run the safety gate, but return a diff preview instead of writing. Works with `source`, `edit`, `method`, `ddic` and `mode=delete`. Refused with `BAD_INPUT` for `objects`, for `DEVC/K`, and — for every mode, not just create — for the four bridge-only types (`SHLP/DH`, `VIEW/DV`, `TRAN/T`, `TABL/DI`): the dispatch check runs before any create/update/delete branching, so a dry-run `mode="delete"` or `mode="update"` on one of these is refused the same as a create. |
 | `fixed_point_arithmetic` | boolean | no | `true` | `PROG/P` create only — sends `abapsource:fixPointArithmetic="true"` in the ADT create payload; `false` omits the attribute. Named against any other type: `BAD_INPUT`, before any request. |
 | `text_pool` | object `{symbols?, selection_texts?}` | no | — | `PROG/P` only — writes the program's text pool (text symbols and selection texts) through the `PROG/PX` textelements resource. `symbols`: map of 1–3 alphanumeric key (uppercased) to text up to 132 chars. `selection_texts`: map of up to 8-char name (parameter/select-option name, uppercased) to text up to 30 chars. With `source`, written after the source write and activation; without `source`, allowed only on an existing program (`BAD_INPUT` on a non-existing one). Named against any other type: `BAD_INPUT`, before any request. See "Program text pool (`text_pool`)" below. |
+
+**`TRAN/T` create kinds (`kind`)**: one example per kind. `type` is always
+`TRAN/T`; `package`, `description` and `corr_nr` work the same as any other
+create and are omitted below for brevity.
+
+Report (the default — `kind` can be omitted):
+
+```json
+{ "object": "ZTM_REPORT", "type": "TRAN/T", "program": "ZTM_REPORT_PROG" }
+```
+
+Dialog:
+
+```json
+{
+  "object": "ZTM_DIALOG",
+  "type": "TRAN/T",
+  "kind": "dialog",
+  "program": "ZTM_DIALOG_PROG",
+  "screen": "0100"
+}
+```
+
+Parameter:
+
+```json
+{
+  "object": "ZTM_PARAM",
+  "type": "TRAN/T",
+  "kind": "parameter",
+  "target_transaction": "SM30",
+  "parameters": [{ "field": "VIEWNAME", "value": "ZTM_V" }],
+  "skip_first_screen": true
+}
+```
+
+Variant:
+
+```json
+{
+  "object": "ZTM_VARIANT",
+  "type": "TRAN/T",
+  "kind": "variant",
+  "target_transaction": "SE38",
+  "variant": "ZTM_VAR1",
+  "cross_client_variant": false
+}
+```
+
+OO (with the transaction model — the only OO shape this tool can create):
+
+```json
+{
+  "object": "ZTM_OO",
+  "type": "TRAN/T",
+  "kind": "oo",
+  "class": "ZCL_TM_HANDLER",
+  "method": "RUN",
+  "update_mode": "S"
+}
+```
 
 **Search help refusals and DH109**: `DDIF_SHLP_PUT` succeeds and
 `DDIF_SHLP_ACTIVATE` then returns `rc = 8` with message `DH109` ("search
@@ -297,9 +368,12 @@ the response.
 **Batch delete (`objects`)**: there is **no server-side batch-delete
 endpoint** — unlike `abap_activate`'s `objects`, which posts to ADT's own
 multi-object activation service, this is a client-side loop issuing the exact
-same per-object `lock → GET → DELETE` sequence a single-object delete issues,
-one object at a time, each fully awaited (including its journal write) before
-the next begins. **Nothing is saved on the wire.** What it saves is model
+same per-object delete a single-object call issues, one object at a time,
+each fully awaited (including its journal write, where the type journals at
+all) before the next begins: the ordinary `lock → GET → DELETE` sequence for
+an ADT-native type, or one `RPY_TRANSACTION_DELETE` bridge call for a
+`TRAN/T` entry (#202) — not journalled, same as a single `TRAN/T` delete.
+**Nothing is saved on the wire.** What it saves is model
 turns — one tool call instead of N — not HTTP round trips and not server load.
 
 - **Ordering is caller-owned.** Objects are deleted in exactly the order given;
