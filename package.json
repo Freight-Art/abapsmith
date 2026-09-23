@@ -43,7 +43,6 @@
     "lint:hints": "node scripts/lint-hint-params.mjs"
   },
   "dependencies": {
-    "@abaplint/core": "^2.120.19",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "abap-adt-api": "^8.4.1",
     "dotenv": "^17.4.2",

@@ -415,7 +415,7 @@ describe("compiled CLI smoke test", () => {
     const env = { ...process.env, ...DISABLED_JOURNAL_ENV };
     const stdout = execFileSync("node", [distPath], { encoding: "utf8", env });
     expect(stdout).toMatch(/Journal is disabled/);
-    // Generous budget: this boots @abaplint/core and the whole ADT stack, which
+    // Generous budget: this boots the whole ADT stack, which
     // on a cold filesystem cache alone can exceed the default timeout.
   }, 120_000);
 });
@@ -477,7 +477,7 @@ describe("npm bin entry points are Node scripts", () => {
 // resolution and the missing-build diagnostic — is exercised against a
 // throwaway package root containing a SYNTHETIC stub `dist/bin/journal-
 // reconcile.js` rather than against the real compiled CLI. That is deliberate:
-// booting the real CLI pulls in @abaplint/core and the whole ADT stack, which
+// booting the real CLI pulls in the whole ADT stack, which
 // tells us nothing about the shim and costs seconds per invocation. The one
 // test that does need the real thing is the end-to-end case below.
 type ShimRun = { status: number | null; stdout: string; stderr: string };
@@ -633,7 +633,7 @@ describe("bin/abap-journal-reconcile shim", () => {
     const run = runShim(binPath, [], { ...process.env, ...DISABLED_JOURNAL_ENV });
     expect(run.status).toBe(0);
     expect(run.stdout).toMatch(/Journal is disabled/);
-    // Booting the real CLI drags in @abaplint/core and the whole ADT stack; on a
+    // Booting the real CLI drags in the whole ADT stack; on a
     // cold filesystem cache that alone can exceed the default 5s/30s budget.
   }, 120_000);
 });

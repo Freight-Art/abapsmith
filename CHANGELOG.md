@@ -12,6 +12,10 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+### Removed
+
+- **The dead `abap-contract` CLI and the `@abaplint/core` dependency** (#229). `src/bin/contract.ts` was the subprocess behind `abap_read view:"contract"`, which #76 removed; nothing has spawned it since. It is deleted together with its test, the unregistered `bin/abap-contract` shim and the second bundle output `bundle/bin/contract.js`, so `src/index.ts` is now the only bundle entry point. `@abaplint/core` was imported only by that file and is no longer a runtime dependency; THIRD-PARTY-NOTICES drops it and the two packages it alone pulled in (`json5`, `vscode-languageserver-types`). The server bundle and the `abap-journal-reconcile` CLI are unchanged.
+
 ## [0.6.36] - 2026-09-23
 
 ### Added

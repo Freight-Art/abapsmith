@@ -75,11 +75,9 @@ hatch is exactly the kind of surface the safety gate cannot reason about (no
 way to authorize a mutation against an arbitrary path). `abap_read
 view="contract"` also existed only on v2, with no v1 equivalent.
 
-That second drop leaves an open follow-up: `src/bin/contract.ts`, the
-`@abaplint/core` dependency it needs, and the second `scripts/bundle.mjs`
-entry point that builds it now have no in-server caller. Removing them needs
-`package.json` changes, which is out of scope for this issue and is left in
-place here.
+That second drop left `src/bin/contract.ts`, its `@abaplint/core`
+dependency and the second `scripts/bundle.mjs` entry point without a caller;
+#229 removed all three.
 
 ## What a future consolidation must prove before it is attempted again
 

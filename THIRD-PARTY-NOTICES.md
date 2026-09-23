@@ -37,21 +37,21 @@ SOFTWARE.
 
 ## Dependencies inlined into `bundle/`
 
-`bundle/index.js` and `bundle/bin/contract.js` are committed, pre-built
-single-file builds of `src/index.ts` and `src/bin/contract.ts`. Claude Code
-installs a plugin by copying the repository and never runs a build step, so
-every runtime dependency has to be resolved ahead of time — the bundler inlines
-each one's source directly into those two files. This repository therefore
+`bundle/index.js` is the committed, pre-built single-file build of
+`src/index.ts`. Claude Code installs a plugin by copying the repository and
+never runs a build step, so every runtime dependency has to be resolved ahead
+of time — the bundler inlines each one's source directly into that file. This
+repository therefore
 redistributes the third-party code listed below, and because the build strips
 legal comments from the generated output, the notices in this file are what
 carry the attribution those licences require.
 
-The list is derived mechanically from the bundler's module graph for both entry
-points, so it is the full transitive closure actually inlined, not just the
-eight direct dependencies declared in `package.json`. It needs regenerating
+The list is derived mechanically from the bundler's module graph for that entry
+point, so it is the full transitive closure actually inlined, not just the
+seven direct dependencies declared in `package.json`. It needs regenerating
 whenever `npm run bundle` picks up a changed dependency set.
 
-**Licence status: all 53 inlined packages are under permissive licences (MIT,
+**Licence status: all 50 inlined packages are under permissive licences (MIT,
 ISC, BSD-2-Clause, BSD-3-Clause). None is copyleft — no GPL, LGPL, AGPL or
 MPL — and none is missing a licence declaration. Nothing here restricts
 redistribution of `bundle/` under this project's own MIT licence.**
@@ -60,7 +60,6 @@ redistribution of `bundle/` under this project's own MIT licence.**
 
 | Package | Version | Licence (SPDX) |
 | --- | --- | --- |
-| `@abaplint/core` | 2.120.19 | MIT |
 | `@modelcontextprotocol/sdk` | 1.30.0 | MIT |
 | `@nodable/entities` | 3.0.0 | MIT |
 | `abap-adt-api` | 8.4.1 | MIT |
@@ -100,7 +99,6 @@ redistribution of `bundle/` under this project's own MIT licence.**
 | `io-ts-reporters` | 2.0.1 | MIT |
 | `is-unsafe` | 2.0.0 | MIT |
 | `json-schema-traverse` | 1.0.0 | MIT |
-| `json5` | 2.2.3 | MIT |
 | `math-intrinsics` | 1.1.0 | MIT |
 | `mime-db` | 1.54.0 | MIT |
 | `mime-types` | 3.0.2 | MIT |
@@ -109,16 +107,14 @@ redistribution of `bundle/` under this project's own MIT licence.**
 | `proxy-from-env` | 2.1.0 | MIT |
 | `sprintf-js` | 1.1.3 | BSD-3-Clause |
 | `strnum` | 2.4.1 | MIT |
-| `vscode-languageserver-types` | 3.18.0 | MIT |
 | `xml-naming` | 0.3.0 | MIT |
 | `zod` | 4.4.3 | MIT |
 | `zod-to-json-schema` | 3.25.2 | ISC |
 
 ### MIT License
 
-Applies to the following 49 packages, with the copyright holders shown:
+Applies to the following 46 packages, with the copyright holders shown:
 
-- `@abaplint/core` — Lars Hvam Petersen — MIT declared in `package.json`; the published package ships no LICENSE file
 - `@modelcontextprotocol/sdk` — Copyright (c) 2024 Anthropic, PBC
 - `@nodable/entities` — Amit Gupta / Natural Intelligence — MIT declared in `package.json`; the published package ships no LICENSE file
 - `abap-adt-api` — Copyright (c) 2019 Marcello Urbani
@@ -156,7 +152,6 @@ Applies to the following 49 packages, with the copyright holders shown:
 - `io-ts-reporters` — Copyright (c) 2017 Oliver Joseph Ash
 - `is-unsafe` — Copyright (c) 2026 Natural Intelligence
 - `json-schema-traverse` — Copyright (c) 2017 Evgeny Poberezkin
-- `json5` — Copyright (c) 2012-2018 Aseem Kishore, and [others].
 - `math-intrinsics` — Copyright (c) 2024 ECMAScript Shims
 - `mime-db` — Copyright (c) 2014 Jonathan Ong <me@jongleberry.com>; Copyright (c) 2015-2022 Douglas Christopher Wilson <doug@somethingdoug.com>
 - `mime-types` — Copyright (c) 2014 Jonathan Ong <me@jongleberry.com>; Copyright (c) 2015 Douglas Christopher Wilson <doug@somethingdoug.com>
@@ -164,12 +159,11 @@ Applies to the following 49 packages, with the copyright holders shown:
 - `path-expression-matcher` — Copyright (c) 2024 — no holder named in LICENSE; package author is Amit Gupta / Natural Intelligence
 - `proxy-from-env` — Copyright (C) 2016-2018 Rob Wu
 - `strnum` — Copyright (c) 2021 Natural Intelligence
-- `vscode-languageserver-types` — Copyright (c) Microsoft Corporation
 - `xml-naming` — Copyright (c) 2026 Natural Intelligence
 - `zod` — Copyright (c) 2025 Colin McDonnell
 
-Four of the packages above (`@abaplint/core`, `@nodable/entities`,
-`agent-base`, `https-proxy-agent`) declare MIT in `package.json` but ship no
+Three of the packages above (`@nodable/entities`, `agent-base`,
+`https-proxy-agent`) declare MIT in `package.json` but ship no
 LICENSE file in their published tarball; the holder shown is taken from the
 package metadata or its README.
 

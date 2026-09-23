@@ -5,7 +5,7 @@ depend on. Nothing here talks to a real ABAP system.
 
 | Script | What it does | Live? | Destructive? |
 |---|---|---|---|
-| `bundle.mjs` | Behind `npm run bundle`: rebuilds the committed `bundle/` plugin build — two esbuild single-file outputs with every runtime dependency inlined, because Claude Code plugin installation runs no build step | No | No — writes only `bundle/` |
+| `bundle.mjs` | Behind `npm run bundle`: rebuilds the committed `bundle/` plugin build — one esbuild single-file output with every runtime dependency inlined, because Claude Code plugin installation runs no build step | No | No — writes only `bundle/` |
 | `changelog-section.mjs` | Behind the release workflow (`.github/workflows/release.yml`): extracts one version's `## [version]` section body from `CHANGELOG.md` for the GitHub release notes | No | No — reads `CHANGELOG.md` and prints |
 | `check-no-leaks.mjs` | Pre-publication guard: fails if any tracked file names a routable host | No | No |
 | `gen-capability-table.mjs` | Generates the writable-type table `abapsmith-create-an-object/writable-types.md` carries, straight from `src/adt/capabilities.ts`'s REGISTRY (via `dist/`); `--check` diffs the regenerated table against the file's BEGIN/END block and exits 1 if stale | No — reads only local `REGISTRY`/`dist/` and the skill file | No — prints or checks; never writes the skill file |
