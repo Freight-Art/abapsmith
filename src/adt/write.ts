@@ -400,6 +400,16 @@ export interface WriteResult {
    * retried once in a fresh session and succeeded (#205).
    */
   createLockRetried?: true;
+  /**
+   * The create POST's own HTTP 201 + Location, when `createNewObject` could
+   * see it (#200) — `undefined` on an update, on a create that failed before
+   * the POST, and on every create routed through `abap-adt-api`'s
+   * `createObject` or through `createProgram` (program-create.ts), neither of
+   * which exposes its response. Passed to `Journal.settle` as `createdFresh`
+   * so it can upgrade `beforeCapture` to `"confirmed-absent"` after the fact
+   * for a create whose pre-image read didn't already establish that.
+   */
+  createdFresh?: { status: number; location: string };
 }
 
 /**
@@ -3165,13 +3175,16 @@ export async function writeObject(
 
   if (created) await emitBeforeImage(undefined);
 
+  // Set by whichever of the two createNewObject calls below runs (#200).
+  let createdFresh: { status: number; location: string } | undefined;
+
   // #205: MSAG/N (and any other type marked `create.statelessPost`) keeps
   // the create's own enqueue for the rest of a stateful session, so the
   // LOCK below would be refused by our own user if the create ran inside
   // the same session. Send it stateless instead, before the session opens.
   const createOutsideSession = created && capabilitiesFor(t.type)?.create?.statelessPost === true;
   if (createOutsideSession) {
-    await createNewObject(conn, t, preflight, opts.source, opts.fixedPointArithmetic ?? true);
+    createdFresh = await createNewObject(conn, t, preflight, opts.source, opts.fixedPointArithmetic ?? true);
   }
 
   // A generic one-time retry (#205): a self-caused LOCK failure right after
@@ -3191,7 +3204,7 @@ export async function writeObject(
       // collides with it (see `createNewObject`). Same gate-judged `preflight`
       // value both times.
       if (created && !createOutsideSession && !skipCreate) {
-        await createNewObject(conn, t, preflight, opts.source, opts.fixedPointArithmetic ?? true);
+        createdFresh = await createNewObject(conn, t, preflight, opts.source, opts.fixedPointArithmetic ?? true);
       }
 
       // `lockUri(t)`, not `t.uri`: for an include write the enqueue and the PUT
@@ -3442,6 +3455,7 @@ export async function writeObject(
       : {}),
     ...(processingTypeChangeWanted ? { processingTypeChanged: true } : {}),
     ...(createLockRetried ? { createLockRetried: true } : {}),
+    ...(createdFresh !== undefined ? { createdFresh } : {}),
   };
 }
 
@@ -3628,7 +3642,7 @@ async function createNewObject(
   payload: string | undefined,
   /** PROG/P only — see `WriteOptions.fixedPointArithmetic`; ignored for every other type. */
   fixedPointArithmetic = true,
-): Promise<void> {
+): Promise<CreatedFreshEvidence | undefined> {
   const cap = capabilitiesFor(t.type);
   // Defence-in-depth: `writeObject`'s own `created` gate already
   // refuses an unverified type, but that gate lives in the caller — this
@@ -3653,13 +3667,13 @@ async function createNewObject(
   // PROG/P is diverted here regardless of `cap.create.vendor`: the vendor
   // library's createObject has no way to set `abapsource:fixPointArithmetic`
   // (issue #179), so it always needs the raw-XML POST in program-create.ts.
+  // No `createdFresh` here: createProgram does not return its response.
   if (t.type === "PROG/P") {
     await createProgram(conn, t, corr, fixedPointArithmetic);
-    return;
+    return undefined;
   }
   if (cap?.create?.vendor === false) {
-    await createByXml(conn, t, corr, payload);
-    return;
+    return await createByXml(conn, t, corr, payload);
   }
   // ---- Which parent, and how it is named (`CreateCapability.parent`) -------
   // Not every create is parented by a package: the vendor library parents
@@ -3674,6 +3688,7 @@ async function createNewObject(
           parentPath: `/sap/bc/adt/packages/${encodeURIComponent(t.packageName.toLowerCase())}`,
         };
   try {
+    // No `createdFresh` here: abap-adt-api's createObject discards the response.
     await conn.adt.createObject({
       objtype: t.type as CreatableTypeIds,
       name: t.name,
@@ -3691,6 +3706,7 @@ async function createNewObject(
       type: t.type,
     });
   }
+  return undefined;
 }
 
 /**
@@ -3761,6 +3777,22 @@ function buildSkeletonXml(
   );
 }
 
+/** What a create POST's own response can prove for `Journal.settle`'s `createdFresh` (#200) — an HTTP status plus the `Location` of the object it just created. */
+type CreatedFreshEvidence = { status: number; location: string };
+
+/** Case-insensitive single-header lookup — `RawResponse.headers` is `Record<string, unknown>`, shape not guaranteed by casing (same idiom as bopf.ts/enhancement*.ts). */
+function firstHeader(headers: Record<string, unknown>, name: string): string | undefined {
+  const lower = name.toLowerCase();
+  for (const k of Object.keys(headers)) {
+    if (k.toLowerCase() === lower) {
+      const v = headers[k];
+      if (Array.isArray(v)) return v.length ? String(v[0]) : undefined;
+      return v === undefined || v === null ? undefined : String(v);
+    }
+  }
+  return undefined;
+}
+
 /**
  * `POST {collection}` — the create path for types `abap-adt-api`'s
  * `CreatableTypes` map does not contain (`TTYP/DA`, `ENQU/DL`, `BDEF/BDO`).
@@ -3787,7 +3819,7 @@ async function createByXml(
   t: ResolvedTarget,
   corr: GatedCorr | undefined,
   payload: string | undefined,
-): Promise<void> {
+): Promise<CreatedFreshEvidence | undefined> {
   const skeleton = capabilitiesFor(t.type)?.create?.skeleton;
   let body: string;
   let contentTypeHeader: string;
@@ -3830,11 +3862,14 @@ async function createByXml(
     );
   }
   try {
-    await conn.post(collection, {
+    // The 201 + Location becomes `createdFresh` evidence for Journal.settle (#200).
+    const resp = await conn.post(collection, {
       body,
       headers: { "Content-Type": contentTypeHeader },
       ...(corr?.kind === "transport" ? { qs: { corrNr: corr.corrNr } } : {}),
     });
+    const location = firstHeader(resp.headers, "location");
+    return location !== undefined ? { status: resp.status, location } : undefined;
   } catch (e) {
     throw translateAdtError(e, {
       operation: "create",
