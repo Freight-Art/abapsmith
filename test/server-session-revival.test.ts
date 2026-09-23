@@ -128,6 +128,18 @@ const searchRoute: FakeRoute = (r) =>
       )
     : undefined;
 
+/**
+ * Issue #199: a whole-object CLAS/OC `abap_read` also fires one best-effort
+ * GET on the text-pool symbols sub-resource, right after `/source/main`, on
+ * whichever session did the read (pre- or post-revival). Without this route
+ * that GET would record an `unrouted-request` violation under the StrictAdt
+ * idiom below. Answered on ANY session with an empty body.
+ */
+const textPoolSymbolsRoute: FakeRoute = (r) =>
+  r.method === "GET" && r.path === "/sap/bc/adt/textelements/classes/zcl_demo/source/symbols"
+    ? fakeResponse(200, "", { "content-type": "text/plain" })
+    : undefined;
+
 const cfg = (over: Partial<Config> = {}): Config => ({
   ...ConfigSchema.parse({
     url: "http://sap.invalid:50000",
@@ -149,7 +161,7 @@ const SYSTEM_RESOURCE_URI = `abap://${cfg().sid}/system`;
  */
 const scaffold = (before: FakeRoute[] = []): FakeAdtServer =>
   new FakeAdtServer({
-    routes: [...before, systemRoleRoute, searchRoute],
+    routes: [...before, systemRoleRoute, searchRoute, textPoolSymbolsRoute],
     objects: {
       [`${CLAS_URI}/source/main`]:
         "CLASS zcl_demo DEFINITION PUBLIC.\nENDCLASS.\nCLASS zcl_demo IMPLEMENTATION.\nENDCLASS.\n",
