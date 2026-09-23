@@ -363,6 +363,12 @@ const ALLOWED_LINES: { file: string; contains: string; reason: string }[] = [
       "ABAP's 30-char object-name limit, BOPF bridge-class variant of run.ts's identical guard. The dropped tail IS disclosed, structurally: the truncated stem is always suffixed with `_<6 hex of the full name>`, so the generated bridge class name visibly differs from the BO name and cannot collide.",
   },
   {
+    file: "src/adt/bopf-runtime.ts",
+    contains: "sourceLines[i]!.slice(0, 60)",
+    reason:
+      "BAD_INPUT diagnostic excerpt for a generated bridge source line over ABAP's 255-character limit, used only when no scenario node/field owns the line (the owned case reports the node and field instead, not an excerpt). The 60-character slice exists solely to let the caller locate the offending line; it is disclosed as `first 60 chars: \"...\"` in the message text itself, and the full length is reported separately in the message and in details.length, so nothing about the line's actual size or content is withheld.",
+  },
+  {
     file: "src/journal.ts",
     contains: "entries.slice(0, opts.limit)",
     reason:
