@@ -140210,8 +140210,9 @@ async function abapSearchInactive(conn, input, maxChars) {
     return true;
   });
   const rows = filtered.slice(0, max);
-  const truncatedByMax = filtered.length > rows.length;
-  const body = rows.length ? textTable(
+  const droppedByCap = filtered.length - rows.length;
+  const capLine = droppedByCap > 0 ? `--- TRUNCATED --- ${droppedByCap} of ${filtered.length} inactive object(s) not shown (display cap max=${max}). Raise \`max\` to see them.` : void 0;
+  const table = rows.length ? textTable(
     rows.map((e) => ({
       TYPE: e.type,
       NAME: e.name,
@@ -140221,6 +140222,8 @@ async function abapSearchInactive(conn, input, maxChars) {
     })),
     ["TYPE", "NAME", "PACKAGE", "USER", "STATE"]
   ) : `No inactive objects of ${user} in ${packages.join(", ")}.`;
+  const body = capLine ? `${table}
+${capLine}` : table;
   return buildResponse({
     header: {
       system: conn.cfg.sid,
@@ -140231,14 +140234,13 @@ async function abapSearchInactive(conn, input, maxChars) {
       user,
       count: rows.length,
       truncated_by_subpackage_cap: subpackageCapHit || void 0,
-      truncated_by_max: truncatedByMax || void 0
+      truncated_by_max: droppedByCap > 0 || void 0
     },
     body,
     bodyLabel: "RESULTS",
     notes: [
       `ADT's inactive-objects list is per user: this is ${user}'s worklist; pass \`user\` to see another user's.`,
-      ...subpackageCapHit ? ["Sub-package walk cut at its cap \u2014 some sub-packages may not have been scanned."] : [],
-      ...truncatedByMax ? [`Showing ${max} of ${filtered.length}.`] : []
+      ...subpackageCapHit ? ["Sub-package walk cut at its cap \u2014 some sub-packages may not have been scanned."] : []
     ],
     hints: rows.length ? [
       "Activate them all with abap_activate package=<pkg> (recursive=true for sub-packages), or one at a time with abap_activate object=<name>."
