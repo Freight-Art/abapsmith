@@ -365,6 +365,153 @@ export function listChildNames(tokens: readonly Token[], sel: NodeSelector, kind
   return childTokensOfKind(tokens, nodeTok, kind).map((t) => t.attrs.get("bo:name") ?? "");
 }
 
+// Undo helpers — BOPF re-mints bo:nodeID on every PUT/activation.
+// remapNodeIds fixes stale IDs before a PUT; bopfModelComparable ignores them for drift checks.
+
+function nodeParentName(parentAttr: string | undefined): string | undefined {
+  if (parentAttr === undefined) return undefined;
+  const m = /@bo:name='([^']*)'\]\s*$/.exec(parentAttr);
+  return m ? m[1] : undefined;
+}
+
+/** `bo:name` -> stable path (`"nodes:ROOT"`, `"nodes:ROOT/nodes:ITEM"`), walking `bo:parent` up to the root. Cyclic/self-referential input falls back to the bare name rather than looping. */
+function buildNodePaths(tokens: readonly Token[]): ReadonlyMap<string, string> {
+  const parentOf = new Map<string, string | undefined>();
+  for (const t of tokens) {
+    if (t.name !== "bo:nodes") continue;
+    const name = t.attrs.get("bo:name");
+    if (name === undefined) continue;
+    parentOf.set(name, nodeParentName(t.attrs.get("bo:parent")));
+  }
+
+  const paths = new Map<string, string>();
+  function pathOf(name: string, seen: ReadonlySet<string>): string {
+    const cached = paths.get(name);
+    if (cached !== undefined) return cached;
+    if (seen.has(name) || !parentOf.has(name)) return `nodes:${name}`;
+    const parent = parentOf.get(name);
+    const path = parent === undefined ? `nodes:${name}` : `${pathOf(parent, new Set([...seen, name]))}/nodes:${name}`;
+    paths.set(name, path);
+    return path;
+  }
+  for (const name of parentOf.keys()) pathOf(name, new Set());
+  return paths;
+}
+
+/**
+ * Every `bo:nodeID`-carrying element in `tokens`, keyed by a name path stable
+ * across a PUT (unlike the ID itself): the node's own path for a `bo:nodes`
+ * element, else `<node path>/<local element name>/<bo:name>`. A key mapped
+ * to more than one ID (duplicate name) is left in the map with all its IDs —
+ * callers must treat any multi-entry key as unresolvable.
+ */
+function collectNodeIdsByKey(tokens: readonly Token[]): ReadonlyMap<string, readonly string[]> {
+  const paths = buildNodePaths(tokens);
+  const keyed = new Map<string, string[]>();
+  const add = (key: string, id: string) => {
+    const list = keyed.get(key);
+    if (list) list.push(id);
+    else keyed.set(key, [id]);
+  };
+
+  for (const t of tokens) {
+    const id = t.attrs.get("bo:nodeID");
+    if (id === undefined) continue;
+
+    if (t.name === "bo:nodes") {
+      const name = t.attrs.get("bo:name");
+      if (name === undefined) continue;
+      add(paths.get(name) ?? `nodes:${name}`, id);
+      continue;
+    }
+
+    const enclosing = tokens.find(
+      (nt) => nt.name === "bo:nodes" && nt.depth === t.depth - 1 && nt.openStart < t.openStart && t.openStart < nt.closeEnd,
+    );
+    const nodeName = enclosing?.attrs.get("bo:name");
+    if (nodeName === undefined) continue;
+    const nodePath = paths.get(nodeName) ?? `nodes:${nodeName}`;
+    add(`${nodePath}/${bareName(t.name)}/${t.attrs.get("bo:name") ?? ""}`, id);
+  }
+  return keyed;
+}
+
+/** Replace, inside one element's own open tag, every attribute value that exactly equals an old ID with its remapped ID. Scoped to `tag` (never touches text outside the tag it was sliced from). */
+function remapOpenTag(tag: string, remap: ReadonlyMap<string, string>): string {
+  let result = tag;
+  for (const [oldId, newId] of remap) {
+    result = result.split(`"${oldId}"`).join(`"${newId}"`);
+    result = result.split(`'${oldId}'`).join(`'${newId}'`);
+  }
+  return result;
+}
+
+/**
+ * Remaps `beforeXml`'s node IDs to `currentXml`'s freshly-minted ones
+ * (matched by name path, not ID — see `collectNodeIdsByKey`), so a
+ * before-image PUT is accepted as fresh rather than rejected as stale.
+ */
+export function remapNodeIds(beforeXml: string, currentXml: string): string {
+  const beforeTokens = scanModel(beforeXml);
+  const currentTokens = scanModel(currentXml);
+  const beforeKeys = collectNodeIdsByKey(beforeTokens);
+  const currentKeys = collectNodeIdsByKey(currentTokens);
+
+  const remap = new Map<string, string>();
+  for (const [key, beforeIds] of beforeKeys) {
+    if (beforeIds.length !== 1) continue;
+    const currentIds = currentKeys.get(key);
+    if (!currentIds || currentIds.length !== 1) continue;
+    const oldId = beforeIds[0]!;
+    const newId = currentIds[0]!;
+    if (oldId !== newId) remap.set(oldId, newId);
+  }
+  if (remap.size === 0) return beforeXml;
+
+  let out = "";
+  let pos = 0;
+  for (const t of beforeTokens) {
+    out += beforeXml.slice(pos, t.openStart);
+    out += remapOpenTag(beforeXml.slice(t.openStart, t.openEnd), remap);
+    pos = t.openEnd;
+  }
+  out += beforeXml.slice(pos);
+  return out;
+}
+
+const COMPARABLE_BLANK_ATTRS = [
+  "bo:nodeID",
+  "bo:parentNodeID",
+  "adtcore:changedAt",
+  "adtcore:changedBy",
+  "adtcore:version",
+  "adtcore:createdAt",
+] as const;
+
+/** Blank (to `""`) any of `COMPARABLE_BLANK_ATTRS` found in one element's own open tag. */
+function blankComparableAttrs(tag: string): string {
+  let result = tag;
+  for (const name of COMPARABLE_BLANK_ATTRS) {
+    result = result.replace(new RegExp(`(${name}=)"[^"]*"`, "g"), `$1""`);
+    result = result.replace(new RegExp(`(${name}=)'[^']*'`, "g"), `$1''`);
+  }
+  return result;
+}
+
+/** `xml` with node IDs and change-timestamp attribute values blanked, so drift comparisons ignore ID reminting and activation timestamps. */
+export function bopfModelComparable(xml: string): string {
+  const tokens = scanModel(xml);
+  let out = "";
+  let pos = 0;
+  for (const t of tokens) {
+    out += xml.slice(pos, t.openStart);
+    out += blankComparableAttrs(xml.slice(t.openStart, t.openEnd));
+    pos = t.openEnd;
+  }
+  out += xml.slice(pos);
+  return out.replace(/\s+$/, "");
+}
+
 // ---------------------------------------------------------------------------
 // ST-order-aware insertion points
 // ---------------------------------------------------------------------------

@@ -37,6 +37,7 @@ import {
   type TextPoolObjectType,
 } from "./text-pool.js";
 import { readModel, putModel, activateBusinessObject, BOPF_TYPE } from "./bopf.js";
+import { remapNodeIds, bopfModelComparable } from "./bopf-xml.js";
 import {
   deleteEnhancementObject,
   setBadiImplementationActive,
@@ -478,18 +479,16 @@ async function planBopfModelUndo(
   }
 
   const target = bopfTargetFromEntry(entry, true);
-  const beforeFingerprint = sourceFingerprint(before);
-  const currentFingerprint = sourceFingerprint(currentXml);
+  const beforeFingerprint = sourceFingerprint(bopfModelComparable(before));
+  const currentFingerprint = sourceFingerprint(bopfModelComparable(currentXml));
 
-  // BOPF PUTs re-mint node GUIDs; src/adt/bopf.ts has no model-level
-  // canonicalisation exported for comparison, so drift/noop here fall back
-  // to the raw XML fingerprint (deviation from a "real" model-level compare —
-  // flagged in the phase report).
+  // IDs and timestamps change on every PUT/activation, so compare the comparable form.
   if (currentFingerprint === beforeFingerprint) {
     return noopPlan(entry, target, "bopf-model", "the model already matches the before-image", before, currentXml);
   }
 
-  if (entry.after === undefined) {
+  const afterText = await journal.afterImage(entry);
+  if (afterText === undefined) {
     return {
       entry,
       target,
@@ -508,7 +507,8 @@ async function planBopfModelUndo(
     };
   }
 
-  if (currentFingerprint !== entry.after.fingerprint) {
+  const afterFingerprint = sourceFingerprint(bopfModelComparable(afterText));
+  if (currentFingerprint !== afterFingerprint) {
     return {
       entry,
       target,
@@ -516,8 +516,8 @@ async function planBopfModelUndo(
       undoable: true,
       drift: {
         drifted: true,
-        reason: `the model was changed since this write (expected fingerprint ${entry.after.fingerprint}, found ${currentFingerprint})`,
-        expectedFingerprint: entry.after.fingerprint,
+        reason: `the model was changed since this write (node IDs and change timestamps ignored; expected fingerprint ${afterFingerprint}, found ${currentFingerprint})`,
+        expectedFingerprint: afterFingerprint,
         actualFingerprint: currentFingerprint,
       },
       restoreSource: before,
@@ -584,7 +584,8 @@ async function performBopfModelUndo(
               fired = true;
               await onBeforeImage(xml);
             }
-            return beforeXml;
+            // BOPF re-mints bo:nodeID on each PUT — remap before sending.
+            return remapNodeIds(beforeXml, xml);
           },
           writeAuthorized,
           { transport: opts.transport, gate: opts.gate, corrNr: entry.corrNr, packageName },
