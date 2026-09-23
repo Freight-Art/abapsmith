@@ -3683,7 +3683,7 @@ var require_lib = __commonJS({
           var changed = false;
           for (var i = 0; i < len; i++) {
             var k = keys[i];
-            var ok24 = u[k];
+            var ok25 = u[k];
             var domainResult = domain2.validate(k, appendContext(c, k, domain2, k));
             if ((0, Either_1.isLeft)(domainResult)) {
               changed = true;
@@ -3691,12 +3691,12 @@ var require_lib = __commonJS({
               var vk = domainResult.right;
               changed = changed || vk !== k;
               k = vk;
-              var codomainResult = codomain.validate(ok24, appendContext(c, k, codomain, ok24));
+              var codomainResult = codomain.validate(ok25, appendContext(c, k, codomain, ok25));
               if ((0, Either_1.isLeft)(codomainResult)) {
                 pushAll(errors, codomainResult.left);
               } else {
                 var vok = codomainResult.right;
-                changed = changed || vok !== ok24;
+                changed = changed || vok !== ok25;
                 a[k] = vok;
               }
             }
@@ -5278,10 +5278,10 @@ var require_utilities = __commonJS({
       }
       return [];
     }
-    var ok24 = Object.keys;
-    var xmlRoot = (o) => o[ok24(o).filter((k) => k !== "?xml")[0]];
+    var ok25 = Object.keys;
+    var xmlRoot = (o) => o[ok25(o).filter((k) => k !== "?xml")[0]];
     exports2.xmlRoot = xmlRoot;
-    var stripNs = (x) => x && ok24(x).reduce((obj, key) => {
+    var stripNs = (x) => x && ok25(x).reduce((obj, key) => {
       const nk = key.split(":").slice(1).join(":") || key;
       if (nk in obj)
         obj[key] = key;
@@ -5291,12 +5291,12 @@ var require_utilities = __commonJS({
     }, {});
     exports2.stripNs = stripNs;
     var stripAttrPrefix = (x) => x.replace(/^@_/, "");
-    var xmlNodeAttr5 = (n) => n && ok24(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
+    var xmlNodeAttr5 = (n) => n && ok25(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
       part[cur.replace(/^@_/, "")] = n[cur];
       return part;
     }, {});
     exports2.xmlNodeAttr = xmlNodeAttr5;
-    var typedNodeAttr = (n) => n && ok24(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
+    var typedNodeAttr = (n) => n && ok25(n).filter((k) => k.match(/^(?!@_xmlns)@_/)).reduce((part, cur) => {
       part[cur.replace(/^@_/, "")] = n[cur];
       return part;
     }, {});
@@ -36609,6 +36609,7 @@ var init_errors = __esm({
       LOCKED: "conditional",
       CHECK_FAILED: "conditional",
       SESSION_DEAD: "conditional",
+      LOGON_CEILING: "conditional",
       RUNTIME_DUMP: "conditional",
       TIMEOUT: "conditional",
       JOURNAL_IO: "conditional",
@@ -36673,8 +36674,10 @@ var init_errors = __esm({
       // a correct alias (see the message's list) resolves this
       SYSTEM_MISMATCH: "retryable",
       // re-issuing with the session's own system, or stopping it first, resolves this
-      SNAPSHOT_EXPIRED: "terminal"
+      SNAPSHOT_EXPIRED: "terminal",
       // no argument the caller can supply brings a deleted snapshot back; a new snapshot has a new id
+      RAP_PARTIAL: "conditional"
+      // resolves once the failing artifact's cause is fixed; the rest of the stack still needs writing
     };
     AbapError = class extends Error {
       code;
@@ -36688,6 +36691,15 @@ var init_errors = __esm({
         this.details = details;
         this.hint = hint;
         this.retryable = options?.retryable ?? defaultRetryable(code);
+      }
+      /**
+       * Same `Symbol.for` value as the vendor's `AdtException` classes, so
+       * `fromException` (run by `AdtHTTP._request` on every throw) returns an
+       * `AbapError` unchanged instead of rewriting it into a code-less
+       * `AdtErrorException` (e.g. a refusal thrown from the request hook).
+       */
+      get typeID() {
+        return /* @__PURE__ */ Symbol.for("ADT EXCEPTION");
       }
       toJSON() {
         return {
@@ -61916,7 +61928,7 @@ var init_capabilities = __esm({
         },
         catalogRead: {
           from: "DD12V, DD17S",
-          nameForm: "<TABLE>/<INDEX>, the same parented form the create takes, e.g. ZTAB/Z01"
+          nameForm: "<TABLE>/<INDEX> for one index (the same parented form the create takes, e.g. ZTAB/Z01), or a bare <TABLE> to list every secondary index of the table"
         }
       }
     };
@@ -63042,8 +63054,8 @@ var init_safety = __esm({
           const normalized = allowTransports.map((t) => t.trim().toUpperCase());
           if (!normalized.includes("*") && corr.kind === "transport") {
             const requested = corr.corrNr.trim().toUpperCase();
-            const ok24 = normalized.includes(requested) || corr.source === "auto" && normalized.includes("AUTO");
-            if (!ok24) {
+            const ok25 = normalized.includes(requested) || corr.source === "auto" && normalized.includes("AUTO");
+            if (!ok25) {
               return {
                 allowed: false,
                 reason: `Transport ${corr.corrNr} is not permitted by ABAP_ALLOW_TRANSPORTS [${allowTransports.join(", ")}].`,
@@ -65342,7 +65354,7 @@ function connectionDeadError(death) {
     "Every lock the session held was released when it died \u2014 there is nothing to clean up on the ABAP side. Call connect() again to establish a new session; this is not an authentication failure and does not count against the logon-attempt budget."
   );
 }
-var import_abap_adt_api2, import_abap_adt_api3, import_abap_adt_api4, opOf, DATA_PREVIEW_DDIC, DATA_PREVIEW_FREESTYLE, FREESTYLE_MAX_LENGTH, FREESTYLE_BANNED_KEYWORDS, FREESTYLE_BANNED_RE, FREESTYLE_UP_TO_RE, DDIC_ENTITY_CHARS, SERVICE_METADATA_PATH, CSRF_FETCH, LOGON_ENDPOINT, LOGON_ENDPOINT_LIFETIME_CEILING, CSRF_REFRESH_ENDPOINT, DEFAULT_SHUTDOWN_DEADLINE_MS, RequestBudget, AbapConnection;
+var import_abap_adt_api2, import_abap_adt_api3, import_abap_adt_api4, opOf, DATA_PREVIEW_DDIC, DATA_PREVIEW_FREESTYLE, FREESTYLE_MAX_LENGTH, FREESTYLE_BANNED_KEYWORDS, FREESTYLE_BANNED_RE, FREESTYLE_UP_TO_RE, DDIC_ENTITY_CHARS, SERVICE_METADATA_PATH, CSRF_FETCH, LOGON_ENDPOINT, LOGON_CEILING_PER_WINDOW, LOGON_CEILING_WINDOW_MS, CSRF_REFRESH_ENDPOINT, DEFAULT_SHUTDOWN_DEADLINE_MS, RequestBudget, AbapConnection;
 var init_connection = __esm({
   "src/adt/connection.ts"() {
     "use strict";
@@ -65391,7 +65403,8 @@ var init_connection = __esm({
     SERVICE_METADATA_PATH = /^\/sap\/opu\/odata4?\/[A-Za-z0-9_\-/]{1,240}\/\$metadata$/;
     CSRF_FETCH = "fetch";
     LOGON_ENDPOINT = "/sap/bc/adt/compatibility/graph";
-    LOGON_ENDPOINT_LIFETIME_CEILING = 5;
+    LOGON_CEILING_PER_WINDOW = 5;
+    LOGON_CEILING_WINDOW_MS = 10 * 6e4;
     CSRF_REFRESH_ENDPOINT = "/sap/bc/adt/discovery";
     DEFAULT_SHUTDOWN_DEADLINE_MS = 5e3;
     RequestBudget = class {
@@ -65401,6 +65414,25 @@ var init_connection = __esm({
       url;
       logons = 0;
       resends = 0;
+      /** First ICMENOSESSION seen outside a stateful session, recorded so `attempt()` can try one recovery logon+resend instead of `markDead` on the spot. Set once; later losses in the same request are ignored here (they fall through to `markDead` in `noteWireResponse`). */
+      sessionLoss;
+      /** Whether `attempt()` already spent its one recovery attempt for `sessionLoss`. */
+      recoveryAttempted = false;
+      /**
+       * Set once the recovery logon in `attempt()`'s catch succeeds: a new
+       * session provably exists from that point on, so `request()`'s own
+       * catch-all (which promotes an unresolved `sessionLoss` to `markDead` for
+       * every OTHER call inside this budget that saw the same timeout, e.g. a
+       * CSRF resend racing the same ICMENOSESSION) must not kill a connection
+       * that already has a fresh session under it.
+       */
+      recovered = false;
+      /** Records the first session loss for this request. Returns true if this call recorded it, false if one was already recorded (caller should fall back to `markDead`). */
+      noteSessionLoss(reason, generation) {
+        if (this.sessionLoss) return false;
+        this.sessionLoss = { reason, generation };
+        return true;
+      }
       /** One logon per logical request. The second one throws instead of flying. */
       spendLogon() {
         if (++this.logons > 1) throw this.exceeded("logon attempt", this.logons);
@@ -65533,20 +65565,51 @@ var init_connection = __esm({
        * requests that proceed are charged — a refusal (ceiling or
        * `RequestBudget.spendLogon()`) never reaches the endpoint and must not
        * inflate this count; its ordinal is reported separately as `details.attempted`.
-       * LIFETIME, not reset on revival: it IS the bound on how often a connection
-       * can be revived ({@link LOGON_ENDPOINT_LIFETIME_CEILING}).
+       * LIFETIME, not reset on revival, and never pruned — this is the
+       * "how many logons has this connection ever done" measurement tests read
+       * via `logonEndpointRequests`, distinct from the sliding-window count
+       * {@link LOGON_CEILING_PER_WINDOW} actually enforces.
        */
       logonEndpointRequestCount = 0;
       /**
-       * Latched the first time {@link LOGON_ENDPOINT_LIFETIME_CEILING} refuses a
-       * request. Never cleared — the ceiling only grows, so once tripped it stays
-       * tripped. Exists because since a refused attempt is uncharged, "count ===
-       * ceiling" is ambiguous between "5th logon flew, SAP rejected it" and "6th was
-       * refused locally" (D5c); `connectUnderLock()`'s catch reads this flag instead.
+       * `this.now()` timestamps of every UNBUDGETED logon-endpoint request
+       * charged (not refused) — the data {@link LOGON_CEILING_PER_WINDOW}'s
+       * sliding window is measured against. Pruned of entries older than
+       * {@link LOGON_CEILING_WINDOW_MS} before every check, so unlike
+       * `logonEndpointRequestCount` this one can shrink: a connection that has
+       * been quiet can log on again.
        */
-      logonCeilingRefused = false;
+      unbudgetedLogonAtMs = [];
+      /**
+       * Set on the most recent local logon-ceiling refusal (`noteWireRequest()`'s
+       * throw); `undefined` while no refusal is pending. Exists because since a
+       * refused attempt is uncharged, "count === ceiling" is ambiguous between
+       * "5th logon flew, SAP rejected it" and "6th was refused locally" (D5c);
+       * `connectUnderLock()`'s catch reads this instead. CLEARED at the start of
+       * each `connectUnderLock()` login attempt — the window slides, so once it
+       * has moved on a later `connect()` must be able to succeed rather than
+       * staying latched forever the way the old lifetime ceiling did.
+       */
+      logonCeilingRefusal;
       /** True only for the duration of `dropSession()`'s wire call — tells `noteWireRequest()` this logon-endpoint hit is a drop, not a logon. */
       droppingSession = false;
+      /**
+       * Reads {@link logonCeilingRefusal} through an indirection. `connectUnderLock()`
+       * clears that field unconditionally near its top, then reads it again after
+       * `await this.logon()` — without this method call in between, TS's control
+       * flow analysis persists the "just cleared to `undefined`" narrowing straight
+       * through the `await` (it does not know `logon()` can reach `noteWireRequest()`
+       * and set it again) and collapses the later read to `never`.
+       */
+      readLogonCeilingRefusal() {
+        return this.logonCeilingRefusal;
+      }
+      /**
+       * Coalesces concurrent logons into one `client.login()` call: whoever finds
+       * this set awaits it instead of starting a second one. `undefined` while no
+       * logon is in flight. See `logon()`.
+       */
+      logonInFlight;
       /** The clock. Injected only by tests; `Date.now` everywhere else. */
       now;
       /**
@@ -65575,26 +65638,35 @@ var init_connection = __esm({
       deferredDeath;
       /**
        * F1b — which incarnation of the ABAP session this connection is on. Advanced
-       * in exactly one place: the top of `connectUnderLock()`, after the
-       * already-connected early return and before `login()`. Starts at 0 so a
+       * in exactly one place: the top of `logon()`, on every actual
+       * `client.login()` call it starts (never on a coalesced await of one
+       * already in flight) — reached both from `connectUnderLock()`, after the
+       * already-connected early return and before the login itself, and from
+       * `attempt()`'s auto-logon. Starts at 0 so a
        * connection that never calls `connect()` (auto-logon via `attempt()`) still
        * has its deaths honoured (`0 < 0` is false). Named apart from the
        * `generation` getter because TS forbids a getter/field name clash.
        *
-       * Counts connect ATTEMPTS, not session incarnations — `dropSession()`,
-       * `withFreshSession()` and `attempt()`'s auto-logon mint/destroy real sessions
-       * without touching this counter, and a refused `connect()` advances it having
-       * minted nothing. This is sound anyway, because the only question it answers
-       * is "does this response belong to the session live NOW", which can only be
-       * got wrong if a session is destroyed/minted *while a request is in flight* —
-       * and every dispatch, `dropSession()`/`withFreshSession()`, and auto-logon all
-       * run under the same exclusive `SessionLock` hold, so that never happens.
-       * Live-tested: 8 concurrent `conn.get()` calls on a never-connected connection
-       * against A4H all took the `freshLogon` branch for one memoised
-       * `AdtHTTP.login()`; `logonEndpointRequests === 1`, not 8 (see
-       * the git history for the full trace, including the
-       * `overlappingDispatches` counter that makes the exclusivity measured, not
-       * merely asserted).
+       * Counts real logons — every actual `client.login()` call this connection
+       * starts, whether reached via `connect()`/`connectUnderLock()` or via
+       * `attempt()`'s auto-logon — because a login clears the vendor cookie jar
+       * and mints a new SAP session, which is exactly what a generation boundary
+       * means. `dropSession()` and `withFreshSession()` mint/destroy real
+       * sessions without a `client.login()` call, so without touching this
+       * counter either; a refused `connect()` (e.g. the logon ceiling) likewise
+       * does not advance it, having started no login. This is sound anyway,
+       * because the only question it answers is "does this response belong to
+       * the session live NOW", which can only be got wrong if a session is
+       * destroyed/minted *while a request is in flight* — and every dispatch,
+       * `dropSession()`/`withFreshSession()`, and `logon()` all run under the
+       * same exclusive `SessionLock` hold, so that never happens.
+       * Live-tested: 8 concurrent `conn.get()` calls on a never-connected
+       * connection against A4H all took the `freshLogon` branch and coalesced
+       * onto one `logon()` call (itself layered over `AdtHTTP`'s own memoised
+       * `login()`); `logonEndpointRequests === 1`, not 8, and `currentGeneration`
+       * advanced by exactly 1 (see the git history for the full trace, including
+       * the `overlappingDispatches` counter that makes the exclusivity measured,
+       * not merely asserted).
        */
       currentGeneration = 0;
       /**
@@ -65825,6 +65897,18 @@ var init_connection = __esm({
       get logonEndpointRequests() {
         return this.logonEndpointRequestCount;
       }
+      /** Charged, unbudgeted logons still inside {@link LOGON_CEILING_WINDOW_MS}, after pruning. What {@link LOGON_CEILING_PER_WINDOW} is actually compared against. */
+      get logonsInWindow() {
+        this.pruneLogonWindow();
+        return this.unbudgetedLogonAtMs.length;
+      }
+      /** Drops `unbudgetedLogonAtMs` entries older than {@link LOGON_CEILING_WINDOW_MS}. Called before every read of that array so it stays a true sliding window. */
+      pruneLogonWindow() {
+        const cutoff = this.now() - LOGON_CEILING_WINDOW_MS;
+        while ((this.unbudgetedLogonAtMs[0] ?? Infinity) < cutoff) {
+          this.unbudgetedLogonAtMs.shift();
+        }
+      }
       /** Called by the guard for every request past the breaker, before dispatch: counts logons and refuses a second one inside a single logical request. */
       noteWireRequest(url2) {
         const ticket = this.dispatchContext.getStore();
@@ -65851,23 +65935,30 @@ var init_connection = __esm({
           this.logonEndpointRequestCount++;
           return;
         }
-        if (this.logonEndpointRequestCount >= LOGON_ENDPOINT_LIFETIME_CEILING) {
-          this.logonCeilingRefused = true;
+        this.pruneLogonWindow();
+        if (this.unbudgetedLogonAtMs.length >= LOGON_CEILING_PER_WINDOW) {
+          const now = this.now();
+          const oldestInWindow = this.unbudgetedLogonAtMs[0];
+          const retryAfterSeconds = Math.max(1, Math.ceil((oldestInWindow + LOGON_CEILING_WINDOW_MS - now) / 1e3));
+          const attempted = this.logonEndpointRequestCount + 1;
+          this.logonCeilingRefusal = { retryAfterSeconds, attempted };
           throw new AbapError(
-            "ADT_ERROR",
-            `Refused logon-endpoint request #${this.logonEndpointRequestCount + 1} to ${LOGON_ENDPOINT}: this connection may reach the logon endpoint at most ${LOGON_ENDPOINT_LIFETIME_CEILING} times outside a budgeted request().`,
+            "LOGON_CEILING",
+            `Refused logon-endpoint request #${attempted} to ${LOGON_ENDPOINT}: this connection may reach the logon endpoint at most ${LOGON_CEILING_PER_WINDOW} times per ${LOGON_CEILING_WINDOW_MS / 6e4} minutes outside a budgeted request(); a new logon is allowed in ${retryAfterSeconds} s.`,
             {
               operation: "request",
               url: LOGON_ENDPOINT,
               reason: "logon-ceiling-exceeded",
-              limit: LOGON_ENDPOINT_LIFETIME_CEILING,
-              // Ordinal of the refused attempt (6th), not the charged count — this one is not charged.
-              attempted: this.logonEndpointRequestCount + 1
+              limit: LOGON_CEILING_PER_WINDOW,
+              windowSeconds: LOGON_CEILING_WINDOW_MS / 1e3,
+              attempted,
+              retryAfterSeconds
             },
-            "This is an abapsmith bug, not a SAP one: some path outside the budgeted request() wrapper kept logging on. The request was refused locally rather than spending another attempt against the 5-attempt user lock."
+            `This is NOT an authentication failure: the request was refused locally and the SAP user lock counter was never touched. Concurrent tool calls are the usual cause: calls to one server share a small session pool and are serialized, so firing them in parallel costs extra logons without making them faster. Wait ${retryAfterSeconds} s and retry sequentially.`
           );
         }
         this.logonEndpointRequestCount++;
+        this.unbudgetedLogonAtMs.push(this.now());
       }
       // ------------------------------------------------------------ liveness ---
       // T3. Everything below is inferred from traffic that was going to happen
@@ -65999,6 +66090,12 @@ var init_connection = __esm({
           this.deferredDeath ??= { reason, generation };
           return;
         }
+        if (settled === "thrown" && kind === "session-timeout" && generation >= this.currentGeneration) {
+          const budget = this.requestContext.getStore()?.budget;
+          if (budget && this.activeSession === void 0 && !this.client.httpClient.isStateful && budget.noteSessionLoss(reason, generation)) {
+            return;
+          }
+        }
         this.markDead(reason, generation);
       }
       /** The throw half of `noteWireResponse`. Only an exception carrying a response counts — local refusals and bare network errors prove nothing about the session and must not be treated as death. */
@@ -66041,38 +66138,71 @@ var init_connection = __esm({
         this.assertBreakerClosed();
         return await this.lock.runExclusive("connect", () => this.connectUnderLock());
       }
+      /**
+       * Issue #204 item 1 — the single place `client.login()` is ever called from
+       * this class. Coalesces concurrent callers (`connectUnderLock()` and
+       * `attempt()`'s auto-logon alike) onto ONE `client.login()`: whoever finds
+       * `logonInFlight` already set just awaits it instead of starting a second
+       * logon. `AdtHTTP.login()` has its own internal `loginPromise` memoization
+       * too, but that alone was not enough here — before this method existed,
+       * `connectUnderLock()` incremented `currentGeneration` unconditionally at
+       * its own top regardless of whether the wire call it was about to make got
+       * deduplicated by the library, so a concurrent `connectUnderLock()` and
+       * `attempt()` auto-logon could advance the generation twice for one actual
+       * new SAP session. Advancing it HERE, only for the call that actually starts
+       * a `client.login()`, keeps `currentGeneration` counting real logons (see
+       * its doc comment).
+       */
+      async logon() {
+        if (this.logonInFlight) {
+          await this.logonInFlight;
+          return;
+        }
+        this.currentGeneration++;
+        this.logonInFlight = this.client.login().finally(() => {
+          this.logonInFlight = void 0;
+        });
+        await this.logonInFlight;
+      }
       /** The body of {@link connect}, run with the session to itself. */
       async connectUnderLock() {
         if (this.connected) return this.info();
-        this.currentGeneration++;
+        this.logonCeilingRefusal = void 0;
         const timed = timingDebugEnabled();
         const clock = () => timed ? Date.now() : 0;
         const tStart = clock();
         const latchedBeforeThisAttempt = this.breaker.isTripped;
         try {
-          await this.client.login();
+          await this.logon();
         } catch (e) {
           const trip = this.breaker.info;
           const latchedByThisAttempt = !latchedBeforeThisAttempt && this.breaker.isTripped && (trip?.status === 401 || trip?.status === 403);
           if (!latchedByThisAttempt) this.assertBreakerClosed();
-          if (this.logonCeilingRefused || e instanceof AbapError && e.details.reason === "logon-ceiling-exceeded") {
-            this.markDead(
-              `Refused locally by the logon-endpoint lifetime ceiling (${LOGON_ENDPOINT_LIFETIME_CEILING}): this connection can never log on again. Nothing was sent and no credential was rejected.`
+          const refusal = this.readLogonCeilingRefusal();
+          if (refusal || e instanceof AbapError && e.details.reason === "logon-ceiling-exceeded") {
+            const retryAfterSeconds = refusal?.retryAfterSeconds ?? Math.max(
+              1,
+              Math.ceil(
+                ((this.unbudgetedLogonAtMs[0] ?? this.now()) + LOGON_CEILING_WINDOW_MS - this.now()) / 1e3
+              )
             );
-            if (e instanceof AbapError && e.details.reason === "logon-ceiling-exceeded") throw e;
+            const attempted = refusal?.attempted ?? this.logonEndpointRequestCount + 1;
+            this.markDead(
+              `Refused locally by the logon ceiling (${LOGON_CEILING_PER_WINDOW} logons per ${LOGON_CEILING_WINDOW_MS / 6e4} minutes on this connection); a new logon is allowed in ${retryAfterSeconds} s.`
+            );
             throw new AbapError(
-              "ADT_ERROR",
-              `Could not connect to ${stripUrlCredentials(this.cfg.url)}: refused locally after ${this.logonEndpointRequestCount} logon-endpoint requests (ceiling ${LOGON_ENDPOINT_LIFETIME_CEILING}). Nothing was sent; no credential was rejected.`,
+              "LOGON_CEILING",
+              `Could not connect to ${stripUrlCredentials(this.cfg.url)}: refused locally after ${this.logonEndpointRequestCount} logon-endpoint requests (ceiling ${LOGON_CEILING_PER_WINDOW} per ${LOGON_CEILING_WINDOW_MS / 6e4} minutes). Nothing was sent; no credential was rejected; a new logon is allowed in ${retryAfterSeconds} s.`,
               {
                 url: stripUrlCredentials(this.cfg.url),
                 user: this.cfg.user,
                 reason: "logon-ceiling-exceeded",
-                limit: LOGON_ENDPOINT_LIFETIME_CEILING,
-                // Matches the guard's own refusal ordinal — refusals are free, so
-                // the count itself stops at the ceiling.
-                attempted: this.logonEndpointRequestCount + 1
+                limit: LOGON_CEILING_PER_WINDOW,
+                windowSeconds: LOGON_CEILING_WINDOW_MS / 1e3,
+                attempted,
+                retryAfterSeconds
               },
-              "This is an abapsmith bug, not a SAP one, and NOT an authentication failure: the user lock counter was never touched. Do not treat it as a 401. Find the path that kept logging on outside a budgeted request()."
+              `This is NOT an authentication failure: the request was refused locally and the SAP user lock counter was never touched. Concurrent tool calls are the usual cause: calls to one server share a small session pool and are serialized, so firing them in parallel costs extra logons without making them faster. Wait ${retryAfterSeconds} s and retry sequentially.`
             );
           }
           const verdict = latchedByThisAttempt ? credentialsRejectedVerdict(trip?.status ?? 401, this.cfg.authMethod) : classifyConnectFailure(e, this.cfg.authMethod);
@@ -66530,16 +66660,37 @@ var init_connection = __esm({
         this.applyDeferredDeath();
         this.assertUsable();
         const budget = new RequestBudget(url2);
-        return await this.requestContext.run({ budget }, () => this.attempt(url2, config2, budget));
+        try {
+          return await this.requestContext.run({ budget }, () => this.attempt(url2, config2, budget));
+        } catch (e) {
+          const loss = budget.sessionLoss;
+          if (loss && !budget.recovered && !this.isDead) this.markDead(loss.reason, loss.generation);
+          throw e;
+        }
       }
       /** One logical request: optional autologin, one send, at most one recovery. */
       async attempt(url2, config2, budget) {
         const http3 = this.client.httpClient;
         const freshLogon = !http3.loggedin;
-        if (freshLogon) await this.client.login();
+        if (freshLogon) await this.logon();
         try {
           return await this.noRetryTransport()._request(url2, config2);
         } catch (e) {
+          const loss = budget.sessionLoss;
+          if (loss && !budget.recoveryAttempted) {
+            budget.recoveryAttempted = true;
+            if (freshLogon || this.breaker.isTripped) {
+              this.markDead(loss.reason, loss.generation);
+              throw e;
+            }
+            this.log(
+              "[abapsmith] the ABAP session no longer exists (ICMENOSESSION) outside a stateful session; logging on once more and resending " + url2
+            );
+            budget.spendResend();
+            await this.logon();
+            budget.recovered = true;
+            return await this.noRetryTransport()._request(url2, config2);
+          }
           if (!(0, import_abap_adt_api4.isCsrfError)(e) || this.breaker.isTripped) throw e;
           if (freshLogon) throw e;
           this.refuseCsrfRecoveryInStatefulSession(url2, e);
@@ -112761,6 +112912,14 @@ async function reportCreatePutRejection(conn, session, t, preflight2, err) {
     await session.unlock(lockUri(t));
     return rollbackCreate(conn, session, t, preflight2);
   })();
+  let rollbackSessionDropError;
+  if (rollback.rolledBack === true) {
+    try {
+      await conn.dropSession();
+    } catch (dropErr) {
+      rollbackSessionDropError = describeUnknownError(dropErr);
+    }
+  }
   const suffix = rollbackSuffix(t, true, rollback);
   return new AbapError(
     err.code,
@@ -112771,7 +112930,8 @@ async function reportCreatePutRejection(conn, session, t, preflight2, err) {
       rolledBack: rollback.rolledBack,
       ...rollback.attempted === false ? { rollbackAttempted: false } : {},
       ...rollback.skipReason ? { rollbackSkipReason: rollback.skipReason } : {},
-      ...rollback.rollbackError ? { rollbackError: rollback.rollbackError } : {}
+      ...rollback.rollbackError ? { rollbackError: rollback.rollbackError } : {},
+      ...rollbackSessionDropError ? { rollbackSessionDropError } : {}
     },
     correctChangedClaim(err.hint, true)
   );
@@ -116316,7 +116476,7 @@ async function readSecondaryIndex(conn, table, indexId, opts) {
   const id = assertIndexIdValue(indexId.trim().toUpperCase());
   const { indexes, notes } = await readTableIndexes(conn, table, opts);
   const index = indexes.find((i) => i.id === id);
-  return { index, notes };
+  return { index, indexes, notes };
 }
 async function verifySecondaryIndex(conn, table, indexId, expect) {
   try {
@@ -116369,12 +116529,25 @@ function renderIndexSection(indexes) {
   );
   return { title, content };
 }
-function renderSecondaryIndex(index) {
-  const ddl = [
+function indexDdl(index) {
+  return [
     `define index ${index.id.toLowerCase()} on ${index.table.toLowerCase()} {`,
     ...index.fields.map((f) => `  ${f.toLowerCase()};`),
     `}`
   ].join("\n");
+}
+function indexHashInput(index) {
+  return [
+    index.table,
+    index.id,
+    index.description,
+    index.unique ? "UNIQUE" : "",
+    index.activation,
+    index.dbState,
+    ...index.fields
+  ].join("|");
+}
+function renderSecondaryIndex(index) {
   const sections = [
     {
       title: "INDEX HEADER",
@@ -116393,17 +116566,8 @@ function renderSecondaryIndex(index) {
       )
     }
   ];
-  const hashInput = [
-    index.table,
-    index.id,
-    index.description,
-    index.unique ? "UNIQUE" : "",
-    index.activation,
-    index.dbState,
-    ...index.fields
-  ].join("|");
   return {
-    ddl,
+    ddl: indexDdl(index),
     sections,
     meta: {
       table: index.table,
@@ -116414,7 +116578,21 @@ function renderSecondaryIndex(index) {
       fields: index.fields.length
     },
     notes: [],
-    hashInput
+    hashInput: indexHashInput(index)
+  };
+}
+function renderSecondaryIndexList(table, indexes) {
+  const t = table.toUpperCase();
+  const ddl = indexes.length > 0 ? indexes.map((i) => indexDdl(i)).join("\n\n") : `// ${t} has no secondary index`;
+  return {
+    ddl,
+    sections: [renderIndexSection(indexes)],
+    meta: {
+      table: t,
+      indexes: indexes.length
+    },
+    notes: [],
+    hashInput: [t, ...indexes.map((i) => indexHashInput(i))].join("\n")
   };
 }
 
@@ -119980,6 +120158,8 @@ function hintForRawThrow(code) {
       return "This lock conflict was classified from the raw HTTP/exception shape only \u2014 it was never diagnosed beyond that, so no blocking session or object name could be extracted here. Do NOT retry in a loop: there is no lock timeout while the holding session lives, so a second attempt fails the same way. Close the other session (another terminal, an Eclipse/SE80 editor) if you have one open on this object, or work on a different object.";
     case "NOT_FOUND":
       return "Check the name with abap_search, or create the object first.";
+    case "LOGON_CEILING":
+      return "This is NOT an authentication failure: the request was refused locally and the SAP user lock counter was never touched. Concurrent tool calls are the usual cause: calls to one server share a small session pool and are serialized, so firing them in parallel costs extra logons without making them faster. Retry sequentially, not in parallel.";
     default:
       return "This failure was never classified beyond a generic HTTP/exception shape, so nothing more specific is known about it. Check the `adt` block in the tool result: `adt.localizedMessage` and `adt.t100` (id/no/variables) carry what SAP sent verbatim, when present, and are usually more specific than the message above. Do not retry unchanged \u2014 an unrecognised response will not resolve itself on a second try.";
   }
@@ -122165,7 +122345,7 @@ function parseLockTranscript(raw) {
     }
   }
   const blank = (v) => v.trim() === "";
-  const classify = (row2) => {
+  const classify2 = (row2) => {
     if (selfOwnerId === void 0) return "UNKNOWN";
     if (!blank(row2.gusr)) return row2.gusr === selfOwnerId ? "MINE" : "FOREIGN";
     if (!blank(row2.gusrvb)) return "FOREIGN";
@@ -122174,7 +122354,7 @@ function parseLockTranscript(raw) {
   const byPhase = /* @__PURE__ */ new Map();
   for (const p of phaseOrder) byPhase.set(p, []);
   for (const { phase, row: row2 } of rawRows) {
-    const full = { ...row2, ownership: classify(row2) };
+    const full = { ...row2, ownership: classify2(row2) };
     if (full.garg_view.isWildcard) wildcardDetected = true;
     byPhase.get(phase)?.push(full);
   }
@@ -123002,6 +123182,7 @@ async function createTransaction(conn, gate, params) {
         { tcode, raw: transcript.raw },
         `abap_read {"object":"${tcode}","type":"TRAN/T"} shows the existing transaction. To point it at a different program use abap_write mode="update"; to replace it, delete it first (mode="delete") and create it again.`,
         { retryable: false }
+        // a retry cannot succeed until the transaction is deleted or retargeted
       );
     }
     const notRetryable = ["permission_error", "name_not_allowed", "name_conflict"];
@@ -123014,6 +123195,7 @@ async function createTransaction(conn, gate, params) {
         { tcode, raw: transcript.raw },
         retryable.includes(named) ? "Retry; if it recurs check SM12 locks on TSTC for the tcode." : void 0,
         { retryable: retryable.includes(named) }
+        // retryable only for the exceptions listed in `retryable` above
       );
     }
     throw new AbapError(
@@ -127962,6 +128144,7 @@ async function abapWriteBatchDelete(conn, entries, maxChars, gate, journal, tran
           { reason: "PACKAGE_UNKNOWN", object: w.name, type: "TRAN/T", uri: found.uri, cause: found.reason },
           "Every delete is judged against the object's real package. Rather than guess, abapsmith stops here. Check the object exists and this connection can read it, then retry.",
           { retryable: true }
+          // existence could not be confirmed, not denied — a healthy connection resolves it
         );
       }
       const tstc = await lookupTransaction(conn, w.name);
@@ -132509,6 +132692,11 @@ var MODE_LOCKED_TOOLS = [
     summary: "Release one CTS transport request \u2014 irreversible."
   },
   {
+    name: "abap_rap",
+    needs: ["allowWrite"],
+    summary: "Generate a RAP stack (CDS, BDEF, class, SRVD, SRVB) from a table."
+  },
+  {
     name: "abap_fluid",
     needs: ["allowWrite"],
     summary: "Deploy and run small generated ABAP tools inside $ABAPSMITH_FLUID_API.",
@@ -136172,7 +136360,7 @@ var PATTERN_DEFAULT_CONTEXT = 2;
 var readInputSchema = {
   object: external_exports.string().describe('Name, "class X", "table Y", or ADT URI.'),
   type: external_exports.string().optional().describe(
-    `ADT type to disambiguate. DEVC/K: package listing (types/depth filter it). SUSO/B: renders the object's DEFINITION (fields, permitted activities) from the catalog \u2014 NOT who holds it, no AGR_*/UST* table is read. TABL/DI: <TABLE>/<INDEX> catalog render. Not readable: ${NON_READABLE_TYPES.join(" ")}.`
+    `ADT type to disambiguate. DEVC/K: package listing (types/depth filter it). SUSO/B: renders the object's DEFINITION (fields, permitted activities) from the catalog \u2014 NOT who holds it, no AGR_*/UST* table is read. TABL/DI: <TABLE>/<INDEX> renders one index, bare <TABLE> lists them all. Not readable: ${NON_READABLE_TYPES.join(" ")}.`
   ),
   method: external_exports.string().optional().describe("Only this method/component."),
   outline: external_exports.boolean().optional().describe(
@@ -136214,7 +136402,9 @@ var readInputSchema = {
   // implementations/macros/testclasses) as its own document, so silently
   // defaulting to `main` hides changes made in e.g. testclasses. Selectable
   // on both the source-read and `view` paths, always disclosed.
-  include: external_exports.enum(CLASS_INCLUDES).optional().describe('Class include. "testclasses"=Unit tests. Default "main".'),
+  include: external_exports.enum(CLASS_INCLUDES).optional().describe(
+    'CLAS/OC only: which class include to read ("testclasses"=Unit tests; default "main"). Ignored, with a note, for every other type.'
+  ),
   types: external_exports.array(external_exports.string()).optional().describe('DEVC/K only: filter package contents to these kind codes, e.g. ["CLAS","DDLS"].'),
   field: external_exports.string().optional().describe('view="lineage" only: trace one field back to its base columns.'),
   // The upper bound used to live in this schema as `.max(3)`, back when DEVC/K
@@ -136501,6 +136691,7 @@ async function readEnhancementObject(conn, obj, baseHeader, input, maxChars) {
   if (!documentDescription) {
     rendered.notes.push(enhancementDescriptionRequiredNote({ type: obj.type, name: obj.name }));
   }
+  rendered.notes.push(...includeIgnoredNote(input, obj));
   const etag = resourceEtag(doc.xml);
   const window2 = sliceLines(rendered.body, input.offset ?? 1, input.limit);
   const built = buildReadResponse({
@@ -136737,6 +136928,12 @@ function includeNote(include) {
     `This covers class include "${include}" ONLY. ADT versions each include separately, so a change made in ${others.join(", ")} does not appear here \u2014 re-run with include="\u2026" to see those.`
   ];
 }
+function includeIgnoredNote(input, obj) {
+  if (!input.include || obj.kind === "CLAS" || obj.include) return [];
+  return [
+    `this object has a single source document; include ignored \u2014 ${obj.type} ${obj.name} has no "${input.include}" include (class includes ${CLASS_INCLUDES.join(", ")} exist only for CLAS/OC); the single document is shown, nothing was substituted.`
+  ];
+}
 function assertIncludeCompatible(input, obj) {
   if (input.include && obj.include && input.include !== obj.include) {
     throw new AbapError(
@@ -136749,12 +136946,15 @@ function assertIncludeCompatible(input, obj) {
   const include = input.include ?? obj.include;
   if (!include) return void 0;
   if (obj.kind !== "CLAS") {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `${obj.type} ${obj.name} has no "${include}" include \u2014 class includes (${CLASS_INCLUDES.join(", ")}) exist only for classes.`,
-      { type: obj.type, name: obj.name, requested: include },
-      "Drop include. This object has a single source document, and it was NOT silently returned in place of the include you asked for."
-    );
+    if (obj.include) {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `${obj.type} ${obj.name} has no "${include}" include \u2014 class includes (${CLASS_INCLUDES.join(", ")}) exist only for classes.`,
+        { type: obj.type, name: obj.name, requested: include },
+        "Drop include. This object has a single source document, and it was NOT silently returned in place of the include you asked for."
+      );
+    }
+    return void 0;
   }
   if (include === "main") return include;
   const clash = (param, why, hint) => {
@@ -137522,22 +137722,39 @@ async function readCatalogObject2(conn, input, catalogRead, label, maxChars) {
     );
   }
   const parts = input.object.split("/");
-  if (parts.length !== 2 || parts[0].trim() === "" || parts[1].trim() === "") {
+  const trimmedParts = parts.map((p) => p.trim());
+  const isListRoute = trimmedParts.length === 1 && trimmedParts[0] !== "";
+  const isSingleIndexRoute = trimmedParts.length === 2 && trimmedParts[0] !== "" && trimmedParts[1] !== "";
+  if (!isListRoute && !isSingleIndexRoute) {
     throw new AbapError(
       "BAD_INPUT",
       `"${input.object}" is not a valid ${code} name: expected ${catalogRead.nameForm}.`,
       { object: input.object, type: code },
-      `Name it as <TABLE>/<INDEX>, e.g. "ZTAB/Z01". Not sure of the index id? abap_read {"object":"<TABLE>","type":"TABL/DT"} shows the table's own structure.`
+      'Name one index as <TABLE>/<INDEX>, e.g. "ZTAB/Z01", or give the bare table name to list every secondary index: abap_read {"object":"ZTAB","type":"TABL/DI"}.'
     );
   }
+  if (isListRoute) {
+    const table2 = parts[0].trim().toUpperCase();
+    const { indexes: indexes2, notes: notes2 } = await readTableIndexes(conn, table2);
+    const rendered2 = renderSecondaryIndexList(table2, indexes2);
+    rendered2.notes.push(...notes2);
+    const hints = [
+      `abap_read {"object":"${table2}/<INDEX>","type":"TABL/DI"} renders one index on its own.`,
+      `abap_read {"object":"${table2}","type":"TABL/DT"} shows the table's own structure.`
+    ];
+    return buildDdicLikeResponse(rendered2, { ...header, object: `${code} ${table2}` }, input.offset, input.limit, hints, maxChars);
+  }
   const [table, indexId] = parts;
-  const hint = `abap_read {"object":"${table.trim().toUpperCase()}","type":"TABL/DT"} to see the table's own structure.`;
-  const { index, notes } = await readSecondaryIndex(conn, table, indexId);
+  const TABLE2 = table.trim().toUpperCase();
+  const ID = indexId.trim().toUpperCase();
+  const hint = `abap_read {"object":"${TABLE2}","type":"TABL/DI"} lists every secondary index of the table; abap_read {"object":"${TABLE2}","type":"TABL/DT"} shows its structure.`;
+  const { index, indexes, notes } = await readSecondaryIndex(conn, table, indexId);
   if (index === void 0) {
+    const existing = indexes.map((i) => i.id);
     throw new AbapError(
       "NOT_FOUND",
-      `Table ${table.trim().toUpperCase()} has no secondary index ${indexId.trim().toUpperCase()} in DD12V on this system \u2014 this is a definitive empty result (HTTP 200, 0 rows), not a refused read.`,
-      { table: table.trim().toUpperCase(), index: indexId.trim().toUpperCase() },
+      `Table ${TABLE2} has no secondary index ${ID} in DD12V on this system \u2014 ` + (existing.length > 0 ? `its secondary indexes are ${existing.join(", ")}` : "it has no secondary index at all") + ` (definitive empty result: HTTP 200, 0 rows for ${ID}, not a refused read).`,
+      { table: TABLE2, index: ID, existing },
       hint
     );
   }
@@ -137726,6 +137943,7 @@ async function abapRead(conn, input, maxChars, gate) {
     }
   }
   const include = assertIncludeCompatible(input, obj);
+  const ignoredIncludeNotes = includeIgnoredNote(input, obj);
   if (input.format === "raw") {
     refuseSourceOnlyParams(input, obj, 'format="raw" returns the XML descriptor, not source lines');
     if (input.version) {
@@ -137760,6 +137978,7 @@ async function abapRead(conn, input, maxChars, gate) {
         body: windowText,
         bodyLabel: "XML DESCRIPTOR",
         notes: [
+          ...ignoredIncludeNotes,
           "This is the exact ADT XML document \u2014 the same shape a properties-shape write must PUT back to this object's own URI (not /source/main, which does not exist for this type). It is NOT the pseudo-DDL abap_read renders by default; round-trip fidelity is exact (this document, edited in place, is a valid PUT body) except for server-managed fields documented as such (e.g. a domain fixed value's position is assigned by the server, never sent by the client).",
           hasMore ? `offset/limit address CHARACTERS in format="raw" (this document is one line): showing ${charOffset + 1}-${charOffset + windowText.length} of ${charTotal}. Fetch the rest with offset=${nextOffset}.` : `Full descriptor shown (${charTotal} characters).`,
           ...requestedLimit && requestedLimit > defaultWindowChars ? [`limit=${requestedLimit} was clamped to ${defaultWindowChars} characters to stay under the response budget.`] : []
@@ -137823,6 +138042,7 @@ async function abapRead(conn, input, maxChars, gate) {
         'version="active" had no effect here: a DDIC read always renders the current definition, which is what active names. Omit it \u2014 the bytes are identical either way.'
       );
     }
+    rendered.notes.push(...ignoredIncludeNotes);
     return buildDdicLikeResponse(
       rendered,
       { ...baseHeader, mode: "ddic" },
@@ -137855,7 +138075,7 @@ async function abapRead(conn, input, maxChars, gate) {
     ...input.version ? [
       `version="${input.version}" was sent as the query parameter on this include's own GET, exactly as it is for a main-source read \u2014 it was NOT applied by reading main instead. Whether ADT honours the active/inactive selector per include is UNVERIFIED here; if the returned bytes look active when you asked for inactive, treat that as the server ignoring the parameter, and use view="history" on this include to see what versions it actually has.`
     ] : []
-  ] : [];
+  ] : [...ignoredIncludeNotes];
   const sourceHints = include && include !== "main" ? [
     "offset/limit page this include. method= and outline=true are refused alongside a non-main include \u2014 both describe the class body, which is a different document."
   ] : [
@@ -138009,7 +138229,7 @@ async function abapRead(conn, input, maxChars, gate) {
     const parts = (declarationOnly ? [m.declaration] : [m.declaration, m.implementation]).filter(Boolean).join("\n\n");
     const origin = m.foundOn;
     const originLabel = origin ? `${origin.name} (${origin.relation} of ${origin.via}, depth ${origin.depth})` : void 0;
-    const methodNotes = [];
+    const methodNotes = [...ignoredIncludeNotes];
     if (origin) {
       methodNotes.push(
         `${m.member.name} is not declared by ${obj.name}; it comes from ${originLabel}. The block below and its line numbers are ${origin.name}'s, not ${obj.name}'s (searched: ${m.searched.join(" -> ")}).`
@@ -140770,6 +140990,1662 @@ function registerSearchTools(mcp, deps) {
   );
 }
 
+// src/tools/rap.ts
+init_zod();
+init_errors();
+init_compact();
+init_resolve();
+init_source();
+
+// src/adt/odata.ts
+init_fxp();
+init_errors();
+init_session();
+
+// src/adt/edmx.ts
+init_fxp();
+init_errors();
+init_truncate();
+var REPEATABLE_NAMES = /* @__PURE__ */ new Set([
+  "Schema",
+  "EntityType",
+  "ComplexType",
+  "EntitySet",
+  "Singleton",
+  "Property",
+  "PropertyRef",
+  "NavigationProperty",
+  "NavigationPropertyBinding",
+  "Association",
+  "AssociationSet",
+  "End",
+  "EntityContainer",
+  "FunctionImport",
+  "ActionImport",
+  "Function",
+  "Action",
+  "Parameter",
+  "Annotations",
+  "Annotation",
+  "Record",
+  "PropertyValue",
+  "Collection",
+  "PropertyPath",
+  "Reference",
+  "Include",
+  "String",
+  "EnumMember"
+]);
+var edmxXml = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  removeNSPrefix: true,
+  parseAttributeValue: false,
+  parseTagValue: false,
+  trimValues: true,
+  isArray: (name, _jpath, _isLeaf, isAttribute) => !isAttribute && REPEATABLE_NAMES.has(name)
+});
+var isRec = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+function list(node2, name) {
+  if (!isRec(node2)) return [];
+  const v = node2[name];
+  if (Array.isArray(v)) return v.filter(isRec);
+  return isRec(v) ? [v] : [];
+}
+function child2(node2, name) {
+  const l = list(node2, name);
+  if (l.length > 0) return l[0];
+  const v = isRec(node2) ? node2[name] : void 0;
+  return isRec(v) ? v : void 0;
+}
+function attr5(node2, name) {
+  if (!isRec(node2)) return void 0;
+  const v = node2[`@_${name}`];
+  if (v === void 0 || v === null) return void 0;
+  const s = String(v).trim();
+  return s === "" ? void 0 : s;
+}
+function boolAttr(node2, name) {
+  const raw = attr5(node2, name);
+  if (raw === void 0) return void 0;
+  const v = raw.toLowerCase();
+  if (v === "true") return true;
+  if (v === "false") return false;
+  return void 0;
+}
+function unwrapCollection(type) {
+  const m = /^Collection\((.+)\)$/.exec(type);
+  return m?.[1] ? { type: m[1], collection: true } : { type, collection: false };
+}
+function localName(qualified) {
+  const cut = qualified.lastIndexOf(".");
+  return cut === -1 ? qualified : qualified.slice(cut + 1);
+}
+function detectVersion2(edmx, schemas) {
+  const v = attr5(edmx, "Version");
+  if (v === "4.0") return { version: "V4", evidence: "edmx-version-attribute" };
+  if (v === "1.0") return { version: "V2", evidence: "edmx-version-attribute" };
+  const ds = child2(edmx, "DataServices");
+  const dsv = attr5(ds, "DataServiceVersion");
+  if (dsv?.startsWith("2")) return { version: "V2", evidence: "dataservice-version-attribute" };
+  if (dsv?.startsWith("4")) return { version: "V4", evidence: "dataservice-version-attribute" };
+  for (const s of schemas) {
+    if (list(s, "Association").length > 0) {
+      return { version: "V2", evidence: "structural-association-element" };
+    }
+  }
+  for (const s of schemas) {
+    for (const t of list(s, "EntityType")) {
+      for (const n of list(t, "NavigationProperty")) {
+        if (attr5(n, "Type") !== void 0) {
+          return { version: "V4", evidence: "structural-navigation-type" };
+        }
+      }
+    }
+  }
+  throw new AbapError(
+    "SERVICE_METADATA_UNPARSEABLE",
+    "This $metadata document does not identify itself as OData V2 or V4: no edmx Version attribute, no DataServiceVersion, no <Association> element and no typed <NavigationProperty>.",
+    { edmxVersion: v, dataServiceVersion: dsv },
+    'Do NOT re-request it \u2014 the same bytes will come back. Read it with mode="raw" and look at the <edmx:Edmx> root element. If the body is an HTML logon page or an SAP error page rather than EDMX, the service runtime rejected the request before the OData handler saw it, and the fix is at the ICF/authorization layer, not here.'
+  );
+}
+function indexAssociations(schemas) {
+  const idx2 = /* @__PURE__ */ new Map();
+  for (const s of schemas) {
+    const ns = attr5(s, "Namespace");
+    for (const a of list(s, "Association")) {
+      const name = attr5(a, "Name");
+      if (!name) continue;
+      const ends = /* @__PURE__ */ new Map();
+      for (const e of list(a, "End")) {
+        const role = attr5(e, "Role");
+        const type = attr5(e, "Type");
+        if (!role || !type) continue;
+        const mult = attr5(e, "Multiplicity");
+        ends.set(role, { type, ...mult === void 0 ? {} : { multiplicity: mult } });
+      }
+      idx2.set(name, ends);
+      if (ns) idx2.set(`${ns}.${name}`, ends);
+    }
+  }
+  return idx2;
+}
+function v2Navigation(typeNode, assoc) {
+  const out = [];
+  for (const n of list(typeNode, "NavigationProperty")) {
+    const name = attr5(n, "Name");
+    if (!name) continue;
+    const rel = attr5(n, "Relationship");
+    const toRole = attr5(n, "ToRole");
+    const end = rel !== void 0 && toRole !== void 0 ? assoc.get(rel)?.get(toRole) : void 0;
+    if (!end) {
+      out.push({
+        name,
+        target: rel ? `(unresolved via ${rel})` : "(unresolved)",
+        unresolved: true
+      });
+      continue;
+    }
+    out.push({
+      name,
+      target: end.type,
+      ...end.multiplicity === void 0 ? {} : { multiplicity: end.multiplicity }
+    });
+  }
+  return out;
+}
+function v2Property(p) {
+  const name = attr5(p, "Name");
+  if (!name) return void 0;
+  return {
+    name,
+    type: attr5(p, "Type") ?? "(untyped)",
+    ...opt("nullable", boolAttr(p, "Nullable")),
+    ...opt("maxLength", attr5(p, "MaxLength")),
+    ...opt("precision", attr5(p, "Precision")),
+    ...opt("scale", attr5(p, "Scale")),
+    ...opt("label", attr5(p, "label")),
+    ...opt("creatable", boolAttr(p, "creatable")),
+    ...opt("updatable", boolAttr(p, "updatable")),
+    ...opt("sortable", boolAttr(p, "sortable")),
+    ...opt("filterable", boolAttr(p, "filterable")),
+    ...opt("requiredInFilter", boolAttr(p, "required-in-filter")),
+    ...opt("unit", attr5(p, "unit")),
+    ...opt("text", attr5(p, "text"))
+  };
+}
+function opt(key, value) {
+  return value === void 0 ? {} : { [key]: value };
+}
+function v2Capabilities(set2) {
+  return {
+    ...opt("creatable", boolAttr(set2, "creatable")),
+    ...opt("updatable", boolAttr(set2, "updatable")),
+    ...opt("deletable", boolAttr(set2, "deletable")),
+    ...opt("searchable", boolAttr(set2, "searchable")),
+    ...opt("pageable", boolAttr(set2, "pageable")),
+    ...opt("countable", boolAttr(set2, "countable")),
+    ...opt("addressable", boolAttr(set2, "addressable")),
+    ...opt("requiresFilter", boolAttr(set2, "requires-filter"))
+  };
+}
+function v4RecordFlag(ann, property) {
+  for (const rec of list(ann, "Record")) {
+    for (const pv of list(rec, "PropertyValue")) {
+      if (attr5(pv, "Property") === property) return boolAttr(pv, "Bool");
+    }
+  }
+  return void 0;
+}
+function v4AnnotationsOf(node2) {
+  return list(node2, "Annotation");
+}
+function v4Label(node2) {
+  return v4LabelOf(v4AnnotationsOf(node2));
+}
+function v4LabelOf(annotations) {
+  for (const a of annotations) {
+    if (localName(attr5(a, "Term") ?? "") === "Label") return attr5(a, "String");
+  }
+  return void 0;
+}
+function v4Capabilities(annotations) {
+  let creatable;
+  let updatable;
+  let deletable;
+  let searchable;
+  let countable;
+  let pageable;
+  let requiresFilter;
+  for (const a of annotations) {
+    const term = localName(attr5(a, "Term") ?? "");
+    switch (term) {
+      case "InsertRestrictions":
+        creatable = v4RecordFlag(a, "Insertable") ?? creatable;
+        break;
+      case "UpdateRestrictions":
+        updatable = v4RecordFlag(a, "Updatable") ?? updatable;
+        break;
+      case "DeleteRestrictions":
+        deletable = v4RecordFlag(a, "Deletable") ?? deletable;
+        break;
+      case "SearchRestrictions":
+        searchable = v4RecordFlag(a, "Searchable") ?? searchable;
+        break;
+      case "CountRestrictions":
+        countable = v4RecordFlag(a, "Countable") ?? countable;
+        break;
+      case "FilterRestrictions":
+        requiresFilter = v4RecordFlag(a, "RequiresFilter") ?? requiresFilter;
+        break;
+      // V4 spelling of sap:pageable; first explicit `false` wins over a later `true`.
+      case "TopSupported":
+      case "SkipSupported": {
+        const v = boolAttr(a, "Bool");
+        if (v === false) pageable = false;
+        else if (v === true && pageable === void 0) pageable = true;
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  return {
+    ...opt("creatable", creatable),
+    ...opt("updatable", updatable),
+    ...opt("deletable", deletable),
+    ...opt("searchable", searchable),
+    ...opt("countable", countable),
+    ...opt("pageable", pageable),
+    ...opt("requiresFilter", requiresFilter)
+  };
+}
+function indexV4ExternalAnnotations(schemas) {
+  const idx2 = /* @__PURE__ */ new Map();
+  for (const s of schemas) {
+    for (const block2 of list(s, "Annotations")) {
+      const target = attr5(block2, "Target");
+      if (!target) continue;
+      const anns = v4AnnotationsOf(block2);
+      if (anns.length === 0) continue;
+      idx2.set(target, [...idx2.get(target) ?? [], ...anns]);
+      const slash = target.indexOf("/");
+      const cut = slash === -1 ? target.lastIndexOf(".") : target.lastIndexOf(".", slash);
+      const short = cut === -1 ? target : target.slice(cut + 1);
+      if (short !== target) idx2.set(short, [...idx2.get(short) ?? [], ...anns]);
+    }
+  }
+  return idx2;
+}
+function v4Navigation(typeNode) {
+  const out = [];
+  for (const n of list(typeNode, "NavigationProperty")) {
+    const name = attr5(n, "Name");
+    if (!name) continue;
+    const raw = attr5(n, "Type");
+    if (raw === void 0) {
+      out.push({ name, target: "(unresolved)", unresolved: true });
+      continue;
+    }
+    const { type, collection } = unwrapCollection(raw);
+    const multiplicity = collection ? "*" : boolAttr(n, "Nullable") === false ? "1" : "0..1";
+    out.push({ name, target: type, multiplicity });
+  }
+  return out;
+}
+function v4Property(p) {
+  const name = attr5(p, "Name");
+  if (!name) return void 0;
+  return {
+    name,
+    type: attr5(p, "Type") ?? "(untyped)",
+    ...opt("nullable", boolAttr(p, "Nullable")),
+    ...opt("maxLength", attr5(p, "MaxLength")),
+    ...opt("precision", attr5(p, "Precision")),
+    ...opt("scale", attr5(p, "Scale")),
+    ...opt("label", v4Label(p))
+  };
+}
+function paramsOf(node2) {
+  const out = [];
+  for (const p of list(node2, "Parameter")) {
+    const name = attr5(p, "Name");
+    if (!name) continue;
+    out.push({
+      name,
+      type: attr5(p, "Type") ?? "(untyped)",
+      ...opt("mode", attr5(p, "Mode"))
+    });
+  }
+  return out;
+}
+function v2Operations(container) {
+  const out = [];
+  for (const f of list(container, "FunctionImport")) {
+    const name = attr5(f, "Name");
+    if (!name) continue;
+    const method = attr5(f, "HttpMethod");
+    out.push({
+      name,
+      kind: method !== void 0 && method.toUpperCase() !== "GET" ? "action" : "function",
+      ...opt("httpMethod", method),
+      ...opt("returnType", attr5(f, "ReturnType")),
+      parameters: paramsOf(f)
+    });
+  }
+  return out;
+}
+function v4Operations(schemas, container) {
+  const defs = /* @__PURE__ */ new Map();
+  for (const s of schemas) {
+    const ns = attr5(s, "Namespace");
+    for (const [tag, kind] of [
+      ["Action", "action"],
+      ["Function", "function"]
+    ]) {
+      for (const node2 of list(s, tag)) {
+        const name = attr5(node2, "Name");
+        if (!name) continue;
+        defs.set(name, { kind, node: node2 });
+        if (ns) defs.set(`${ns}.${name}`, { kind, node: node2 });
+      }
+    }
+  }
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const [tag, attrName] of [
+    ["ActionImport", "Action"],
+    ["FunctionImport", "Function"]
+  ]) {
+    for (const imp of list(container, tag)) {
+      const name = attr5(imp, "Name");
+      if (!name) continue;
+      const targetRef = attr5(imp, attrName);
+      const def = targetRef === void 0 ? void 0 : defs.get(targetRef);
+      seen.add(targetRef ?? name);
+      out.push({
+        name,
+        kind: tag === "ActionImport" ? "action" : "function",
+        ...opt("returnType", attr5(child2(def?.node, "ReturnType"), "Type")),
+        parameters: def ? paramsOf(def.node) : []
+      });
+    }
+  }
+  for (const s of schemas) {
+    for (const [tag, kind] of [
+      ["Action", "action"],
+      ["Function", "function"]
+    ]) {
+      for (const node2 of list(s, tag)) {
+        const name = attr5(node2, "Name");
+        if (!name || seen.has(name)) continue;
+        if (boolAttr(node2, "IsBound") !== true) continue;
+        out.push({
+          name,
+          kind,
+          ...opt("returnType", attr5(child2(node2, "ReturnType"), "Type")),
+          parameters: paramsOf(node2)
+        });
+      }
+    }
+  }
+  return out;
+}
+function parseEdmx(body) {
+  const rawBytes = Buffer.byteLength(body, "utf8");
+  let doc;
+  try {
+    doc = edmxXml.parse(body);
+  } catch (e) {
+    throw new AbapError(
+      "SERVICE_METADATA_UNPARSEABLE",
+      `The service answered with something that is not well-formed XML: ${e instanceof Error ? e.message : String(e)}`,
+      { rawBytes, excerpt: truncateText(body, PARSE_EXCERPT_MAX) },
+      "Do NOT retry \u2014 a malformed body is not a transient. The excerpt above is what came back; an HTML `<html>` root means the ICF layer answered instead of the OData handler (logon screen or error page), which is an authorization or SICF problem."
+    );
+  }
+  const edmx = child2(doc, "Edmx");
+  if (!edmx) {
+    throw new AbapError(
+      "SERVICE_METADATA_UNPARSEABLE",
+      "The service answered with XML that has no <edmx:Edmx> root element, so it is not an OData $metadata document.",
+      { rawBytes, excerpt: truncateText(body, PARSE_EXCERPT_MAX) },
+      "Do NOT retry \u2014 the same bytes will come back. Check the excerpt above: an SAP error document (`<error>`) names the real problem in its message element, and an HTML root means the request never reached the OData handler."
+    );
+  }
+  const dataServices = child2(edmx, "DataServices");
+  const schemas = list(dataServices, "Schema");
+  const { version: version2, evidence } = detectVersion2(edmx, schemas);
+  const containerSchema = schemas.find((s) => list(s, "EntityContainer").length > 0);
+  const container = containerSchema ? child2(containerSchema, "EntityContainer") : void 0;
+  const assoc = version2 === "V2" ? indexAssociations(schemas) : void 0;
+  const externalAnnotations = version2 === "V4" ? indexV4ExternalAnnotations(schemas) : void 0;
+  const entityTypes = [];
+  for (const s of schemas) {
+    for (const t of list(s, "EntityType")) {
+      const name = attr5(t, "Name");
+      if (!name) continue;
+      const keys = [];
+      for (const ref2 of list(child2(t, "Key"), "PropertyRef")) {
+        const k = attr5(ref2, "Name");
+        if (k) keys.push(k);
+      }
+      const properties = [];
+      for (const p of list(t, "Property")) {
+        const parsed = version2 === "V2" ? v2Property(p) : v4Property(p);
+        if (parsed) properties.push(parsed);
+      }
+      entityTypes.push({
+        name,
+        ...opt("label", version2 === "V2" ? attr5(t, "label") : v4Label(t)),
+        keys,
+        properties,
+        navigation: version2 === "V2" ? v2Navigation(t, assoc ?? /* @__PURE__ */ new Map()) : v4Navigation(t)
+      });
+    }
+  }
+  const containerName = attr5(container, "Name");
+  const entitySets = [];
+  for (const set2 of list(container, "EntitySet")) {
+    const name = attr5(set2, "Name");
+    if (!name) continue;
+    const entityType = attr5(set2, "EntityType") ?? "(untyped)";
+    if (version2 === "V2") {
+      entitySets.push({
+        name,
+        entityType,
+        ...opt("label", attr5(set2, "label")),
+        capabilities: v2Capabilities(set2)
+      });
+    } else {
+      const inline = v4AnnotationsOf(set2);
+      const external = [
+        ...externalAnnotations?.get(`${containerName ?? ""}/${name}`) ?? [],
+        ...containerSchema ? externalAnnotations?.get(
+          `${attr5(containerSchema, "Namespace") ?? ""}.${containerName ?? ""}/${name}`
+        ) ?? [] : []
+      ];
+      const all = [...inline, ...external];
+      entitySets.push({
+        name,
+        entityType,
+        ...opt("label", v4LabelOf(all)),
+        capabilities: v4Capabilities(all)
+      });
+    }
+  }
+  return {
+    version: version2,
+    versionEvidence: evidence,
+    ...opt("namespace", attr5(schemas[0], "Namespace")),
+    ...opt("entityContainer", containerName),
+    entitySets,
+    entityTypes,
+    operations: version2 === "V2" ? v2Operations(container ?? {}) : v4Operations(schemas, container),
+    rawBytes
+  };
+}
+function findEntityType(contract, qualifiedOrBare) {
+  const bare = localName(qualifiedOrBare);
+  return contract.entityTypes.find((t) => t.name === bare) ?? contract.entityTypes.find((t) => t.name.toLowerCase() === bare.toLowerCase());
+}
+function findEntitySet(contract, name) {
+  return contract.entitySets.find((s) => s.name === name) ?? contract.entitySets.find((s) => s.name.toLowerCase() === name.toLowerCase());
+}
+
+// src/adt/odata.ts
+init_truncate();
+var BINDING_BASE = "/sap/bc/adt/businessservices/bindings";
+var BINDING_ACCEPT = "application/vnd.sap.adt.businessservices.servicebinding.v2+xml, application/vnd.sap.adt.businessservices.servicebinding.v1+xml";
+var LINK_REL_V2 = "http://www.sap.com/categories/odatav2";
+var LINK_REL_V4 = "http://www.sap.com/categories/odatav4";
+var BINDING_NAME_CHARS = /^[A-Z0-9_/$]{1,40}$/;
+var SERVICE_NAME_CHARS = /^[A-Za-z0-9_/$.\-]{1,120}$/;
+var SERVICE_METADATA_PATH2 = /^\/sap\/opu\/odata4?\/[A-Za-z0-9_\-/]{1,240}\/\$metadata$/;
+var REPEATABLE_NAMES2 = /* @__PURE__ */ new Set([
+  "link",
+  "content",
+  "services",
+  "collection",
+  "navigation"
+]);
+var adtXml = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  removeNSPrefix: true,
+  parseAttributeValue: false,
+  parseTagValue: false,
+  trimValues: true,
+  isArray: (name, _jpath, _isLeaf, isAttribute) => !isAttribute && REPEATABLE_NAMES2.has(name)
+});
+var isRec2 = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+function list2(node2, name) {
+  if (!isRec2(node2)) return [];
+  const v = node2[name];
+  if (Array.isArray(v)) return v.filter(isRec2);
+  return isRec2(v) ? [v] : [];
+}
+function child3(node2, name) {
+  return list2(node2, name)[0];
+}
+function attr6(node2, name) {
+  if (!isRec2(node2)) return void 0;
+  const v = node2[`@_${name}`];
+  if (v === void 0 || v === null) return void 0;
+  const s = String(v).trim();
+  return s === "" ? void 0 : s;
+}
+function boolAttr2(node2, name) {
+  const raw = attr6(node2, name)?.toLowerCase();
+  if (raw === "true" || raw === "x") return true;
+  if (raw === "false" || raw === "") return false;
+  return void 0;
+}
+function text4(node2, name) {
+  if (!isRec2(node2)) return void 0;
+  const v = node2[name];
+  if (typeof v === "string") {
+    const s = v.trim();
+    return s === "" ? void 0 : s;
+  }
+  if (isRec2(v) && typeof v["#text"] === "string") {
+    const s = v["#text"].trim();
+    return s === "" ? void 0 : s;
+  }
+  return void 0;
+}
+function assertServiceRuntimePath(path9) {
+  if (SERVICE_METADATA_PATH2.test(path9)) return;
+  throw new AbapError(
+    "BAD_INPUT",
+    `Refusing to build the service-runtime request '${path9}': abapsmith fetches OData $metadata and nothing else.`,
+    { path: path9 },
+    "The path must be rooted at /sap/opu/odata or /sap/opu/odata4 and end in /$metadata. Reading entity data through an ADT developer session is out of scope by design (parity item P-40) and no setting enables it."
+  );
+}
+function pathOfServiceUrl(url2) {
+  const trimmed = url2.trim();
+  if (trimmed === "") return void 0;
+  if (trimmed.startsWith("/")) return trimmed.split(/[?#]/)[0];
+  const m = /^[a-z][a-z0-9+.-]*:\/\/[^/]+(\/.*)$/i.exec(trimmed);
+  const p = m?.[1];
+  return p === void 0 ? void 0 : p.split(/[?#]/)[0];
+}
+function metadataPathOf(servicePath) {
+  return `${servicePath.replace(/\/+$/, "")}/$metadata`;
+}
+function normaliseBindingName(raw) {
+  const name = raw.trim().toUpperCase();
+  if (!BINDING_NAME_CHARS.test(name)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `'${raw}' is not a service binding name.`,
+      { name: raw },
+      "Pass the SRVB object name (letters, digits, underscore, / and $; up to 40 characters) \u2014 not a URL, not a service definition, not a CDS view."
+    );
+  }
+  return name;
+}
+function serviceBindingUri(name) {
+  return `${BINDING_BASE}/${encodeURIComponent(name.toLowerCase())}`;
+}
+async function readServiceBinding(conn, bindingName) {
+  const name = normaliseBindingName(bindingName);
+  const url2 = serviceBindingUri(name);
+  let body;
+  try {
+    body = (await conn.get(url2, { headers: { Accept: BINDING_ACCEPT } })).body;
+  } catch (e) {
+    const info = adtExceptionInfo(e);
+    if (info?.status === 404) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `No service binding named ${name} exists in this system.`,
+        { bindingName: name, status: 404 },
+        "Check the spelling, then check the object type: a SERVICE DEFINITION (SRVD) is not a service binding (SRVB) and has no OData URL of its own. `abap_search` with the name will show which of the two exists."
+      );
+    }
+    throw e;
+  }
+  const doc = adtXml.parse(body);
+  const sb = child3(doc, "serviceBinding");
+  if (!sb) {
+    throw new AbapError(
+      "SERVICE_METADATA_UNPARSEABLE",
+      `The ADT response for service binding ${name} is not a service binding document.`,
+      { bindingName: name, excerpt: truncateText(body, PARSE_EXCERPT_MAX) },
+      "Do NOT retry. The excerpt above is what ADT returned; if it is an exception envelope, its message names the real problem."
+    );
+  }
+  const services = child3(sb, "services");
+  const content = list2(services, "content")[0];
+  const binding = child3(sb, "binding");
+  let catalogueUrl;
+  let catalogueRel;
+  for (const l of list2(sb, "link")) {
+    const rel = attr6(l, "rel");
+    if (rel !== LINK_REL_V2 && rel !== LINK_REL_V4) continue;
+    catalogueUrl = attr6(l, "href");
+    catalogueRel = rel;
+    break;
+  }
+  return {
+    name,
+    ...opt2("bindingType", attr6(binding, "type")),
+    ...opt2("bindingVersion", attr6(binding, "version")),
+    ...opt2("category", attr6(binding, "category")),
+    ...opt2("published", boolAttr2(sb, "published")),
+    ...opt2("serviceName", attr6(services, "name")),
+    ...opt2("serviceVersion", attr6(content, "version")),
+    ...opt2("srvdName", attr6(child3(content, "serviceDefinition"), "name")),
+    ...opt2("packageName", attr6(child3(sb, "packageRef"), "name")),
+    ...opt2("catalogueUrl", catalogueUrl),
+    ...opt2("catalogueRel", catalogueRel),
+    ...opt2("allowedAction", attr6(binding, "allowedAction"))
+  };
+}
+function opt2(key, value) {
+  return value === void 0 ? {} : { [key]: value };
+}
+async function readServiceRuntimeInfo(conn, binding) {
+  const url2 = binding.catalogueUrl;
+  if (url2 === void 0) {
+    assertPublished(binding, void 0);
+    throw new AbapError(
+      "UNSUPPORTED",
+      `The service binding ${binding.name} exposes no OData catalogue link (rel ${LINK_REL_V2} or ${LINK_REL_V4}), so its runtime URL cannot be resolved.`,
+      { bindingName: binding.name, bindingType: binding.bindingType },
+      `This is the shape a NON-OData binding has \u2014 check the binding type (this one reports '${binding.bindingType ?? "unstated"}'). Do not retry; the document will not grow a link.`
+    );
+  }
+  const qs = {};
+  if (binding.serviceName !== void 0) qs.servicename = binding.serviceName;
+  if (binding.serviceVersion !== void 0) qs.serviceversion = binding.serviceVersion;
+  if (binding.srvdName !== void 0) qs.srvdname = binding.srvdName;
+  let body;
+  try {
+    body = (await conn.get(pathOfServiceUrl(url2) ?? url2, { headers: { Accept: "application/*" }, qs })).body;
+  } catch (e) {
+    const info = adtExceptionInfo(e);
+    if (info?.status === 404) {
+      throw new AbapError(
+        "SERVICE_NOT_PUBLISHED",
+        `The service binding ${binding.name} exists, but the OData catalogue has no registration for service ${binding.serviceName ?? binding.name} \u2014 it has not been published to the service runtime.`,
+        { bindingName: binding.name, serviceName: binding.serviceName, status: 404 },
+        PUBLISH_HINT
+      );
+    }
+    throw e;
+  }
+  const doc = adtXml.parse(body);
+  const container = child3(doc, "serviceList") ?? child3(doc, "serviceGroup");
+  const service = list2(container, "services")[0];
+  if (!service) {
+    throw new AbapError(
+      "SERVICE_NOT_PUBLISHED",
+      `The OData catalogue returned no service for binding ${binding.name}, which is what an unpublished service binding looks like.`,
+      { bindingName: binding.name, serviceName: binding.serviceName },
+      PUBLISH_HINT
+    );
+  }
+  const information = child3(service, "serviceInformation");
+  const rawUrl = attr6(service, "serviceUrl") ?? attr6(information, "url");
+  const collections = [];
+  for (const c of list2(information, "collection")) {
+    const n = attr6(c, "name");
+    if (n) collections.push(n);
+  }
+  return {
+    ...opt2("serviceId", attr6(service, "serviceId")),
+    ...opt2("serviceVersion", attr6(service, "serviceVersion") ?? attr6(information, "version")),
+    ...opt2("servicePath", rawUrl === void 0 ? void 0 : pathOfServiceUrl(rawUrl)),
+    // V4 carries `published` on the root `serviceGroup`, never on the
+    // individual `services` element (which has `created="true"` instead) —
+    // fall back to the container so a published V4 service isn't reported
+    // as tri-state-unknown just because the flag lives one level up.
+    ...opt2("published", boolAttr2(service, "published") ?? boolAttr2(container, "published")),
+    collections
+  };
+}
+var PUBLISH_HINT = 'Publish the service binding first: run `abap_service {"binding":"<NAME>","op":"publish","confirm":"<NAME>"}` (needs ABAP_MODE=admin; it echoes the binding name back as confirmation before it POSTs anything) \u2014 or publish it in ADT (or SAP GUI) by hand, pressing \'Activate\' first if the binding itself is inactive. Retrying this call before publishing will return the identical error.';
+function assertPublished(binding, runtime) {
+  if (binding.published === false || runtime?.published === false) {
+    throw new AbapError(
+      "SERVICE_NOT_PUBLISHED",
+      `Service binding ${binding.name} is not published, so its OData service does not exist in the service runtime yet and has no $metadata to read.`,
+      {
+        bindingName: binding.name,
+        bindingPublished: binding.published,
+        runtimePublished: runtime?.published
+      },
+      PUBLISH_HINT
+    );
+  }
+}
+function bindingODataVersion(binding) {
+  const fromBinding = binding.bindingVersion?.toUpperCase();
+  if (fromBinding === "V2" || fromBinding === "V4") return fromBinding;
+  if (binding.catalogueRel === LINK_REL_V2) return "V2";
+  if (binding.catalogueRel === LINK_REL_V4) return "V4";
+  throw new AbapError(
+    "UNSUPPORTED",
+    `The OData version for service binding ${binding.name} could not be established from its binding document (no srvb:version, and no recognised catalogue link relation), so no publish endpoint can be chosen.`,
+    { bindingName: binding.name, bindingVersion: binding.bindingVersion, catalogueRel: binding.catalogueRel },
+    "abapsmith will not guess which OData runtime (V2 or V4) to register the service in. Check the binding's version in ADT."
+  );
+}
+var PUBLISH_JOB_BASE = {
+  V2: "/sap/bc/adt/businessservices/odatav2",
+  V4: "/sap/bc/adt/businessservices/odatav4"
+};
+var PUBLISH_JOB_PATH = /^\/sap\/bc\/adt\/businessservices\/odatav[24]\/(?:un)?publishjobs$/;
+function publishJobPath(action, version2) {
+  const suffix = action === "publish" ? "publishjobs" : "unpublishjobs";
+  const path9 = `${PUBLISH_JOB_BASE[version2]}/${suffix}`;
+  if (!PUBLISH_JOB_PATH.test(path9)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Built an unexpected publish-job path '${path9}' for action '${action}' / version ${version2}.`,
+      { action, version: version2, path: path9 },
+      "This should never fire; if it does, PUBLISH_JOB_BASE above was edited to something outside the two paths this module is allowed to POST to."
+    );
+  }
+  return path9;
+}
+var STATUS_FIELD_NAMES = ["SEVERITY", "SHORT_TEXT", "LONG_TEXT"];
+var STATUS_SEARCH_MAX_DEPTH = 8;
+function findStatusNode(node2, depth = 0) {
+  if (!isRec2(node2) || depth > STATUS_SEARCH_MAX_DEPTH) return void 0;
+  if (STATUS_FIELD_NAMES.some((f) => f in node2)) return node2;
+  for (const v of Object.values(node2)) {
+    if (Array.isArray(v)) {
+      for (const item of v) {
+        const found = findStatusNode(item, depth + 1);
+        if (found) return found;
+      }
+    } else {
+      const found = findStatusNode(v, depth + 1);
+      if (found) return found;
+    }
+  }
+  return void 0;
+}
+async function runPublishJob(conn, binding, action, proof) {
+  const odataVersion = bindingODataVersion(binding);
+  const jobPath = publishJobPath(action, odataVersion);
+  const serviceName = binding.serviceName ?? binding.name;
+  if (!SERVICE_NAME_CHARS.test(serviceName)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Service binding ${binding.name} names a service '${truncateText(serviceName, MESSAGE_EXCERPT_MAX)}' outside the character set abapsmith accepts for a publish job.`,
+      { bindingName: binding.name, serviceName },
+      "This name came from the binding document, not from the caller, so this means the document carried something unexpected. abapsmith will not put it into a request body unescaped."
+    );
+  }
+  const objectReference = odataVersion === "V4" ? `<adtcore:objectReference adtcore:name="${serviceName}" adtcore:type="SCGR"/>` : `<adtcore:objectReference adtcore:name="${serviceName}"/>`;
+  const body = `<?xml version="1.0" encoding="UTF-8"?><adtcore:objectReferences xmlns:adtcore="http://www.sap.com/adt/core">${objectReference}</adtcore:objectReferences>`;
+  const headers = odataVersion === "V4" ? {
+    Accept: "application/xml, application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.StatusMessage",
+    "Content-Type": "application/xml"
+  } : { Accept: "application/*", "Content-Type": "application/xml" };
+  const qs = {};
+  if (odataVersion === "V2") {
+    qs.servicename = serviceName;
+    if (binding.serviceVersion !== void 0) qs.serviceversion = binding.serviceVersion;
+  }
+  let responseBody;
+  try {
+    responseBody = (await conn.post(jobPath, { headers, body, ...odataVersion === "V2" ? { qs } : {} })).body;
+  } catch (e) {
+    const info = adtExceptionInfo(e);
+    if (info?.status === 403) {
+      throw new AbapError(
+        "SERVICE_PUBLISH_FAILED",
+        `ADT refused the ${action} job for service binding ${binding.name} with HTTP 403.`,
+        { bindingName: binding.name, serviceName, jobPath, status: 403 },
+        "ADT refused the publish job itself: the S_DEVELOP/S_ADT_RES authority that got this session in does not cover registering a service \u2014 that needs its own authorization, which a developer session does not automatically carry."
+      );
+    }
+    const status = info?.status;
+    throw new AbapError(
+      "ADT_ERROR",
+      `The ${action} job for service binding ${binding.name} failed${status === void 0 ? "" : ` with HTTP ${status}`}${info?.message ? `: ${truncateText(info.message, MESSAGE_EXCERPT_MAX)}` : ""}`,
+      {
+        bindingName: binding.name,
+        serviceName,
+        jobPath,
+        ...status === void 0 ? {} : { status },
+        ...info?.message ? { serverMessage: truncateText(info.message, MESSAGE_EXCERPT_MAX) } : {}
+      },
+      "This is not the 403 authorization case handled separately \u2014 check the excerpt above for what ADT actually said."
+    );
+  }
+  const doc = adtXml.parse(responseBody);
+  const statusNode = findStatusNode(doc);
+  const severity = text4(statusNode, "SEVERITY")?.toLowerCase();
+  const shortText = text4(statusNode, "SHORT_TEXT");
+  const longText = text4(statusNode, "LONG_TEXT");
+  if (severity !== void 0 && severity.startsWith("error")) {
+    throw new AbapError(
+      "SERVICE_PUBLISH_FAILED",
+      `The ${action} job for service binding ${binding.name} failed: ${truncateText(shortText ?? "(server gave no short text)", MESSAGE_EXCERPT_MAX)}`,
+      { bindingName: binding.name, serviceName, jobPath, severity, shortText },
+      "The publish job reached the server and the server refused it. Usual causes: an inactive service binding or service definition, a service name already registered by another binding, or a missing S_SERVICE/ICF authorization. Fix the cause and call again \u2014 retrying unchanged returns the same answer."
+    );
+  }
+  return {
+    action,
+    bindingName: binding.name,
+    serviceName,
+    ...opt2("serviceVersion", binding.serviceVersion),
+    odataVersion,
+    jobPath,
+    ...opt2("severity", severity),
+    ...opt2("shortText", shortText),
+    ...opt2("longText", longText)
+  };
+}
+function resolveVersion(binding, contract) {
+  const fromBinding = binding.bindingVersion?.toUpperCase();
+  const fromLinkRel = binding.catalogueRel;
+  const linkSays = fromLinkRel === LINK_REL_V2 ? "V2" : fromLinkRel === LINK_REL_V4 ? "V4" : void 0;
+  const bindingSays = fromBinding === "V2" ? "V2" : fromBinding === "V4" ? "V4" : void 0;
+  const mismatches = [];
+  if (bindingSays !== void 0 && bindingSays !== contract.version) {
+    mismatches.push(`the binding declares ${bindingSays}`);
+  }
+  if (linkSays !== void 0 && linkSays !== contract.version) {
+    mismatches.push(`the catalogue link relation says ${linkSays}`);
+  }
+  return {
+    version: contract.version,
+    ...opt2("fromBinding", fromBinding),
+    ...opt2("fromLinkRel", fromLinkRel),
+    fromDocument: contract.version,
+    documentEvidence: contract.versionEvidence,
+    ...opt2(
+      "disagreement",
+      mismatches.length === 0 ? void 0 : `${mismatches.join(" and ")}, but the $metadata document itself is ${contract.version} (evidence: ${contract.versionEvidence}). The document wins.`
+    )
+  };
+}
+async function fetchMetadata(conn, metadataPath, binding) {
+  assertServiceRuntimePath(metadataPath);
+  try {
+    const resp = await conn.serviceRuntimeGet(metadataPath);
+    return { body: resp.body, cookieJarChanged: resp.cookieJarChanged };
+  } catch (e) {
+    if (e instanceof AbapError) throw e;
+    const info = adtExceptionInfo(e);
+    const status = info?.status;
+    const detail = {
+      bindingName: binding.name,
+      metadataPath,
+      ...status === void 0 ? {} : { status },
+      ...info?.message ? { serverMessage: truncateText(info.message, MESSAGE_EXCERPT_MAX) } : {}
+    };
+    if (status === 401 || status === 403) {
+      throw new AbapError(
+        "SERVICE_METADATA_DENIED",
+        `The OData service runtime refused $metadata for ${binding.name} with HTTP ${status}. The ADT session is fine \u2014 this is the service's own gate.`,
+        detail,
+        "Two different causes look identical here, and re-running will not tell them apart: (a) the user lacks S_SERVICE for this service \u2014 the ICF node checks it independently of the developer authorizations that got the ADT session in; (b) the SICF node under /sap/opu/odata is inactive, so ICF answers with a logon challenge instead of the handler. Check SICF for the node and SU53 immediately after this call for the authorization. Do NOT retry \u2014 neither cause is transient."
+      );
+    }
+    if (status === 404) {
+      throw new AbapError(
+        "SERVICE_METADATA_NOT_FOUND",
+        `The OData service runtime has no service at ${metadataPath}, even though the ADT catalogue resolved binding ${binding.name} to it.`,
+        detail,
+        "This is NOT a spelling problem \u2014 the path came from the system's own catalogue. It means the runtime registration is stale (published once, then the service was removed or the binding renamed) or the ICF node was deleted. Re-publishing the binding in ADT re-registers it. Retrying this call will not."
+      );
+    }
+    throw new AbapError(
+      "ADT_ERROR",
+      `Fetching $metadata for ${binding.name} failed${status === void 0 ? "" : ` with HTTP ${status}`}${info?.message ? `: ${truncateText(info.message, MESSAGE_EXCERPT_MAX)}` : ""}`,
+      detail,
+      "The request left the ADT namespace for the OData service runtime (/sap/opu/odata*), which is a separate ICF hierarchy with its own activation state and its own authorizations \u2014 so an ADT session that works everywhere else proves nothing about it. Check the SICF node and the ICM trace for this path."
+    );
+  }
+}
+async function readServiceContract(conn, bindingName, opts = {}) {
+  conn.discovery.assertSupported("rap.srvb", "OData service binding introspection");
+  const binding = await readServiceBinding(conn, bindingName);
+  if (binding.bindingType !== void 0 && binding.bindingType.toUpperCase() !== "ODATA") {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `Service binding ${binding.name} is a ${binding.bindingType} binding, not an OData binding, so it has no $metadata document.`,
+      { bindingName: binding.name, bindingType: binding.bindingType },
+      "Only OData bindings expose EDMX. SQL and InA bindings describe themselves through entirely different protocols that abapsmith does not read. Do not retry."
+    );
+  }
+  assertPublished(binding, void 0);
+  const runtime = await readServiceRuntimeInfo(conn, binding);
+  assertPublished(binding, runtime);
+  const servicePath = runtime.servicePath;
+  if (servicePath === void 0) {
+    throw new AbapError(
+      "SERVICE_NOT_PUBLISHED",
+      `The OData catalogue returned an entry for binding ${binding.name} but no service URL, so there is nothing to fetch $metadata from.`,
+      { bindingName: binding.name, serviceName: binding.serviceName },
+      PUBLISH_HINT
+    );
+  }
+  const metadataPath = metadataPathOf(servicePath);
+  const { body, cookieJarChanged } = await fetchMetadata(conn, metadataPath, binding);
+  const contract = parseEdmx(body);
+  return {
+    binding,
+    runtime,
+    metadataPath,
+    version: resolveVersion(binding, contract),
+    contract,
+    ...opts.includeRaw === true ? { raw: body } : {},
+    cookieJarChanged
+  };
+}
+
+// src/adt/rap-generate.ts
+init_errors();
+init_compact();
+var PREFIX_RE = /^(\/[A-Z0-9_]+\/|[ZY])([A-Z0-9_]+)$/i;
+var REQUIRED_OVERRIDES = [
+  "root_view",
+  "projection_view",
+  "behaviour_class",
+  "service_definition",
+  "service_binding"
+];
+function camelCase(stem) {
+  return stem.split("_").filter(Boolean).map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join("");
+}
+function deriveRapNames(prefix, opts) {
+  const overrides = opts.names ?? {};
+  let ns = "";
+  let stem = "";
+  if (!prefix || !prefix.trim()) {
+    const missing = REQUIRED_OVERRIDES.filter((k) => !overrides[k]);
+    if (missing.length > 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "name_prefix is required unless `names` supplies every derived name.",
+        { missing },
+        `Supply name_prefix (e.g. "ZAS_BK197"), or all of: ${REQUIRED_OVERRIDES.join(", ")} in \`names\`.`
+      );
+    }
+  } else {
+    const m = PREFIX_RE.exec(prefix.trim());
+    if (!m) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `name_prefix "${prefix}" is not a customer-namespace prefix (Z/Y or /NS/ plus a stem).`,
+        { name_prefix: prefix },
+        `Pass a prefix like "ZAS_BK197" or "/NS/BK197", or supply every name explicitly via \`names\`.`
+      );
+    }
+    ns = m[1].toUpperCase();
+    stem = m[2].toUpperCase();
+  }
+  const rootView = overrides.root_view ? overrides.root_view.toUpperCase() : `${ns}I_${stem}`;
+  const projectionView = overrides.projection_view ? overrides.projection_view.toUpperCase() : `${ns}C_${stem}`;
+  const behaviourClass = overrides.behaviour_class ? overrides.behaviour_class.toUpperCase() : `${ns}BP_${stem}`;
+  const serviceDefinition = overrides.service_definition ? overrides.service_definition.toUpperCase() : `${ns}UI_${stem}`;
+  const bindingSuffix = opts.bindingType === "V2" ? "_O2" : "_O4";
+  const serviceBinding = overrides.service_binding ? overrides.service_binding.toUpperCase() : `${ns}UI_${stem}${bindingSuffix}`;
+  if (!overrides.service_binding && serviceBinding.length > 26) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `derived service binding name "${serviceBinding}" exceeds 26 characters.`,
+      { serviceBinding, length: serviceBinding.length },
+      "Pass a shorter name via names.service_binding."
+    );
+  }
+  const draftTable = overrides.draft_table ? overrides.draft_table.toUpperCase() : `${ns}${stem}_D`;
+  if (!overrides.draft_table && draftTable.length > 16) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `derived draft table name "${draftTable}" exceeds 16 characters.`,
+      { draftTable, length: draftTable.length },
+      "Pass a shorter name via names.draft_table."
+    );
+  }
+  const rootSqlView = overrides.root_sql_view ? overrides.root_sql_view.toUpperCase() : `${ns}I${stem}`.slice(0, 16);
+  const projectionSqlView = overrides.projection_sql_view ? overrides.projection_sql_view.toUpperCase() : `${ns}C${stem}`.slice(0, 16);
+  const alias = camelCase(stem);
+  return {
+    ns,
+    stem,
+    rootView,
+    projectionView,
+    behaviourClass,
+    serviceDefinition,
+    serviceBinding,
+    draftTable,
+    rootSqlView,
+    projectionSqlView,
+    alias
+  };
+}
+function isClientField(f) {
+  const t = f.type.toLowerCase();
+  const n = f.name.toUpperCase();
+  return t === "abap.clnt" || t === "mandt" || n === "MANDT" || n === "CLIENT";
+}
+function looksLikeTimestamp(f) {
+  const n = f.name.toUpperCase();
+  const t = f.type.toLowerCase();
+  if (/LAST_CHANGED_AT|LASTCHANGE|CHANGED_AT$/.test(n)) return true;
+  if ((t === "timestampl" || t === "abp_lastchange_tstmpl") && n.includes("CHANG")) return true;
+  return false;
+}
+function classify(fields) {
+  return fields.map((f) => {
+    const client = isClientField(f);
+    return {
+      raw: f,
+      nameLower: f.name.toLowerCase(),
+      alias: camelCase(f.name),
+      isClient: client,
+      isKey: f.key && !client,
+      isTimestamp: looksLikeTimestamp(f)
+    };
+  });
+}
+function escapeXmlAttr6(s) {
+  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function buildDraftTable(spec) {
+  const lines = spec.fields.map((f) => {
+    const keyword = f.key ? "key " : "";
+    const notNull = f.notNull ? " not null" : "";
+    return `  ${keyword}${f.name.toLowerCase()} : ${f.type}${notNull};`;
+  });
+  const source = [
+    `@EndUserText.label : 'Draft table for ${spec.names.rootView}'`,
+    `@AbapCatalog.tableCategory : #TRANSPARENT`,
+    `@AbapCatalog.deliveryClass : #A`,
+    `@AbapCatalog.dataMaintenance : #RESTRICTED`,
+    `define table ${spec.names.draftTable.toLowerCase()} {`,
+    ...lines,
+    `  include sych_bdl_draft_admin_inc;`,
+    `}`
+  ].join("\n");
+  return {
+    key: "draft_table",
+    name: spec.names.draftTable,
+    type: "TABL/DT",
+    source,
+    description: `Draft table for ${spec.names.rootView}`
+  };
+}
+function buildRootView(spec, nonClient, keyFields) {
+  const tableLower = spec.table.toLowerCase();
+  const fieldLines = nonClient.map((f) => {
+    const prefix = keyFields.includes(f) ? "key " : "";
+    return `  ${prefix}${f.nameLower} as ${f.alias}`;
+  });
+  const header = [`@AccessControl.authorizationCheck: #CHECK`, `@EndUserText.label: '${spec.names.rootView}'`];
+  let defineBlock;
+  if (spec.cdsForm === "entity") {
+    defineBlock = [`define root view entity ${spec.names.rootView}`, `  as select from ${tableLower}`];
+  } else {
+    header.push(`@AbapCatalog.sqlViewName: '${spec.names.rootSqlView}'`);
+    header.push(`@AbapCatalog.compiler.compareFilter: true`);
+    header.push(`@AbapCatalog.preserveKey: true`);
+    defineBlock = [`define root view ${spec.names.rootView}`, `  as select from ${tableLower}`];
+  }
+  const source = [...header, ...defineBlock, `{`, fieldLines.join(",\n"), `}`].join("\n");
+  return {
+    key: "root_view",
+    name: spec.names.rootView,
+    type: "DDLS/DF",
+    source,
+    description: `Root CDS view for ${spec.table}`
+  };
+}
+function buildProjectionView(spec, nonClient, keyFields) {
+  const fieldLines = nonClient.map((f) => {
+    const prefix = keyFields.includes(f) ? "key " : "";
+    return `  ${prefix}${f.alias}`;
+  });
+  const header = [`@AccessControl.authorizationCheck: #CHECK`, `@EndUserText.label: '${spec.names.projectionView}'`];
+  let defineBlock;
+  if (spec.cdsForm === "entity") {
+    defineBlock = [
+      `define root view entity ${spec.names.projectionView}`,
+      `  provider contract transactional_query`,
+      `  as projection on ${spec.names.rootView}`
+    ];
+  } else {
+    header.push(`@AbapCatalog.sqlViewName: '${spec.names.projectionSqlView}'`);
+    defineBlock = [`define root view ${spec.names.projectionView}`, `  as projection on ${spec.names.rootView}`];
+  }
+  const source = [...header, ...defineBlock, `{`, fieldLines.join(",\n"), `}`].join("\n");
+  return {
+    key: "projection_view",
+    name: spec.names.projectionView,
+    type: "DDLS/DF",
+    source,
+    description: `Projection CDS view for ${spec.names.rootView}`
+  };
+}
+function buildRootBehaviour(spec, nonClient, keyFields, timestamp) {
+  const tableLower = spec.table.toLowerCase();
+  const cls = spec.names.behaviourClass.toLowerCase();
+  const kind = spec.flavour === "managed" ? "managed" : "unmanaged";
+  const managed = spec.flavour === "managed";
+  const lines = [];
+  lines.push(`${kind} implementation in class ${cls} unique;`);
+  lines.push(`strict ( 2 );`);
+  if (spec.draft) lines.push(`with draft;`);
+  lines.push(``);
+  lines.push(`define behavior for ${spec.names.rootView} alias ${spec.alias}`);
+  if (managed) lines.push(`persistent table ${tableLower}`);
+  if (spec.draft) lines.push(`draft table ${spec.names.draftTable.toLowerCase()}`);
+  if (spec.draft && timestamp) {
+    lines.push(`lock master total etag ${timestamp.alias}`);
+  } else {
+    lines.push(`lock master`);
+  }
+  if (managed) lines.push(`authorization master ( instance )`);
+  if (timestamp) lines.push(`etag master ${timestamp.alias}`);
+  lines.push(`{`);
+  for (const f of keyFields) lines.push(`  field ( readonly ) ${f.alias};`);
+  if (timestamp && !keyFields.includes(timestamp)) lines.push(`  field ( readonly ) ${timestamp.alias};`);
+  lines.push(`  create;`);
+  lines.push(`  update;`);
+  lines.push(`  delete;`);
+  if (spec.draft) {
+    lines.push(`  draft action Edit;`);
+    lines.push(`  draft action Activate;`);
+    lines.push(`  draft action Discard;`);
+    lines.push(`  draft action Resume;`);
+    lines.push(`  draft determine action Prepare;`);
+  }
+  lines.push(``);
+  lines.push(`  mapping for ${tableLower}`);
+  lines.push(`  {`);
+  for (const f of nonClient) lines.push(`    ${f.alias} = ${f.nameLower};`);
+  lines.push(`  }`);
+  lines.push(`}`);
+  return {
+    key: "root_behaviour",
+    name: spec.names.rootView,
+    type: "BDEF/BDO",
+    source: lines.join("\n"),
+    description: `Root behavior definition for ${spec.names.rootView}`
+  };
+}
+function buildProjectionBehaviour(spec) {
+  const lines = [];
+  lines.push(`projection;`);
+  lines.push(`strict ( 2 );`);
+  if (spec.draft) lines.push(`use draft;`);
+  lines.push(``);
+  lines.push(`define behavior for ${spec.names.projectionView} alias ${spec.alias}`);
+  lines.push(`use etag`);
+  lines.push(`{`);
+  lines.push(`  use create;`);
+  lines.push(`  use update;`);
+  lines.push(`  use delete;`);
+  if (spec.draft) {
+    lines.push(`  use action Edit;`);
+    lines.push(`  use action Activate;`);
+    lines.push(`  use action Discard;`);
+    lines.push(`  use action Resume;`);
+    lines.push(`  use action Prepare;`);
+  }
+  lines.push(`}`);
+  return {
+    key: "projection_behaviour",
+    name: spec.names.projectionView,
+    type: "BDEF/BDO",
+    source: lines.join("\n"),
+    description: `Projection behavior definition for ${spec.names.projectionView}`
+  };
+}
+function buildBehaviourClassMain(spec) {
+  const cls = spec.names.behaviourClass;
+  const source = [
+    `CLASS ${cls} DEFINITION PUBLIC ABSTRACT FINAL FOR BEHAVIOR OF ${spec.names.rootView}.`,
+    `ENDCLASS.`,
+    ``,
+    `CLASS ${cls} IMPLEMENTATION.`,
+    `ENDCLASS.`
+  ].join("\n");
+  return {
+    key: "behaviour_class",
+    name: cls,
+    type: "CLAS/OC",
+    source,
+    description: `Behavior implementation class for ${spec.names.rootView}`
+  };
+}
+function buildBehaviourClassLocal(spec) {
+  const view = spec.names.rootView;
+  const lhc = `lhc_${spec.alias.toLowerCase()}`;
+  let source;
+  if (spec.flavour === "managed") {
+    source = [
+      `CLASS ${lhc} DEFINITION INHERITING FROM cl_abap_behavior_handler.`,
+      `  PRIVATE SECTION.`,
+      `    METHODS get_instance_authorizations FOR INSTANCE AUTHORIZATION`,
+      `      IMPORTING keys REQUEST requested_authorizations FOR ${spec.alias} RESULT result.`,
+      `ENDCLASS.`,
+      ``,
+      `CLASS ${lhc} IMPLEMENTATION.`,
+      `  METHOD get_instance_authorizations.`,
+      `  ENDMETHOD.`,
+      `ENDCLASS.`
+    ].join("\n");
+  } else {
+    const lsc = `lsc_${spec.alias.toLowerCase()}`;
+    source = [
+      `CLASS ${lhc} DEFINITION INHERITING FROM cl_abap_behavior_handler.`,
+      `  PRIVATE SECTION.`,
+      `    METHODS create FOR MODIFY`,
+      `      IMPORTING entities FOR CREATE ${spec.alias}.`,
+      `    METHODS update FOR MODIFY`,
+      `      IMPORTING entities FOR UPDATE ${spec.alias}.`,
+      `    METHODS delete FOR MODIFY`,
+      `      IMPORTING keys FOR DELETE ${spec.alias}.`,
+      `    METHODS read FOR READ`,
+      `      IMPORTING keys FOR READ ${spec.alias} RESULT result.`,
+      `    METHODS lock FOR LOCK`,
+      `      IMPORTING keys FOR LOCK ${spec.alias}.`,
+      `ENDCLASS.`,
+      ``,
+      `CLASS ${lhc} IMPLEMENTATION.`,
+      `  METHOD create.`,
+      `  ENDMETHOD.`,
+      `  METHOD update.`,
+      `  ENDMETHOD.`,
+      `  METHOD delete.`,
+      `  ENDMETHOD.`,
+      `  METHOD read.`,
+      `  ENDMETHOD.`,
+      `  METHOD lock.`,
+      `  ENDMETHOD.`,
+      `ENDCLASS.`,
+      ``,
+      `CLASS ${lsc} DEFINITION INHERITING FROM cl_abap_behavior_saver.`,
+      `  PROTECTED SECTION.`,
+      `    METHODS finalize REDEFINITION.`,
+      `    METHODS check_before_save REDEFINITION.`,
+      `    METHODS save REDEFINITION.`,
+      `    METHODS cleanup REDEFINITION.`,
+      `    METHODS cleanup_finalize REDEFINITION.`,
+      `ENDCLASS.`,
+      ``,
+      `CLASS ${lsc} IMPLEMENTATION.`,
+      `  METHOD finalize.`,
+      `  ENDMETHOD.`,
+      `  METHOD check_before_save.`,
+      `  ENDMETHOD.`,
+      `  METHOD save.`,
+      `  ENDMETHOD.`,
+      `  METHOD cleanup.`,
+      `  ENDMETHOD.`,
+      `  METHOD cleanup_finalize.`,
+      `  ENDMETHOD.`,
+      `ENDCLASS.`
+    ].join("\n");
+  }
+  return {
+    key: "behaviour_class_local",
+    name: spec.names.behaviourClass,
+    type: "CLAS/OC",
+    include: "implementations",
+    source,
+    description: `Local handler${spec.flavour === "unmanaged" ? "/saver" : ""} implementation for ${view}`
+  };
+}
+function buildServiceDefinition(spec) {
+  const target = spec.includeProjection ? spec.names.projectionView : spec.names.rootView;
+  const source = [
+    `@EndUserText.label: 'Service definition for ${target}'`,
+    `define service ${spec.names.serviceDefinition} {`,
+    `  expose ${target} as ${spec.alias};`,
+    `}`
+  ].join("\n");
+  return {
+    key: "service_definition",
+    name: spec.names.serviceDefinition,
+    type: "SRVD/SRV",
+    source,
+    description: `Service definition exposing ${target}`
+  };
+}
+function buildServiceBinding(spec) {
+  const name = spec.names.serviceBinding;
+  const srvd = spec.names.serviceDefinition;
+  const version2 = spec.bindingType;
+  const n = escapeXmlAttr6(name);
+  const d = escapeXmlAttr6(srvd);
+  const p = escapeXmlAttr6(spec.package);
+  const source = `<?xml version="1.0" encoding="UTF-8"?><srvb:serviceBinding xmlns:srvb="http://www.sap.com/adt/ddic/ServiceBindings" xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${n}" adtcore:type="SRVB/SVB" adtcore:description="Service binding for ${d}" adtcore:masterLanguage="EN"><adtcore:packageRef adtcore:name="${p}"/><srvb:services srvb:name="${n}"><srvb:content srvb:version="0001"><srvb:serviceDefinition adtcore:type="SRVD/SRV" adtcore:name="${d}"/></srvb:content></srvb:services><srvb:binding srvb:type="ODATA" srvb:version="${version2}" srvb:category="0"><srvb:implementation adtcore:name="${n}"/></srvb:binding></srvb:serviceBinding>`;
+  return {
+    key: "service_binding",
+    name,
+    type: "SRVB/SVB",
+    source,
+    description: `Service binding (OData ${version2}) for ${srvd}`
+  };
+}
+function generateRapStack(spec) {
+  const wf = classify(spec.fields);
+  const nonClient = wf.filter((f) => !f.isClient);
+  const keyFields = nonClient.filter((f) => f.isKey);
+  const timestamp = nonClient.find((f) => f.isTimestamp);
+  const notes = [];
+  if (wf.some((f) => f.isClient)) notes.push("client field, handled implicitly");
+  if (!timestamp) notes.push("no last-changed timestamp field found; no etag master line was generated");
+  if (spec.draft && !timestamp) {
+    notes.push("draft requires a total etag field; none was found \u2014 add one before activating");
+  }
+  if (spec.draft && spec.flavour === "unmanaged") {
+    notes.push("unmanaged + draft: saver/handler must implement draft persistence");
+  }
+  const artifacts = [];
+  if (spec.draft) artifacts.push(buildDraftTable(spec));
+  artifacts.push(buildRootView(spec, nonClient, keyFields));
+  artifacts.push(buildRootBehaviour(spec, nonClient, keyFields, timestamp));
+  if (spec.includeProjection) {
+    artifacts.push(buildProjectionView(spec, nonClient, keyFields));
+    artifacts.push(buildProjectionBehaviour(spec));
+  }
+  artifacts.push(buildBehaviourClassMain(spec));
+  artifacts.push(buildBehaviourClassLocal(spec));
+  artifacts.push(buildServiceDefinition(spec));
+  artifacts.push(buildServiceBinding(spec));
+  const fields = wf.map((f) => {
+    const role = f.isClient ? "client" : f.isTimestamp ? "etag" : f.isKey ? "key" : "data";
+    const inView = !f.isClient;
+    const inMapping = !f.isClient;
+    return {
+      name: f.raw.name,
+      type: f.raw.type,
+      key: f.raw.key,
+      role,
+      cdsAlias: f.isClient ? void 0 : f.alias,
+      inView,
+      inMapping
+    };
+  });
+  const allFieldsCovered = fields.every((f) => f.role === "client" || f.inView && f.inMapping);
+  const summary = {
+    fields,
+    timestampField: timestamp?.alias,
+    notes,
+    allFieldsCovered,
+    bindingType: spec.bindingType
+  };
+  return { artifacts, summary };
+}
+function renderRapSummary(summary) {
+  const rows = summary.fields.map((f) => ({
+    name: f.name,
+    type: f.type,
+    role: f.role,
+    cds_alias: f.cdsAlias ?? "",
+    in_view: f.inView ? "yes" : "no",
+    in_mapping: f.inMapping ? "yes" : "no"
+  }));
+  const parts = [textTable(rows, ["name", "type", "role", "cds_alias", "in_view", "in_mapping"])];
+  parts.push(`all_fields_covered: ${summary.allFieldsCovered ? "yes" : "no"}`);
+  if (summary.timestampField) parts.push(`etag field: ${summary.timestampField}`);
+  for (const n of summary.notes) parts.push(`note: ${n}`);
+  return parts.join("\n\n");
+}
+
+// src/tools/rap.ts
+var rapNamesSchema = external_exports.object({
+  root_view: external_exports.string().optional().describe("Override the derived root CDS view name."),
+  projection_view: external_exports.string().optional().describe("Override the derived projection CDS view name."),
+  behaviour_class: external_exports.string().optional().describe("Override the derived behavior implementation class name."),
+  service_definition: external_exports.string().optional().describe("Override the derived service definition name."),
+  service_binding: external_exports.string().optional().describe("Override the derived service binding name (bypasses the 26-char check)."),
+  draft_table: external_exports.string().optional().describe("Override the derived draft table name (bypasses the 16-char check)."),
+  root_sql_view: external_exports.string().optional().describe("Override the classic form root view's @AbapCatalog.sqlViewName."),
+  projection_sql_view: external_exports.string().optional().describe("Override the classic form projection view's @AbapCatalog.sqlViewName.")
+}).strict().optional().describe("Overrides for individually derived names; every field is optional.");
+var rapInputSchema = {
+  table: external_exports.string().describe("Existing DDIC table (TABL/DT) to generate the RAP stack from."),
+  package: external_exports.string().describe("Package for every generated artifact."),
+  name_prefix: external_exports.string().optional().describe(
+    'Customer-namespace prefix (Z/Y or /NS/) every derived name is built from, e.g. "ZAS_BK197". Required unless `names` supplies every derived name explicitly.'
+  ),
+  names: rapNamesSchema,
+  flavour: external_exports.enum(["managed", "unmanaged"]).optional().describe("RAP implementation type for the root behavior definition. Default managed."),
+  draft: external_exports.boolean().optional().describe("Generate a draft table and draft-enable the root behavior definition. Default false."),
+  service_binding_type: external_exports.enum(["OData V2", "OData V4"]).optional().describe("OData protocol version for the service binding. Default OData V4."),
+  include_projection: external_exports.boolean().optional().describe("Generate the projection CDS view and its behavior definition. Default true."),
+  cds_form: external_exports.enum(["entity", "classic"]).optional().describe("CDS view syntax: entity (define ... view entity) or classic (define view, @AbapCatalog.sqlViewName). Default entity."),
+  dry_run: external_exports.boolean().optional().describe("Preview every artifact's derived name and source; writes nothing. Default false."),
+  corr_nr: external_exports.string().optional().describe("Transport request for every artifact. Omitted: resolved per abap_write's own rules."),
+  activate: external_exports.boolean().optional().describe("Activate each artifact after writing it. Default true.")
+};
+var RapInput = external_exports.object(rapInputSchema);
+var KNOWN_KEYS = new Set(Object.keys(RapInput.shape));
+function rejectUnknownArgs(args) {
+  const unknown3 = Object.keys(args).filter((k) => !KNOWN_KEYS.has(k));
+  if (unknown3.length === 0) return;
+  throw new AbapError(
+    "BAD_INPUT",
+    `abap_rap does not take ${unknown3.map((k) => `\`${k}\``).join(", ")}.`,
+    { unknown: unknown3, known: [...KNOWN_KEYS] },
+    `Parameters are: ${[...KNOWN_KEYS].join(", ")}.`
+  );
+}
+function bindingType(input) {
+  return input.service_binding_type === "OData V2" ? "V2" : "V4";
+}
+function overridesOf(input) {
+  return input.names;
+}
+function deriveArtifactTargets(input) {
+  const names = deriveRapNames(input.name_prefix, { names: overridesOf(input), bindingType: bindingType(input) });
+  const includeProjection = input.include_projection ?? true;
+  const draft = input.draft ?? false;
+  const targets = [];
+  if (draft) targets.push({ name: names.draftTable, type: "TABL/DT" });
+  targets.push({ name: names.rootView, type: "DDLS/DF" });
+  targets.push({ name: names.rootView, type: "BDEF/BDO" });
+  if (includeProjection) {
+    targets.push({ name: names.projectionView, type: "DDLS/DF" });
+    targets.push({ name: names.projectionView, type: "BDEF/BDO" });
+  }
+  targets.push({ name: names.behaviourClass, type: "CLAS/OC" });
+  targets.push({ name: names.behaviourClass, type: "CLAS/OC", include: "implementations" });
+  targets.push({ name: names.serviceDefinition, type: "SRVD/SRV" });
+  targets.push({ name: names.serviceBinding, type: "SRVB/SVB" });
+  return targets;
+}
+function defaultRapIo(deps) {
+  return {
+    async readTableFields(conn, table) {
+      const obj = await resolveObject(conn, table, { type: "TABL/DT", trustHint: true });
+      const { source } = await readSource(conn, obj);
+      const parsed = parseDdl(source);
+      if (parsed.fields.length === 0) {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${table} has no fields abap_rap could parse from its DDL source.`,
+          { table },
+          "Confirm the table exists, is a database table (TABL/DT), and has at least one field."
+        );
+      }
+      return { name: obj.name, packageName: obj.packageName, fields: parsed.fields };
+    },
+    async writeArtifact(conn, input) {
+      return abapWrite(conn, input, deps.cfg.maxResponseChars, deps.safety, deps.journal, deps.transport, deps.cfg.verifyWrites, "abap_rap");
+    },
+    async readBindingUrl(conn, bindingName) {
+      try {
+        const info = await readServiceBinding(conn, bindingName);
+        return info.catalogueUrl;
+      } catch {
+        return void 0;
+      }
+    }
+  };
+}
+function parseHeaderBool(text5, key) {
+  const m = new RegExp(`^${key}:\\s*(\\S+)`, "mi").exec(text5);
+  if (!m) return void 0;
+  return m[1].trim().toLowerCase() === "true";
+}
+function toWriteInput(spec, art, input) {
+  return {
+    object: art.name,
+    type: art.type,
+    source: art.source,
+    package: spec.package,
+    description: art.description,
+    ...art.include ? { include: art.include } : {},
+    ...input.corr_nr !== void 0 ? { corr_nr: input.corr_nr } : {},
+    activate: input.activate ?? true
+  };
+}
+function buildSpec(input, table) {
+  const bt = bindingType(input);
+  const names = deriveRapNames(input.name_prefix, { names: overridesOf(input), bindingType: bt });
+  return {
+    table: table.name,
+    package: input.package,
+    names,
+    alias: names.alias,
+    fields: table.fields,
+    flavour: input.flavour ?? "managed",
+    draft: input.draft ?? false,
+    bindingType: bt,
+    includeProjection: input.include_projection ?? true,
+    cdsForm: input.cds_form ?? "entity"
+  };
+}
+function dryRunResponse(spec, stack, maxChars) {
+  const sections = stack.artifacts.map((a) => ({
+    title: `${a.type} ${a.name}${a.include ? ` (${a.include})` : ""}`,
+    content: a.source
+  }));
+  return buildResponse({
+    header: {
+      tool: "abap_rap",
+      table: spec.table,
+      package: spec.package,
+      flavour: spec.flavour,
+      draft: spec.draft,
+      cds_form: spec.cdsForm,
+      binding_type: spec.bindingType,
+      writes: 0
+    },
+    sections,
+    body: renderRapSummary(stack.summary),
+    bodyLabel: "FIELD COVERAGE",
+    notes: ["DRY RUN \u2014 nothing was written. Call again with dry_run: false to generate the stack."],
+    maxChars
+  });
+}
+async function abapRap(conn, input, deps, io) {
+  const table = await io.readTableFields(conn, input.table);
+  const spec = buildSpec(input, table);
+  const stack = generateRapStack(spec);
+  if (input.dry_run) {
+    return dryRunResponse(spec, stack, deps.maxChars);
+  }
+  const statuses = stack.artifacts.map((a) => ({
+    key: a.key,
+    name: a.name,
+    type: a.type,
+    written: false,
+    status: "not attempted"
+  }));
+  let bindingUrl;
+  for (let i = 0; i < stack.artifacts.length; i++) {
+    const art = stack.artifacts[i];
+    try {
+      const res = await io.writeArtifact(conn, toWriteInput(spec, art, input));
+      const activated = parseHeaderBool(res.text, "activated") ?? false;
+      statuses[i] = { key: art.key, name: art.name, type: art.type, written: true, activated };
+      if (art.key === "service_binding" && io.readBindingUrl) {
+        bindingUrl = await io.readBindingUrl(conn, art.name);
+      }
+    } catch (e) {
+      statuses[i] = {
+        key: art.key,
+        name: art.name,
+        type: art.type,
+        written: false,
+        failed: true,
+        error: e.message ?? String(e)
+      };
+      throw new AbapError(
+        "RAP_PARTIAL",
+        `abap_rap stopped after ${art.type} ${art.name} failed to write; ${i} of ${stack.artifacts.length} artifacts were already written and stay written.`,
+        { table: spec.table, package: spec.package, artifacts: statuses, journal_tool: "abap_rap" },
+        "Fix the underlying failure (shown in this error), then call abap_rap again with the same arguments \u2014 already-written artifacts are simply rewritten in place."
+      );
+    }
+  }
+  const artifactLines = stack.artifacts.map((a, i) => {
+    const s = statuses[i];
+    return `${a.type} ${a.name} \u2014 written, activated: ${s.activated === true ? "true" : "false"}`;
+  });
+  return buildResponse({
+    header: {
+      tool: "abap_rap",
+      table: spec.table,
+      package: spec.package,
+      flavour: spec.flavour,
+      draft: spec.draft,
+      binding: spec.names.serviceBinding,
+      cds_form: spec.cdsForm,
+      writes: stack.artifacts.length,
+      ...bindingUrl ? { service_binding_url: bindingUrl } : {}
+    },
+    body: artifactLines.join("\n"),
+    bodyLabel: "ARTIFACTS",
+    notes: [renderRapSummary(stack.summary)],
+    hints: [
+      `abap_service op="publish" binding="${spec.names.serviceBinding}" confirm="${spec.names.serviceBinding}"`
+    ],
+    maxChars: deps.maxChars
+  });
+}
+var ok9 = (text5) => ({ content: [{ type: "text", text: text5 }] });
+function registerRapTools(mcp, deps, io = defaultRapIo(deps)) {
+  mcp.registerTool(
+    "abap_rap",
+    {
+      description: "Generate a RAP stack (root/projection CDS views, behavior definitions, behavior implementation class, service definition, service binding, optional draft table) from an existing table. dry_run previews every artifact's name and source with zero writes. A real run writes in dependency order and stops at the first failure (RAP_PARTIAL), leaving already-written artifacts in place for a retry.",
+      inputSchema: rapInputSchema,
+      annotations: { readOnlyHint: false, destructiveHint: true }
+    },
+    async (args) => {
+      try {
+        const a = args ?? {};
+        rejectUnknownArgs(a);
+        const input = RapInput.parse(a);
+        const targets = deriveArtifactTargets(input);
+        for (const t of targets) {
+          const pf = preflight({ object: t.name, type: t.type, package: input.package });
+          deps.safety.assert("write", pf, { phase: "preflight", corr: { kind: "unresolved" } });
+        }
+        await deps.ensureConnected();
+        const res = await deps.pool.withWrite(
+          "abap_rap",
+          void 0,
+          (conn) => abapRap(conn, input, { maxChars: deps.cfg.maxResponseChars }, io)
+        );
+        return ok9(res.text);
+      } catch (e) {
+        return deps.errorResult(e);
+      }
+    }
+  );
+}
+
 // src/tools/transport.ts
 init_zod();
 init_compact();
@@ -143241,7 +145117,7 @@ function journalDeps(deps) {
 `));
   return { journal: deps.journal, cfg: deps.cfg, warn };
 }
-var ok9 = (text5) => ({ content: [{ type: "text", text: text5 }] });
+var ok10 = (text5) => ({ content: [{ type: "text", text: text5 }] });
 function registerTransportTools(mcp, deps) {
   mcp.registerTool(
     "abap_transport",
@@ -143265,7 +145141,7 @@ function registerTransportTools(mcp, deps) {
             deps.ownership
           )
         );
-        return ok9(res.text);
+        return ok10(res.text);
       } catch (e) {
         return deps.errorResult(e);
       }
@@ -143294,7 +145170,7 @@ function registerTransportTools(mcp, deps) {
               deps.ownership
             )
           );
-          return ok9(res.text);
+          return ok10(res.text);
         } catch (e) {
           return deps.errorResult(e);
         }
@@ -145085,16 +146961,16 @@ function parseSearchResults(xml4) {
   let m;
   while (m = re.exec(xml4)) {
     const tag = m[0];
-    const uri = attr5(tag, "uri");
-    const type = attr5(tag, "type");
-    const name = attr5(tag, "name");
+    const uri = attr7(tag, "uri");
+    const type = attr7(tag, "type");
+    const name = attr7(tag, "name");
     if (name && type) {
       out.push({ ...uri ? { uri } : {}, type, name });
     }
   }
   return out;
 }
-function attr5(tag, name) {
+function attr7(tag, name) {
   const re = new RegExp(`[\\w:]*:${name}="([^"]*)"`);
   const m = re.exec(tag);
   if (m && m[1] !== void 0) return xmlUnescape(m[1]);
@@ -146138,7 +148014,7 @@ function toMcpResult(res) {
   const { journalEntryId: _journalEntryId, ...rest } = res;
   return rest;
 }
-var ok10 = (text5, journalEntryId) => ({
+var ok11 = (text5, journalEntryId) => ({
   content: [{ type: "text", text: text5 }],
   ...journalEntryId ? { journalEntryId } : {}
 });
@@ -146241,7 +148117,7 @@ async function runBopfRead(deps, args) {
         maxResults: input.max_results
       })
     );
-    return ok10(buildSearchResponse(refs, deps.cfg.maxResponseChars));
+    return ok11(buildSearchResponse(refs, deps.cfg.maxResponseChars));
   }
   if (!input.bo || !input.bo.trim()) {
     throw new AbapError("BAD_INPUT", `mode "${mode}" requires bo.`, { mode });
@@ -146249,7 +148125,7 @@ async function runBopfRead(deps, args) {
   const bo = input.bo;
   if (mode === "raw") {
     const { xml: xml4 } = await deps.pool.withRead("abap_bopf", (conn) => readModel(conn, bo));
-    return ok10(buildRawResponse(bo, xml4, deps.cfg.maxResponseChars));
+    return ok11(buildRawResponse(bo, xml4, deps.cfg.maxResponseChars));
   }
   if (mode === "check_refs") {
     const maxSites = input.max_sites ?? DEFAULT_CHECK_REFS_MAX_SITES;
@@ -146259,10 +148135,10 @@ async function runBopfRead(deps, args) {
       const findings2 = await checkReferences(conn, read.model, { maxSites });
       return { model: read.model, findings: findings2, totalSites: totalSites2 };
     });
-    return ok10(buildCheckRefsResponse(model2, findings, totalSites, maxSites, deps.cfg.maxResponseChars));
+    return ok11(buildCheckRefsResponse(model2, findings, totalSites, maxSites, deps.cfg.maxResponseChars));
   }
   const { model } = await deps.pool.withRead("abap_bopf", (conn) => readModel(conn, bo));
-  return ok10(buildShowResponse(model, deps.cfg.maxResponseChars));
+  return ok11(buildShowResponse(model, deps.cfg.maxResponseChars));
 }
 function registerBopfTools(mcp, deps) {
   mcp.registerTool(
@@ -147739,7 +149615,7 @@ async function runBopfEdit(deps, args) {
     if (result2.rootNodeCheck.actual === void 0 || result2.rootNodeCheck.actual === "") {
       throw unusableRootNodeError(bo, result2.rootNodeCheck, entryId, wantsActivate);
     }
-    return ok10(
+    return ok11(
       buildEditResponse(
         bo,
         result2.model,
@@ -148057,7 +149933,7 @@ async function runBopfEdit(deps, args) {
   const categoryNote = determinationCategoryOmittedNote(input);
   const addNodeNote = input.operation === "add_node" ? addNodeAutoAssignedRefsNote(input, result.model) : void 0;
   const altKeyNote = alternativeKeyActivationNote(input);
-  return ok10(
+  return ok11(
     buildEditResponse(
       bo,
       result.model,
@@ -148293,7 +150169,7 @@ async function runBopfDelete(deps, args) {
       return { model: model2, requestedTargets: requestedTargets3 };
     });
     const { generated, referenced } = collectDdicCascadeCandidates(model);
-    return ok10(
+    return ok11(
       buildDryRunDeleteResponse(
         bo,
         generated,
@@ -148381,7 +150257,7 @@ async function runBopfDelete(deps, args) {
     })
   );
   const { generated: leftBehind, referenced: notCascadedSpared } = input.cascade_ddic ? { generated: [], referenced: [] } : collectDdicCascadeCandidates(currentModel);
-  return ok10(
+  return ok11(
     buildDeleteResultResponse(
       bo,
       result,
@@ -149068,7 +150944,7 @@ function buildTestResponse(result, refs, maxChars, requestedBo, authTraceOutcome
     maxChars
   }).text;
 }
-var ok11 = (text5) => ({ content: [{ type: "text", text: text5 }] });
+var ok12 = (text5) => ({ content: [{ type: "text", text: text5 }] });
 var SCENARIO_KEYS = ["nodes", "cleanup"];
 var SCENARIO_NODE_KEYS = ["node", "parentNode", "fields"];
 function assertKnownKeys(obj, allowed, where2) {
@@ -149158,7 +151034,7 @@ async function runBopfTest2(deps, args) {
     input.snapshot_ids,
     (m) => void process.stderr.write(m + "\n")
   );
-  return ok11(changes ? `${text5}
+  return ok12(changes ? `${text5}
 
 DATA CHANGES
 ${changes}` : text5);
@@ -149208,7 +151084,7 @@ var fpmReadInputSchema = {
   xml_limit: external_exports.number().int().min(0).optional().describe("outline: max XML chars to return from xml_offset. xmlChars always reports the full length.")
 };
 var FpmReadInput = external_exports.object(fpmReadInputSchema);
-var ok12 = (text5) => ({ content: [{ type: "text", text: text5 }] });
+var ok13 = (text5) => ({ content: [{ type: "text", text: text5 }] });
 var XML_DECODING_NOTE = "XML decoding has only been verified in depth against FORM/LIST UIBBs and one FBI view shape; other UIBB kinds may contain structure this tool does not specially recognise.";
 var FIDELITY_NOTES = [
   "Reads the base persisted configuration only (WDY_CONFIG_DATA/WDY_CONFIG_APPL via CL_WDR_CFG_PERSISTENCE_UTILS or raw SQL) \u2014 cannot see AppCC (application-configuration-controller) runtime overrides layered on top at execution time.",
@@ -149777,7 +151653,7 @@ async function runFpmReadTool(deps, args) {
       lockBridgeClass,
       (conn) => runFpmLockInspect(conn, lockQuery, deps.safety)
     );
-    return ok12(
+    return ok13(
       buildLocksResponse(lockQuery, lockResult, input.detail !== void 0, xmlWindowPassed, deps.cfg.maxResponseChars)
     );
   }
@@ -149846,7 +151722,7 @@ async function runFpmReadTool(deps, args) {
     resolvedFrom,
     resolvedNote
   );
-  return ok12(text5);
+  return ok13(text5);
 }
 function registerFpmTools(mcp, deps) {
   mcp.registerTool(
@@ -150715,7 +152591,7 @@ var imgReadInputSchema = {
   limit: external_exports.number().int().min(1).optional().describe(`search/tree only: max rows to return. Default ${IMG_PAGE_DEFAULT}, ceiling ${IMG_PAGE_MAX}.`)
 };
 var ImgReadInput = external_exports.object(imgReadInputSchema);
-var ok13 = (text5) => ({ content: [{ type: "text", text: text5 }] });
+var ok14 = (text5) => ({ content: [{ type: "text", text: text5 }] });
 function rejectForMode(mode, field, value) {
   if (value !== void 0) {
     throw new AbapError("BAD_INPUT", `"${field}" is not valid with mode "${mode}".`, { mode, field });
@@ -150990,7 +152866,7 @@ async function runImgReadTool(deps, args) {
   deps.safety.assert("read");
   await deps.ensureConnected();
   const result = await deps.pool.withRead("abap_img", (conn) => readImg(conn, query));
-  return ok13(renderResult(query, result, deps.cfg.maxResponseChars));
+  return ok14(renderResult(query, result, deps.cfg.maxResponseChars));
 }
 function registerImgTools(mcp, deps) {
   mcp.registerTool(
@@ -152092,7 +153968,7 @@ var imgEditInputSchema = {
   )
 };
 var ImgEditInput = external_exports.object(imgEditInputSchema);
-var ok14 = (text5) => ({ content: [{ type: "text", text: text5 }] });
+var ok15 = (text5) => ({ content: [{ type: "text", text: text5 }] });
 var sessionImgRequests = /* @__PURE__ */ new WeakMap();
 function rememberSessionImgRequest(owner, kind, trkorr) {
   const rec = sessionImgRequests.get(owner) ?? {};
@@ -153046,7 +154922,7 @@ async function runProbeAndApply(deps, mode, args, opts) {
   validateApplyPlan(applyPlan);
   const checks = await readChecksSafely(deps, effectiveArgs, mode);
   if (mode === "preview") {
-    return ok14(renderPreview(effectiveArgs, probe3, notes, checks, deps.cfg.maxResponseChars));
+    return ok15(renderPreview(effectiveArgs, probe3, notes, checks, deps.cfg.maxResponseChars));
   }
   deps.safety.assert(
     "write",
@@ -153070,7 +154946,7 @@ async function runProbeAndApply(deps, mode, args, opts) {
       reasons: failure.reasons
     });
   }
-  return ok14(renderArmed(mode, effectiveArgs, apply, notes, checks, journalNote, table, deps.cfg.maxResponseChars));
+  return ok15(renderArmed(mode, effectiveArgs, apply, notes, checks, journalNote, table, deps.cfg.maxResponseChars));
 }
 async function runRowEditMode(deps, mode, input) {
   rejectForMode2(mode, "description", input.description);
@@ -153184,7 +155060,7 @@ async function runCreateRequestMode(deps, input) {
     deps.transport.noteCreated(t.request);
     rememberSessionImgRequest(deps.transport, requestType === "K" ? "workbench" : "customizing", t.request);
   }
-  return ok14(renderCreateRequest(plan, result, deps.cfg.maxResponseChars));
+  return ok15(renderCreateRequest(plan, result, deps.cfg.maxResponseChars));
 }
 var IMG_EDIT_TOOL_DESCRIPTION = "Write IMG customizing rows. preview validates rows against policy and shows current vs. prospective rows without writing; upsert/delete write rows and need confirm equal to table (case-insensitive) \u2014 corr_nr is usually required, but when ABAP_ALLOW_TRANSPORTS contains auto and corr_nr is omitted, this session resolves (and, if needed, creates) a matching request itself; create_request (description, owner, request_type: customizing default or workbench \u2014 workbench is required for a client-independent table) mints a transport request. First call per mode deploys and activates a bridge class in $ABAPSMITH_FLUID_API. Details: doc/TOOLS/abap-img-edit.md.";
 async function runImgEditTool(deps, args) {
@@ -154804,7 +156680,7 @@ var uiInputSchema = {
   )
 };
 var UiInput = external_exports.object(uiInputSchema);
-var ok15 = (text5) => ({
+var ok16 = (text5) => ({
   content: [{ type: "text", text: text5 }]
 });
 var FIDELITY_NOTES2 = [
@@ -155241,7 +157117,7 @@ async function runScreenTool(deps, input) {
     uiManifest.entry,
     (conn) => runUiBridge(conn, query, deps.safety)
   );
-  return ok15(
+  return ok16(
     buildScreenResponse(
       query,
       result,
@@ -155266,7 +157142,7 @@ async function runFcodeTool(deps, input) {
     uiManifest.entry,
     (conn) => runUiBridge(conn, query, deps.safety)
   );
-  return ok15(buildFcodeResponse(query, result, deps.cfg.maxResponseChars));
+  return ok16(buildFcodeResponse(query, result, deps.cfg.maxResponseChars));
 }
 async function runPressTool(deps, input) {
   assertPressConfirmed(input);
@@ -155337,7 +157213,7 @@ async function runPressTool(deps, input) {
     input.snapshot_ids,
     (m) => void process.stderr.write(m + "\n")
   );
-  return ok15(changes ? `${text5}
+  return ok16(changes ? `${text5}
 
 DATA CHANGES
 ${changes}` : text5);
@@ -156551,7 +158427,7 @@ async function discoverHookAnchors(conn, host) {
     return { fullName: parseAnchorFullName(fullName), fullDescription, mode };
   });
 }
-function escapeXmlAttr6(value) {
+function escapeXmlAttr7(value) {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 function firstHeader4(headers, name) {
@@ -156583,8 +158459,8 @@ function buildCreateHookBody(params) {
   const responsible = assertEnhIdentifier(params.responsible, "responsible", { maxLength: ABAP_USERNAME_MAX });
   const anchorFullName = parseAnchorFullName(params.anchor.fullName);
   const anchorFullDescription = assertAbapText(params.anchor.fullDescription, "anchor.fullDescription", 200);
-  const hostRef = `adtcore:uri="${escapeXmlAttr6(hostUri)}" adtcore:type="${escapeXmlAttr6(params.host.type)}" adtcore:name="${escapeXmlAttr6(hostName)}"`;
-  return `<?xml version="1.0" encoding="UTF-8"?><enho:enhancement xmlns:enho="http://www.sap.com/adt/enhancements/enho" xmlns:adtcore="http://www.sap.com/adt/core" xmlns:abapsource="http://www.sap.com/adt/abapsource" xmlns:atom="http://www.w3.org/2005/Atom" adtcore:name="${escapeXmlAttr6(name)}" adtcore:type="ENHO/XHH" adtcore:description="${escapeXmlAttr6(description)}" adtcore:masterLanguage="EN" adtcore:language="EN" adtcore:responsible="${escapeXmlAttr6(responsible)}"><adtcore:packageRef adtcore:name="${ENH_CREATE_PACKAGE}"/><enho:contentCommon enho:toolType="HOOK_IMPL" enho:adjustmentStatus="manual-adjustment"><enho:usages><enho:referencedObject enho:program_id="R3TR" enho:element_usage="REDO" enho:upgrade="false" enho:automatic_transport="false"><enho:objectReference ${hostRef}/><enho:mainObjectReference ${hostRef}/></enho:referencedObject></enho:usages></enho:contentCommon><enho:contentSpecific><enho:hookTechnology enho:nextId="2"><enho:enhancedObject ${hostRef}/><enho:hookImplementation enho:id="1" enho:spotname="" enho:programname="${escapeXmlAttr6(hostName)}" enho:overwrite="" enho:method="" enho:enhmode="D" enho:full_name="${escapeXmlAttr6(anchorFullName)}" enho:full_description="${escapeXmlAttr6(anchorFullDescription)}"/></enho:hookTechnology></enho:contentSpecific></enho:enhancement>`;
+  const hostRef = `adtcore:uri="${escapeXmlAttr7(hostUri)}" adtcore:type="${escapeXmlAttr7(params.host.type)}" adtcore:name="${escapeXmlAttr7(hostName)}"`;
+  return `<?xml version="1.0" encoding="UTF-8"?><enho:enhancement xmlns:enho="http://www.sap.com/adt/enhancements/enho" xmlns:adtcore="http://www.sap.com/adt/core" xmlns:abapsource="http://www.sap.com/adt/abapsource" xmlns:atom="http://www.w3.org/2005/Atom" adtcore:name="${escapeXmlAttr7(name)}" adtcore:type="ENHO/XHH" adtcore:description="${escapeXmlAttr7(description)}" adtcore:masterLanguage="EN" adtcore:language="EN" adtcore:responsible="${escapeXmlAttr7(responsible)}"><adtcore:packageRef adtcore:name="${ENH_CREATE_PACKAGE}"/><enho:contentCommon enho:toolType="HOOK_IMPL" enho:adjustmentStatus="manual-adjustment"><enho:usages><enho:referencedObject enho:program_id="R3TR" enho:element_usage="REDO" enho:upgrade="false" enho:automatic_transport="false"><enho:objectReference ${hostRef}/><enho:mainObjectReference ${hostRef}/></enho:referencedObject></enho:usages></enho:contentCommon><enho:contentSpecific><enho:hookTechnology enho:nextId="2"><enho:enhancedObject ${hostRef}/><enho:hookImplementation enho:id="1" enho:spotname="" enho:programname="${escapeXmlAttr7(hostName)}" enho:overwrite="" enho:method="" enho:enhmode="D" enho:full_name="${escapeXmlAttr7(anchorFullName)}" enho:full_description="${escapeXmlAttr7(anchorFullDescription)}"/></enho:hookTechnology></enho:contentSpecific></enho:enhancement>`;
 }
 async function postHookImplementation(conn, authorized, body) {
   const mediaType = enhoxhhMediaType(conn.discovery);
@@ -156691,7 +158567,7 @@ var enhInputSchema = {
   )
 };
 var EnhInput = external_exports.object(enhInputSchema);
-var ok16 = (text5) => ({ content: [{ type: "text", text: text5 }] });
+var ok17 = (text5) => ({ content: [{ type: "text", text: text5 }] });
 function enhGateKey(name) {
   const trimmed = name.trim().toUpperCase();
   return trimmed === "" ? void 0 : trimmed;
@@ -157517,19 +159393,19 @@ function registerEnhancementTools(mcp, deps) {
         const operation = input.operation ?? "write_description";
         if (operation === "discover_hook_anchors" || operation === "create_hook") {
           const text5 = await runEnhHookOperation(deps, operation, input);
-          return ok16(text5);
+          return ok17(text5);
         }
         if (operation === "delete") {
           const text5 = await runEnhDeleteOperation(deps, input);
-          return ok16(text5);
+          return ok17(text5);
         }
         if (operation === "set_impl_active") {
           const text5 = await runEnhSetActiveOperation(deps, input);
-          return ok16(text5);
+          return ok17(text5);
         }
         if (operation !== "write_description") {
           const text5 = await runEnhCreateOperation(deps, operation, input);
-          return ok16(text5);
+          return ok17(text5);
         }
         const type = input.type;
         if (type === void 0) {
@@ -157626,7 +159502,7 @@ function registerEnhancementTools(mcp, deps) {
           }
           return { write: write2, activation: activation2 };
         });
-        return ok16(buildEnhResponse(write, activation, deps.cfg.maxResponseChars));
+        return ok17(buildEnhResponse(write, activation, deps.cfg.maxResponseChars));
       } catch (e) {
         return deps.errorResult(classifyEnhancementRefusal(e));
       }
@@ -157952,7 +159828,7 @@ var dataPreviewInputSchema = {
   )
 };
 var DataPreviewInput = external_exports.object(dataPreviewInputSchema);
-var ok17 = (text5) => ({
+var ok18 = (text5) => ({
   content: [{ type: "text", text: text5 }]
 });
 function uniqueColumnKeys2(names) {
@@ -158219,7 +160095,7 @@ function registerDataPreviewTools(mcp, deps) {
           const out = await diffSnapshot(runDeps, a.snapshot_id);
           const res2 = renderDiff(out, deps.cfg.maxResponseChars);
           auditDiff(out, audit);
-          return ok17(res2.text);
+          return ok18(res2.text);
         }
         const table = resolveTable(a);
         await deps.ensureConnected();
@@ -158241,7 +160117,7 @@ function registerDataPreviewTools(mcp, deps) {
             maxChars: deps.cfg.maxResponseChars
           });
           auditSnapshot(snapshot, audit);
-          return ok17(res2.text);
+          return ok18(res2.text);
         }
         deps.safety.assertDataPreview(table);
         const requested = resolveMaxRowsRequested(a, table, ceiling);
@@ -158291,7 +160167,7 @@ function registerDataPreviewTools(mcp, deps) {
         audit(
           `[abapsmith] audit: abap_data_preview table=${result.table} rows=${result.rows.length} requested=${requested} effective=${effective} more_rows_exist=${result.moreRowsExist} filtered=${result.statement !== void 0}` + (result.totalRows === void 0 ? "" : ` total_rows=${result.totalRows}`) + ` format=${requestedFormat} masked=${maskedUpper.length}`
         );
-        return ok17(res.text);
+        return ok18(res.text);
       } catch (e) {
         return deps.errorResult(e);
       }
@@ -158534,12 +160410,12 @@ function dumpsInputSchema(options = {}) {
   return external_exports.looseObject(dumpsInputShape(options));
 }
 var DumpsInput = external_exports.object({ ...tier1Shape(), ...tier2Shape() });
-var ok18 = (text5) => ({ content: [{ type: "text", text: text5 }] });
+var ok19 = (text5) => ({ content: [{ type: "text", text: text5 }] });
 var LIST_ONLY = ["query", "from", "to", "max"];
 var SHOW_ONLY = ["key", "section", "chapters", "offset", "variables"];
-var KNOWN_KEYS = new Set(Object.keys(DumpsInput.shape));
-function rejectUnknownArgs(a) {
-  const unknown3 = Object.keys(a).filter((k) => !KNOWN_KEYS.has(k));
+var KNOWN_KEYS2 = new Set(Object.keys(DumpsInput.shape));
+function rejectUnknownArgs2(a) {
+  const unknown3 = Object.keys(a).filter((k) => !KNOWN_KEYS2.has(k));
   if (unknown3.length === 0) return;
   throw new AbapError(
     "BAD_INPUT",
@@ -158784,7 +160660,7 @@ function registerDumpTools(mcp, deps) {
         const a = args ?? {};
         const mode = a.mode ?? "list";
         await deps.ensureConnected();
-        rejectUnknownArgs(a);
+        rejectUnknownArgs2(a);
         rejectCrossModeArgs(a, mode);
         if (mode === "list") {
           const max = a.max ?? DEFAULT_MAX_ROWS;
@@ -158800,7 +160676,7 @@ function registerDumpTools(mcp, deps) {
           audit(
             `[abapsmith] audit: abap_dumps mode=list rows=${page.entries.length} max=${max} filtered=${String(a.query !== void 0 || a.from !== void 0 || a.to !== void 0)}`
           );
-          return ok18(renderDumpsList(page, max, deps.cfg.maxResponseChars).text);
+          return ok19(renderDumpsList(page, max, deps.cfg.maxResponseChars).text);
         }
         if (a.key === void 0 || a.key === "") {
           throw new AbapError(
@@ -158843,7 +160719,7 @@ function registerDumpTools(mcp, deps) {
           audit(
             `[abapsmith] audit: abap_dumps mode=show error=${fetched.detail.error} program=${fetched.detail.terminatedProgram} chapters=summary variables=false`
           );
-          return ok18(
+          return ok19(
             renderDumpSummary({
               detail: fetched.detail,
               summary,
@@ -158858,7 +160734,7 @@ function registerDumpTools(mcp, deps) {
         audit(
           `[abapsmith] audit: abap_dumps mode=show error=${fetched.detail.error} program=${fetched.detail.terminatedProgram} chapters=${selection.present.join("+") || "none"} variables=${String(selection.includesVariables)}`
         );
-        return ok18(
+        return ok19(
           renderDumpShow({
             selection,
             formattedChars: fetched.formatted.length,
@@ -159120,12 +160996,12 @@ function asArray6(value) {
   if (Array.isArray(value)) return value;
   return value === void 0 || value === null ? [] : [value];
 }
-function attr6(node2, name) {
+function attr8(node2, name) {
   const value = node2?.[`@_${name}`];
   return typeof value === "string" ? value : void 0;
 }
 function attrOrEmpty2(node2, name) {
-  return attr6(node2, name) ?? "";
+  return attr8(node2, name) ?? "";
 }
 function elementText3(value) {
   if (typeof value === "string") return value;
@@ -159175,7 +161051,7 @@ function parseAtcCustomizing(body) {
   const properties = [];
   for (const raw of asArray6(asRecord3(root["properties"])?.["property"])) {
     const node2 = asRecord3(raw);
-    const name = attr6(node2, "name");
+    const name = attr8(node2, "name");
     if (name === void 0 || name === "") continue;
     properties.push({ name, value: attrOrEmpty2(node2, "value") });
   }
@@ -159183,12 +161059,12 @@ function parseAtcCustomizing(body) {
   const reasons = asRecord3(asRecord3(root["exemption"])?.["reasons"])?.["reason"];
   for (const raw of asArray6(reasons)) {
     const node2 = asRecord3(raw);
-    const id = attr6(node2, "id");
+    const id = attr8(node2, "id");
     if (id === void 0 || id === "") continue;
     exemptionReasons.push({
       id,
       title: attrOrEmpty2(node2, "title"),
-      justificationMandatory: isXmlTrue2(attr6(node2, "justificationMandatory"))
+      justificationMandatory: isXmlTrue2(attr8(node2, "justificationMandatory"))
     });
   }
   return { properties, exemptionReasons };
@@ -159207,8 +161083,8 @@ function parseAtcRunAck(body) {
   const infos = [];
   for (const raw of asArray6(asRecord3(root["infos"])?.["info"])) {
     const node2 = asRecord3(raw);
-    const type = elementText3(node2?.["type"]) ?? attr6(node2, "type") ?? "";
-    const description = elementText3(node2?.["description"]) ?? attr6(node2, "description") ?? elementText3(raw) ?? "";
+    const type = elementText3(node2?.["type"]) ?? attr8(node2, "type") ?? "";
+    const description = elementText3(node2?.["description"]) ?? attr8(node2, "description") ?? elementText3(raw) ?? "";
     if (type === "" && description === "") continue;
     infos.push({ type, description });
   }
@@ -159226,9 +161102,9 @@ function parseAtcWorklist(body) {
   const objectSets = [];
   for (const raw of asArray6(asRecord3(root["objectSets"])?.["objectSet"])) {
     const node2 = asRecord3(raw);
-    const name = attr6(node2, "name");
+    const name = attr8(node2, "name");
     if (name === void 0) continue;
-    const title = attr6(node2, "title");
+    const title = attr8(node2, "title");
     objectSets.push({
       name,
       kind: attrOrEmpty2(node2, "kind"),
@@ -159241,14 +161117,14 @@ function parseAtcWorklist(body) {
     if (node2 === void 0) continue;
     objects.push(parseObject(node2));
   }
-  const timestamp = attr6(root, "timestamp");
-  const usedObjectSet = attr6(root, "usedObjectSet");
+  const timestamp = attr8(root, "timestamp");
+  const usedObjectSet = attr8(root, "usedObjectSet");
   return {
     id: attrOrEmpty2(root, "id"),
     ...timestamp === void 0 || timestamp === "" ? {} : { timestamp },
     ...usedObjectSet === void 0 || usedObjectSet === "" ? {} : { usedObjectSet },
     // Absent means complete — else every release that omits it looks truncated.
-    objectSetIsComplete: attr6(root, "objectSetIsComplete") === void 0 ? true : isXmlTrue2(attr6(root, "objectSetIsComplete")),
+    objectSetIsComplete: attr8(root, "objectSetIsComplete") === void 0 ? true : isXmlTrue2(attr8(root, "objectSetIsComplete")),
     objectSets,
     objects
   };
@@ -159260,9 +161136,9 @@ function parseObject(node2) {
     if (f === void 0) continue;
     findings.push(parseFinding(f));
   }
-  const packageName = attr6(node2, "packageName");
-  const author = attr6(node2, "author");
-  const objectTypeId = attr6(node2, "objectTypeId");
+  const packageName = attr8(node2, "packageName");
+  const author = attr8(node2, "author");
+  const objectTypeId = attr8(node2, "objectTypeId");
   return {
     uri: attrOrEmpty2(node2, "uri"),
     name: attrOrEmpty2(node2, "name"),
@@ -159274,14 +161150,14 @@ function parseObject(node2) {
   };
 }
 function parseFinding(node2) {
-  const quickfixInfo = attr6(node2, "quickfixInfo");
+  const quickfixInfo = attr8(node2, "quickfixInfo");
   const documentationUri = findDocumentationUri(node2);
   const quickFixes = parseQuickFixFlags(asRecord3(node2["quickfixes"]));
   return {
     uri: attrOrEmpty2(node2, "uri"),
-    location: parseAtcLocation(attr6(node2, "location")),
+    location: parseAtcLocation(attr8(node2, "location")),
     // Absent/unparseable becomes 0, rendered as `prio 0`, not mislabelled an error.
-    priority: parsePriority(attr6(node2, "priority")),
+    priority: parsePriority(attr8(node2, "priority")),
     checkId: attrOrEmpty2(node2, "checkId"),
     checkTitle: attrOrEmpty2(node2, "checkTitle"),
     messageId: attrOrEmpty2(node2, "messageId"),
@@ -159296,19 +161172,19 @@ function parseFinding(node2) {
 function findDocumentationUri(node2) {
   for (const raw of asArray6(node2["link"])) {
     const link = asRecord3(raw);
-    if (attr6(link, "rel") !== DOCUMENTATION_LINK_REL) continue;
-    const href = attr6(link, "href");
+    if (attr8(link, "rel") !== DOCUMENTATION_LINK_REL) continue;
+    const href = attr8(link, "href");
     if (href !== void 0 && href !== "") return href;
   }
   return void 0;
 }
 function parseQuickFixFlags(node2) {
   if (node2 === void 0) return void 0;
-  const manual = isXmlTrue2(attr6(node2, "manual"));
-  const automatic = isXmlTrue2(attr6(node2, "automatic"));
-  const pseudo = isXmlTrue2(attr6(node2, "pseudo"));
-  const aiBased = isXmlTrue2(attr6(node2, "aiBasedQF"));
-  const aiEnabled = isXmlTrue2(attr6(node2, "ai_enabled"));
+  const manual = isXmlTrue2(attr8(node2, "manual"));
+  const automatic = isXmlTrue2(attr8(node2, "automatic"));
+  const pseudo = isXmlTrue2(attr8(node2, "pseudo"));
+  const aiBased = isXmlTrue2(attr8(node2, "aiBasedQF"));
+  const aiEnabled = isXmlTrue2(attr8(node2, "ai_enabled"));
   return {
     manual,
     automatic,
@@ -159378,10 +161254,10 @@ function parseCheckVariantList(body) {
     const node2 = asRecord3(raw);
     const type = attrOrEmpty2(node2, "type");
     if (!type.startsWith("CHKV")) continue;
-    const name = attr6(node2, "name");
+    const name = attr8(node2, "name");
     if (name === void 0 || name === "") continue;
-    const description = attr6(node2, "description");
-    const packageName = attr6(node2, "packageName");
+    const description = attr8(node2, "description");
+    const packageName = attr8(node2, "packageName");
     variants.push({
       name,
       uri: attrOrEmpty2(node2, "uri"),
@@ -159823,15 +161699,15 @@ var atcInputSchema = {
   worklist_id: external_exports.string().optional().describe("Worklist id to delete. Required for, and only valid with, op=delete_worklist.")
 };
 var AtcInput = external_exports.object(atcInputSchema);
-var KNOWN_KEYS2 = new Set(Object.keys(AtcInput.shape));
-function rejectUnknownArgs2(args) {
-  const unknown3 = Object.keys(args).filter((k) => !KNOWN_KEYS2.has(k));
+var KNOWN_KEYS3 = new Set(Object.keys(AtcInput.shape));
+function rejectUnknownArgs3(args) {
+  const unknown3 = Object.keys(args).filter((k) => !KNOWN_KEYS3.has(k));
   if (unknown3.length === 0) return;
   throw new AbapError(
     "BAD_INPUT",
     `abap_atc does not take ${unknown3.map((k) => `\`${k}\``).join(", ")}.`,
-    { unknown: unknown3, known: [...KNOWN_KEYS2] },
-    `Parameters are: ${[...KNOWN_KEYS2].join(", ")}.`
+    { unknown: unknown3, known: [...KNOWN_KEYS3] },
+    `Parameters are: ${[...KNOWN_KEYS3].join(", ")}.`
   );
 }
 var RUN_KEYS = /* @__PURE__ */ new Set([
@@ -160276,7 +162152,7 @@ function assertCanDeleteAtcWorklist(gate) {
     d.hint ?? "Deleting an ATC worklist needs the same write capability as running ATC."
   );
 }
-var ok19 = (text5) => ({ content: [{ type: "text", text: text5 }] });
+var ok20 = (text5) => ({ content: [{ type: "text", text: text5 }] });
 function registerAtcTools(mcp, deps) {
   mcp.registerTool(
     "abap_atc",
@@ -160297,7 +162173,7 @@ function registerAtcTools(mcp, deps) {
     async (args) => {
       try {
         const a = args ?? {};
-        rejectUnknownArgs2(a);
+        rejectUnknownArgs3(a);
         const op = resolveOp(a);
         validateOpArgs(a, op);
         if (op === "run") {
@@ -160309,7 +162185,7 @@ function registerAtcTools(mcp, deps) {
             "abap_atc",
             (conn) => abapAtc(conn, a, deps.cfg.maxResponseChars, deps.safety)
           );
-          return ok19(res2.text);
+          return ok20(res2.text);
         }
         if (op === "delete_worklist") {
           assertCanDeleteAtcWorklist(deps.safety);
@@ -160319,14 +162195,14 @@ function registerAtcTools(mcp, deps) {
             "abap_atc",
             (conn) => abapAtcDeleteWorklist(conn, worklistId, deps.cfg.maxResponseChars)
           );
-          return ok19(res2.text);
+          return ok20(res2.text);
         }
         await deps.ensureConnected();
         const res = await deps.pool.withRead(
           "abap_atc",
           (conn) => abapAtcVariants(conn, deps.cfg.maxResponseChars)
         );
-        return ok19(res.text);
+        return ok20(res.text);
       } catch (e) {
         return deps.errorResult(e);
       }
@@ -160483,12 +162359,12 @@ function asArray7(value) {
   if (Array.isArray(value)) return value;
   return value === void 0 || value === null ? [] : [value];
 }
-function attr7(node2, name) {
+function attr9(node2, name) {
   const value = node2?.[`@_${name}`];
   return typeof value === "string" ? value : void 0;
 }
 function attrOrEmpty3(node2, name) {
-  return attr7(node2, name) ?? "";
+  return attr9(node2, name) ?? "";
 }
 function elementText4(value) {
   if (typeof value === "string") return value;
@@ -160664,15 +162540,15 @@ var quickFixInputSchema = {
   activate: external_exports.boolean().optional().describe('mode="apply" only: activate after applying. Default true.')
 };
 var QuickFixInput = external_exports.object(quickFixInputSchema);
-var KNOWN_KEYS3 = new Set(Object.keys(QuickFixInput.shape));
-function rejectUnknownArgs3(args) {
-  const unknown3 = Object.keys(args).filter((k) => !KNOWN_KEYS3.has(k));
+var KNOWN_KEYS4 = new Set(Object.keys(QuickFixInput.shape));
+function rejectUnknownArgs4(args) {
+  const unknown3 = Object.keys(args).filter((k) => !KNOWN_KEYS4.has(k));
   if (unknown3.length === 0) return;
   throw new AbapError(
     "BAD_INPUT",
     `abap_quick_fix does not take ${unknown3.map((k) => `\`${k}\``).join(", ")}.`,
-    { unknown: unknown3, known: [...KNOWN_KEYS3] },
-    `Parameters are: ${[...KNOWN_KEYS3].join(", ")}.`
+    { unknown: unknown3, known: [...KNOWN_KEYS4] },
+    `Parameters are: ${[...KNOWN_KEYS4].join(", ")}.`
   );
 }
 function refuseNonMainInclude(objectLabel, include) {
@@ -160840,7 +162716,7 @@ async function abapQuickFix(conn, input, maxChars, gate, journal, transport, ver
     maxChars
   });
 }
-var ok20 = (text5) => ({ content: [{ type: "text", text: text5 }] });
+var ok21 = (text5) => ({ content: [{ type: "text", text: text5 }] });
 async function explainReadOnlyRefusal(fn) {
   try {
     return await fn();
@@ -160873,7 +162749,7 @@ function registerQuickFixTools(mcp, deps) {
     async (args) => {
       try {
         const a = args ?? {};
-        rejectUnknownArgs3(a);
+        rejectUnknownArgs4(a);
         await explainReadOnlyRefusal(
           () => deps.safety.assert("write", preflight(a), {
             phase: "preflight",
@@ -160900,7 +162776,7 @@ function registerQuickFixTools(mcp, deps) {
             deps.pool.withRead("abap_quick_fix", run)
           )
         );
-        return ok20(res.text);
+        return ok21(res.text);
       } catch (e) {
         return deps.errorResult(e);
       }
@@ -160911,957 +162787,6 @@ function registerQuickFixTools(mcp, deps) {
 // src/tools/service.ts
 init_zod();
 init_errors();
-
-// src/adt/odata.ts
-init_fxp();
-init_errors();
-init_session();
-
-// src/adt/edmx.ts
-init_fxp();
-init_errors();
-init_truncate();
-var REPEATABLE_NAMES = /* @__PURE__ */ new Set([
-  "Schema",
-  "EntityType",
-  "ComplexType",
-  "EntitySet",
-  "Singleton",
-  "Property",
-  "PropertyRef",
-  "NavigationProperty",
-  "NavigationPropertyBinding",
-  "Association",
-  "AssociationSet",
-  "End",
-  "EntityContainer",
-  "FunctionImport",
-  "ActionImport",
-  "Function",
-  "Action",
-  "Parameter",
-  "Annotations",
-  "Annotation",
-  "Record",
-  "PropertyValue",
-  "Collection",
-  "PropertyPath",
-  "Reference",
-  "Include",
-  "String",
-  "EnumMember"
-]);
-var edmxXml = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: "@_",
-  removeNSPrefix: true,
-  parseAttributeValue: false,
-  parseTagValue: false,
-  trimValues: true,
-  isArray: (name, _jpath, _isLeaf, isAttribute) => !isAttribute && REPEATABLE_NAMES.has(name)
-});
-var isRec = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
-function list(node2, name) {
-  if (!isRec(node2)) return [];
-  const v = node2[name];
-  if (Array.isArray(v)) return v.filter(isRec);
-  return isRec(v) ? [v] : [];
-}
-function child2(node2, name) {
-  const l = list(node2, name);
-  if (l.length > 0) return l[0];
-  const v = isRec(node2) ? node2[name] : void 0;
-  return isRec(v) ? v : void 0;
-}
-function attr8(node2, name) {
-  if (!isRec(node2)) return void 0;
-  const v = node2[`@_${name}`];
-  if (v === void 0 || v === null) return void 0;
-  const s = String(v).trim();
-  return s === "" ? void 0 : s;
-}
-function boolAttr(node2, name) {
-  const raw = attr8(node2, name);
-  if (raw === void 0) return void 0;
-  const v = raw.toLowerCase();
-  if (v === "true") return true;
-  if (v === "false") return false;
-  return void 0;
-}
-function unwrapCollection(type) {
-  const m = /^Collection\((.+)\)$/.exec(type);
-  return m?.[1] ? { type: m[1], collection: true } : { type, collection: false };
-}
-function localName(qualified) {
-  const cut = qualified.lastIndexOf(".");
-  return cut === -1 ? qualified : qualified.slice(cut + 1);
-}
-function detectVersion2(edmx, schemas) {
-  const v = attr8(edmx, "Version");
-  if (v === "4.0") return { version: "V4", evidence: "edmx-version-attribute" };
-  if (v === "1.0") return { version: "V2", evidence: "edmx-version-attribute" };
-  const ds = child2(edmx, "DataServices");
-  const dsv = attr8(ds, "DataServiceVersion");
-  if (dsv?.startsWith("2")) return { version: "V2", evidence: "dataservice-version-attribute" };
-  if (dsv?.startsWith("4")) return { version: "V4", evidence: "dataservice-version-attribute" };
-  for (const s of schemas) {
-    if (list(s, "Association").length > 0) {
-      return { version: "V2", evidence: "structural-association-element" };
-    }
-  }
-  for (const s of schemas) {
-    for (const t of list(s, "EntityType")) {
-      for (const n of list(t, "NavigationProperty")) {
-        if (attr8(n, "Type") !== void 0) {
-          return { version: "V4", evidence: "structural-navigation-type" };
-        }
-      }
-    }
-  }
-  throw new AbapError(
-    "SERVICE_METADATA_UNPARSEABLE",
-    "This $metadata document does not identify itself as OData V2 or V4: no edmx Version attribute, no DataServiceVersion, no <Association> element and no typed <NavigationProperty>.",
-    { edmxVersion: v, dataServiceVersion: dsv },
-    'Do NOT re-request it \u2014 the same bytes will come back. Read it with mode="raw" and look at the <edmx:Edmx> root element. If the body is an HTML logon page or an SAP error page rather than EDMX, the service runtime rejected the request before the OData handler saw it, and the fix is at the ICF/authorization layer, not here.'
-  );
-}
-function indexAssociations(schemas) {
-  const idx2 = /* @__PURE__ */ new Map();
-  for (const s of schemas) {
-    const ns = attr8(s, "Namespace");
-    for (const a of list(s, "Association")) {
-      const name = attr8(a, "Name");
-      if (!name) continue;
-      const ends = /* @__PURE__ */ new Map();
-      for (const e of list(a, "End")) {
-        const role = attr8(e, "Role");
-        const type = attr8(e, "Type");
-        if (!role || !type) continue;
-        const mult = attr8(e, "Multiplicity");
-        ends.set(role, { type, ...mult === void 0 ? {} : { multiplicity: mult } });
-      }
-      idx2.set(name, ends);
-      if (ns) idx2.set(`${ns}.${name}`, ends);
-    }
-  }
-  return idx2;
-}
-function v2Navigation(typeNode, assoc) {
-  const out = [];
-  for (const n of list(typeNode, "NavigationProperty")) {
-    const name = attr8(n, "Name");
-    if (!name) continue;
-    const rel = attr8(n, "Relationship");
-    const toRole = attr8(n, "ToRole");
-    const end = rel !== void 0 && toRole !== void 0 ? assoc.get(rel)?.get(toRole) : void 0;
-    if (!end) {
-      out.push({
-        name,
-        target: rel ? `(unresolved via ${rel})` : "(unresolved)",
-        unresolved: true
-      });
-      continue;
-    }
-    out.push({
-      name,
-      target: end.type,
-      ...end.multiplicity === void 0 ? {} : { multiplicity: end.multiplicity }
-    });
-  }
-  return out;
-}
-function v2Property(p) {
-  const name = attr8(p, "Name");
-  if (!name) return void 0;
-  return {
-    name,
-    type: attr8(p, "Type") ?? "(untyped)",
-    ...opt("nullable", boolAttr(p, "Nullable")),
-    ...opt("maxLength", attr8(p, "MaxLength")),
-    ...opt("precision", attr8(p, "Precision")),
-    ...opt("scale", attr8(p, "Scale")),
-    ...opt("label", attr8(p, "label")),
-    ...opt("creatable", boolAttr(p, "creatable")),
-    ...opt("updatable", boolAttr(p, "updatable")),
-    ...opt("sortable", boolAttr(p, "sortable")),
-    ...opt("filterable", boolAttr(p, "filterable")),
-    ...opt("requiredInFilter", boolAttr(p, "required-in-filter")),
-    ...opt("unit", attr8(p, "unit")),
-    ...opt("text", attr8(p, "text"))
-  };
-}
-function opt(key, value) {
-  return value === void 0 ? {} : { [key]: value };
-}
-function v2Capabilities(set2) {
-  return {
-    ...opt("creatable", boolAttr(set2, "creatable")),
-    ...opt("updatable", boolAttr(set2, "updatable")),
-    ...opt("deletable", boolAttr(set2, "deletable")),
-    ...opt("searchable", boolAttr(set2, "searchable")),
-    ...opt("pageable", boolAttr(set2, "pageable")),
-    ...opt("countable", boolAttr(set2, "countable")),
-    ...opt("addressable", boolAttr(set2, "addressable")),
-    ...opt("requiresFilter", boolAttr(set2, "requires-filter"))
-  };
-}
-function v4RecordFlag(ann, property) {
-  for (const rec of list(ann, "Record")) {
-    for (const pv of list(rec, "PropertyValue")) {
-      if (attr8(pv, "Property") === property) return boolAttr(pv, "Bool");
-    }
-  }
-  return void 0;
-}
-function v4AnnotationsOf(node2) {
-  return list(node2, "Annotation");
-}
-function v4Label(node2) {
-  return v4LabelOf(v4AnnotationsOf(node2));
-}
-function v4LabelOf(annotations) {
-  for (const a of annotations) {
-    if (localName(attr8(a, "Term") ?? "") === "Label") return attr8(a, "String");
-  }
-  return void 0;
-}
-function v4Capabilities(annotations) {
-  let creatable;
-  let updatable;
-  let deletable;
-  let searchable;
-  let countable;
-  let pageable;
-  let requiresFilter;
-  for (const a of annotations) {
-    const term = localName(attr8(a, "Term") ?? "");
-    switch (term) {
-      case "InsertRestrictions":
-        creatable = v4RecordFlag(a, "Insertable") ?? creatable;
-        break;
-      case "UpdateRestrictions":
-        updatable = v4RecordFlag(a, "Updatable") ?? updatable;
-        break;
-      case "DeleteRestrictions":
-        deletable = v4RecordFlag(a, "Deletable") ?? deletable;
-        break;
-      case "SearchRestrictions":
-        searchable = v4RecordFlag(a, "Searchable") ?? searchable;
-        break;
-      case "CountRestrictions":
-        countable = v4RecordFlag(a, "Countable") ?? countable;
-        break;
-      case "FilterRestrictions":
-        requiresFilter = v4RecordFlag(a, "RequiresFilter") ?? requiresFilter;
-        break;
-      // V4 spelling of sap:pageable; first explicit `false` wins over a later `true`.
-      case "TopSupported":
-      case "SkipSupported": {
-        const v = boolAttr(a, "Bool");
-        if (v === false) pageable = false;
-        else if (v === true && pageable === void 0) pageable = true;
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  return {
-    ...opt("creatable", creatable),
-    ...opt("updatable", updatable),
-    ...opt("deletable", deletable),
-    ...opt("searchable", searchable),
-    ...opt("countable", countable),
-    ...opt("pageable", pageable),
-    ...opt("requiresFilter", requiresFilter)
-  };
-}
-function indexV4ExternalAnnotations(schemas) {
-  const idx2 = /* @__PURE__ */ new Map();
-  for (const s of schemas) {
-    for (const block2 of list(s, "Annotations")) {
-      const target = attr8(block2, "Target");
-      if (!target) continue;
-      const anns = v4AnnotationsOf(block2);
-      if (anns.length === 0) continue;
-      idx2.set(target, [...idx2.get(target) ?? [], ...anns]);
-      const slash = target.indexOf("/");
-      const cut = slash === -1 ? target.lastIndexOf(".") : target.lastIndexOf(".", slash);
-      const short = cut === -1 ? target : target.slice(cut + 1);
-      if (short !== target) idx2.set(short, [...idx2.get(short) ?? [], ...anns]);
-    }
-  }
-  return idx2;
-}
-function v4Navigation(typeNode) {
-  const out = [];
-  for (const n of list(typeNode, "NavigationProperty")) {
-    const name = attr8(n, "Name");
-    if (!name) continue;
-    const raw = attr8(n, "Type");
-    if (raw === void 0) {
-      out.push({ name, target: "(unresolved)", unresolved: true });
-      continue;
-    }
-    const { type, collection } = unwrapCollection(raw);
-    const multiplicity = collection ? "*" : boolAttr(n, "Nullable") === false ? "1" : "0..1";
-    out.push({ name, target: type, multiplicity });
-  }
-  return out;
-}
-function v4Property(p) {
-  const name = attr8(p, "Name");
-  if (!name) return void 0;
-  return {
-    name,
-    type: attr8(p, "Type") ?? "(untyped)",
-    ...opt("nullable", boolAttr(p, "Nullable")),
-    ...opt("maxLength", attr8(p, "MaxLength")),
-    ...opt("precision", attr8(p, "Precision")),
-    ...opt("scale", attr8(p, "Scale")),
-    ...opt("label", v4Label(p))
-  };
-}
-function paramsOf(node2) {
-  const out = [];
-  for (const p of list(node2, "Parameter")) {
-    const name = attr8(p, "Name");
-    if (!name) continue;
-    out.push({
-      name,
-      type: attr8(p, "Type") ?? "(untyped)",
-      ...opt("mode", attr8(p, "Mode"))
-    });
-  }
-  return out;
-}
-function v2Operations(container) {
-  const out = [];
-  for (const f of list(container, "FunctionImport")) {
-    const name = attr8(f, "Name");
-    if (!name) continue;
-    const method = attr8(f, "HttpMethod");
-    out.push({
-      name,
-      kind: method !== void 0 && method.toUpperCase() !== "GET" ? "action" : "function",
-      ...opt("httpMethod", method),
-      ...opt("returnType", attr8(f, "ReturnType")),
-      parameters: paramsOf(f)
-    });
-  }
-  return out;
-}
-function v4Operations(schemas, container) {
-  const defs = /* @__PURE__ */ new Map();
-  for (const s of schemas) {
-    const ns = attr8(s, "Namespace");
-    for (const [tag, kind] of [
-      ["Action", "action"],
-      ["Function", "function"]
-    ]) {
-      for (const node2 of list(s, tag)) {
-        const name = attr8(node2, "Name");
-        if (!name) continue;
-        defs.set(name, { kind, node: node2 });
-        if (ns) defs.set(`${ns}.${name}`, { kind, node: node2 });
-      }
-    }
-  }
-  const out = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const [tag, attrName] of [
-    ["ActionImport", "Action"],
-    ["FunctionImport", "Function"]
-  ]) {
-    for (const imp of list(container, tag)) {
-      const name = attr8(imp, "Name");
-      if (!name) continue;
-      const targetRef = attr8(imp, attrName);
-      const def = targetRef === void 0 ? void 0 : defs.get(targetRef);
-      seen.add(targetRef ?? name);
-      out.push({
-        name,
-        kind: tag === "ActionImport" ? "action" : "function",
-        ...opt("returnType", attr8(child2(def?.node, "ReturnType"), "Type")),
-        parameters: def ? paramsOf(def.node) : []
-      });
-    }
-  }
-  for (const s of schemas) {
-    for (const [tag, kind] of [
-      ["Action", "action"],
-      ["Function", "function"]
-    ]) {
-      for (const node2 of list(s, tag)) {
-        const name = attr8(node2, "Name");
-        if (!name || seen.has(name)) continue;
-        if (boolAttr(node2, "IsBound") !== true) continue;
-        out.push({
-          name,
-          kind,
-          ...opt("returnType", attr8(child2(node2, "ReturnType"), "Type")),
-          parameters: paramsOf(node2)
-        });
-      }
-    }
-  }
-  return out;
-}
-function parseEdmx(body) {
-  const rawBytes = Buffer.byteLength(body, "utf8");
-  let doc;
-  try {
-    doc = edmxXml.parse(body);
-  } catch (e) {
-    throw new AbapError(
-      "SERVICE_METADATA_UNPARSEABLE",
-      `The service answered with something that is not well-formed XML: ${e instanceof Error ? e.message : String(e)}`,
-      { rawBytes, excerpt: truncateText(body, PARSE_EXCERPT_MAX) },
-      "Do NOT retry \u2014 a malformed body is not a transient. The excerpt above is what came back; an HTML `<html>` root means the ICF layer answered instead of the OData handler (logon screen or error page), which is an authorization or SICF problem."
-    );
-  }
-  const edmx = child2(doc, "Edmx");
-  if (!edmx) {
-    throw new AbapError(
-      "SERVICE_METADATA_UNPARSEABLE",
-      "The service answered with XML that has no <edmx:Edmx> root element, so it is not an OData $metadata document.",
-      { rawBytes, excerpt: truncateText(body, PARSE_EXCERPT_MAX) },
-      "Do NOT retry \u2014 the same bytes will come back. Check the excerpt above: an SAP error document (`<error>`) names the real problem in its message element, and an HTML root means the request never reached the OData handler."
-    );
-  }
-  const dataServices = child2(edmx, "DataServices");
-  const schemas = list(dataServices, "Schema");
-  const { version: version2, evidence } = detectVersion2(edmx, schemas);
-  const containerSchema = schemas.find((s) => list(s, "EntityContainer").length > 0);
-  const container = containerSchema ? child2(containerSchema, "EntityContainer") : void 0;
-  const assoc = version2 === "V2" ? indexAssociations(schemas) : void 0;
-  const externalAnnotations = version2 === "V4" ? indexV4ExternalAnnotations(schemas) : void 0;
-  const entityTypes = [];
-  for (const s of schemas) {
-    for (const t of list(s, "EntityType")) {
-      const name = attr8(t, "Name");
-      if (!name) continue;
-      const keys = [];
-      for (const ref2 of list(child2(t, "Key"), "PropertyRef")) {
-        const k = attr8(ref2, "Name");
-        if (k) keys.push(k);
-      }
-      const properties = [];
-      for (const p of list(t, "Property")) {
-        const parsed = version2 === "V2" ? v2Property(p) : v4Property(p);
-        if (parsed) properties.push(parsed);
-      }
-      entityTypes.push({
-        name,
-        ...opt("label", version2 === "V2" ? attr8(t, "label") : v4Label(t)),
-        keys,
-        properties,
-        navigation: version2 === "V2" ? v2Navigation(t, assoc ?? /* @__PURE__ */ new Map()) : v4Navigation(t)
-      });
-    }
-  }
-  const containerName = attr8(container, "Name");
-  const entitySets = [];
-  for (const set2 of list(container, "EntitySet")) {
-    const name = attr8(set2, "Name");
-    if (!name) continue;
-    const entityType = attr8(set2, "EntityType") ?? "(untyped)";
-    if (version2 === "V2") {
-      entitySets.push({
-        name,
-        entityType,
-        ...opt("label", attr8(set2, "label")),
-        capabilities: v2Capabilities(set2)
-      });
-    } else {
-      const inline = v4AnnotationsOf(set2);
-      const external = [
-        ...externalAnnotations?.get(`${containerName ?? ""}/${name}`) ?? [],
-        ...containerSchema ? externalAnnotations?.get(
-          `${attr8(containerSchema, "Namespace") ?? ""}.${containerName ?? ""}/${name}`
-        ) ?? [] : []
-      ];
-      const all = [...inline, ...external];
-      entitySets.push({
-        name,
-        entityType,
-        ...opt("label", v4LabelOf(all)),
-        capabilities: v4Capabilities(all)
-      });
-    }
-  }
-  return {
-    version: version2,
-    versionEvidence: evidence,
-    ...opt("namespace", attr8(schemas[0], "Namespace")),
-    ...opt("entityContainer", containerName),
-    entitySets,
-    entityTypes,
-    operations: version2 === "V2" ? v2Operations(container ?? {}) : v4Operations(schemas, container),
-    rawBytes
-  };
-}
-function findEntityType(contract, qualifiedOrBare) {
-  const bare = localName(qualifiedOrBare);
-  return contract.entityTypes.find((t) => t.name === bare) ?? contract.entityTypes.find((t) => t.name.toLowerCase() === bare.toLowerCase());
-}
-function findEntitySet(contract, name) {
-  return contract.entitySets.find((s) => s.name === name) ?? contract.entitySets.find((s) => s.name.toLowerCase() === name.toLowerCase());
-}
-
-// src/adt/odata.ts
-init_truncate();
-var BINDING_BASE = "/sap/bc/adt/businessservices/bindings";
-var BINDING_ACCEPT = "application/vnd.sap.adt.businessservices.servicebinding.v2+xml, application/vnd.sap.adt.businessservices.servicebinding.v1+xml";
-var LINK_REL_V2 = "http://www.sap.com/categories/odatav2";
-var LINK_REL_V4 = "http://www.sap.com/categories/odatav4";
-var BINDING_NAME_CHARS = /^[A-Z0-9_/$]{1,40}$/;
-var SERVICE_NAME_CHARS = /^[A-Za-z0-9_/$.\-]{1,120}$/;
-var SERVICE_METADATA_PATH2 = /^\/sap\/opu\/odata4?\/[A-Za-z0-9_\-/]{1,240}\/\$metadata$/;
-var REPEATABLE_NAMES2 = /* @__PURE__ */ new Set([
-  "link",
-  "content",
-  "services",
-  "collection",
-  "navigation"
-]);
-var adtXml = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: "@_",
-  removeNSPrefix: true,
-  parseAttributeValue: false,
-  parseTagValue: false,
-  trimValues: true,
-  isArray: (name, _jpath, _isLeaf, isAttribute) => !isAttribute && REPEATABLE_NAMES2.has(name)
-});
-var isRec2 = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
-function list2(node2, name) {
-  if (!isRec2(node2)) return [];
-  const v = node2[name];
-  if (Array.isArray(v)) return v.filter(isRec2);
-  return isRec2(v) ? [v] : [];
-}
-function child3(node2, name) {
-  return list2(node2, name)[0];
-}
-function attr9(node2, name) {
-  if (!isRec2(node2)) return void 0;
-  const v = node2[`@_${name}`];
-  if (v === void 0 || v === null) return void 0;
-  const s = String(v).trim();
-  return s === "" ? void 0 : s;
-}
-function boolAttr2(node2, name) {
-  const raw = attr9(node2, name)?.toLowerCase();
-  if (raw === "true" || raw === "x") return true;
-  if (raw === "false" || raw === "") return false;
-  return void 0;
-}
-function text4(node2, name) {
-  if (!isRec2(node2)) return void 0;
-  const v = node2[name];
-  if (typeof v === "string") {
-    const s = v.trim();
-    return s === "" ? void 0 : s;
-  }
-  if (isRec2(v) && typeof v["#text"] === "string") {
-    const s = v["#text"].trim();
-    return s === "" ? void 0 : s;
-  }
-  return void 0;
-}
-function assertServiceRuntimePath(path9) {
-  if (SERVICE_METADATA_PATH2.test(path9)) return;
-  throw new AbapError(
-    "BAD_INPUT",
-    `Refusing to build the service-runtime request '${path9}': abapsmith fetches OData $metadata and nothing else.`,
-    { path: path9 },
-    "The path must be rooted at /sap/opu/odata or /sap/opu/odata4 and end in /$metadata. Reading entity data through an ADT developer session is out of scope by design (parity item P-40) and no setting enables it."
-  );
-}
-function pathOfServiceUrl(url2) {
-  const trimmed = url2.trim();
-  if (trimmed === "") return void 0;
-  if (trimmed.startsWith("/")) return trimmed.split(/[?#]/)[0];
-  const m = /^[a-z][a-z0-9+.-]*:\/\/[^/]+(\/.*)$/i.exec(trimmed);
-  const p = m?.[1];
-  return p === void 0 ? void 0 : p.split(/[?#]/)[0];
-}
-function metadataPathOf(servicePath) {
-  return `${servicePath.replace(/\/+$/, "")}/$metadata`;
-}
-function normaliseBindingName(raw) {
-  const name = raw.trim().toUpperCase();
-  if (!BINDING_NAME_CHARS.test(name)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `'${raw}' is not a service binding name.`,
-      { name: raw },
-      "Pass the SRVB object name (letters, digits, underscore, / and $; up to 40 characters) \u2014 not a URL, not a service definition, not a CDS view."
-    );
-  }
-  return name;
-}
-function serviceBindingUri(name) {
-  return `${BINDING_BASE}/${encodeURIComponent(name.toLowerCase())}`;
-}
-async function readServiceBinding(conn, bindingName) {
-  const name = normaliseBindingName(bindingName);
-  const url2 = serviceBindingUri(name);
-  let body;
-  try {
-    body = (await conn.get(url2, { headers: { Accept: BINDING_ACCEPT } })).body;
-  } catch (e) {
-    const info = adtExceptionInfo(e);
-    if (info?.status === 404) {
-      throw new AbapError(
-        "NOT_FOUND",
-        `No service binding named ${name} exists in this system.`,
-        { bindingName: name, status: 404 },
-        "Check the spelling, then check the object type: a SERVICE DEFINITION (SRVD) is not a service binding (SRVB) and has no OData URL of its own. `abap_search` with the name will show which of the two exists."
-      );
-    }
-    throw e;
-  }
-  const doc = adtXml.parse(body);
-  const sb = child3(doc, "serviceBinding");
-  if (!sb) {
-    throw new AbapError(
-      "SERVICE_METADATA_UNPARSEABLE",
-      `The ADT response for service binding ${name} is not a service binding document.`,
-      { bindingName: name, excerpt: truncateText(body, PARSE_EXCERPT_MAX) },
-      "Do NOT retry. The excerpt above is what ADT returned; if it is an exception envelope, its message names the real problem."
-    );
-  }
-  const services = child3(sb, "services");
-  const content = list2(services, "content")[0];
-  const binding = child3(sb, "binding");
-  let catalogueUrl;
-  let catalogueRel;
-  for (const l of list2(sb, "link")) {
-    const rel = attr9(l, "rel");
-    if (rel !== LINK_REL_V2 && rel !== LINK_REL_V4) continue;
-    catalogueUrl = attr9(l, "href");
-    catalogueRel = rel;
-    break;
-  }
-  return {
-    name,
-    ...opt2("bindingType", attr9(binding, "type")),
-    ...opt2("bindingVersion", attr9(binding, "version")),
-    ...opt2("category", attr9(binding, "category")),
-    ...opt2("published", boolAttr2(sb, "published")),
-    ...opt2("serviceName", attr9(services, "name")),
-    ...opt2("serviceVersion", attr9(content, "version")),
-    ...opt2("srvdName", attr9(child3(content, "serviceDefinition"), "name")),
-    ...opt2("packageName", attr9(child3(sb, "packageRef"), "name")),
-    ...opt2("catalogueUrl", catalogueUrl),
-    ...opt2("catalogueRel", catalogueRel),
-    ...opt2("allowedAction", attr9(binding, "allowedAction"))
-  };
-}
-function opt2(key, value) {
-  return value === void 0 ? {} : { [key]: value };
-}
-async function readServiceRuntimeInfo(conn, binding) {
-  const url2 = binding.catalogueUrl;
-  if (url2 === void 0) {
-    assertPublished(binding, void 0);
-    throw new AbapError(
-      "UNSUPPORTED",
-      `The service binding ${binding.name} exposes no OData catalogue link (rel ${LINK_REL_V2} or ${LINK_REL_V4}), so its runtime URL cannot be resolved.`,
-      { bindingName: binding.name, bindingType: binding.bindingType },
-      `This is the shape a NON-OData binding has \u2014 check the binding type (this one reports '${binding.bindingType ?? "unstated"}'). Do not retry; the document will not grow a link.`
-    );
-  }
-  const qs = {};
-  if (binding.serviceName !== void 0) qs.servicename = binding.serviceName;
-  if (binding.serviceVersion !== void 0) qs.serviceversion = binding.serviceVersion;
-  if (binding.srvdName !== void 0) qs.srvdname = binding.srvdName;
-  let body;
-  try {
-    body = (await conn.get(pathOfServiceUrl(url2) ?? url2, { headers: { Accept: "application/*" }, qs })).body;
-  } catch (e) {
-    const info = adtExceptionInfo(e);
-    if (info?.status === 404) {
-      throw new AbapError(
-        "SERVICE_NOT_PUBLISHED",
-        `The service binding ${binding.name} exists, but the OData catalogue has no registration for service ${binding.serviceName ?? binding.name} \u2014 it has not been published to the service runtime.`,
-        { bindingName: binding.name, serviceName: binding.serviceName, status: 404 },
-        PUBLISH_HINT
-      );
-    }
-    throw e;
-  }
-  const doc = adtXml.parse(body);
-  const container = child3(doc, "serviceList") ?? child3(doc, "serviceGroup");
-  const service = list2(container, "services")[0];
-  if (!service) {
-    throw new AbapError(
-      "SERVICE_NOT_PUBLISHED",
-      `The OData catalogue returned no service for binding ${binding.name}, which is what an unpublished service binding looks like.`,
-      { bindingName: binding.name, serviceName: binding.serviceName },
-      PUBLISH_HINT
-    );
-  }
-  const information = child3(service, "serviceInformation");
-  const rawUrl = attr9(service, "serviceUrl") ?? attr9(information, "url");
-  const collections = [];
-  for (const c of list2(information, "collection")) {
-    const n = attr9(c, "name");
-    if (n) collections.push(n);
-  }
-  return {
-    ...opt2("serviceId", attr9(service, "serviceId")),
-    ...opt2("serviceVersion", attr9(service, "serviceVersion") ?? attr9(information, "version")),
-    ...opt2("servicePath", rawUrl === void 0 ? void 0 : pathOfServiceUrl(rawUrl)),
-    // V4 carries `published` on the root `serviceGroup`, never on the
-    // individual `services` element (which has `created="true"` instead) —
-    // fall back to the container so a published V4 service isn't reported
-    // as tri-state-unknown just because the flag lives one level up.
-    ...opt2("published", boolAttr2(service, "published") ?? boolAttr2(container, "published")),
-    collections
-  };
-}
-var PUBLISH_HINT = 'Publish the service binding first: run `abap_service {"binding":"<NAME>","op":"publish","confirm":"<NAME>"}` (needs ABAP_MODE=admin; it echoes the binding name back as confirmation before it POSTs anything) \u2014 or publish it in ADT (or SAP GUI) by hand, pressing \'Activate\' first if the binding itself is inactive. Retrying this call before publishing will return the identical error.';
-function assertPublished(binding, runtime) {
-  if (binding.published === false || runtime?.published === false) {
-    throw new AbapError(
-      "SERVICE_NOT_PUBLISHED",
-      `Service binding ${binding.name} is not published, so its OData service does not exist in the service runtime yet and has no $metadata to read.`,
-      {
-        bindingName: binding.name,
-        bindingPublished: binding.published,
-        runtimePublished: runtime?.published
-      },
-      PUBLISH_HINT
-    );
-  }
-}
-function bindingODataVersion(binding) {
-  const fromBinding = binding.bindingVersion?.toUpperCase();
-  if (fromBinding === "V2" || fromBinding === "V4") return fromBinding;
-  if (binding.catalogueRel === LINK_REL_V2) return "V2";
-  if (binding.catalogueRel === LINK_REL_V4) return "V4";
-  throw new AbapError(
-    "UNSUPPORTED",
-    `The OData version for service binding ${binding.name} could not be established from its binding document (no srvb:version, and no recognised catalogue link relation), so no publish endpoint can be chosen.`,
-    { bindingName: binding.name, bindingVersion: binding.bindingVersion, catalogueRel: binding.catalogueRel },
-    "abapsmith will not guess which OData runtime (V2 or V4) to register the service in. Check the binding's version in ADT."
-  );
-}
-var PUBLISH_JOB_BASE = {
-  V2: "/sap/bc/adt/businessservices/odatav2",
-  V4: "/sap/bc/adt/businessservices/odatav4"
-};
-var PUBLISH_JOB_PATH = /^\/sap\/bc\/adt\/businessservices\/odatav[24]\/(?:un)?publishjobs$/;
-function publishJobPath(action, version2) {
-  const suffix = action === "publish" ? "publishjobs" : "unpublishjobs";
-  const path9 = `${PUBLISH_JOB_BASE[version2]}/${suffix}`;
-  if (!PUBLISH_JOB_PATH.test(path9)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `Built an unexpected publish-job path '${path9}' for action '${action}' / version ${version2}.`,
-      { action, version: version2, path: path9 },
-      "This should never fire; if it does, PUBLISH_JOB_BASE above was edited to something outside the two paths this module is allowed to POST to."
-    );
-  }
-  return path9;
-}
-var STATUS_FIELD_NAMES = ["SEVERITY", "SHORT_TEXT", "LONG_TEXT"];
-var STATUS_SEARCH_MAX_DEPTH = 8;
-function findStatusNode(node2, depth = 0) {
-  if (!isRec2(node2) || depth > STATUS_SEARCH_MAX_DEPTH) return void 0;
-  if (STATUS_FIELD_NAMES.some((f) => f in node2)) return node2;
-  for (const v of Object.values(node2)) {
-    if (Array.isArray(v)) {
-      for (const item of v) {
-        const found = findStatusNode(item, depth + 1);
-        if (found) return found;
-      }
-    } else {
-      const found = findStatusNode(v, depth + 1);
-      if (found) return found;
-    }
-  }
-  return void 0;
-}
-async function runPublishJob(conn, binding, action, proof) {
-  const odataVersion = bindingODataVersion(binding);
-  const jobPath = publishJobPath(action, odataVersion);
-  const serviceName = binding.serviceName ?? binding.name;
-  if (!SERVICE_NAME_CHARS.test(serviceName)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `Service binding ${binding.name} names a service '${truncateText(serviceName, MESSAGE_EXCERPT_MAX)}' outside the character set abapsmith accepts for a publish job.`,
-      { bindingName: binding.name, serviceName },
-      "This name came from the binding document, not from the caller, so this means the document carried something unexpected. abapsmith will not put it into a request body unescaped."
-    );
-  }
-  const objectReference = odataVersion === "V4" ? `<adtcore:objectReference adtcore:name="${serviceName}" adtcore:type="SCGR"/>` : `<adtcore:objectReference adtcore:name="${serviceName}"/>`;
-  const body = `<?xml version="1.0" encoding="UTF-8"?><adtcore:objectReferences xmlns:adtcore="http://www.sap.com/adt/core">${objectReference}</adtcore:objectReferences>`;
-  const headers = odataVersion === "V4" ? {
-    Accept: "application/xml, application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.StatusMessage",
-    "Content-Type": "application/xml"
-  } : { Accept: "application/*", "Content-Type": "application/xml" };
-  const qs = {};
-  if (odataVersion === "V2") {
-    qs.servicename = serviceName;
-    if (binding.serviceVersion !== void 0) qs.serviceversion = binding.serviceVersion;
-  }
-  let responseBody;
-  try {
-    responseBody = (await conn.post(jobPath, { headers, body, ...odataVersion === "V2" ? { qs } : {} })).body;
-  } catch (e) {
-    const info = adtExceptionInfo(e);
-    if (info?.status === 403) {
-      throw new AbapError(
-        "SERVICE_PUBLISH_FAILED",
-        `ADT refused the ${action} job for service binding ${binding.name} with HTTP 403.`,
-        { bindingName: binding.name, serviceName, jobPath, status: 403 },
-        "ADT refused the publish job itself: the S_DEVELOP/S_ADT_RES authority that got this session in does not cover registering a service \u2014 that needs its own authorization, which a developer session does not automatically carry."
-      );
-    }
-    const status = info?.status;
-    throw new AbapError(
-      "ADT_ERROR",
-      `The ${action} job for service binding ${binding.name} failed${status === void 0 ? "" : ` with HTTP ${status}`}${info?.message ? `: ${truncateText(info.message, MESSAGE_EXCERPT_MAX)}` : ""}`,
-      {
-        bindingName: binding.name,
-        serviceName,
-        jobPath,
-        ...status === void 0 ? {} : { status },
-        ...info?.message ? { serverMessage: truncateText(info.message, MESSAGE_EXCERPT_MAX) } : {}
-      },
-      "This is not the 403 authorization case handled separately \u2014 check the excerpt above for what ADT actually said."
-    );
-  }
-  const doc = adtXml.parse(responseBody);
-  const statusNode = findStatusNode(doc);
-  const severity = text4(statusNode, "SEVERITY")?.toLowerCase();
-  const shortText = text4(statusNode, "SHORT_TEXT");
-  const longText = text4(statusNode, "LONG_TEXT");
-  if (severity !== void 0 && severity.startsWith("error")) {
-    throw new AbapError(
-      "SERVICE_PUBLISH_FAILED",
-      `The ${action} job for service binding ${binding.name} failed: ${truncateText(shortText ?? "(server gave no short text)", MESSAGE_EXCERPT_MAX)}`,
-      { bindingName: binding.name, serviceName, jobPath, severity, shortText },
-      "The publish job reached the server and the server refused it. Usual causes: an inactive service binding or service definition, a service name already registered by another binding, or a missing S_SERVICE/ICF authorization. Fix the cause and call again \u2014 retrying unchanged returns the same answer."
-    );
-  }
-  return {
-    action,
-    bindingName: binding.name,
-    serviceName,
-    ...opt2("serviceVersion", binding.serviceVersion),
-    odataVersion,
-    jobPath,
-    ...opt2("severity", severity),
-    ...opt2("shortText", shortText),
-    ...opt2("longText", longText)
-  };
-}
-function resolveVersion(binding, contract) {
-  const fromBinding = binding.bindingVersion?.toUpperCase();
-  const fromLinkRel = binding.catalogueRel;
-  const linkSays = fromLinkRel === LINK_REL_V2 ? "V2" : fromLinkRel === LINK_REL_V4 ? "V4" : void 0;
-  const bindingSays = fromBinding === "V2" ? "V2" : fromBinding === "V4" ? "V4" : void 0;
-  const mismatches = [];
-  if (bindingSays !== void 0 && bindingSays !== contract.version) {
-    mismatches.push(`the binding declares ${bindingSays}`);
-  }
-  if (linkSays !== void 0 && linkSays !== contract.version) {
-    mismatches.push(`the catalogue link relation says ${linkSays}`);
-  }
-  return {
-    version: contract.version,
-    ...opt2("fromBinding", fromBinding),
-    ...opt2("fromLinkRel", fromLinkRel),
-    fromDocument: contract.version,
-    documentEvidence: contract.versionEvidence,
-    ...opt2(
-      "disagreement",
-      mismatches.length === 0 ? void 0 : `${mismatches.join(" and ")}, but the $metadata document itself is ${contract.version} (evidence: ${contract.versionEvidence}). The document wins.`
-    )
-  };
-}
-async function fetchMetadata(conn, metadataPath, binding) {
-  assertServiceRuntimePath(metadataPath);
-  try {
-    const resp = await conn.serviceRuntimeGet(metadataPath);
-    return { body: resp.body, cookieJarChanged: resp.cookieJarChanged };
-  } catch (e) {
-    if (e instanceof AbapError) throw e;
-    const info = adtExceptionInfo(e);
-    const status = info?.status;
-    const detail = {
-      bindingName: binding.name,
-      metadataPath,
-      ...status === void 0 ? {} : { status },
-      ...info?.message ? { serverMessage: truncateText(info.message, MESSAGE_EXCERPT_MAX) } : {}
-    };
-    if (status === 401 || status === 403) {
-      throw new AbapError(
-        "SERVICE_METADATA_DENIED",
-        `The OData service runtime refused $metadata for ${binding.name} with HTTP ${status}. The ADT session is fine \u2014 this is the service's own gate.`,
-        detail,
-        "Two different causes look identical here, and re-running will not tell them apart: (a) the user lacks S_SERVICE for this service \u2014 the ICF node checks it independently of the developer authorizations that got the ADT session in; (b) the SICF node under /sap/opu/odata is inactive, so ICF answers with a logon challenge instead of the handler. Check SICF for the node and SU53 immediately after this call for the authorization. Do NOT retry \u2014 neither cause is transient."
-      );
-    }
-    if (status === 404) {
-      throw new AbapError(
-        "SERVICE_METADATA_NOT_FOUND",
-        `The OData service runtime has no service at ${metadataPath}, even though the ADT catalogue resolved binding ${binding.name} to it.`,
-        detail,
-        "This is NOT a spelling problem \u2014 the path came from the system's own catalogue. It means the runtime registration is stale (published once, then the service was removed or the binding renamed) or the ICF node was deleted. Re-publishing the binding in ADT re-registers it. Retrying this call will not."
-      );
-    }
-    throw new AbapError(
-      "ADT_ERROR",
-      `Fetching $metadata for ${binding.name} failed${status === void 0 ? "" : ` with HTTP ${status}`}${info?.message ? `: ${truncateText(info.message, MESSAGE_EXCERPT_MAX)}` : ""}`,
-      detail,
-      "The request left the ADT namespace for the OData service runtime (/sap/opu/odata*), which is a separate ICF hierarchy with its own activation state and its own authorizations \u2014 so an ADT session that works everywhere else proves nothing about it. Check the SICF node and the ICM trace for this path."
-    );
-  }
-}
-async function readServiceContract(conn, bindingName, opts = {}) {
-  conn.discovery.assertSupported("rap.srvb", "OData service binding introspection");
-  const binding = await readServiceBinding(conn, bindingName);
-  if (binding.bindingType !== void 0 && binding.bindingType.toUpperCase() !== "ODATA") {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `Service binding ${binding.name} is a ${binding.bindingType} binding, not an OData binding, so it has no $metadata document.`,
-      { bindingName: binding.name, bindingType: binding.bindingType },
-      "Only OData bindings expose EDMX. SQL and InA bindings describe themselves through entirely different protocols that abapsmith does not read. Do not retry."
-    );
-  }
-  assertPublished(binding, void 0);
-  const runtime = await readServiceRuntimeInfo(conn, binding);
-  assertPublished(binding, runtime);
-  const servicePath = runtime.servicePath;
-  if (servicePath === void 0) {
-    throw new AbapError(
-      "SERVICE_NOT_PUBLISHED",
-      `The OData catalogue returned an entry for binding ${binding.name} but no service URL, so there is nothing to fetch $metadata from.`,
-      { bindingName: binding.name, serviceName: binding.serviceName },
-      PUBLISH_HINT
-    );
-  }
-  const metadataPath = metadataPathOf(servicePath);
-  const { body, cookieJarChanged } = await fetchMetadata(conn, metadataPath, binding);
-  const contract = parseEdmx(body);
-  return {
-    binding,
-    runtime,
-    metadataPath,
-    version: resolveVersion(binding, contract),
-    contract,
-    ...opts.includeRaw === true ? { raw: body } : {},
-    cookieJarChanged
-  };
-}
-
-// src/tools/service.ts
 init_compact();
 var serviceInputSchema = {
   binding: external_exports.string().describe("SRVB name, not the CDS view or SRVD."),
@@ -161875,15 +162800,15 @@ var serviceInputSchema = {
   )
 };
 var ServiceInput = external_exports.object(serviceInputSchema);
-var KNOWN_KEYS4 = new Set(Object.keys(ServiceInput.shape));
-function rejectUnknownArgs4(args) {
-  const unknown3 = Object.keys(args).filter((k) => !KNOWN_KEYS4.has(k));
+var KNOWN_KEYS5 = new Set(Object.keys(ServiceInput.shape));
+function rejectUnknownArgs5(args) {
+  const unknown3 = Object.keys(args).filter((k) => !KNOWN_KEYS5.has(k));
   if (unknown3.length === 0) return;
   throw new AbapError(
     "BAD_INPUT",
     `abap_service does not take ${unknown3.map((k) => `\`${k}\``).join(", ")}.`,
-    { unknown: unknown3, known: [...KNOWN_KEYS4] },
-    `Parameters are: ${[...KNOWN_KEYS4].join(", ")}. There is deliberately no parameter that returns entity data \u2014 abapsmith reads OData contracts, never rows.`
+    { unknown: unknown3, known: [...KNOWN_KEYS5] },
+    `Parameters are: ${[...KNOWN_KEYS5].join(", ")}. There is deliberately no parameter that returns entity data \u2014 abapsmith reads OData contracts, never rows.`
   );
 }
 function capsOf(c) {
@@ -162279,7 +163204,7 @@ async function abapServicePublish(conn, input, action, maxChars, gate, journal) 
     });
   }
 }
-var ok21 = (text5) => ({ content: [{ type: "text", text: text5 }] });
+var ok22 = (text5) => ({ content: [{ type: "text", text: text5 }] });
 function journalDeps2(deps) {
   return { journal: deps.journal, cfg: deps.cfg, warn: deps.warn };
 }
@@ -162306,7 +163231,7 @@ function registerServiceTools(mcp, deps) {
     async (args) => {
       try {
         const a = args ?? {};
-        rejectUnknownArgs4(a);
+        rejectUnknownArgs5(a);
         await deps.ensureConnected();
         const input = a;
         const op = input.op ?? "read";
@@ -162315,14 +163240,14 @@ function registerServiceTools(mcp, deps) {
             "abap_service",
             (conn) => abapService(conn, input, deps.cfg.maxResponseChars)
           );
-          return ok21(res2.text);
+          return ok22(res2.text);
         }
         const res = await deps.pool.withWrite(
           "abap_service",
           serviceBindingUri(normaliseBindingName(input.binding)),
           (conn) => abapServicePublish(conn, input, op, deps.cfg.maxResponseChars, deps.safety, journalDeps2(deps))
         );
-        return ok21(res.text);
+        return ok22(res.text);
       } catch (e) {
         return deps.errorResult(e);
       }
@@ -163194,15 +164119,15 @@ var traceInputSchema = {
   )
 };
 var TraceInput = external_exports.object(traceInputSchema);
-var KNOWN_KEYS5 = new Set(Object.keys(TraceInput.shape));
-function rejectUnknownArgs5(args) {
-  const unknown3 = Object.keys(args).filter((k) => !KNOWN_KEYS5.has(k));
+var KNOWN_KEYS6 = new Set(Object.keys(TraceInput.shape));
+function rejectUnknownArgs6(args) {
+  const unknown3 = Object.keys(args).filter((k) => !KNOWN_KEYS6.has(k));
   if (unknown3.length === 0) return;
   throw new AbapError(
     "BAD_INPUT",
     `abap_trace does not take ${unknown3.map((k) => `\`${k}\``).join(", ")}.`,
-    { unknown: unknown3, known: [...KNOWN_KEYS5] },
-    `Parameters are: ${[...KNOWN_KEYS5].join(", ")}.`
+    { unknown: unknown3, known: [...KNOWN_KEYS6] },
+    `Parameters are: ${[...KNOWN_KEYS6].join(", ")}.`
   );
 }
 var TRACE_OPTION_KEYS = [
@@ -163739,7 +164664,7 @@ async function abapTraceDelete(conn, journal, args, maxChars) {
     maxChars
   });
 }
-var ok22 = (text5) => ({ content: [{ type: "text", text: text5 }] });
+var ok23 = (text5) => ({ content: [{ type: "text", text: text5 }] });
 function assertCanTrace(gate, opLabel) {
   const d = gate.evaluate("execute", void 0, {});
   if (d.allowed || d.code === "SAFETY_DENIED") return;
@@ -163770,7 +164695,7 @@ function registerTraceTools(mcp, deps) {
     async (args) => {
       try {
         const a = args ?? {};
-        rejectUnknownArgs5(a);
+        rejectUnknownArgs6(a);
         const op = resolveOp2(a);
         validateOpArgs2(a, op);
         const input = a;
@@ -163780,7 +164705,7 @@ function registerTraceTools(mcp, deps) {
             "abap_trace",
             (conn) => renderList(conn, input.kind ?? "runs", deps.cfg.maxResponseChars)
           );
-          return ok22(res2.text);
+          return ok23(res2.text);
         }
         if (op === "read") {
           await deps.ensureConnected();
@@ -163788,7 +164713,7 @@ function registerTraceTools(mcp, deps) {
             "abap_trace",
             (conn) => renderRead(conn, input, deps.cfg.maxResponseChars)
           );
-          return ok22(res2.text);
+          return ok23(res2.text);
         }
         if (op === "delete") {
           assertCanTrace(deps.safety, "delete");
@@ -163797,7 +164722,7 @@ function registerTraceTools(mcp, deps) {
             "abap_trace",
             (conn) => abapTraceDelete(conn, deps.journal, input, deps.cfg.maxResponseChars)
           );
-          return ok22(res2.text);
+          return ok23(res2.text);
         }
         if (op === "start") {
           assertCanTrace(deps.safety, "start");
@@ -163809,7 +164734,7 @@ function registerTraceTools(mcp, deps) {
             "abap_trace",
             (conn) => abapTraceStart(conn, deps.journal, input, deps.cfg.maxResponseChars)
           );
-          return ok22(res2.text);
+          return ok23(res2.text);
         }
         assertCanTrace(deps.safety, "run");
         deps.safety.assert("execute", preflight({ object: input.object, type: input.type }), {
@@ -163821,7 +164746,7 @@ function registerTraceTools(mcp, deps) {
           void 0,
           (conn) => abapTraceRun(conn, deps.journal, deps.safety, input, deps.cfg.maxResponseChars)
         );
-        return ok22(res.text);
+        return ok23(res.text);
       } catch (e) {
         return deps.errorResult(e);
       }
@@ -164575,7 +165500,7 @@ var FluidInputSchema = external_exports.object(fluidInputSchema);
 function isBareFluidCall(a) {
   return a.op === void 0 && a.tool === void 0 && a.action === void 0;
 }
-var ok23 = (text5) => ({ content: [{ type: "text", text: text5 }] });
+var ok24 = (text5) => ({ content: [{ type: "text", text: text5 }] });
 function badInput(message2, field, extra = {}) {
   return new AbapError("BAD_INPUT", message2, { field, ...extra });
 }
@@ -165181,18 +166106,18 @@ function registerFluidTool(mcp, deps) {
         const a = rawArgs;
         if (isBareFluidCall(a)) {
           requireFluidEnabled(deps, { op: "catalogue" });
-          return ok23(renderInfoBlock(deps));
+          return ok24(renderInfoBlock(deps));
         }
         const op = a.op ?? "run";
         switch (op) {
           case "list":
             requireFluidEnabled(deps, { op });
-            return ok23(renderList2(deps));
+            return ok24(renderList2(deps));
           case "describe": {
             requireFluidEnabled(deps, { op, tool: a.tool });
             const toolId = a.tool ? a.tool : void 0;
             if (toolId !== void 0) mustGetTool(deps.toolSet, toolId);
-            return ok23(
+            return ok24(
               renderDescribe(
                 deps,
                 buildFluidDescribe(catalogueToolSet(deps.toolSet, deps.cfg), toolId),
@@ -165202,15 +166127,15 @@ function registerFluidTool(mcp, deps) {
           }
           case "status":
             requireFluidEnabled(deps, { op });
-            return ok23(await renderStatus(deps));
+            return ok24(await renderStatus(deps));
           case "verify":
-            return ok23(await runVerify(deps, a));
+            return ok24(await runVerify(deps, a));
           case "run":
-            return ok23(await runRun(deps, a));
+            return ok24(await runRun(deps, a));
           case "repair":
-            return ok23(await runRepair(deps, a));
+            return ok24(await runRepair(deps, a));
           case "remove":
-            return ok23(await runRemove(deps, a));
+            return ok24(await runRemove(deps, a));
         }
       } catch (e) {
         return deps.errorResult(e);
@@ -165264,7 +166189,7 @@ function instructionsFor(abapMode, readOnly, allowPackages, fluidAvailable = fal
   const writeGate = abapMode !== void 0 ? `unless ABAP_MODE is edit or admin (it is ${abapMode})` : "unless the operator set ABAP_ALLOW_WRITE";
   const packageScope = packageScopeSentence(readOnly, allowPackages);
   const systemsSentence = systems !== void 0 && systems.length > 1 ? ` This process serves ${systems.length} systems: ${systems.map((s) => `${s.alias} (${s.sid}, ${s.mode})`).join(", ")}. Every tool takes an optional system parameter naming one of these aliases and defaults to ${systems[0]?.alias ?? "the default system"} when omitted; each system's permission ceiling is its own \u2014 read-only on one alias is not lifted by admin mode on another.` : "";
-  return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (a large class answers with its outline by default; then method= or pattern=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.` + (fluidAvailable ? " abap_fluid deploys and runs small generated ABAP tools inside $ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)." : "") + (lockedToolCount > 0 ? ` ${lockedToolCount} further tools are listed but LOCKED at this permission level (abap_write among them) \u2014 each one's description says what unlocks it, and calling one returns a refusal without touching the SAP system.` : "") + systemsSentence;
+  return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (a large class answers with its outline by default; then method= or pattern=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked. Calls to one server share a pool of at most 5 SAP sessions (2 read, 2 write, 1 debug); calls beyond that queue, writes to the same object are serialized, and every extra session costs a logon \u2014 sending tool calls in parallel does not make them faster and is the usual way to reach the logon ceiling (5 logons per 10 minutes per session), so issue calls in sequence.` + (fluidAvailable ? " abap_fluid deploys and runs small generated ABAP tools inside $ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)." : "") + (lockedToolCount > 0 ? ` ${lockedToolCount} further tools are listed but LOCKED at this permission level (abap_write among them) \u2014 each one's description says what unlocks it, and calling one returns a refusal without touching the SAP system.` : "") + systemsSentence;
 }
 function describeStartupProbeFailure(e) {
   if (isAbapError(e)) return { code: e.code, message: e.message, hint: e.hint };
@@ -165427,6 +166352,7 @@ function createServer(cfg, opts) {
       registerFpmTools(mcp2, routed);
       registerUiTools(mcp2, routed);
       registerWriteTools(mcp2, withDeps(routed, { lockHolders }));
+      registerRapTools(mcp2, routed);
       registerImgEditTools(mcp2, routed);
       registerRunTools(mcp2, routed);
       registerTestTools(mcp2, routed);

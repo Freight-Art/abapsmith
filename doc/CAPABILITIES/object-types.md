@@ -250,8 +250,11 @@ The `Object` column values are the registry `label` fields, unreworded.
   entry that sends `abap_read {"object": "<TABLE>/<INDEX>", "type":
   "TABL/DI"}` to a render built from `DD12V`/`DD17S`, the same two catalog
   tables the create and delete bridges now re-read after every write to
-  confirm `verified`. A `TABL/DT` read also grew an `indexes` section listing
-  every secondary index found this way. As with `SUSO/B` below, the Read
+  confirm `verified`. A `TABL/DT` read also grew a `SECONDARY INDEXES`
+  section listing every secondary index found this way, and a bare
+  `<TABLE>` read with `type: "TABL/DI"` now lists every secondary index the
+  table has — `indexes: 0` and an empty section for a table with none,
+  rather than an error. As with `SUSO/B` below, the Read
   column reads `yes` for `TABL/DI` even though there is no `TypeSpec` and no
   ADT REST URI: `catalogRead` is what makes it readable despite that. The
   `DD12V`/`DD17S` reads behind this render were captured live against A4H,

@@ -1322,7 +1322,7 @@ describe("[PENDING READ MERGE] abap_read reads a class include directly", () => 
     ).rejects.toMatchObject({ code: "UNSUPPORTED" });
   });
 
-  it("refuses an include on a program — only classes have includes", async () => {
+  it("ignores an include on a program with a note — the program's own source is read, no include URI (#211)", async () => {
     stub.object = resolved({
       type: "PROG/P",
       kind: "PROG",
@@ -1332,17 +1332,12 @@ describe("[PENDING READ MERGE] abap_read reads a class include directly", () => 
       sourceUri: "/sap/bc/adt/programs/programs/zdemo/source/main",
     });
     const { conn, gets } = sourceConn();
-    const e = await abapRead(
-      conn,
-      { object: "ZDEMO", include: "testclasses" } as never,
-      20_000,
-    ).then(
-      () => undefined,
-      (err: unknown) => err as AbapError,
+    const result = await abapRead(conn, { object: "ZDEMO", include: "testclasses" } as never, 20_000);
+    expect(gets[0], "the read must go to the program's single document").toBe(
+      "/sap/bc/adt/programs/programs/zdemo/source/main",
     );
-    expect(e, "a program was asked for its testclasses include and answered anyway").toBeDefined();
-    expect(e!.code).toBe("UNSUPPORTED");
-    expect(e!.message).toMatch(/ZDEMO|PROG/);
-    expect(gets).toEqual([]);
+    expect(gets.some((u) => u.includes("/includes/")), "no include URI may be touched").toBe(false);
+    expect(result.text).toContain("this object has a single source document; include ignored");
+    expect(result.text).not.toMatch(/^include:/m);
   });
 });

@@ -116,6 +116,11 @@ export const MODE_LOCKED_TOOLS: readonly ModeLockedTool[] = [
     summary: "Release one CTS transport request — irreversible.",
   },
   {
+    name: "abap_rap",
+    needs: ["allowWrite"],
+    summary: "Generate a RAP stack (CDS, BDEF, class, SRVD, SRVB) from a table.",
+  },
+  {
     name: "abap_fluid",
     needs: ["allowWrite"],
     summary: "Deploy and run small generated ABAP tools inside $ABAPSMITH_FLUID_API.",

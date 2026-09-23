@@ -2024,6 +2024,7 @@ describe("tool surface", () => {
       "abap_journal",
       "abap_open_url",
       "abap_quick_fix",
+      "abap_rap",
       "abap_read",
       "abap_run",
       "abap_search",
@@ -2487,6 +2488,7 @@ describe("tool surface", () => {
       "abap_bopf_delete",
       "abap_transport_release",
       "abap_quick_fix",
+      "abap_rap",
     ];
     // `abap_enh` is deliberately NOT in this list: its `discover_hook_anchors`
     // submode makes no `SafetyGate` call at all (a genuinely ungated read),

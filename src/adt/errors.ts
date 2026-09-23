@@ -89,6 +89,8 @@ export type AbapErrorCode =
   | "CHECK_FAILED"
   /** The ABAP session died (short dump, `400 Session Timed Out`). NOT an auth failure. */
   | "SESSION_DEAD"
+  /** The local logon-rate refusal (`LOGON_CEILING_PER_WINDOW`/`LOGON_CEILING_WINDOW_MS`): retry after `details.retryAfterSeconds`. */
+  | "LOGON_CEILING"
   /** The executed ABAP code short-dumped. */
   | "RUNTIME_DUMP"
   /**
@@ -419,7 +421,16 @@ export type AbapErrorCode =
    * silently empty diff: an expired snapshot must be reported as gone, not
    * quietly treated as "before == after".
    */
-  | "SNAPSHOT_EXPIRED";
+  | "SNAPSHOT_EXPIRED"
+  // ---- RAP stack generation (src/tools/rap.ts) ----
+  /**
+   * `abap_rap` stopped after one artifact write failed partway through the
+   * stack. Not the underlying cause's own code: the artifacts already
+   * written stay written (see `details.artifacts`), so this is a distinct,
+   * conditional state — the caller retries the same call once the cause is
+   * fixed, and already-written artifacts are simply rewritten in place.
+   */
+  | "RAP_PARTIAL";
 
 /**
  * `terminal` — no input the caller can supply satisfies this code.
@@ -459,6 +470,7 @@ export const RETRYABILITY: Record<AbapErrorCode, Retryability> = {
   LOCKED: "conditional",
   CHECK_FAILED: "conditional",
   SESSION_DEAD: "conditional",
+  LOGON_CEILING: "conditional",
   RUNTIME_DUMP: "conditional",
   TIMEOUT: "conditional",
   JOURNAL_IO: "conditional",
@@ -500,6 +512,7 @@ export const RETRYABILITY: Record<AbapErrorCode, Retryability> = {
   UNKNOWN_SYSTEM: "retryable", // a correct alias (see the message's list) resolves this
   SYSTEM_MISMATCH: "retryable", // re-issuing with the session's own system, or stopping it first, resolves this
   SNAPSHOT_EXPIRED: "terminal", // no argument the caller can supply brings a deleted snapshot back; a new snapshot has a new id
+  RAP_PARTIAL: "conditional", // resolves once the failing artifact's cause is fixed; the rest of the stack still needs writing
 };
 
 /** `undefined` for `conditional` — no claim either way. */
@@ -539,6 +552,16 @@ export class AbapError extends Error {
     this.details = details;
     this.hint = hint;
     this.retryable = options?.retryable ?? defaultRetryable(code);
+  }
+
+  /**
+   * Same `Symbol.for` value as the vendor's `AdtException` classes, so
+   * `fromException` (run by `AdtHTTP._request` on every throw) returns an
+   * `AbapError` unchanged instead of rewriting it into a code-less
+   * `AdtErrorException` (e.g. a refusal thrown from the request hook).
+   */
+  get typeID(): symbol {
+    return Symbol.for("ADT EXCEPTION");
   }
 
   toJSON(): Record<string, unknown> {

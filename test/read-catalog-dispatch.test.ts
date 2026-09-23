@@ -42,6 +42,32 @@ const DD07V_ACTIV_AUTH_EMPTY = read("872-i87-dd07v-fixed-values.xml");
 
 const DD12V_BDSLORE10 = read("858-i86-dd12v-select-star.xml");
 const DD17S_BDSLORE10 = read("859-i86-dd17s-select-star.xml");
+const DD12V_TADIR_EMPTY = read("860-i86-dd12v-no-index.xml");
+
+/**
+ * A zero-row DD17S freestyle body, in the same minimal shape
+ * `test/index-read.test.ts` builds its own fake catalog bodies with —
+ * `DD12V_TADIR_EMPTY` (capture 860) has no DD17S counterpart capture, so
+ * this stands in for "TADIR has no index fields either".
+ */
+function columnXml(name: string, values: readonly string[]): string {
+  const data = values.map((v) => `<dataPreview:data>${v}</dataPreview:data>`).join("");
+  return (
+    `<dataPreview:columns><dataPreview:metadata dataPreview:name="${name}" dataPreview:type="C" dataPreview:keyAttribute="false"/>` +
+    `<dataPreview:dataSet>${data}</dataPreview:dataSet></dataPreview:columns>`
+  );
+}
+
+function dd17sEmptyBody(): string {
+  const cols = { SQLTAB: [], INDEXNAME: [], POSITION: [], FIELDNAME: [] } as Record<string, readonly string[]>;
+  const colsXml = Object.entries(cols)
+    .map(([n, v]) => columnXml(n, v))
+    .join("");
+  return (
+    '<?xml version="1.0" encoding="utf-8"?><dataPreview:tableData xmlns:dataPreview="http://www.sap.com/adt/dataPreview">' +
+    `<dataPreview:totalRows>0</dataPreview:totalRows>${colsXml}</dataPreview:tableData>`
+  );
+}
 
 // --------------------------------------------------------------- fake wire ---
 
@@ -182,7 +208,7 @@ describe("abapRead — TABL/DI catalog dispatch bypasses resolveObject", () => {
     expect(result.text).not.toMatch(/^uri:/m);
   });
 
-  it.each(["BDSLORE10", "BDSLORE10/", "/REL", "BDSLORE10/REL/EXTRA", ""])(
+  it.each(["BDSLORE10/", "/REL", "BDSLORE10/REL/EXTRA", "ZTAB/Z01/", ""])(
     'refuses a malformed TABL/DI name "%s" with BAD_INPUT before issuing any request',
     async (name) => {
       const { conn, calls } = neverCalledConn();
@@ -194,11 +220,71 @@ describe("abapRead — TABL/DI catalog dispatch bypasses resolveObject", () => {
     },
   );
 
+  it("lists every secondary index of BDSLORE10 for a bare table name (captures 858/859)", async () => {
+    const { conn, calls } = queueConn([DD12V_BDSLORE10, DD17S_BDSLORE10]);
+    const result = await abapRead(conn, baseInput({ object: "BDSLORE10", type: "TABL/DI" }), MAX_CHARS);
+    expect(calls.length).toBe(2);
+    expect(result.text).toContain("object: TABL/DI BDSLORE10");
+    expect(result.text).toContain("mode: catalog");
+    expect(result.text).toContain("indexes: 2");
+    expect(result.text).toContain("--- SECONDARY INDEXES ---");
+    expect(result.text).toContain("P2");
+    expect(result.text).toContain("REL");
+    expect(result.text).toContain("REP2_ID");
+    expect(result.text).toContain("REIO_ID");
+    expect(result.text).toContain("define index p2 on bdslore10");
+    expect(result.text).toContain("define index rel on bdslore10");
+    expect(result.text).not.toMatch(/^uri:/m);
+  });
+
+  it("lists nothing, without an error, for a table with no secondary index (capture 860)", async () => {
+    const { conn, calls } = queueConn([DD12V_TADIR_EMPTY, dd17sEmptyBody()]);
+    const result = await abapRead(conn, baseInput({ object: "TADIR", type: "TABL/DI" }), MAX_CHARS);
+    expect(calls.length).toBe(2); // DD17S is still queried even when DD12V comes back empty
+    expect(result.text).toContain("object: TABL/DI TADIR");
+    expect(result.text).toContain("indexes: 0");
+    expect(result.text).toContain("--- SECONDARY INDEXES ---");
+    expect(result.text).toMatch(/no secondary index/);
+  });
+
+  it("NOT_FOUND for an unknown index id names the existing ids", async () => {
+    const { conn } = queueConn([DD12V_BDSLORE10, DD17S_BDSLORE10]);
+    const err = await expectAsyncError(abapRead(conn, baseInput({ object: "BDSLORE10/Z09", type: "TABL/DI" }), MAX_CHARS));
+    expect(err.code).toBe("NOT_FOUND");
+    expect(err.message).toContain("Z09");
+    expect(err.message).toContain("its secondary indexes are P2, REL");
+    expect((err.details as { existing: string[] }).existing).toEqual(["P2", "REL"]);
+    expect(err.hint).toContain('"object":"BDSLORE10","type":"TABL/DI"');
+  });
+
+  it("NOT_FOUND on a table with no index at all says so", async () => {
+    const { conn } = queueConn([DD12V_TADIR_EMPTY, dd17sEmptyBody()]);
+    const err = await expectAsyncError(abapRead(conn, baseInput({ object: "TADIR/Z01", type: "TABL/DI" }), MAX_CHARS));
+    expect(err.code).toBe("NOT_FOUND");
+    expect(err.message).toContain("it has no secondary index at all");
+    expect((err.details as { existing: string[] }).existing).toEqual([]);
+  });
+
   it.each(["method", "outline", "enhancements", "version", "view", "from", "to", "context", "include", "types", "depth", "format"])(
     'refuses irrelevant parameter "%s" with BAD_INPUT before issuing any request',
     async (param) => {
       const { conn, calls } = neverCalledConn();
       const input = baseInput({ object: "BDSLORE10/REL", type: "TABL/DI", [param]: irrelevantValueFor(param) }) as ReadInput;
+      const err = await expectAsyncError(abapRead(conn, input, MAX_CHARS));
+      expect(err.code).toBe("BAD_INPUT");
+      expect(err.message).toContain(param);
+      expect(err.message).toContain("Table secondary index");
+      expect(err.message).toContain("TABL/DI");
+      expect(err.message).toContain("DD12V, DD17S");
+      expect(calls.length).toBe(0);
+    },
+  );
+
+  it.each(["method", "outline", "enhancements", "version", "view", "from", "to", "context", "include", "types", "depth", "format"])(
+    'refuses irrelevant parameter "%s" with BAD_INPUT before issuing any request (bare-table list route)',
+    async (param) => {
+      const { conn, calls } = neverCalledConn();
+      const input = baseInput({ object: "BDSLORE10", type: "TABL/DI", [param]: irrelevantValueFor(param) }) as ReadInput;
       const err = await expectAsyncError(abapRead(conn, input, MAX_CHARS));
       expect(err.code).toBe("BAD_INPUT");
       expect(err.message).toContain(param);

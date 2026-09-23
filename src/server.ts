@@ -56,6 +56,7 @@ import { registerRunTools } from "./tools/run.js";
 import { registerTestTools } from "./tools/test.js";
 import { registerSearchTools } from "./tools/search.js";
 import { registerWriteTools } from "./tools/write.js";
+import { registerRapTools } from "./tools/rap.js";
 import { registerTransportTools } from "./tools/transport.js";
 import { registerBopfTools } from "./tools/bopf.js";
 import { registerBopfTestTool, createBopfTestDeps } from "./tools/bopf-test.js";
@@ -300,7 +301,11 @@ export function instructionsFor(
     `allowlist permits: ${packageScope} Every write records the ` +
     "previous source locally first, so abap_journal mode=undo can put it back — but " +
     "only for objects this server wrote. Responses are capped and truncation is " +
-    "always marked." +
+    "always marked. Calls to one server share a pool of at most 5 SAP sessions (2 " +
+    "read, 2 write, 1 debug); calls beyond that queue, writes to the same object are " +
+    "serialized, and every extra session costs a logon — sending tool calls in " +
+    "parallel does not make them faster and is the usual way to reach the logon " +
+    "ceiling (5 logons per 10 minutes per session), so issue calls in sequence." +
     (fluidAvailable
       ? " abap_fluid deploys and runs small generated ABAP tools inside " +
         "$ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)."
@@ -684,6 +689,8 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
       registerUiTools(mcp, routed);
       // `journal` for the before-image, `transport` for the CTS assignment.
       registerWriteTools(mcp, withDeps(routed, { lockHolders }));
+      // Generates a RAP stack (CDS/BDEF/class/SRVD/SRVB) and writes it through the same `abapWrite` core.
+      registerRapTools(mcp, routed);
       // `abap_img_edit` writes IMG customizing rows by dispatching against the reused
       // $ABAPSMITH_FLUID_API body class ZCL_ZMCP_FLUID_IMG (src/adt/fluid/builtin/img.ts) —
       // an irreversible business-data write, gated here like every other mutating tool.

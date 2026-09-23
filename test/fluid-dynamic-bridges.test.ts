@@ -850,7 +850,7 @@ describe('abap_fluid — op:"repair" batch vs. LOGON_ENDPOINT_LIFETIME_CEILING (
       expect(succeeded).toBe(4);
       expect(caught).toBeInstanceOf(AbapError);
       const err = caught as AbapError;
-      expect(err.code).toBe("ADT_ERROR");
+      expect(err.code).toBe("LOGON_CEILING");
       expect(err.details?.reason).toBe("logon-ceiling-exceeded");
     },
   );

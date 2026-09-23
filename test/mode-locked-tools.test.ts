@@ -101,9 +101,9 @@ const textOf = (res: CallToolReturn): string => {
 const jsonOf = (res: CallToolReturn): Record<string, unknown> => JSON.parse(textOf(res)) as Record<string, unknown>;
 
 /**
- * The 12 base stub names — every mutating tool whose registration used to
+ * The 13 base stub names — every mutating tool whose registration used to
  * be skipped outright on a read-only server. `abap_fluid` is separate
- * (13th) because it carries the extra `cfg.fluidApi` precondition.
+ * (14th) because it carries the extra `cfg.fluidApi` precondition.
  */
 const BASE_LOCKED_NAMES = [
   "abap_write",
@@ -111,6 +111,7 @@ const BASE_LOCKED_NAMES = [
   "abap_test",
   "abap_atc",
   "abap_quick_fix",
+  "abap_rap",
   "abap_ui",
   "abap_fpm_read",
   "abap_img_edit",
@@ -125,7 +126,7 @@ const BASE_LOCKED_NAMES = [
 // ============================================================================
 
 describe("mode-locked tools — registration on a read-only server", () => {
-  it("lists all 12 base locked names, plus abap_fluid (13th) since fluidApi defaults on", async () => {
+  it("lists all 13 base locked names, plus abap_fluid (14th) since fluidApi defaults on", async () => {
     // `fluidApi` (ABAP_FLUID_API) defaults to `true` (src/config.ts), so the
     // plain read-mode config here already satisfies abap_fluid's
     // `availableWhen`.
