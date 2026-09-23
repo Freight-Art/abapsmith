@@ -59,6 +59,9 @@ import {
   type RequestedDdicTarget,
   type CreateBusinessObjectInput,
   type RootNodeNameCheck,
+  corrFromCreateError,
+  cleanupUnusablePartialCreate,
+  type PartialCreateCleanup,
 } from "../adt/bopf.js";
 import { withJournalledMutation, journalRef, systemKey, type Journal } from "../journal.js";
 import {
@@ -215,9 +218,19 @@ export const bopfEditInputSchema = {
     .boolean()
     .optional()
     .describe("Required true for add_alternative_key and set_alternative_key_fields."),
-  package: z.string().optional().describe("create_bo: local ($TMP-style) package, required."),
+  package: z
+    .string()
+    .optional()
+    .describe(
+      "create_bo: target package. $TMP-style local packages need no transport; a transportable package " +
+        "records the object in a transport request (corr_nr, or one resolved under ABAP_ALLOW_TRANSPORTS).",
+    ),
   description: z.string().optional().describe("create_bo: optional description."),
   rootNodeName: z.string().optional().describe('create_bo only: root node name, default "ROOT".'),
+  corr_nr: z
+    .string()
+    .optional()
+    .describe("Transport request for a transportable package. $TMP needs none; omitted, one is resolved under ABAP_ALLOW_TRANSPORTS."),
 };
 
 export const BopfEditInput = z.object(bopfEditInputSchema);
@@ -245,6 +258,10 @@ export const bopfDeleteInputSchema = {
         "referenced by this BO and live in its package. Requires cascade_ddic: true.",
     ),
   dry_run: z.boolean().optional().describe("Default true: report only, delete nothing."),
+  corr_nr: z
+    .string()
+    .optional()
+    .describe("Transport request for a transportable package. $TMP needs none; omitted, one is resolved under ABAP_ALLOW_TRANSPORTS."),
 };
 
 export const BopfDeleteInput = z.object(bopfDeleteInputSchema);
@@ -2093,11 +2110,20 @@ function createBoRootNodeNotes(boName: string, check: RootNodeNameCheck): string
  * Renaming is therefore not a repair — the only remedy is `abap_bopf_delete`
  * followed by creating the BO again.
  */
+function constantsInterfaceNote(cleanup: PartialCreateCleanup): string {
+  const iface = cleanup.constantsInterface;
+  if (!iface) return "";
+  return iface.deleted
+    ? ` Its generated constants interface ${iface.name} was deleted with it.`
+    : ` Its generated constants interface ${iface.name} is still there (${iface.reason}); delete it by hand.`;
+}
+
 function unusableRootNodeError(
   boName: string,
   check: RootNodeNameCheck,
   entryId: string | undefined,
   activationSkipped: boolean,
+  partialCleanup?: PartialCreateCleanup,
 ): AbapError {
   // Only the leading clause differs between the two unusable shapes; the
   // rest of the wording (remedy, residue warning, journal reference, and
@@ -2111,13 +2137,25 @@ function unusableRootNodeError(
       : `create_bo for "${boName}" requested root node "${check.requested}", but the root node BOPF actually ` +
         'created came back UNNAMED (bo:name="") instead. BOPF bakes that empty name into the generated ' +
         'constants interface AT CREATE TIME (an invalid "BEGIN OF ," ABAP structure)';
+  const residue =
+    partialCleanup === undefined
+      ? "This BO already exists on the system right now and is residue that must be cleaned up" +
+        (entryId !== undefined ? ` (journal entry ${entryId})` : "") +
+        "."
+      : partialCleanup.deleted
+        ? "This create was on a transportable package, so the unusable residue was deleted right away instead of " +
+          "being left for cleanup" +
+          (entryId !== undefined ? ` (journal entry ${entryId})` : "") +
+          "." +
+          constantsInterfaceNote(partialCleanup)
+        : "This BO already exists on the system right now and is residue that must be cleaned up" +
+          (entryId !== undefined ? ` (journal entry ${entryId})` : "") +
+          ` — the automatic cleanup delete also failed (${partialCleanup.reason}), so it is still there.`;
   const tail =
     " and never regenerates that interface, so this business object can never be activated. Renaming the " +
     "root node afterward does NOT repair the interface — live-observed in this repo (two activation " +
     `retries, source etag unchanged). The only remedy: abap_bopf_delete "${boName}", then create it again. ` +
-    "This BO already exists on the system right now and is residue that must be cleaned up" +
-    (entryId !== undefined ? ` (journal entry ${entryId})` : "") +
-    "." +
+    residue +
     (activationSkipped
       ? " No activation was attempted — an object whose constants interface is already invalid can only " +
         "fail to activate."
@@ -2125,8 +2163,10 @@ function unusableRootNodeError(
   return new AbapError(
     "BOPF_CREATE_UNUSABLE",
     lead + tail,
-    { bo: boName, requested: check.requested, actual: check.actual, journalEntryId: entryId },
-    `abap_bopf_delete "${boName}", then create_bo again.`,
+    { bo: boName, requested: check.requested, actual: check.actual, journalEntryId: entryId, partialCleanup },
+    partialCleanup?.deleted
+      ? `create_bo again — the unusable copy of "${boName}" was already removed.`
+      : `abap_bopf_delete "${boName}", then create_bo again.`,
   );
 }
 
@@ -2190,6 +2230,8 @@ function buildEditResponse(
   maxChars: number,
   extraNotes: readonly string[] = [],
   rootNodeCheck?: RootNodeNameCheck,
+  corr?: SafetyCorr,
+  warnings?: readonly string[],
 ): string {
   const notes: string[] = [...extraNotes];
   if (recovered) {
@@ -2244,6 +2286,8 @@ function buildEditResponse(
       bo,
       version: model.version,
       package: model.packageRef?.name,
+      transport: corr?.kind === "transport" ? corr.corrNr : undefined,
+      warnings: warnings?.length ? warnings.join(" | ") : undefined,
       constantsInterface: model.constantsInterfaceRef?.name,
       nodeCount: model.nodes.length,
       // Makes a clean live create's root node name observable at a glance.
@@ -2574,6 +2618,29 @@ function recoverCreateAfterSessionDeath(
   return deps.pool.withRead("abap_bopf_edit", (conn) => readModel(conn, createRequest.name));
 }
 
+/**
+ * What a create recovered on a fresh session (TIMEOUT, SESSION_DEAD) reports:
+ * the transport the create was already sent under, if the error carries it,
+ * and — for a transportable create whose root node came back unusable — the
+ * same partial-object cleanup `createBusinessObject` does inline.
+ */
+async function recoveredCreateOutcome(
+  deps: BopfRunDeps,
+  gateKey: string | undefined,
+  createRequest: CreateBusinessObjectInput,
+  reread: BopfModelRead,
+  cause: unknown,
+): Promise<Pick<CreateBoMutationResult, "rootNodeCheck" | "corr" | "partialCleanup">> {
+  const rootNodeCheck = checkRootNodeName(createRequest, reread.model);
+  const corr: SafetyCorr = corrFromCreateError(cause) ?? { kind: "unresolved" };
+  const unusable = rootNodeCheck.actual === undefined || rootNodeCheck.actual === "";
+  if (!unusable || corr.kind !== "transport") return { rootNodeCheck, corr };
+  const partialCleanup = await deps.pool.withWrite("abap_bopf_edit", gateKey, (conn) =>
+    cleanupUnusablePartialCreate(conn, createRequest.name, rootNodeCheck, corr, reread.model),
+  );
+  return { rootNodeCheck, corr, ...(partialCleanup ? { partialCleanup } : {}) };
+}
+
 // Issue #154: how long / how many times the tool layer polls for the object
 // to show up after a client-side TIMEOUT on create_bo/activate.
 const TIMEOUT_REREAD_ATTEMPTS = 6;
@@ -2625,6 +2692,10 @@ interface CreateBoMutationResult {
   readonly recovered: boolean;
   readonly activation: ActivationOutcomeBopf | undefined;
   readonly rootNodeCheck: RootNodeNameCheck;
+  /** The transport this create resolved and was authorised under — `{kind: "local"}` for a $TMP-style package. */
+  readonly corr: SafetyCorr;
+  /** Set when `createBusinessObject` had to clean up an unusable partial create on a transportable package. */
+  readonly partialCleanup?: PartialCreateCleanup;
   /** Set on outcomes (a) and (c): a note to surface in the success response. */
   readonly timeoutNote?: string;
   /**
@@ -2646,6 +2717,8 @@ interface EditMutationResult {
   readonly timeoutNote?: string;
   /** Extra notes to fold into the final response — e.g. a targetNodeRef auto-qualification. */
   readonly notes?: readonly string[];
+  /** The transport `putModel` resolved for the mutation — unset for a standalone `activate` (no mutation ran). */
+  readonly corr?: SafetyCorr;
 }
 
 export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<BopfCallResult> {
@@ -2753,7 +2826,10 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
               { name: bo, packageName: input.package!, type: BOPF_TYPE },
               { corr: { kind: "unresolved" } },
             );
-            const created = await createBusinessObject(conn, deps.transport, createRequest, authorized);
+            const created = await createBusinessObject(conn, deps.transport, createRequest, authorized, {
+              gate: deps.safety,
+              corrNr: input.corr_nr,
+            });
             const unusable = created.rootNodeCheck.actual === undefined || created.rootNodeCheck.actual === "";
             let activation: ActivationOutcomeBopf | undefined;
             // An object whose constants interface is already invalid can only
@@ -2775,6 +2851,8 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
               recovered: created.recovered === true,
               activation,
               rootNodeCheck: created.rootNodeCheck,
+              corr: created.corr,
+              ...(created.partialCleanup ? { partialCleanup: created.partialCleanup } : {}),
             };
           });
         } catch (e) {
@@ -2790,12 +2868,13 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
             const reread = await rereadAfterTimeout(deps, bo, () => true);
             if (reread.kind === "found") {
               const version = reread.read.model.version ?? "unknown";
+              const recovered = await recoveredCreateOutcome(deps, gateKey, createRequest, reread.read, e);
               return {
                 model: reread.read.model,
                 xml: reread.read.xml,
                 recovered: true,
                 activation: undefined,
-                rootNodeCheck: checkRootNodeName(createRequest, reread.read.model),
+                ...recovered,
                 timeoutNote:
                   `create_bo did not answer within ${timeoutMs} ms (${envVar}) but completed on the server after ` +
                   `the client timeout: a fresh session re-read confirms ${bo} exists (version ${version}). No ` +
@@ -2836,6 +2915,7 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
                 recovered: false,
                 activation: { activated: true, messages: [], version: "active" },
                 rootNodeCheck: checkRootNodeName(createRequest, reread.read.model),
+                corr: { kind: "unresolved" },
                 timeoutNote:
                   `activation of ${bo} did not answer within ${timeoutMs} ms (${envVar}) but completed on the ` +
                   `server after the client timeout: a fresh session re-read shows version active.`,
@@ -2855,6 +2935,7 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
               recovered: false,
               activation: undefined,
               rootNodeCheck: checkRootNodeName(createRequest, reread.last.model),
+              corr: { kind: "unresolved" },
               activationTimeoutFailure: {
                 version: reread.last.model.version ?? "unknown",
                 timeoutMs,
@@ -2881,7 +2962,7 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
             xml: reread.xml,
             recovered: true,
             activation: undefined,
-            rootNodeCheck: checkRootNodeName(createRequest, reread.model),
+            ...(await recoveredCreateOutcome(deps, gateKey, createRequest, reread, e)),
           };
         }
       },
@@ -2889,7 +2970,11 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
     // The object genuinely exists on the system, so the journal entry stays
     // `succeeded` regardless of what happens next — the residue has to be
     // recorded, not hidden behind a failed mutation.
-    await settle({ outcome: "succeeded", afterSource: result.xml });
+    await settle({
+      outcome: "succeeded",
+      afterSource: result.xml,
+      ...(result.corr.kind === "transport" ? { corrNr: result.corr.corrNr } : {}),
+    });
     if (result.activationTimeoutFailure) {
       const { version, timeoutMs, envVar } = result.activationTimeoutFailure;
       throw new AbapError(
@@ -2912,7 +2997,7 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
       );
     }
     if (result.rootNodeCheck.actual === undefined || result.rootNodeCheck.actual === "") {
-      throw unusableRootNodeError(bo, result.rootNodeCheck, entryId, wantsActivate);
+      throw unusableRootNodeError(bo, result.rootNodeCheck, entryId, wantsActivate, result.partialCleanup);
     }
     return ok(
       buildEditResponse(
@@ -2936,6 +3021,13 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
           ...createBoActivatabilityNotes(result.model),
         ],
         result.rootNodeCheck,
+        result.corr,
+        result.recovered && result.corr.kind === "transport"
+          ? [
+              `create POST failed but the object was found complete on re-read and kept (transport request ` +
+                `${result.corr.corrNr})`,
+            ]
+          : undefined,
       ),
       entryId,
     );
@@ -3066,12 +3158,22 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
                 return mutateModel(xml, input);
               },
               authorized,
+              {
+                transport: deps.transport,
+                gate: deps.safety,
+                corrNr: input.corr_nr,
+                packageName: initial.model.packageRef?.name,
+              },
             ),
         );
         // The PUT itself was accepted — settle the journal entry as succeeded
         // before checking whether the model actually changed; it did happen,
         // even if the node it was meant to add did not stick.
-        await settle({ outcome: "succeeded", afterSource: putResult.xml });
+        await settle({
+          outcome: "succeeded",
+          afterSource: putResult.xml,
+          ...(putResult.corr.kind === "transport" ? { corrNr: putResult.corr.corrNr } : {}),
+        });
         entryId = id;
         afterMutate = putResult;
         mutationCorr = putResult.corr;
@@ -3300,6 +3402,7 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
         activation,
         entryId,
         notes: targetNodeNote ? [targetNodeNote] : [],
+        corr: mutationCorr,
       };
     }),
   ).catch(async (e): Promise<EditMutationResult> => {
@@ -3364,6 +3467,8 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
         ...delegationNotes(input as DelegationInput),
         ...(result.notes ?? []),
       ].filter((n): n is string => n !== undefined),
+      undefined,
+      result.corr,
     ),
     result.entryId,
   );
@@ -3678,6 +3783,7 @@ function buildDeleteResultResponse(
     header: {
       bo,
       boDeleted: result.boDeleted,
+      transport: result.corr.kind === "transport" ? result.corr.corrNr : undefined,
       cascadeDdic,
       ddicEnumerated: cascadeDdic ? result.ddicEnumerated : undefined,
       ddicCount: cascadeDdic && result.ddicEnumerated ? result.ddic.length : undefined,
@@ -3719,7 +3825,7 @@ const BOPF_DELETE_TOOL_DESCRIPTION =
   "Delete a BOPF business object. dry_run defaults to true. dry_run: false plus confirm (echo bo) deletes. " +
   "cascade_ddic: true also sweeps generated DDIC objects (needs confirm_cascade too). cascade_persistent " +
   "names specific persistentTableRef/persistentStructureRef objects to delete too (requires cascade_ddic). " +
-  "Refuses on a transportable package.";
+  "A transportable package needs a transport request (corr_nr, or one resolved under ABAP_ALLOW_TRANSPORTS).";
 
 export async function runBopfDelete(deps: BopfRunDeps, args: unknown): Promise<BopfCallResult> {
   const input = args as BopfDeleteInput;
@@ -3825,9 +3931,10 @@ export async function runBopfDelete(deps: BopfRunDeps, args: unknown): Promise<B
   });
   const currentModel = currentModelRead.model;
   const requestedTargets = currentModelRead.requestedTargets;
-  // adt/bopf.ts refuses every transportable target before delete reaches the
-  // wire, so no transport can be involved — `{kind:"unresolved"}` keeps this
-  // from fabricating an "auto" transport to judge.
+  // The real transport question is judged inside `deleteBusinessObject`
+  // (`preflightCorr`, pre-lock) — this authorize call runs before that's
+  // known, so `{kind:"unresolved"}` avoids fabricating an "auto" transport
+  // this early.
   const authorized = deps.safety.authorize(
     "delete",
     {
@@ -3893,10 +4000,16 @@ export async function runBopfDelete(deps: BopfRunDeps, args: unknown): Promise<B
           return deleteBusinessObject(conn, session, bo, authorized, deps.safety, {
             cascadeDdic: input.cascade_ddic,
             cascadePersistent: requestedTargets,
+            transport: deps.transport,
+            corrNr: input.corr_nr,
+            packageName: currentModel.packageRef?.name,
           });
         },
       );
-      await settle({ outcome: "succeeded" });
+      await settle({
+        outcome: "succeeded",
+        ...(delResult.corr.kind === "transport" ? { corrNr: delResult.corr.corrNr } : {}),
+      });
       return { ...delResult, entryId };
     }),
   );
