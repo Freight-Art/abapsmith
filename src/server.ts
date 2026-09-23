@@ -301,7 +301,11 @@ export function instructionsFor(
     `allowlist permits: ${packageScope} Every write records the ` +
     "previous source locally first, so abap_journal mode=undo can put it back — but " +
     "only for objects this server wrote. Responses are capped and truncation is " +
-    "always marked." +
+    "always marked. Calls to one server share a pool of at most 5 SAP sessions (2 " +
+    "read, 2 write, 1 debug); calls beyond that queue, writes to the same object are " +
+    "serialized, and every extra session costs a logon — sending tool calls in " +
+    "parallel does not make them faster and is the usual way to reach the logon " +
+    "ceiling (5 logons per 10 minutes per session), so issue calls in sequence." +
     (fluidAvailable
       ? " abap_fluid deploys and runs small generated ABAP tools inside " +
         "$ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)."
