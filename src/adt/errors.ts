@@ -421,7 +421,16 @@ export type AbapErrorCode =
    * silently empty diff: an expired snapshot must be reported as gone, not
    * quietly treated as "before == after".
    */
-  | "SNAPSHOT_EXPIRED";
+  | "SNAPSHOT_EXPIRED"
+  // ---- RAP stack generation (src/tools/rap.ts) ----
+  /**
+   * `abap_rap` stopped after one artifact write failed partway through the
+   * stack. Not the underlying cause's own code: the artifacts already
+   * written stay written (see `details.artifacts`), so this is a distinct,
+   * conditional state — the caller retries the same call once the cause is
+   * fixed, and already-written artifacts are simply rewritten in place.
+   */
+  | "RAP_PARTIAL";
 
 /**
  * `terminal` — no input the caller can supply satisfies this code.
@@ -503,6 +512,7 @@ export const RETRYABILITY: Record<AbapErrorCode, Retryability> = {
   UNKNOWN_SYSTEM: "retryable", // a correct alias (see the message's list) resolves this
   SYSTEM_MISMATCH: "retryable", // re-issuing with the session's own system, or stopping it first, resolves this
   SNAPSHOT_EXPIRED: "terminal", // no argument the caller can supply brings a deleted snapshot back; a new snapshot has a new id
+  RAP_PARTIAL: "conditional", // resolves once the failing artifact's cause is fixed; the rest of the stack still needs writing
 };
 
 /** `undefined` for `conditional` — no claim either way. */

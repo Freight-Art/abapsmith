@@ -56,6 +56,7 @@ import { registerRunTools } from "./tools/run.js";
 import { registerTestTools } from "./tools/test.js";
 import { registerSearchTools } from "./tools/search.js";
 import { registerWriteTools } from "./tools/write.js";
+import { registerRapTools } from "./tools/rap.js";
 import { registerTransportTools } from "./tools/transport.js";
 import { registerBopfTools } from "./tools/bopf.js";
 import { registerBopfTestTool, createBopfTestDeps } from "./tools/bopf-test.js";
@@ -688,6 +689,8 @@ export function createServer(cfg: Config, opts: ServerOptions): AbapsmithServer 
       registerUiTools(mcp, routed);
       // `journal` for the before-image, `transport` for the CTS assignment.
       registerWriteTools(mcp, withDeps(routed, { lockHolders }));
+      // Generates a RAP stack (CDS/BDEF/class/SRVD/SRVB) and writes it through the same `abapWrite` core.
+      registerRapTools(mcp, routed);
       // `abap_img_edit` writes IMG customizing rows by dispatching against the reused
       // $ABAPSMITH_FLUID_API body class ZCL_ZMCP_FLUID_IMG (src/adt/fluid/builtin/img.ts) —
       // an irreversible business-data write, gated here like every other mutating tool.

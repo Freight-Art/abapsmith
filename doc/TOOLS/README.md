@@ -14,6 +14,7 @@ requiredness and defaults are taken from the schema, not from prose.
 | [availability-and-capabilities.md](availability-and-capabilities.md) | Read this once: how registration-gating differs from per-call gating, and the full `ABAP_MODE`/capability-flag table every other file refers back to. |
 | [read-and-search.md](read-and-search.md) | `abap_read`, `abap_search`, `abap_open_url` — reading and locating ABAP objects. |
 | [abap-service.md](abap-service.md) | `abap_service` — reading the OData contract (EDMX) behind a RAP service binding. |
+| [rap.md](rap.md) | `abap_rap` — generating a complete RAP stack (CDS views, behavior definitions, class, service definition, service binding) from an existing table. |
 | [write-and-activate.md](write-and-activate.md) | `abap_write`, `abap_activate` — creating, changing, deleting and activating ABAP objects. |
 | [function-modules.md](function-modules.md) | `abap_write`/`abap_read` on `FUGR/F`/`FUGR/FF`/`FUGR/I` — the group's transport request and `remote_enabled`. |
 | [execute-and-test.md](execute-and-test.md) | `abap_run`, `abap_test` — headless execution and ABAP Unit. |
