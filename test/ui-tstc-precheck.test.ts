@@ -56,6 +56,7 @@ describe("lookupTransaction — one data-preview select, typed row or undefined"
       program: "ZAS_GOLD",
       dynpro: "1000",
       cinfo: "00",
+      kindCode: "dialog",
       kind: "dialog transaction (classic dynpro; batch input / press applies)",
       bdcApplies: true,
     });
@@ -73,12 +74,13 @@ describe("lookupTransaction — one data-preview select, typed row or undefined"
     expect(inner.calls).toHaveLength(0);
   });
 
-  it("tstcKind mirrors resolve_target in the fluid ui ABAP", () => {
-    expect(tstcKind("00")).toBe("dialog transaction (classic dynpro; batch input / press applies)");
-    expect(tstcKind("80")).toBe("report transaction (SUBMIT-driven; batch input does NOT apply)");
-    expect(tstcKind("01")).toBe(
-      "unrecognised transaction kind - mechanism not confirmed, do not assume batch input applies",
-    );
+  it("tstcKind decodes CINFO's bits, not an exact-string match", () => {
+    expect(tstcKind("00")).toBe("dialog");
+    expect(tstcKind("80")).toBe("report");
+    expect(tstcKind("08")).toBe("oo");
+    expect(tstcKind("02")).toBe("parameter");
+    expect(tstcKind("01")).toBe("menu");
+    expect(tstcKind("20")).toBe("dialog");
   });
 });
 

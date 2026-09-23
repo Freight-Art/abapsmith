@@ -118,11 +118,11 @@ beforeEach(() => {
 // Gates
 // ---------------------------------------------------------------------------
 
-/** Allows BOTH the fluid classic tool's own deploy package and the transaction's own package (ZTM). */
+/** Allows BOTH the fluid classic tool's own deploy package and the transaction's own package ($TMP). */
 const allowingGate = (): SafetyGate =>
   new SafetyGate({
     readOnly: false,
-    allowPackages: [FLUID_PACKAGE, "ZTM"],
+    allowPackages: [FLUID_PACKAGE, "$TMP", "ZTM"],
     allowNamePrefixes: ["*"],
     allowTransports: ["*"],
     writesLockedOut: false,
@@ -142,7 +142,12 @@ const bridgeOnlyGate = (): SafetyGate =>
 // ---------------------------------------------------------------------------
 
 const TCODE = "ZTM_CARRIERS";
-const PKG = "ZTM";
+// Local ($-prefixed) by default: most of this file exercises behavior that is orthogonal
+// to transport-awareness (guard ordering, transcript vocabulary, exceptions, gate wiring),
+// and a local package needs no corr_nr — see issue #202's own describe block below for the
+// transportable-package (ZTM) coverage.
+const PKG = "$TMP";
+const TRANSPORTABLE_PKG = "ZTM";
 
 /** Mints a genuine `ServerPackage`, mirroring test/resolved-package.test.ts's `confirmed` fixture. */
 const confirmed = (packageName: string) => ({
@@ -158,6 +163,12 @@ const SERVER_PKG: ServerPackage = (() => {
   return p;
 })();
 
+const TRANSPORTABLE_SERVER_PKG: ServerPackage = (() => {
+  const p = serverPackage(confirmed(TRANSPORTABLE_PKG));
+  if (!p) throw new Error("test fixture: serverPackage(confirmed(TRANSPORTABLE_PKG)) unexpectedly undefined");
+  return p;
+})();
+
 const BRIDGE_PARAMS: TransactionDeleteBridgeParams = { tcode: TCODE, packageName: SERVER_PKG };
 
 // ---------------------------------------------------------------------------
@@ -168,7 +179,10 @@ describe("abap-tran.ts's delete_transaction transcript vocabulary", () => {
   it("every tag delete_transaction emits is one parseDdicTranscript recognises — asserted as a SET", () => {
     const method = tranPart.source.slice(tranPart.source.indexOf("METHOD delete_transaction."));
     const tags = [...method.matchAll(/line\(\s*'([^']+)'\s*\)/g)].map((m) => m[1]!);
-    expect(new Set(tags)).toEqual(new Set(["TRAN-DELETED", "TRAN-GONE"]));
+    // TRAN-REGISTERED (issue #202) is emitted only on the transportable branch, before the delete
+    // FM runs — a valid intermediate tag, not part of the success set deleteTransactionViaBridge
+    // asserts on (that stays TRAN-DELETED + TRAN-GONE, see the happy-path describe block below).
+    expect(new Set(tags)).toEqual(new Set(["TRAN-REGISTERED", "TRAN-DELETED", "TRAN-GONE"]));
     const parsed = parseDdicTranscript(tags.join("\n"));
     expect(new Set(parsed.tags)).toEqual(new Set(tags));
     expect(parsed.errorLine).toBeUndefined();
@@ -367,11 +381,17 @@ describe("the sy-subrc guard", () => {
     expect(lines.some((l) => l.includes("fail(") && l.includes("sy-subrc"))).toBe(true);
   });
 
-  it("only EXCEPTIONS OTHERS = 1 is declared — no named exception risking a syntax error on an unverified signature", () => {
-    const source = tranPart.source;
-    const call = source.indexOf("CALL FUNCTION 'RPY_TRANSACTION_DELETE'");
-    const excIdx = source.indexOf("EXCEPTIONS OTHERS = 1.", call);
-    expect(excIdx).toBeGreaterThan(call);
+  it("both of delete_transaction's own RPY_TRANSACTION_DELETE calls (local and transportable branches) declare the same named exceptions", () => {
+    const method = tranPart.source.slice(tranPart.source.indexOf("METHOD delete_transaction."));
+    const calls = [...method.matchAll(/CALL FUNCTION 'RPY_TRANSACTION_DELETE'/g)].map((m) => m.index ?? -1);
+    expect(calls).toHaveLength(2);
+    for (const call of calls) {
+      const excIdx = method.indexOf("EXCEPTIONS not_excecuted = 1", call);
+      expect(excIdx).toBeGreaterThan(call);
+      const window = method.slice(excIdx, excIdx + 120);
+      expect(window).toContain("object_not_found = 2");
+      expect(window).toContain("OTHERS = 3");
+    }
   });
 });
 
@@ -480,7 +500,7 @@ describe("deleteTransactionViaBridge happy path", () => {
     expect(src).toBeTruthy();
     const chunks = [...src!.matchAll(/`([^`]*)`/g)].map((m) => m[1]);
     const payload = chunks.join("");
-    expect(payload).toBe(canonicalArgsJson({ tcode: TCODE, package_name: PKG }));
+    expect(payload).toBe(canonicalArgsJson({ tcode: TCODE, package_name: PKG, corr_nr: "" }));
     expect(src).toContain("delete_transaction");
   });
 
@@ -495,9 +515,13 @@ describe("deleteTransactionViaBridge happy path", () => {
     expect(putsAfterSecond).toEqual([]);
   });
 
-  it("does not emit any transport/RS_CORR_INSERT handling in delete_transaction — this method takes no corr_nr", () => {
+  it("emits RS_CORR_INSERT only on the transportable (lv_local = abap_false) branch, gated behind lv_local (issue #202)", () => {
     const method = tranPart.source.slice(tranPart.source.indexOf("METHOD delete_transaction."));
-    expect(method.toUpperCase()).not.toContain("RS_CORR_INSERT");
-    expect(method.toLowerCase()).not.toContain("corr_nr");
+    expect(method).toContain("RS_CORR_INSERT");
+    expect(method).toContain("lv_corr_nr) = s( 'corr_nr' )");
+    const localBranch = method.indexOf("IF lv_local = abap_false.");
+    const corrInsertIdx = method.indexOf("RS_CORR_INSERT");
+    expect(localBranch).toBeGreaterThanOrEqual(0);
+    expect(corrInsertIdx).toBeGreaterThan(localBranch);
   });
 });

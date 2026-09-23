@@ -31,6 +31,7 @@ import {
   deleteObject,
   isPackageType,
   NO_JOURNAL,
+  preflightPackageCorr,
   readCurrentSource,
   resolveWriteTarget,
   writeObject,
@@ -38,6 +39,7 @@ import {
   type BeforeImage,
   type BeforeImageHook,
   type MutatingOperation,
+  type PreflightTarget,
   type ResolvedTarget,
 } from "./write.js";
 import {
@@ -51,7 +53,9 @@ import {
 import { isBridgeOnlyCreateType } from "./capabilities.js";
 import { serverPackage } from "./resolved-package.js";
 import { deleteClassicViewViaBridge } from "./view-delete.js";
-import { deleteTransactionViaBridge } from "./tran-delete.js";
+import { deleteTransactionViaBridge, verifyTransactionDeleted } from "./tran-delete.js";
+import { isLocalPackageName } from "./transports.js";
+import type { SessionTransport } from "./session-transport.js";
 
 /**
  * Renders a {@link VerifyOutcome} for a human sentence — the uri plus
@@ -1246,6 +1250,7 @@ async function performBridgeCreateUndo(
   gate: SafetyGate,
   plan: UndoPlan,
   onBeforeImage: BeforeImageHook,
+  transport: SessionTransport | undefined,
 ): Promise<{ deleted: boolean | "unverified"; verification: VerifyOutcome }> {
   const pkg = plan.bridgeCreateVerify && serverPackage(plan.bridgeCreateVerify);
   if (!pkg) {
@@ -1270,7 +1275,39 @@ async function performBridgeCreateUndo(
   if (type === "VIEW/DV") {
     await deleteClassicViewViaBridge(conn, gate, { viewName: plan.target.name, packageName: pkg });
   } else if (type === "TRAN/T") {
-    await deleteTransactionViaBridge(conn, gate, { tcode: plan.target.name, packageName: pkg });
+    if (isLocalPackageName(pkg.name)) {
+      await deleteTransactionViaBridge(conn, gate, { tcode: plan.target.name, packageName: pkg });
+    } else {
+      // Issue #202 made TRAN/T delete transport-aware: a non-local package
+      // needs a corrNr. Fail closed if no transport manager is wired — same
+      // rule resolveBridgeCreateCorr (src/tools/write.ts) applies for a
+      // caller with no named corrNr.
+      if (transport === undefined) {
+        throw new AbapError(
+          "TRANSPORT_ERROR",
+          `Undo of TRAN/T ${plan.target.name} needs a transport request, because package ` +
+            `${pkg.name} is not local ($-prefixed), but no transport manager was wired into ` +
+            "this undo. Nothing was deleted.",
+          { name: plan.target.name, type, packageName: pkg.name },
+          "This is an internal wiring failure in abapsmith, not a mistake in the request.",
+        );
+      }
+      const preflightTarget: PreflightTarget = {
+        uri: plan.target.uri,
+        name: plan.target.name,
+        type: "TRAN/T",
+        packageName: pkg.name,
+        exists: true,
+      };
+      // Undo never names a corrNr — the gate judges the resolver's own choice.
+      const corr = await preflightPackageCorr(conn, preflightTarget, { transport, gate, op: "delete" });
+      await deleteTransactionViaBridge(conn, gate, {
+        tcode: plan.target.name,
+        packageName: pkg,
+        corrNr: corr.corrNr,
+        corrSource: corr.source,
+      });
+    }
   } else {
     // Unreachable in normal flow: only isBridgeOnlyCreateType entries reach this function,
     // and resolveBridgeCreateUndo already called vitTypeFor(type) once during planning.
@@ -1282,12 +1319,17 @@ async function performBridgeCreateUndo(
     );
   }
 
-  const outcome = await verifyObjectDeleted(conn, {
-    uri: vitBridgeUri(vitTypeFor(type), plan.target.name),
-    accept: VIT_STUB_ACCEPT,
-    objectName: plan.target.name,
-    expectType: type,
-  });
+  // Issue #201: TRAN/T's VIT-bridge stub can answer 200 for a TCODE that never
+  // existed, so its post-delete verification also cross-checks TSTC.
+  const outcome =
+    type === "TRAN/T"
+      ? await verifyTransactionDeleted(conn, plan.target.name)
+      : await verifyObjectDeleted(conn, {
+          uri: vitBridgeUri(vitTypeFor(type), plan.target.name),
+          accept: VIT_STUB_ACCEPT,
+          objectName: plan.target.name,
+          expectType: type,
+        });
   if (outcome.status === "confirmed") return { deleted: false, verification: outcome };
   if (outcome.status === "confirmed-absent") return { deleted: true, verification: outcome };
   return { deleted: "unverified", verification: outcome };
@@ -1372,6 +1414,12 @@ export interface UndoOptions {
    * through the fluid `classic` tool in `$ABAPSMITH_FLUID_API`.
    */
   gate: SafetyGate;
+  /**
+   * Session transport manager used to resolve a request for a transportable
+   * bridge delete (TRAN/T undo). Absent means such an undo is refused with
+   * TRANSPORT_ERROR.
+   */
+  transport?: SessionTransport;
 }
 
 /**
@@ -1541,7 +1589,7 @@ export async function performUndo(
       },
       (onBeforeImage) =>
         isBridgeOnlyCreateType(entry.object.type)
-          ? performBridgeCreateUndo(conn, opts.gate, plan, onBeforeImage)
+          ? performBridgeCreateUndo(conn, opts.gate, plan, onBeforeImage, opts.transport)
           : deleteObject(conn, authorized, { onBeforeImage, bridgeGate: opts.gate }),
     );
     undoEntryId = entryId;
