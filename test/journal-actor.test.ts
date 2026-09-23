@@ -232,9 +232,9 @@ describe("abap_journal mode=list rendering", () => {
     const table = res.text.slice(tableStart, tableEnd === -1 ? undefined : tableEnd);
     expect(table).toBe(
       [
-        "id                          when                  op      object            existed  capture   outcome  flags",
-        "--------------------------  --------------------  ------  ----------------  -------  --------  -------  -----",
-        `${e.id}  ${e.ts.replace("T", " ").replace(/\.\d+Z$/, "Z")}  update  PROG/P ZMCP_DEMO  yes      captured  pending`,
+        "id                          when                  op      object            existed  capture   outcome  undoable  undo_blocker  flags",
+        "--------------------------  --------------------  ------  ----------------  -------  --------  -------  --------  ------------  -----",
+        `${e.id}  ${e.ts.replace("T", " ").replace(/\.\d+Z$/, "Z")}  update  PROG/P ZMCP_DEMO  yes      captured  pending  yes`,
       ].join("\n"),
     );
   });
@@ -248,9 +248,9 @@ describe("abap_journal mode=list rendering", () => {
     const table = res.text.slice(tableStart, tableEnd === -1 ? undefined : tableEnd);
     expect(table).toBe(
       [
-        "id                          when                  op      object            existed  capture   outcome  actor       flags",
-        "--------------------------  --------------------  ------  ----------------  -------  --------  -------  ----------  -----",
-        `${e.id}  ${e.ts.replace("T", " ").replace(/\.\d+Z$/, "Z")}  update  PROG/P ZMCP_DEMO  yes      captured  pending  test-actor`,
+        "id                          when                  op      object            existed  capture   outcome  undoable  undo_blocker  actor       flags",
+        "--------------------------  --------------------  ------  ----------------  -------  --------  -------  --------  ------------  ----------  -----",
+        `${e.id}  ${e.ts.replace("T", " ").replace(/\.\d+Z$/, "Z")}  update  PROG/P ZMCP_DEMO  yes      captured  pending  yes                     test-actor`,
       ].join("\n"),
     );
   });
