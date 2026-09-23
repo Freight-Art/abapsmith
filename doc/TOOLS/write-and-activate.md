@@ -424,6 +424,16 @@ error that ADT already refuses at save time (a missing period,
 new object the just-created shell is deleted again and the response says
 so; only errors that pass the save and fail the check leave the object
 inactive.
+A different `CHECK_FAILED` shape shows up when the object's own syntax
+check passes and the save succeeds, but activation itself fails because
+OTHER objects it depends on are still inactive — the object being written
+is not at fault. `details` now carries `inactive_dependencies: [{name,
+type, uri?}]`, read off the activation reply with no extra request, the
+message ends with "Inactive dependencies: TABL/DT ZAS_T217", and the hint
+says to activate them first, either `abap_activate objects=[...]` naming
+them or `abap_activate package=<package>` for the whole package. When
+activation was instead skipped because the syntax check itself failed, no
+such list exists — the check reply does not say which objects are inactive.
 Every successful write is journalled (`abap_journal`) and undoable, except
 enhancement objects (`ENHO/XH`, `ENHO/XHH`, `ENHS/XS`), which can never be
 undone even with `force:true`, and except the bridge routes for `SHLP/DH`,
@@ -659,13 +669,15 @@ needs `canWrite` like `mode=activate`. See
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
-| `object` | string | yes, unless `objects` is used or `mode=format` with `source` | — | Object reference. |
-| `type` | string | no | — | ADT type hint. |
+| `object` | string | yes, unless `objects`, `package`, the inline form (`mode=check` + `type` + `source`) or `mode=format` with `source` is used | — | Object reference. |
+| `type` | string | no | — | ADT type hint. Required, and restricted to `PROG/P`, `CLAS/OC` or `INTF/OI`, for the inline check form (`mode=check`, no `object`) — see ["Inline check"](#inline-check-modecheck-with-type--source) below. |
 | `mode` | enum `check` \| `activate` \| `format` | no | `activate` | Check only, check then activate, or pretty-print. |
-| `source` | string | no | — | For `mode=check`/`mode=activate`: draft to check. Omitted for `mode=check`, the saved server version is fetched and checked instead — refused with `BAD_INPUT` only when there's genuinely nothing saved to check (object doesn't exist yet, or its type has no `/source/main`). Omitted for `mode=activate`, the saved server version is activated with no pre-flight check. For `mode=format`: text to format directly (mutually exclusive with `object` — exactly one of the two, never both, never neither). |
-| `corr_nr` | string | no | — | Transport request to activate into (`mode=activate`) or to write into if the reformatted object changed (`mode=format`, object form only — refused with `BAD_INPUT` on the text form, which writes nothing). |
-| `affects` | object | no (required to activate an existing `ENHO/XH`/`ENHS/XS`) | — | The object the enhancement binds to. Refused with `BAD_INPUT` for `mode=format`. |
-| `objects` | array of `{object, type?, affects?}`, 1–50 entries | no | — | Batch form: activate several objects through ADT's multi-object activation endpoint instead of one call each. Mutually exclusive with `object`/`type`/`affects`/`corr_nr`/`source`, and `mode=activate` only (no batch syntax check, and refused with `BAD_INPUT` for `mode=format`). |
+| `source` | string | no | — | For `mode=check`/`mode=activate` with `object`: draft to check. Omitted for `mode=check`, the saved server version is fetched and checked instead — refused with `BAD_INPUT` only when there's genuinely nothing saved to check (object doesn't exist yet, or its type has no `/source/main`). Omitted for `mode=activate`, the saved server version is activated with no pre-flight check. For `mode=check` with no `object`: the draft source for the inline check form (required there — see below). For `mode=format`: text to format directly (mutually exclusive with `object` — exactly one of the two, never both, never neither). |
+| `corr_nr` | string | no | — | Transport request to activate into (`mode=activate`, `object` form only — the `objects` and `package` forms take the transport from each object's own lock and refuse `corr_nr` with `BAD_INPUT`) or to write into if the reformatted object changed (`mode=format`, object form only — refused with `BAD_INPUT` on the text form, which writes nothing). |
+| `affects` | object | no (required to activate an existing `ENHO/XH`/`ENHS/XS`) | — | The object the enhancement binds to. Refused with `BAD_INPUT` for `mode=format`, `mode=check` with no `object`, and `package`. |
+| `objects` | array of `{object, type?, affects?}`, 1–50 entries | no | — | Batch form: activate several objects through ADT's multi-object activation endpoint instead of one call each. Mutually exclusive with `object`/`type`/`affects`/`corr_nr`/`source`/`package`, and `mode=activate` only (no batch syntax check, and refused with `BAD_INPUT` for `mode=format`). |
+| `package` | string | no | — | Package form (`mode=activate` only): activate every inactive object of the caller's worklist belonging to this package instead of naming objects one by one — see ["Package activation"](#package-activation-package) below. Mutually exclusive with `object`/`objects`/`type`/`source`/`affects`/`corr_nr`. |
+| `recursive` | boolean | no | `false` | `package` only. Also activate inactive objects belonging to every sub-package under `package`. Refused with `BAD_INPUT` without `package`. |
 
 **Batch activation (`objects`)**: sends the object list to ADT's own
 multi-object activation endpoint, rather than one `abap_activate` call per
@@ -704,6 +716,87 @@ uses. Re-read the object to see its state, then settle the entry by hand with
 `abap_journal mode=reconcile` once its outcome is established. An
 object in a chunk that was never sent at all, because an earlier chunk
 failed first, settles `failed`, with an error saying so.
+
+### Inline check (`mode=check` with `type` + `source`)
+
+A fourth form of `abap_activate`: check a draft that has no `object` at
+all. Read-only, exactly like the object-form `mode=check` — no lock,
+nothing written, works under `ABAP_MODE=read`.
+
+```json
+{
+  "mode": "check",
+  "type": "PROG/P",
+  "source": "REPORT zas_213.\nWRITE 'hello'."
+}
+```
+
+`type` must be one of `PROG/P`, `CLAS/OC` or `INTF/OI` — anything else is
+refused `UNSUPPORTED`, naming those three; a missing `type` is `BAD_INPUT`.
+Both refusals cost zero requests.
+
+The two families behave differently:
+
+- **`PROG/P`** is checked against no server object at all — there is
+  nothing on the server this draft could collide with. The report name
+  comes from its own `REPORT`/`PROGRAM` statement; a draft missing that
+  statement is not refused locally, it is reported by the server as a
+  finding on line 1.
+- **`CLAS/OC`** and **`INTF/OI`** are checked as a draft OF THE EXISTING
+  server object named in the draft's own `CLASS <name> DEFINITION` or
+  `INTERFACE <name>`. If that object does not already exist on the server,
+  the call returns `NOT_FOUND` rather than running the check — ADT would
+  otherwise report a draft against a nonexistent class as clean without
+  actually processing it, which is worse than refusing outright. Write the
+  object first with `activate: false` to get something to check a draft
+  against, or check the code as plain `PROG/P` instead.
+
+Findings have the same shape as the object-form check — `line`, `column`,
+`severity`, `message` under `# SYNTAX CHECK` — and the response header
+carries `object: "PROG/P ZAS_213"` (or whichever type/name the draft
+names), `mode: check`, `inline: true`, `result`, `errors`, `warnings`.
+
+With this fourth form, the tool now covers five shapes: `object` (+
+optional `source`) to check or activate one existing object, `objects` to
+batch-activate several, the inline form above to check a draft with no
+object, `package` to activate a whole package's worklist (below), and
+`mode=format` to pretty-print.
+
+### Package activation (`package`)
+
+```json
+{
+  "mode": "activate",
+  "package": "ZAS_PKG213",
+  "recursive": true
+}
+```
+
+Activates every inactive object of the CALLER's activation worklist that
+belongs to `package` (and, with `recursive: true`, its sub-packages) in
+one activation request, so the server — not abapsmith — orders the
+dependencies. `package` is `mode=activate` only, and mutually exclusive
+with `object`/`objects`/`type`/`source`/`affects` — combined with any of
+them it is refused `BAD_INPUT` before any request; on a read-only server
+it is refused before any request too.
+
+Objects pending deletion are skipped and reported rather than activated.
+DDIC types are sent first — `DOMA`, `DTEL`, `TABL`, `TTYP`, `VIEW`, `DDLS`,
+then everything else — and the existing DDIC fan-out chunking
+(`ABAP_MAX_DDIC_ACTIVATION_BATCH`, default 5, see
+[doc/CONFIGURATION/concurrency-and-activation.md](../CONFIGURATION/concurrency-and-activation.md#batch-activation))
+still splits a large DDIC set into consecutive requests. More than 50
+inactive objects in scope is refused `BAD_INPUT` — activate a subset with
+`objects` instead. Every member goes through the same per-object safety
+gate, transport resolution and journal entry as the `objects` batch form.
+
+The result is the ordinary batch-activation result — per-object rows with
+findings, `# CO-ACTIVATED`, `# INACTIVE DEPENDENTS` — plus `package`,
+`recursive` and `packages_scanned` in the header. An empty worklist
+activates nothing and returns `count: 0`, `result: "nothing to activate"`
+with no write at all. See
+[doc/TOOLS/read-and-search.md § Inactive objects](read-and-search.md#inactive-objects-inactive-true)
+for listing the same worklist before activating it.
 
 ### mode=format: the pretty printer
 
