@@ -62,7 +62,11 @@ subset named above.
 | `object.sourceUri` | the URI the write actually PUT to. Equal to `object.uri`'s `/source/main` for an ordinary write; set instead to that class sub-include's own URI (`definitions` / `implementations` / `macros` / `testclasses`) when `abap_write` was called with `include=`. When it names a sub-include, the entry is about that one include only, not the whole class — `abap_journal mode=show` reads it back out (`classIncludeFromSourceUri()` in `src/adt/undo.ts`, the same derivation `src/tools/journal.ts` reuses) and says which include the entry covers. |
 | `existedBefore` | whether the object existed before this write |
 | `beforeCapture` | `captured` \| `confirmed-absent` \| `failed` \| `unknown` — provenance of `existedBefore`, see [Undo semantics](undo-and-recovery.md#undo-semantics) below |
-| `beforeKind` | present only when `before` is not the object's own source — `"package-metadata"` for a package (`DEVC/K`) delete. The entry preserves the package's metadata document, and undo will not replay it. |
+| `beforeKind` | present only when `before` is not the object's own source: `"package-metadata"` for a package (`DEVC/K`) delete (undo will not replay it); `"text-pool"` for a `text_pool` write (before-image is the complete previous pool, JSON-canonical); `"bopf-model"` for an `abap_bopf_edit update` (before-image is the previous model XML); `"enh-impl-active"` for a `set_impl_active` entry (before-image is the enhoxh XML read before the flip). |
+| `undoable` | present on every entry written by this version or later; `true`/`false`, computed by `writeTimeUndoability()` when the entry is written. Absent on older entries — rendered as `unknown (written before this version)` rather than guessed. |
+| `undoBlocker` | the reason `undoable` is `false`; `""` when `undoable` is `true`. A caller can narrow an entry to not-undoable at `begin()` time by supplying its own `undoBlocker` (`JournalBeginInput.undoBlocker`); callers can only narrow, never widen. |
+| `implName` | `set_impl_active` entries only — the `<enho:badiImplementation>` entry that was flipped. |
+| `createEvidence` | set when a create's `beforeCapture` was upgraded to `confirmed-absent` from an HTTP 201 response carrying a `Location` header, rather than from a pre-create read. |
 | `before` / `after` | `{ etag, fingerprint, bytes, blob?, serverEtag? }` — raw etag and canonical fingerprint, both kept, for different jobs (see [Drift detection](undo-and-recovery.md#drift-detection)) |
 | `parts` | `JournalImagePart[]`, one element per additional SAP object the same logical operation touched beyond `object`/`before`/`after` — today, only a class delete's four local includes (`definitions`, `implementations`, `macros`, `testclasses`), captured under the same lock as the delete. Each part is `{ object, existedBefore, beforeCapture, before?, after? }`, scoped to that one include — its own `object.sourceUri` names which include it is, its own `beforeCapture` says whether that include's read at delete time was `captured`, `confirmed-absent`, or `failed`, and it carries its own before-image where it has one. `abap_journal mode=show` lists these under `ALSO TOUCHED`, with columns `object`, `package` (shown when any part has one), `include`, `existed`, `capture`, `bytes` — the `include` column is what makes the four rows of a class-delete entry distinguishable from each other. Absent (not `[]`) on every entry that only touched one object — every entry recorded before this field existed and the overwhelming majority since. Live-confirmed against SAP A4H, 2026-09-12, on class `ZCL_I75_UNDO`: a `mode=delete` entry carried all four parts, every one `beforeCapture: captured`, and `mode=show` named all four in the class warning. |
 | `outcome` | `pending` \| `succeeded` \| `failed` |
@@ -77,7 +81,7 @@ subset named above.
 | Journalled | Not journalled |
 |---|---|
 | `abap_write` (create/update/delete) | FPM tools |
-| `abap_write text_pool` (irreversible `update` entry on the object's textelements resource (`PROG/PX`, `CLAS/OCX` or `FUGR/PX`), history only) | — |
+| `abap_write text_pool` (`update` entry on the object's textelements resource (`PROG/PX`, `CLAS/OCX` or `FUGR/PX`), `beforeKind: "text-pool"`, undoable) | — |
 | `abap_transport` (create / add-user / set-owner / release) | `abap_bopf_edit operation:"activate"` (no mutation of the BO's own model — see below) |
 | `abap_enh`: 9 of its 11 operations (see below) | `abap_enh`'s `discover_hook_anchors` (read-only) and `exercise` (mutates no ADT object of its own) |
 | `abap_activate` — single and batch | — |
@@ -117,14 +121,16 @@ performed by PUTting source it controls, so there is no before/after image to
 record and no undo path. The read modes dispatch against the reused fluid
 `fpm` body class and mutate nothing.
 
-Activation is recorded as history, never for undo. A batch activation writes
-one entry **per object**, not one entry for the call, because
-`abap_journal`'s `object=` filter matches an entry's own object and would
-otherwise answer "what happened to this object?" with silence for every
-member of the batch but one. Every activation entry carries
-`irreversible: true`: ADT has no deactivate operation, so undo refuses it
-(see [Undo semantics](undo-and-recovery.md#undo-semantics)), and the flag says so wherever entries are displayed
-rather than only where undo is attempted.
+A batch activation writes one entry **per object**, not one entry for the
+call, because `abap_journal`'s `object=` filter matches an entry's own
+object and would otherwise answer "what happened to this object?" with
+silence for every member of the batch but one. An activation entry has
+nothing of its own to replay — ADT has no deactivate operation — so
+`abap_journal mode=undo` on one instead undoes the latest earlier
+succeeded write entry (`create`/`update`/`delete`) for the same object in
+the same journal, restoring its before-image and re-activating; refused,
+with the reason, when no such entry exists or it was already undone (see
+[Undo semantics](undo-and-recovery.md#undo-semantics)).
 
 `abap_enh` journals 9 of its 11 operations — every one that creates or
 mutates a real `ENHO/XH`/`ENHO/XHH`/`ENHS/XS` object: `write_description`,
@@ -146,8 +152,9 @@ spot **and** the implementation together (`activateSpotAndImplementation` in
 carrying both object references — the "H23" step). That POST changes which
 code the system executes for two objects, so it gets an `update` entry for
 the implementation (carrying the usual inline `activation:` outcome) and a
-separate `operation: "activate"` entry naming the **spot** (`ENHS/XS`), both
-`irreversible: true`. Without the second entry, `abap_journal object=<spot>`
+separate `operation: "activate"` entry naming the **spot** (`ENHS/XS`) — like
+any activate entry, undoing it undoes the preceding write instead. Without
+the second entry, `abap_journal object=<spot>`
 answered "what happened to this spot?" with silence even though abapsmith
 had just re-activated it — the exact failure the batch-activation rule above
 exists to prevent.

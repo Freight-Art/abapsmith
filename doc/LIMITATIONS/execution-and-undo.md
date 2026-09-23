@@ -38,22 +38,40 @@
   writes through a generated classrun, so there is no before/after image
   abapsmith controls and its changes are real and not undoable here. The other
   FPM modes dispatch against the reused fluid `fpm` body class and only read.
-- **Journalled does not mean undoable.** BOPF writes were excluded from the
-  journal entirely until journalling was added for them — unlike FPM, the BOPF tools
-  mutate through ordinary ADT REST verbs, so there is a real before-image to
-  record. But those entries are written with `irreversible: true`, and undo
-  refuses every irreversible entry (`undoBlocker()`'s catch-all,
-  `src/adt/undo.ts:297`), as it does for activation entries. So BOPF changes are **recorded for history, and still not
-  undoable** — the record exists to tell you what happened, not to reverse it.
-  See `doc/JOURNAL/undo-and-recovery.md`'s table for the authoritative per-tool breakdown.
-  Changing a child element in place, with a `set_*_fields` operation, no
-  longer requires the remove-then-re-add dance to get there — which matters
-  precisely because a failed re-add of the removed element could not have
-  been undone either.
+- **Journalled does not mean undoable.** Every new journal entry carries
+  `undoable` (bool) and `undoBlocker` (reason, `""` when undoable), computed
+  when the entry is written; a stored `undoable: false` is always refused,
+  and a stored `true` never skips a live check (system, drift, existence,
+  dependency) — undo stays fail-closed either way. `abap_bopf_edit update`
+  entries (`beforeKind: "bopf-model"`) record the previous model XML and are
+  undoable — undo PUTs it back and re-activates, though BOPF's PUT re-mints
+  node GUIDs, so the restored model matches the before-image at model
+  level, not byte-for-byte. `create_bo` and `abap_bopf_delete` stay
+  `undoable: false`: both use non-atomic APIs, so their entries say so at
+  write time rather than letting a caller find out by trying.
+  `add_badi_def`, `add_filter_def`, `set_filter_values`,
+  `write_description`, and enhancement `delete` are likewise
+  `undoable: false` for good — a server-refused create can still leave an
+  undeletable phantom object, a server-reported-successful delete can leave
+  TADIR/E071 rows behind with no way to prove removal. `create_spot`,
+  `create_impl`, `create_hook` and `set_impl_active`, by contrast, are
+  undoable: the first three delete the object when the before-state was
+  confirmed-absent (guarded by a where-used check and an
+  active-implementation check), and `set_impl_active` sets the previous
+  active state back. See `doc/JOURNAL/undo-and-recovery.md`'s table for the
+  authoritative per-tool breakdown. Changing a child element in place, with
+  a `set_*_fields` operation, no longer requires the remove-then-re-add
+  dance to get there — which matters precisely because a failed re-add of
+  the removed element could not have been undone either.
 - **No server-side version integration.** The journal is not connected to the
   ABAP version database, and undo does not create a version.
 - **Not an audit log.** It records what this server did, for undo. It is not
   tamper-evident, and it does not see changes made by anyone else — it detects
   them at undo time and refuses, which is a different thing.
-- **`activate` cannot be undone.** ADT has no deactivate. The tool says so
-  rather than guessing at a compensating action.
+- **`activate` undo replays the preceding write, not a deactivate.** ADT
+  still has no deactivate operation. Undoing an `activate` entry instead
+  undoes the latest earlier succeeded write entry (`create`/`update`/
+  `delete`) for the same object in the same journal, which restores its
+  before-image and re-activates; both entries are then marked undone.
+  Refused, with the reason, when no such entry exists or it was already
+  undone — the tool says so rather than guessing at a compensating action.
