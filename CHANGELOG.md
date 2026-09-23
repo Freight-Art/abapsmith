@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.37] - 2026-09-23
+
 ### Added
 
 - Journal entries carry `undoable` (bool) and `undoBlocker` (reason) fields, computed at write time (#200).
