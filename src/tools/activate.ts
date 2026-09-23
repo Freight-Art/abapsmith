@@ -45,7 +45,7 @@
  * transport request is meaningless there.
  *
  * `package` argument (`mode=activate` only, not combinable with `object`/
- * `objects`/`type`/`source`/`affects`): activate every inactive object of a
+ * `objects`/`type`/`source`/`affects`/`corr_nr`): activate every inactive object of a
  * package — the CALLER's own inactive worklist, intersected with the
  * package (and, with `recursive`, its sub-packages) — in one request. See
  * `abapActivatePackage`.
@@ -170,7 +170,7 @@ export const activateInputSchema = {
       "With `object`: draft to check/activate for that object. mode=check without `object`: " +
         "the draft to check inline (needs `type`). Or text to format.",
     ),
-  corr_nr: z.string().optional().describe("Transport request. $TMP needs none. Not for text format."),
+  corr_nr: z.string().optional().describe("Transport request. $TMP needs none. Not for text format, `objects` or `package`."),
   // Same shape as abap_write's `affects` — REQUIRED to activate an EXISTING
   // ENHO/XH or ENHS/XS (safety.ts); ignored for every other type.
   affects: affectsSchema.optional().describe("Required to activate ENHO/XH or ENHS/XS."),
@@ -474,15 +474,16 @@ export async function abapActivate(
   // ---- package dispatch (issue #217) --------------------------------------
   // `objects` already ruled out above, so this can't be reached with both.
   if (input.package !== undefined) {
-    const stray = (["object", "objects", "type", "source", "affects"] as const).filter(
+    const stray = (["object", "objects", "type", "source", "affects", "corr_nr"] as const).filter(
       (k) => input[k] !== undefined,
     );
     if (stray.length) {
       throw new AbapError(
         "BAD_INPUT",
         "`package` activates every inactive object of that package and does not combine with " +
-          `top-level ${stray.map((k) => `\`${k}\``).join(", ")} — those name a single object or ` +
-          "a batch, which `package` does not use.",
+          `top-level ${stray.map((k) => `\`${k}\``).join(", ")} — those name a single object, ` +
+          "a batch or a transport, which `package` does not take (the transport comes from the " +
+          "objects' own locks, as in the `objects` batch form).",
         { stray },
         "Drop the field(s) named above, or activate a specific object/batch with `object`/" +
           "`objects` instead of `package`.",
@@ -1672,6 +1673,7 @@ export function registerActivateTools(mcp: McpServer, deps: ActivateToolDeps): v
           objects?: Array<{ object: string; type?: string; affects?: EnhancedObjectRef }>;
           package?: string;
           recursive?: boolean;
+          corr_nr?: string;
         };
         const mode = a.mode ?? "activate";
 
@@ -1688,7 +1690,7 @@ export function registerActivateTools(mcp: McpServer, deps: ActivateToolDeps): v
         }
 
         if (a.package !== undefined) {
-          const stray = (["object", "objects", "type", "source", "affects"] as const).filter(
+          const stray = (["object", "objects", "type", "source", "affects", "corr_nr"] as const).filter(
             (k) => a[k] !== undefined,
           );
           if (stray.length) {
@@ -1696,7 +1698,8 @@ export function registerActivateTools(mcp: McpServer, deps: ActivateToolDeps): v
               "BAD_INPUT",
               "`package` activates every inactive object of that package and does not combine " +
                 `with top-level ${stray.map((k) => `\`${k}\``).join(", ")} — those name a single ` +
-                "object or a batch, which `package` does not use.",
+                "object, a batch or a transport, which `package` does not take (the transport " +
+                "comes from the objects' own locks, as in the `objects` batch form).",
               { stray },
               "Drop the field(s) named above, or activate a specific object/batch with " +
                 "`object`/`objects` instead of `package`.",
