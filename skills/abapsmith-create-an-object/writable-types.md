@@ -92,10 +92,12 @@ Painter / Screen Painter territory.
 
 `PROG/PT` is real, but it names the program's GUI title (`SET TITLEBAR`,
 Menu Painter/SE41) — not the text pool — and it stays unwritable and
-unreadable, same as `PROG/PS`/`PROG/PC`. The text pool (text symbols and
-selection texts) is a different resource entirely and is not in this
-refusal list: it is written through `abap_write`'s `text_pool` parameter
-and read as a `TEXT POOL` section of a `PROG/P` whole-object read — see
+unreadable, same as `PROG/PS`/`PROG/PC`. The text pool (text symbols,
+selection texts, and — for `PROG/P`/`FUGR/F` — headings) is a different
+resource entirely and is not in this refusal list: it is written through
+`abap_write`'s `text_pool` parameter on `PROG/P`, `CLAS/OC` or `FUGR/F`,
+and read as a `TEXT POOL` section of a whole-object read of one of those
+three types — see
 ["Program text pool and Fixed Point Arithmetic"](#program-text-pool-and-fixed-point-arithmetic)
 below and `doc/TOOLS/write-and-activate.md`.
 
@@ -145,12 +147,15 @@ true|false` in the header; the line is omitted when the descriptor could
 not be read.
 
 `PROG/PT` is the GUI title, not the text pool — see above. The text pool
-(text symbols and selection texts) is written through `abap_write`'s
-`text_pool` parameter on type `PROG/P`, and read as a `TEXT POOL` section
-of a `PROG/P` whole-object read when the program has any. Full parameter
-shape, limits, the write flow and the response fields are in
-`doc/TOOLS/write-and-activate.md`; the read-side section is in
-`doc/TOOLS/read-and-search.md`.
+is written through `abap_write`'s `text_pool` parameter on `PROG/P`,
+`CLAS/OC` or `FUGR/F`, and read as a `TEXT POOL` section of a whole-object
+read of one of those three types when the object has any. `CLAS/OC` has
+text symbols only — `selection_texts` and `headings` apply to `PROG/P` and
+`FUGR/F` only. `headings` (the report's list header and up to four column
+heading lines, SE38 "List Headings") is available for `PROG/P` and
+`FUGR/F`. Full parameter shape, limits, the write flow and the response
+fields are in `doc/TOOLS/write-and-activate.md`; the read-side section is
+in `doc/TOOLS/read-and-search.md`.
 
 ```json
 {

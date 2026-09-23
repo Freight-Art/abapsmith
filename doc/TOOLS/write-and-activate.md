@@ -53,7 +53,7 @@ reaching SAP.
 | `objects` | array of `{object, type?, affects?}`, 1–10 entries | no | — | Batch form: delete several objects in one call, one at a time, in the order given. `mode=delete` only. Mutually exclusive with `object` — exactly one of the two, never both and never neither. `TRAN/T` entries are supported (#202): each one is resolved and gated exactly like a single `TRAN/T` delete (auto-resolved `corr_nr`, same as any other batch entry — see below), one `RPY_TRANSACTION_DELETE` bridge call per entry, and not journalled, same as a single `TRAN/T` delete. The other bridge-only types — `VIEW/DV`, `SHLP/DH`, `TABL/DI` — are still not deletable through this batch form; naming one is refused `BAD_INPUT` naming the entry, not a bare `UNSUPPORTED`. |
 | `dry_run` | boolean | no | — | Resolve, read, apply the edit locally and run the safety gate, but return a diff preview instead of writing. Works with `source`, `edit`, `method`, `ddic` and `mode=delete`. Refused with `BAD_INPUT` for `objects`, for `DEVC/K`, and — for every mode, not just create — for the four bridge-only types (`SHLP/DH`, `VIEW/DV`, `TRAN/T`, `TABL/DI`): the dispatch check runs before any create/update/delete branching, so a dry-run `mode="delete"` or `mode="update"` on one of these is refused the same as a create. |
 | `fixed_point_arithmetic` | boolean | no | `true` | `PROG/P` create only — sends `abapsource:fixPointArithmetic="true"` in the ADT create payload; `false` omits the attribute. Named against any other type: `BAD_INPUT`, before any request. |
-| `text_pool` | object `{symbols?, selection_texts?}` | no | — | `PROG/P` only — writes the program's text pool (text symbols and selection texts) through the `PROG/PX` textelements resource. `symbols`: map of 1–3 alphanumeric key (uppercased) to text up to 132 chars. `selection_texts`: map of up to 8-char name (parameter/select-option name, uppercased) to text up to 30 chars. With `source`, written after the source write and activation; without `source`, allowed only on an existing program (`BAD_INPUT` on a non-existing one). Named against any other type: `BAD_INPUT`, before any request. See "Program text pool (`text_pool`)" below. |
+| `text_pool` | object `{symbols?, selection_texts?, headings?}` | no | — | `PROG/P`, `CLAS/OC` or `FUGR/F` only — writes the object's text pool through its own textelements resource (`PROG/PX`/`CLAS/OCX`/`FUGR/PX`). `PROG/P` and `FUGR/F` take `symbols`, `selection_texts` and `headings`; `CLAS/OC` has text symbols only — naming `selection_texts` or `headings` for a `CLAS/OC` is refused `BAD_INPUT` before any request. `symbols`: map of 1–3 alphanumeric key (uppercased) to text up to 132 chars. `selection_texts`: map of up to 8-char name (parameter/select-option name, uppercased) to text up to 30 chars. `headings`: `{list_header?: string (max 70 chars), column_headers?: string[] (max 4 entries, each max 132 chars)}` — the report's list header and up to four column heading lines (SE38 "List Headings"). Each group given (`symbols`, `selection_texts`, `headings`) REPLACES that whole group — an omitted field or a missing entry is written empty. With `source`, written after the source write and activation; without `source`, allowed only on an existing object (`BAD_INPUT` "text_pool without source needs an existing object" on a non-existing one). Named against any other type: `BAD_INPUT` before any request, naming the supported types (e.g. "`text_pool` applies to PROG/P, CLAS/OC and FUGR/F only, not INTF/OI."). See "Text pool (`text_pool`)" below. |
 
 **`TRAN/T` create kinds (`kind`)**: one example per kind. `type` is always
 `TRAN/T`; `package`, `description` and `corr_nr` work the same as any other
@@ -534,25 +534,62 @@ generating and running an ABAP program, leaving nothing to preview short of
 doing it; and `DEVC/K` (package create), where a transportable package create must claim
 or create its transport request before anything else can be decided.
 
-**Program text pool (`text_pool`)**: `PROG/PT` is the program's GUI title
-(`SET TITLEBAR`, Menu Painter/SE41), not the text pool, and stays
-unwritable. The text pool — text symbols and selection texts — is a
-separate ADT resource, `/sap/bc/adt/textelements/programs/{name}`, type
-`PROG/PX`, and is written through `text_pool` on a `PROG/P` write. Given
-alongside `source`, the text pool write runs after the source write and
-its activation; given alone, it targets an existing program's already-live
-source and is refused `BAD_INPUT` if the program does not exist yet.
-Naming `text_pool` against any type other than `PROG/P` is refused
-`BAD_INPUT` before any request, same as `fixed_point_arithmetic`. Texts
-are written in the session's logon language, and the textelements
-resource is then activated, unless `activate: false` is passed — the same
-flag that controls source activation. Text-pool writes ARE journalled — as
-an irreversible `update` entry on the `PROG/PX` textelements resource
-(history only, visible in `abap_journal mode=list`) — but `abap_journal
-mode=undo` refuses it: rewrite the texts with another `text_pool` call to
-revert. A successful write reports `text_pool: symbols N,
-selection_texts M (<language>)` and `text_pool_activated: yes|no` in the
-response.
+**Text pool (`text_pool`)**: `PROG/PT` is the program's GUI title (`SET
+TITLEBAR`, Menu Painter/SE41), not the text pool, and stays unwritable. The
+text pool is a separate ADT resource per type:
+`/sap/bc/adt/textelements/programs/{name}` (type `PROG/PX`) for `PROG/P`,
+`/sap/bc/adt/textelements/classes/{name}` (type `CLAS/OCX`) for `CLAS/OC`,
+and `/sap/bc/adt/textelements/functiongroups/{name}` (type `FUGR/PX`) for
+`FUGR/F` — all three advertised by the discovery document with the same
+media types. `text_pool` on a write of one of these three types writes
+whichever resource applies.
+
+A `PROG/P` or `FUGR/F` text pool takes `symbols`, `selection_texts` and
+`headings`. A `CLAS/OC` text pool has text symbols only — naming
+`selection_texts` or `headings` for a `CLAS/OC` is refused `BAD_INPUT`
+before any request ("applies to PROG/P and FUGR/F only"). `symbols`: map
+of 1–3 alphanumeric key (uppercased) to text up to 132 chars.
+`selection_texts`: map of up to 8-char name (parameter/select-option name,
+uppercased) to text up to 30 chars. `headings`: `{list_header?: string
+(max 70 chars), column_headers?: string[] (max 4 entries, each max 132
+chars)}` — the report's list header and up to four column heading lines
+(SE38 "List Headings"). Each group given — `symbols`, `selection_texts` or
+`headings` — REPLACES that whole group: an omitted `list_header` or a
+missing `column_headers` entry is written empty (cleared), the same
+replace-the-whole-group rule `symbols`/`selection_texts` already had.
+
+Given alongside `source`, the text pool write runs after the source write
+and its activation; given alone, it targets an existing object's
+already-live source and is refused `BAD_INPUT` ("text_pool without source
+needs an existing object") if the object does not exist yet. Naming
+`text_pool` against any type other than `PROG/P`, `CLAS/OC` or `FUGR/F` is
+refused `BAD_INPUT` before any request, naming the supported types (e.g.
+"`text_pool` applies to PROG/P, CLAS/OC and FUGR/F only, not INTF/OI."),
+same as `fixed_point_arithmetic`.
+
+**Language.** The textelements resource has no language selector of its
+own. Probed on A4H: a `sap-language`/`language` query parameter, an
+`Accept-Language`/`sap-language` header, and logging on with
+`ABAP_LANGUAGE=EN` vs `DE` all returned the same master-language texts (a
+German-master SAP report came back German under an EN logon). Texts are
+read and written in the object's own master language; there is no
+per-call `language` parameter on `text_pool`, and translations stay an
+SE63 task.
+
+The textelements resource is then activated with its own type
+(`PROG/PX`/`CLAS/OCX`/`FUGR/PX`), unless `activate: false` is passed — the
+same flag that controls source activation. Text-pool writes ARE
+journalled — as an irreversible `update` entry on the object's own
+textelements resource (history only, visible in `abap_journal mode=list`)
+— but `abap_journal mode=undo` refuses it: rewrite the texts with another
+`text_pool` call to revert.
+
+A successful write reports `text_pool_activated: yes|no` and a
+`text_pool:` header line: for `PROG/P` and `FUGR/F`, `symbols N,
+selection_texts M (<language>)`, with `, headings K` appended when
+`headings` was given (`K` counts the non-empty heading lines actually
+written); for `CLAS/OC`, `symbols N (<language>)`. `<language>` is the
+object's master language, read off the textelements descriptor.
 
 ```json
 {
@@ -561,6 +598,33 @@ response.
   "text_pool": {
     "symbols": { "001": "Hello" },
     "selection_texts": { "P_X": "Parameter X" }
+  }
+}
+```
+
+`CLAS/OC`, text symbols only:
+
+```json
+{
+  "object": "ZCL_DEMO_ORDER",
+  "type": "CLAS/OC",
+  "text_pool": {
+    "symbols": { "001": "Order handler" }
+  }
+}
+```
+
+`PROG/P`, list header and column headings:
+
+```json
+{
+  "object": "ZDEMO_REPORT",
+  "type": "PROG/P",
+  "text_pool": {
+    "headings": {
+      "list_header": "Issue 199 headings",
+      "column_headers": ["Col A", "Col B"]
+    }
   }
 }
 ```

@@ -55,14 +55,19 @@ nothing at all, which happens for generated function modules (e.g.
 
 A whole-object source read of a `PROG/P` reports `fixed_point_arithmetic:
 true|false` in the header, read off the program's own descriptor — the
-line is omitted when that descriptor could not be read. When the program
-has any text symbols or selection texts, the same read also appends a
-`TEXT POOL` section listing them, read from the `PROG/PX` textelements
-resource — see `doc/TOOLS/write-and-activate.md` for how `abap_write`'s
-`text_pool` parameter writes them. A program with no text symbols and no
-selection texts gets no such section. List headings (`SELECTION-SCREEN
-BEGIN OF SCREEN`/`TAB` frame titles) are not part of the text pool and are
-not shown here.
+line is omitted when that descriptor could not be read. When the object
+has any text symbols, selection texts or headings, a whole-object source
+read (first page, not an outline, not a method or include read) of a
+`PROG/P`, `CLAS/OC` or `FUGR/F` also appends a `TEXT POOL` section listing
+them, read from the object's own textelements resource
+(`PROG/PX`/`CLAS/OCX`/`FUGR/PX`) — see `doc/TOOLS/write-and-activate.md`
+for how `abap_write`'s `text_pool` parameter writes them. The section
+gains a `headings:` group with `list_header` and `column_header_1`..
+`column_header_4` lines (only the non-empty ones). An object with none of
+these gets no such section. A large `CLAS/OC` that defaults to an outline
+read shows no `TEXT POOL` section — read it with `full=true` or a paged
+read to see one. List headings ARE part of this section; `SELECTION-SCREEN`
+frame titles and GUI titles are not.
 
 ### Large sources: outline by default, `pattern`, and `full`
 
