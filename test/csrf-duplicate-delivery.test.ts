@@ -551,7 +551,7 @@ describe("the logon bound is structural, not a promise in a comment", () => {
    * from the `onRequest` hook, i.e. before the request is dispatched, so the
    * refused attempt is never spent against `login/fails_to_user_lock`.
    */
-  it("bounds unbudgeted logon-endpoint requests for the connection's lifetime (D5b)", async () => {
+  it("bounds unbudgeted logon-endpoint requests within a sliding window (D5b)", async () => {
     const adt = new RecordingAdt(
       (d) => baseRoute(d) ?? reportRoute(d),
       () => false,
@@ -581,10 +581,11 @@ describe("the logon bound is structural, not a promise in a comment", () => {
     // try/catch. Same object, same counter, one layer down.
     const guard = (conn.adt.httpClient as unknown as { httpclient: HttpClient }).httpclient;
     const err = await rejectsWithAbapError(guard.request({ url: LOGON_URL, method: "GET" }));
-    expect(err.code).toBe("ADT_ERROR");
+    expect(err.code).toBe("LOGON_CEILING");
     expect(err.details.reason).toBe("logon-ceiling-exceeded");
     expect(err.details.limit).toBe(5);
     expect(err.details.attempted).toBe(6);
+    expect(typeof err.details.retryAfterSeconds).toBe("number");
 
     // Refused LOCALLY: nothing new reached the transport, and — because the
     // refusal happened before dispatch — nothing was charged for it either.
@@ -681,7 +682,7 @@ describe("D5c — a ceiling-exceeded connect() is a LOCAL refusal, never AUTH_FA
     return { conn, adt };
   }
 
-  it("reports ADT_ERROR / logon-ceiling-exceeded and NOT AUTH_FAILED", async () => {
+  it("reports LOGON_CEILING / logon-ceiling-exceeded and NOT AUTH_FAILED", async () => {
     const { conn, adt } = await atTheCeiling();
 
     // `connect()` early-returns on `this.connected`, so the reconnect has to be
@@ -701,10 +702,11 @@ describe("D5c — a ceiling-exceeded connect() is a LOCAL refusal, never AUTH_FA
 
     // ↓↓ THE ASSERTION THIS TEST EXISTS FOR ↓↓
     expect(err.code).not.toBe("AUTH_FAILED");
-    expect(err.code).toBe("ADT_ERROR");
+    expect(err.code).toBe("LOGON_CEILING");
     expect(err.details.reason).toBe("logon-ceiling-exceeded");
     expect(err.details.limit).toBe(5);
     expect(err.details.attempted).toBe(6); // the ordinal of the refused attempt
+    expect(typeof err.details.retryAfterSeconds).toBe("number");
 
     // The prose has to be actionable too, because that is what an operator
     // reads: it must say nothing was sent, and it must not read as a 401.
@@ -723,45 +725,45 @@ describe("D5c — a ceiling-exceeded connect() is a LOCAL refusal, never AUTH_FA
   });
 
   /**
-   * Why the fix keys on our OWN counter rather than on the error's shape, and
-   * the measurement that forces it: `AdtHTTP` funnels every foreign throw
-   * through `fromException`, which rewrites anything that is not already an
-   * `AdtException` into a generic `AdtErrorException(500, "Unknown error")`
-   * (AdtException.js:167-174). The structured `AbapError` the guard raised
-   * therefore **cannot** survive `client.login()` as itself — its `code`,
-   * `details` and `hint` are all gone by the time `connectUnderLock()`'s catch
-   * sees it; only a stringified `.message` is smuggled through.
+   * Formerly "the library destroys the structured error": `AdtHTTP` funnels
+   * every foreign throw through `fromException`, which used to rewrite
+   * anything that is not already an `AdtException` into a generic
+   * `AdtErrorException(500, "Unknown error")` (AdtException.js:167-174) —
+   * destroying the guard's `AbapError` before `connectUnderLock()`'s catch
+   * ever saw it, so that catch had to key on `logonCeilingRefusal` (our own
+   * local state), not on the caught error's shape.
    *
-   * This is the observation, pinned. If a library upgrade ever starts passing
-   * the `AbapError` through intact, this test says so — and the `instanceof`
-   * half of the guard in `connectUnderLock()` becomes the live one.
+   * `AbapError` (src/adt/errors.ts) now carries a `typeID` getter returning
+   * `Symbol.for("ADT EXCEPTION")` — the same global symbol `isAdtError`
+   * checks for (AdtException.js:98-99). `fromException` returns an error
+   * unchanged whenever `isAdtException` is already true
+   * (AdtException.js:169-172: `if (isAdtException(errOrResp)) return
+   * errOrResp;`), so the refusal now survives `client.login()` as itself,
+   * intact. `connectUnderLock()`'s own catch still does not rely on this —
+   * see its comment — but this test now pins the opposite fact from what it
+   * used to: the structured error DOES survive.
    */
-  it("because the library destroys the structured error: only the counter survives", async () => {
+  it("the structured error now survives the library's login() unchanged", async () => {
     const { conn } = await atTheCeiling();
 
     let raw: unknown;
     try {
-      await conn.adt.login(); // the 6th — refused in the guard, rewritten above it
+      await conn.adt.login(); // the 6th — refused in the guard, no longer rewritten above it
     } catch (e) {
       raw = e;
     }
 
-    expect(raw).toBeInstanceOf(Error);
-    // NOT our error any more. This is the whole reason `details.reason` cannot
-    // be the discriminator inside the catch.
-    expect(raw).not.toBeInstanceOf(AbapError);
-    const rewritten = raw as Record<string, unknown>;
-    expect(rewritten.constructor?.name).toBe("AdtErrorException");
-    expect(rewritten.details).toBeUndefined();
-    expect(rewritten.code).toBeUndefined();
-    expect(rewritten.err).toBe(500); // the generic rewrite, not our refusal
-    expect(rewritten.type).toBe("Unknown error");
-    // The refusal is still in there — but only as prose, in `.message`.
-    expect(String((raw as Error).message)).toMatch(/Refused logon-endpoint request #6/);
+    expect(raw).toBeInstanceOf(AbapError);
+    const err = raw as AbapError;
+    expect(err.code).toBe("LOGON_CEILING");
+    expect(err.details.reason).toBe("logon-ceiling-exceeded");
+    expect(err.details.limit).toBe(5);
+    expect(err.details.attempted).toBe(6);
+    expect(typeof err.details.retryAfterSeconds).toBe("number");
+    expect(err.message).toMatch(/Refused logon-endpoint request #6/);
 
-    // The counter is local state the library cannot rewrite — but it deliberately
-    // does NOT move for a refusal, which is why the catch keys on the latched
-    // `logonCeilingRefused` flag rather than on this number.
+    // The counter is local state, unaffected either way — a refusal
+    // deliberately does NOT move it.
     expect(conn.logonEndpointRequests).toBe(5);
     conn.dispose();
   });

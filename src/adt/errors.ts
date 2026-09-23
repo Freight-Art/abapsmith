@@ -89,6 +89,8 @@ export type AbapErrorCode =
   | "CHECK_FAILED"
   /** The ABAP session died (short dump, `400 Session Timed Out`). NOT an auth failure. */
   | "SESSION_DEAD"
+  /** The local logon-rate refusal (`LOGON_CEILING_PER_WINDOW`/`LOGON_CEILING_WINDOW_MS`): retry after `details.retryAfterSeconds`. */
+  | "LOGON_CEILING"
   /** The executed ABAP code short-dumped. */
   | "RUNTIME_DUMP"
   /**
@@ -468,6 +470,7 @@ export const RETRYABILITY: Record<AbapErrorCode, Retryability> = {
   LOCKED: "conditional",
   CHECK_FAILED: "conditional",
   SESSION_DEAD: "conditional",
+  LOGON_CEILING: "conditional",
   RUNTIME_DUMP: "conditional",
   TIMEOUT: "conditional",
   JOURNAL_IO: "conditional",
@@ -549,6 +552,16 @@ export class AbapError extends Error {
     this.details = details;
     this.hint = hint;
     this.retryable = options?.retryable ?? defaultRetryable(code);
+  }
+
+  /**
+   * Same `Symbol.for` value as the vendor's `AdtException` classes, so
+   * `fromException` (run by `AdtHTTP._request` on every throw) returns an
+   * `AbapError` unchanged instead of rewriting it into a code-less
+   * `AdtErrorException` (e.g. a refusal thrown from the request hook).
+   */
+  get typeID(): symbol {
+    return Symbol.for("ADT EXCEPTION");
   }
 
   toJSON(): Record<string, unknown> {

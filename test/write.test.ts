@@ -3063,7 +3063,8 @@ describe("abap_write: rolling back an orphaned CREATE when the fill-in PUT is re
     // Before this fix the sequence stopped at UNLOCK with no DELETE at all —
     // this is the orphan. create → lock → PUT (rejected) → unlock → re-lock →
     // DELETE, the same shape the two pre-existing refusal paths pin above.
-    expect(adt.verbs).toEqual(["GET", "POST", "LOCK", "PUT", "UNLOCK", "LOCK", "DELETE"]);
+    expect(adt.verbs).toEqual(["GET", "POST", "LOCK", "PUT", "UNLOCK", "LOCK", "DELETE", "GET"]); // rollback ends the stateful session (#203)
+    expect(adt.calls.at(-1)?.url).toContain("/compatibility/graph");
   });
 
   it("deletes the empty object it just created (source shape, PROG/P, CHECK_FAILED)", async () => {
@@ -3090,7 +3091,8 @@ describe("abap_write: rolling back an orphaned CREATE when the fill-in PUT is re
     // see the "translates the mislabelled DDIC rejection" test above, which
     // established that CHECK_FAILED classification does not need a stubbed
     // response for it).
-    expect(adt.verbs).toEqual(["GET", "POST", "LOCK", "PUT", "POST", "UNLOCK", "LOCK", "DELETE"]);
+    expect(adt.verbs).toEqual(["GET", "POST", "LOCK", "PUT", "POST", "UNLOCK", "LOCK", "DELETE", "GET"]); // rollback ends the stateful session (#203)
+    expect(adt.calls.at(-1)?.url).toContain("/compatibility/graph");
   });
 
   it("does NOT delete when the create already sent the FULL payload (TTYP/DA, create.vendor = false)", async () => {
@@ -3165,7 +3167,8 @@ describe("abap_write: rolling back an orphaned CREATE when the fill-in PUT is re
     // session.forgetLock drops the fresh lock from the ledger before
     // withStatefulSession's finally runs, unlike the DOMA/DD FAILED-rollback
     // case just below where the failed DELETE leaves it there to be unlocked.
-    expect(adt.verbs).toEqual(["GET", "POST", "LOCK", "PUT", "POST", "UNLOCK", "LOCK", "DELETE"]);
+    expect(adt.verbs).toEqual(["GET", "POST", "LOCK", "PUT", "POST", "UNLOCK", "LOCK", "DELETE", "GET"]); // rollback ends the stateful session (#203)
+    expect(adt.calls.at(-1)?.url).toContain("/compatibility/graph");
   });
 
   it("attempts and reports a FAILED rollback, without losing the original rejection", async () => {

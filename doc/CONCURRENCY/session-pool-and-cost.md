@@ -105,6 +105,40 @@ slot preparation (`timing prepare …`), and per acquisition (`timing acquire �
 warm=…`), plus `connected=`/`prepared=` on the primary re-seat line so the two
 tiers above can be told apart. It is off otherwise and changes no behaviour.
 
+## Logons, the logon ceiling and concurrent calls
+
+Each pool session costs one logon: minting or reviving a slot pays
+`client.login()` once (see "What a session costs to establish" above). Inside
+one logical request the `RequestBudget` (`src/adt/connection.ts`) allows at
+most one logon and one resend; concurrent calls that arrive on one connection
+without a session share a single in-flight logon instead of each paying for
+their own.
+
+Outside a budgeted request (`connect()`'s own login and direct `conn.adt.*`
+calls) a connection may reach the logon endpoint
+(`/sap/bc/adt/compatibility/graph`) at most `LOGON_CEILING_PER_WINDOW` (5)
+times per sliding `LOGON_CEILING_WINDOW_MS` (10 minutes); both constants live
+in `src/adt/connection.ts`. The 6th attempt inside the window is refused
+locally, no bytes sent, with the classified error `LOGON_CEILING`;
+`details.retryAfterSeconds` says when the oldest logon in the window ages out.
+`dropSession()` is not charged (it presents no credential). The pool does not
+wait on the refused connection: it retires that slot and seats a fresh one,
+with its own empty window, on the next call. This replaced a lifetime count
+that left a connection permanently dead after its fifth revival (#204).
+
+A stateless request answered `400` with `x-sap-icm-err-id: ICMENOSESSION`
+(the session is gone; issue #203 shows one way that happens after a rolled-back
+create) is recovered by exactly one re-logon and one resend inside the same
+request. A second consecutive `ICMENOSESSION` on the resend is reported as
+`SESSION_DEAD`, and one inside a stateful session (locks held) is never
+recovered.
+
+None of this gets faster by calling the server concurrently. Concurrent tool
+calls queue for the pool's fixed slots, writes to the same object are
+serialized regardless of slot availability, and every session beyond the warm
+ones costs its own logon. Fanning calls out in parallel is the usual way a
+caller reaches `LOGON_CEILING`; issue calls to one server in sequence.
+
 ## Measured numbers
 
 Captured live against a single-instance ABAP developer sandbox with

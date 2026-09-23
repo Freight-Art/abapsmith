@@ -2586,6 +2586,21 @@ async function reportCreatePutRejection(
           // the same `corrNr` the create and the rejected PUT did.
           return rollbackCreate(conn, session, t, preflight);
         })();
+  // Issue #203: the compensating DELETE just removed the object the create
+  // POST made, but the stateful session it ran in still holds a
+  // now-meaningless `sap-contextid`. The vendor client only stores cookies
+  // from successful responses, so if that stale id survives into the next
+  // stateless call, the server answers ICMENOSESSION and the connection is
+  // wrongly marked dead. Ending the session explicitly here — after the
+  // rollback, not before — clears it before that can happen.
+  let rollbackSessionDropError: string | undefined;
+  if (rollback.rolledBack === true) {
+    try {
+      await conn.dropSession();
+    } catch (dropErr) {
+      rollbackSessionDropError = describeUnknownError(dropErr);
+    }
+  }
   const suffix = rollbackSuffix(t, true, rollback);
   return new AbapError(
     err.code,
@@ -2597,6 +2612,7 @@ async function reportCreatePutRejection(
       ...(rollback.attempted === false ? { rollbackAttempted: false } : {}),
       ...(rollback.skipReason ? { rollbackSkipReason: rollback.skipReason } : {}),
       ...(rollback.rollbackError ? { rollbackError: rollback.rollbackError } : {}),
+      ...(rollbackSessionDropError ? { rollbackSessionDropError } : {}),
     },
     correctChangedClaim(err.hint, true),
   );
