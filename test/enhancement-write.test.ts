@@ -39,7 +39,9 @@ import {
   writeAndActivateEnhancementDescription,
   deleteEnhancementObject,
   setBadiImplementationActive,
+  isEnhancementWriteType,
 } from "../src/adt/enhancement-write.js";
+import { canonicalEtag } from "../src/adt/write.js";
 import {
   patchBadiImplementationActive,
   patchEnhancementRootAttribute,
@@ -247,6 +249,14 @@ const ENHOXH_DESCRIPTION = "ZMCP recon BAdI implementation";
 const ENHOXH_XML_WITH_DESC = patchEnhancementRootAttribute(ENHOXH_XML, "description", ENHOXH_DESCRIPTION);
 const ENHOXH_SYNTHETIC_WITH_DESC = patchEnhancementRootAttribute(ENHOXH_SYNTHETIC_XML, "description", ENHOXH_DESCRIPTION);
 const ENHOXH_TWO_IMPLS_WITH_DESC = patchEnhancementRootAttribute(ENHOXH_TWO_IMPLS_XML, "description", ENHOXH_DESCRIPTION);
+
+/**
+ * Same real capture, one entry's `enho:isActive` flipped from "true" to
+ * "false" — the ONLY document among this file's ENHO/XH fixtures where H8
+ * (`deleteEnhancementObject`'s active-implementation refusal) does NOT fire,
+ * needed to reach any of the delete choreography below for this type.
+ */
+const ENHOXH_XML_INACTIVE = ENHOXH_XML.replace('enho:isActive="true"', 'enho:isActive="false"');
 
 /**
  * ENHS/XS document, verbatim from test/fixtures/enhancement/343-enhsxs-no-filters.xml
@@ -570,6 +580,36 @@ describe("writeEnhancementDescription — post-lock ETAG_CONFLICT", () => {
       `UNLOCK ${ENHOXHH_URI}`,
     ]);
   });
+
+  it("same mismatch, but the best-effort UNLOCK also fails: the ETAG_CONFLICT is still the error reported", async () => {
+    const CHANGED_XML = ENHOXHH_XML.replace(
+      'adtcore:description="ZMCP recon hook impl"',
+      'adtcore:description="someone else changed this"',
+    );
+    let sourceReads = 0;
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXHH_URI && r.method === "GET") {
+        sourceReads += 1;
+        return resp(200, sourceReads === 1 ? ENHOXHH_XML : CHANGED_XML, OK_XML);
+      }
+      if (r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML, OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(500, "<exc/>", OK_XML);
+      return undefined;
+    });
+
+    const e = await catchErr(
+      writeEnhancementDescription(
+        conn,
+        gate(),
+        { type: "ENHO/XHH", name: "ZMCP_ENH_B", description: "my own new description" },
+        { affects: AFFECTS_HOOK },
+      ),
+    );
+
+    expect(e.code).toBe("ETAG_CONFLICT");
+    expect(adt.verbs).not.toContain("PUT");
+    expect(adt.verbs.filter((v) => v === "UNLOCK").length).toBeGreaterThan(0);
+  });
 });
 
 describe("writeEnhancementDescription — expectEtag pre-lock mismatch", () => {
@@ -645,6 +685,28 @@ describe("writeEnhancementDescription — corrNr qs shape", () => {
       `GET ${ENHOXHH_URI}`,
       `UNLOCK ${ENHOXHH_URI}`,
     ]);
+  });
+
+  it("same refusal, but the best-effort UNLOCK also fails: TRANSPORT_ERROR is still the error reported", async () => {
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXHH_URI && r.method === "GET") return resp(200, ENHOXHH_XML, OK_XML);
+      if (r.qs._action === "LOCK") return resp(200, LOCK_TRANSPORT_XML(), OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(500, "<exc/>", OK_XML);
+      return undefined;
+    });
+
+    const e = await catchErr(
+      writeEnhancementDescription(
+        conn,
+        gate(),
+        { type: "ENHO/XHH", name: "ZMCP_ENH_B", description: "wants a transport" },
+        { affects: AFFECTS_HOOK },
+      ),
+    );
+
+    expect(e.code).toBe("TRANSPORT_ERROR");
+    expect(adt.verbs).not.toContain("PUT");
+    expect(adt.verbs.filter((v) => v === "UNLOCK").length).toBeGreaterThan(0);
   });
 
   it("both transport-flavoured: preflight resolves a real corrNr, the PUT qs carries exactly {lockHandle, corrNr}", async () => {
@@ -783,6 +845,61 @@ describe("writeEnhancementDescription — corrNr qs shape", () => {
       `GET ${ENHOXHH_URI}`,
       `UNLOCK ${ENHOXHH_URI}`,
     ]);
+  });
+
+  it("same divergence, but the best-effort UNLOCK also fails: TRANSPORT_ERROR is still the error reported", async () => {
+    const NAMED_CORRNR = "A4HK900160";
+    const LOCK_CORRNR = "A4HK900199";
+
+    const trRequirement = vi.fn(
+      async (): Promise<TrRequirement> => ({
+        kind: "transport-required",
+        mustSupplyCorrNr: true,
+        serverWouldFabricate: false,
+        uri: ENHOXHH_URI,
+        operation: "U",
+        devclass: "$TMP",
+        candidates: [],
+        locks: [],
+        messages: [],
+        checkFailed: false,
+        raw: { result: "E", korrflag: "X", recording: "" },
+      }),
+    );
+    const trShow = vi.fn(
+      async (): Promise<TrRequest> => ({
+        trkorr: NAMED_CORRNR,
+        kind: "workbench",
+        kindRaw: "K",
+        status: "modifiable",
+        statusRaw: "D",
+        owner: "DEVELOPER",
+        description: "ZMCP BAdI live recon",
+        tasks: [],
+        objects: [],
+      }),
+    );
+    const transport = new SessionTransport({ allowTransports: ["*"], cts: { trRequirement, trShow } });
+
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXHH_URI && r.method === "GET") return resp(200, ENHOXHH_XML, OK_XML);
+      if (r.qs._action === "LOCK") return resp(200, LOCK_TRANSPORT_XML(LOCK_CORRNR), OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(500, "<exc/>", OK_XML);
+      return undefined;
+    });
+
+    const e = await catchErr(
+      writeEnhancementDescription(
+        conn,
+        gate(),
+        { type: "ENHO/XHH", name: "ZMCP_ENH_B", description: "divergent transport" },
+        { affects: AFFECTS_HOOK, transport, gate: gate(), corrNr: NAMED_CORRNR },
+      ),
+    );
+
+    expect(e.code).toBe("TRANSPORT_ERROR");
+    expect(adt.verbs).not.toContain("PUT");
+    expect(adt.verbs.filter((v) => v === "UNLOCK").length).toBeGreaterThan(0);
   });
 });
 
@@ -1010,6 +1127,543 @@ describe("deleteEnhancementObject — H8 fires with the config gate open (flag/u
 
     expect(err.code).toBe("ENHANCEMENT_ACTIVE_IMPLEMENTATION");
     expect(onBeforeImage).not.toHaveBeenCalled();
+  });
+});
+
+// ===========================================================================
+// deleteEnhancementObject — everything PAST the config gate and the H8
+// check, i.e. the actual LOCK -> reread -> DELETE -> forgetLock choreography.
+// Every test above this point that exercises `deleteEnhancementObject` stops
+// at a pre-network refusal; nothing above ever reaches `conn.del`.
+// ===========================================================================
+
+describe("deleteEnhancementObject — UNSUPPORTED type refusal, before any network call", () => {
+  it("an unrecognised type refuses immediately; conn and gate are never touched", async () => {
+    const err = await catchErr(
+      deleteEnhancementObject(
+        null as unknown as AbapConnection,
+        null as unknown as SafetyGate,
+        { type: "ENHO/BOGUS" as unknown as "ENHO/XH", name: "ZMCP_ENH_BADI" },
+        { affects: AFFECTS_SPOT, allowEnhancementDelete: true },
+      ),
+    );
+    expect(err.code).toBe("UNSUPPORTED");
+    expect(err.message).toContain("ENHO/BOGUS");
+  });
+});
+
+describe("deleteEnhancementObject — happy path (ENHO/XHH, H8 does not apply to this type)", () => {
+  it("GET -> LOCK -> GET(reread) -> DELETE, no UNLOCK sent, forgetLock releases the ledger entry", async () => {
+    let sourceReads = 0;
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXHH_URI && r.method === "GET") {
+        sourceReads += 1;
+        return resp(200, ENHOXHH_XML, OK_XML);
+      }
+      if (r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML, OK_XML);
+      if (r.url === ENHOXHH_URI && r.method === "DELETE") return resp(200, "", OK_XML);
+      // Deliberately no UNLOCK route: success must never send one (session.forgetLock
+      // instead — "deleting a class takes its includes with it").
+      return undefined;
+    });
+
+    const onBeforeImage = vi.fn(async () => {});
+    const res = await deleteEnhancementObject(
+      conn,
+      gate(),
+      { type: "ENHO/XHH", name: "ZMCP_ENH_B" },
+      { affects: AFFECTS_HOOK, allowEnhancementDelete: true, onBeforeImage },
+    );
+
+    expect(res.deleted).toBe(true);
+    expect(res.previousXml).toBe(ENHOXHH_XML);
+    expect(sourceReads).toBe(2); // pre-lock GET + post-lock reread, never more
+    expect(adt.labels).toEqual([
+      `GET ${ENHOXHH_URI}`,
+      `LOCK ${ENHOXHH_URI}`,
+      `GET ${ENHOXHH_URI}`,
+      `DELETE ${ENHOXHH_URI}`,
+    ]);
+    expect(adt.verbs).not.toContain("UNLOCK");
+
+    const del = adt.calls.find((c) => c.method === "DELETE")!;
+    expect(del.qs).toEqual({ lockHandle: "84895B18717205C738BE52DAB00DC12609C1821F" });
+    expect(res.transport).toMatchObject({ status: "local", required: false });
+
+    expect(onBeforeImage).toHaveBeenCalledTimes(1);
+    expect(onBeforeImage).toHaveBeenCalledWith({
+      xml: ENHOXHH_XML,
+      target: res.target,
+      affects: AFFECTS_HOOK,
+      corrNr: undefined,
+    });
+  });
+});
+
+describe("deleteEnhancementObject — H8 does not fire when every implementation is confirmably inactive", () => {
+  it("ENHO/XH with isActive=false on its one entry: the delete proceeds, not refused", async () => {
+    let sourceReads = 0;
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXH_URI && r.method === "GET") {
+        sourceReads += 1;
+        return resp(200, ENHOXH_XML_INACTIVE, OK_XML);
+      }
+      if (r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML, OK_XML);
+      if (r.url === ENHOXH_URI && r.method === "DELETE") return resp(200, "", OK_XML);
+      return undefined;
+    });
+
+    const res = await deleteEnhancementObject(
+      conn,
+      gate(),
+      { type: "ENHO/XH", name: "ZMCP_ENH_BADI" },
+      { affects: AFFECTS_SPOT, allowEnhancementDelete: true },
+    );
+
+    expect(res.deleted).toBe(true);
+    expect(sourceReads).toBe(2);
+    expect(adt.verbs).toEqual(["GET", "LOCK", "GET", "DELETE"]);
+  });
+});
+
+describe("deleteEnhancementObject — expectEtag pre-lock mismatch", () => {
+  it("a caller-supplied expectEtag that disagrees with the pre-lock read refuses before any LOCK", async () => {
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXHH_URI && r.method === "GET") return resp(200, ENHOXHH_XML, OK_XML);
+      // No LOCK/DELETE routed: the cheap pre-lock check must catch this first.
+      return undefined;
+    });
+
+    const e = await catchErr(
+      deleteEnhancementObject(
+        conn,
+        gate(),
+        { type: "ENHO/XHH", name: "ZMCP_ENH_B" },
+        { affects: AFFECTS_HOOK, allowEnhancementDelete: true, expectEtag: "not-the-real-hash" },
+      ),
+    );
+
+    expect(e.code).toBe("ETAG_CONFLICT");
+    expect(e.details.phase).toBeUndefined();
+    expect(e.hint).toContain("Nothing was locked and nothing was deleted.");
+    expect(adt.verbs.filter((v) => v === "LOCK")).toHaveLength(0);
+    expect(adt.verbs).not.toContain("DELETE");
+  });
+});
+
+describe("deleteEnhancementObject — post-lock ETAG_CONFLICT", () => {
+  it("the document changed between the pre-lock GET and the lock: refuses, releases the lock, sends no DELETE", async () => {
+    const CHANGED_XML = ENHOXHH_XML.replace(
+      'adtcore:description="ZMCP recon hook impl"',
+      'adtcore:description="someone else changed this"',
+    );
+    let sourceReads = 0;
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXHH_URI && r.method === "GET") {
+        sourceReads += 1;
+        return resp(200, sourceReads === 1 ? ENHOXHH_XML : CHANGED_XML, OK_XML);
+      }
+      if (r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML, OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(200, "", OK_XML);
+      // No DELETE route: catching this before the DELETE is the whole point.
+      return undefined;
+    });
+
+    const e = await catchErr(
+      deleteEnhancementObject(
+        conn,
+        gate(),
+        { type: "ENHO/XHH", name: "ZMCP_ENH_B" },
+        { affects: AFFECTS_HOOK, allowEnhancementDelete: true },
+      ),
+    );
+
+    expect(e.code).toBe("ETAG_CONFLICT");
+    expect(e.details.phase).toBe("post-lock");
+    expect(adt.verbs).not.toContain("DELETE");
+    expect(adt.labels).toEqual([
+      `GET ${ENHOXHH_URI}`,
+      `LOCK ${ENHOXHH_URI}`,
+      `GET ${ENHOXHH_URI}`,
+      `UNLOCK ${ENHOXHH_URI}`,
+    ]);
+  });
+
+  it("same mismatch, but the best-effort UNLOCK also fails: the ETAG_CONFLICT is still the error reported", async () => {
+    const CHANGED_XML = ENHOXHH_XML.replace(
+      'adtcore:description="ZMCP recon hook impl"',
+      'adtcore:description="someone else changed this"',
+    );
+    let sourceReads = 0;
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXHH_URI && r.method === "GET") {
+        sourceReads += 1;
+        return resp(200, sourceReads === 1 ? ENHOXHH_XML : CHANGED_XML, OK_XML);
+      }
+      if (r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML, OK_XML);
+      // Every UNLOCK attempt fails with a plain, non-leak-exempt 500 —
+      // same fixture-free shape test/session.test.ts uses to drive
+      // releaseLock() to exhaust its retries and report "lock-leaked".
+      if (r.qs._action === "UNLOCK") return resp(500, "<exc/>", OK_XML);
+      return undefined;
+    });
+
+    const e = await catchErr(
+      deleteEnhancementObject(
+        conn,
+        gate(),
+        { type: "ENHO/XHH", name: "ZMCP_ENH_B" },
+        { affects: AFFECTS_HOOK, allowEnhancementDelete: true },
+      ),
+    );
+
+    // The best-effort unlock's own failure is swallowed — the caller still
+    // sees the ETAG_CONFLICT, not the lock-leaked ADT_ERROR.
+    expect(e.code).toBe("ETAG_CONFLICT");
+    expect(adt.verbs).not.toContain("DELETE");
+    expect(adt.verbs.filter((v) => v === "UNLOCK").length).toBeGreaterThan(0);
+  });
+});
+
+describe("deleteEnhancementObject — transport preflight refusal", () => {
+  it("no opts.transport at all but the lock reports transport required: TRANSPORT_ERROR, lock released, no DELETE", async () => {
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXHH_URI && r.method === "GET") return resp(200, ENHOXHH_XML, OK_XML);
+      if (r.qs._action === "LOCK") return resp(200, LOCK_TRANSPORT_XML(), OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(200, "", OK_XML);
+      return undefined;
+    });
+
+    const e = await catchErr(
+      deleteEnhancementObject(
+        conn,
+        gate(),
+        { type: "ENHO/XHH", name: "ZMCP_ENH_B" },
+        { affects: AFFECTS_HOOK, allowEnhancementDelete: true },
+      ),
+    );
+
+    expect(e.code).toBe("TRANSPORT_ERROR");
+    expect(adt.verbs).not.toContain("DELETE");
+    expect(adt.labels).toEqual([
+      `GET ${ENHOXHH_URI}`,
+      `LOCK ${ENHOXHH_URI}`,
+      `GET ${ENHOXHH_URI}`,
+      `UNLOCK ${ENHOXHH_URI}`,
+    ]);
+  });
+
+  it("same refusal, but the best-effort UNLOCK also fails: TRANSPORT_ERROR is still the error reported", async () => {
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXHH_URI && r.method === "GET") return resp(200, ENHOXHH_XML, OK_XML);
+      if (r.qs._action === "LOCK") return resp(200, LOCK_TRANSPORT_XML(), OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(500, "<exc/>", OK_XML);
+      return undefined;
+    });
+
+    const e = await catchErr(
+      deleteEnhancementObject(
+        conn,
+        gate(),
+        { type: "ENHO/XHH", name: "ZMCP_ENH_B" },
+        { affects: AFFECTS_HOOK, allowEnhancementDelete: true },
+      ),
+    );
+
+    expect(e.code).toBe("TRANSPORT_ERROR");
+    expect(adt.verbs).not.toContain("DELETE");
+    expect(adt.verbs.filter((v) => v === "UNLOCK").length).toBeGreaterThan(0);
+  });
+});
+
+describe("deleteEnhancementObject — corrNr qs shape (transport-flavoured)", () => {
+  it("both transport-flavoured: preflight resolves a real corrNr, the DELETE qs carries exactly {lockHandle, corrNr}", async () => {
+    const CORRNR = "A4HK900160";
+    const trRequirement = vi.fn(
+      async (): Promise<TrRequirement> => ({
+        kind: "transport-required",
+        mustSupplyCorrNr: true,
+        serverWouldFabricate: false,
+        uri: ENHOXHH_URI,
+        operation: "U",
+        devclass: "$TMP",
+        candidates: [],
+        locks: [],
+        messages: [],
+        checkFailed: false,
+        raw: { result: "E", korrflag: "X", recording: "" },
+      }),
+    );
+    const trShow = vi.fn(
+      async (): Promise<TrRequest> => ({
+        trkorr: CORRNR,
+        kind: "workbench",
+        kindRaw: "K",
+        status: "modifiable",
+        statusRaw: "D",
+        owner: "DEVELOPER",
+        description: "ZMCP BAdI live recon",
+        tasks: [],
+        objects: [],
+      }),
+    );
+    const transport = new SessionTransport({ allowTransports: ["*"], cts: { trRequirement, trShow } });
+
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXHH_URI && r.method === "GET") return resp(200, ENHOXHH_XML, OK_XML);
+      if (r.qs._action === "LOCK") return resp(200, LOCK_TRANSPORT_XML(CORRNR), OK_XML);
+      if (r.url === ENHOXHH_URI && r.method === "DELETE") return resp(200, "", OK_XML);
+      return undefined;
+    });
+
+    const res = await deleteEnhancementObject(
+      conn,
+      gate(),
+      { type: "ENHO/XHH", name: "ZMCP_ENH_B" },
+      { affects: AFFECTS_HOOK, allowEnhancementDelete: true, transport, gate: gate(), corrNr: CORRNR },
+    );
+
+    expect(res.deleted).toBe(true);
+    const del = adt.calls.find((c) => c.method === "DELETE")!;
+    expect(del.qs).toEqual({ lockHandle: "145F86F08B50A4BFBD38B17BA7E13F0CEFA05EFD", corrNr: CORRNR });
+    expect(res.transport).toMatchObject({ status: "transport", required: true, corrNr: CORRNR, corrUser: "DEVELOPER" });
+    expect(adt.verbs).not.toContain("UNLOCK");
+  });
+
+  it("corrNr divergence: preflight names one request, the lock reports a DIFFERENT one -> TRANSPORT_ERROR, lock released, no DELETE", async () => {
+    const NAMED_CORRNR = "A4HK900160";
+    const LOCK_CORRNR = "A4HK900199";
+    const trRequirement = vi.fn(
+      async (): Promise<TrRequirement> => ({
+        kind: "transport-required",
+        mustSupplyCorrNr: true,
+        serverWouldFabricate: false,
+        uri: ENHOXHH_URI,
+        operation: "U",
+        devclass: "$TMP",
+        candidates: [],
+        locks: [],
+        messages: [],
+        checkFailed: false,
+        raw: { result: "E", korrflag: "X", recording: "" },
+      }),
+    );
+    const trShow = vi.fn(
+      async (): Promise<TrRequest> => ({
+        trkorr: NAMED_CORRNR,
+        kind: "workbench",
+        kindRaw: "K",
+        status: "modifiable",
+        statusRaw: "D",
+        owner: "DEVELOPER",
+        description: "ZMCP BAdI live recon",
+        tasks: [],
+        objects: [],
+      }),
+    );
+    const transport = new SessionTransport({ allowTransports: ["*"], cts: { trRequirement, trShow } });
+
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXHH_URI && r.method === "GET") return resp(200, ENHOXHH_XML, OK_XML);
+      if (r.qs._action === "LOCK") return resp(200, LOCK_TRANSPORT_XML(LOCK_CORRNR), OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(200, "", OK_XML);
+      return undefined;
+    });
+
+    const e = await catchErr(
+      deleteEnhancementObject(
+        conn,
+        gate(),
+        { type: "ENHO/XHH", name: "ZMCP_ENH_B" },
+        { affects: AFFECTS_HOOK, allowEnhancementDelete: true, transport, gate: gate(), corrNr: NAMED_CORRNR },
+      ),
+    );
+
+    expect(e.code).toBe("TRANSPORT_ERROR");
+    expect(e.details.gatedCorrNr).toBe(NAMED_CORRNR);
+    expect(e.details.serverCorrNr).toBe(LOCK_CORRNR);
+    expect(adt.verbs).not.toContain("DELETE");
+    expect(adt.labels).toEqual([
+      `GET ${ENHOXHH_URI}`,
+      `LOCK ${ENHOXHH_URI}`,
+      `GET ${ENHOXHH_URI}`,
+      `UNLOCK ${ENHOXHH_URI}`,
+    ]);
+  });
+
+  it("same divergence, but the best-effort UNLOCK also fails: TRANSPORT_ERROR is still the error reported", async () => {
+    const NAMED_CORRNR = "A4HK900160";
+    const LOCK_CORRNR = "A4HK900199";
+    const trRequirement = vi.fn(
+      async (): Promise<TrRequirement> => ({
+        kind: "transport-required",
+        mustSupplyCorrNr: true,
+        serverWouldFabricate: false,
+        uri: ENHOXHH_URI,
+        operation: "U",
+        devclass: "$TMP",
+        candidates: [],
+        locks: [],
+        messages: [],
+        checkFailed: false,
+        raw: { result: "E", korrflag: "X", recording: "" },
+      }),
+    );
+    const trShow = vi.fn(
+      async (): Promise<TrRequest> => ({
+        trkorr: NAMED_CORRNR,
+        kind: "workbench",
+        kindRaw: "K",
+        status: "modifiable",
+        statusRaw: "D",
+        owner: "DEVELOPER",
+        description: "ZMCP BAdI live recon",
+        tasks: [],
+        objects: [],
+      }),
+    );
+    const transport = new SessionTransport({ allowTransports: ["*"], cts: { trRequirement, trShow } });
+
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXHH_URI && r.method === "GET") return resp(200, ENHOXHH_XML, OK_XML);
+      if (r.qs._action === "LOCK") return resp(200, LOCK_TRANSPORT_XML(LOCK_CORRNR), OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(500, "<exc/>", OK_XML);
+      return undefined;
+    });
+
+    const e = await catchErr(
+      deleteEnhancementObject(
+        conn,
+        gate(),
+        { type: "ENHO/XHH", name: "ZMCP_ENH_B" },
+        { affects: AFFECTS_HOOK, allowEnhancementDelete: true, transport, gate: gate(), corrNr: NAMED_CORRNR },
+      ),
+    );
+
+    expect(e.code).toBe("TRANSPORT_ERROR");
+    expect(adt.verbs).not.toContain("DELETE");
+    expect(adt.verbs.filter((v) => v === "UNLOCK").length).toBeGreaterThan(0);
+  });
+});
+
+describe("deleteEnhancementObject — the DELETE call itself fails, ADT_ERROR translated", () => {
+  it("a real captured DELETE 400 (XT465, tp config error) propagates as ADT_ERROR, not thrown raw", async () => {
+    // test/fixtures/enhancement/543-xt465-tp-config-delete-400 — a genuine
+    // live capture of a transport-flavoured DELETE failing server-side
+    // AFTER the lock/corrNr reconciliation already succeeded.
+    const CORRNR = "A4HK900162";
+    const XT465_BODY = fixture("543-xt465-tp-config-delete-400.xml");
+    const trRequirement = vi.fn(
+      async (): Promise<TrRequirement> => ({
+        kind: "transport-required",
+        mustSupplyCorrNr: true,
+        serverWouldFabricate: false,
+        uri: ENHOXHH_URI,
+        operation: "U",
+        devclass: "$TMP",
+        candidates: [],
+        locks: [],
+        messages: [],
+        checkFailed: false,
+        raw: { result: "E", korrflag: "X", recording: "" },
+      }),
+    );
+    const trShow = vi.fn(
+      async (): Promise<TrRequest> => ({
+        trkorr: CORRNR,
+        kind: "workbench",
+        kindRaw: "K",
+        status: "modifiable",
+        statusRaw: "D",
+        owner: "DEVELOPER",
+        description: "ZMCP BAdI live recon",
+        tasks: [],
+        objects: [],
+      }),
+    );
+    const transport = new SessionTransport({ allowTransports: ["*"], cts: { trRequirement, trShow } });
+
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXHH_URI && r.method === "GET") return resp(200, ENHOXHH_XML, OK_XML);
+      if (r.qs._action === "LOCK") return resp(200, LOCK_TRANSPORT_XML(CORRNR), OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(200, "", OK_XML);
+      if (r.url === ENHOXHH_URI && r.method === "DELETE") return resp(400, XT465_BODY, OK_XML);
+      return undefined;
+    });
+
+    const e = await catchErr(
+      deleteEnhancementObject(
+        conn,
+        gate(),
+        { type: "ENHO/XHH", name: "ZMCP_ENH_B" },
+        { affects: AFFECTS_HOOK, allowEnhancementDelete: true, transport, gate: gate(), corrNr: CORRNR },
+      ),
+    );
+
+    expect(e.code).toBe("ADT_ERROR");
+    expect(e.message).toContain("Parameter LSM not in version 0001 of tp configuration");
+    // withRelockRetry's `attempt` re-lock-and-retry logic treats a plain
+    // ADT_ERROR as retryable, same as the setBadiImplementationActive
+    // "unlock still happens even when every PUT fails" test above — two
+    // full LOCK/DELETE attempts, UNLOCK after each.
+    expect(adt.verbs.filter((v) => v === "LOCK")).toHaveLength(2);
+    expect(adt.verbs.filter((v) => v === "DELETE")).toHaveLength(2);
+    expect(adt.verbs.filter((v) => v === "UNLOCK")).toHaveLength(2);
+  });
+});
+
+describe("deleteEnhancementObject — SESSION_DEAD mid-choreography", () => {
+  it("a session that died between LOCK and the post-lock reread propagates as SESSION_DEAD, and sends NO UNLOCK", async () => {
+    let sourceReads = 0;
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHSXS_URI && r.method === "GET") {
+        sourceReads += 1;
+        if (sourceReads === 1) return resp(200, ENHSXS_XML, OK_XML);
+        return resp(400, ICMENOSESSION_BODY, ICMENOSESSION_HEADERS);
+      }
+      if (r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML, OK_XML);
+      // No UNLOCK route, no DELETE route, deliberately.
+      return undefined;
+    });
+
+    const e = await catchErr(
+      deleteEnhancementObject(
+        conn,
+        gate(),
+        { type: "ENHS/XS", name: "ZMCP_SPOT" },
+        { affects: AFFECTS_SPOT, allowEnhancementDelete: true },
+      ),
+    );
+
+    expect(e.code).toBe("SESSION_DEAD");
+    expect(adt.verbs).not.toContain("DELETE");
+    expect(adt.verbs).not.toContain("UNLOCK");
+    expect(adt.labels).toEqual([
+      `GET ${ENHSXS_URI}`,
+      `LOCK ${ENHSXS_URI}`,
+      `GET ${ENHSXS_URI}`,
+    ]);
+  });
+});
+
+describe("deleteEnhancementDocument — single conn.del call site (structural guard)", () => {
+  it("conn.del is called exactly once across the whole successful delete choreography", async () => {
+    const { conn } = await connected((r) => {
+      if (r.url === ENHOXHH_URI && r.method === "GET") return resp(200, ENHOXHH_XML, OK_XML);
+      if (r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML, OK_XML);
+      if (r.url === ENHOXHH_URI && r.method === "DELETE") return resp(200, "", OK_XML);
+      return undefined;
+    });
+    const spy = vi.spyOn(conn, "del");
+
+    await deleteEnhancementObject(
+      conn,
+      gate(),
+      { type: "ENHO/XHH", name: "ZMCP_ENH_B" },
+      { affects: AFFECTS_HOOK, allowEnhancementDelete: true },
+    );
+
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -1296,6 +1950,324 @@ describe("setBadiImplementationActive — expectEtag pre-lock mismatch", () => {
     expect(adt.verbs.filter((v) => v === "LOCK")).toHaveLength(0);
     expect(adt.verbs).not.toContain("PUT");
     expect(onBeforeImage).not.toHaveBeenCalled();
+  });
+});
+
+describe("setBadiImplementationActive — post-lock ETAG_CONFLICT", () => {
+  it("the document changed between the pre-lock GET and the lock: refuses, releases the lock, sends no PUT", async () => {
+    const CHANGED_XML = patchEnhancementRootAttribute(ENHOXH_SYNTHETIC_WITH_DESC, "description", "someone else changed this");
+    let sourceReads = 0;
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXH_URI && r.method === "GET") {
+        sourceReads += 1;
+        return resp(200, sourceReads === 1 ? ENHOXH_SYNTHETIC_WITH_DESC : CHANGED_XML, OK_XML);
+      }
+      if (r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML, OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(200, "", OK_XML);
+      // No PUT route: catching this before the PUT is the whole point.
+      return undefined;
+    });
+
+    const e = await catchErr(
+      setBadiImplementationActive(
+        conn,
+        gate(),
+        { name: "ZMCP_ENH_BADI", active: false },
+        { affects: AFFECTS_SPOT, onBeforeImage: vi.fn(async () => {}) },
+      ),
+    );
+
+    expect(e.code).toBe("ETAG_CONFLICT");
+    expect(e.details.phase).toBe("post-lock");
+    expect(adt.verbs).not.toContain("PUT");
+    expect(adt.labels).toEqual([
+      `GET ${ENHOXH_URI}`,
+      `LOCK ${ENHOXH_URI}`,
+      `GET ${ENHOXH_URI}`,
+      `UNLOCK ${ENHOXH_URI}`,
+    ]);
+  });
+
+  it("same mismatch, but the best-effort UNLOCK also fails: the ETAG_CONFLICT is still the error reported", async () => {
+    const CHANGED_XML = patchEnhancementRootAttribute(ENHOXH_SYNTHETIC_WITH_DESC, "description", "someone else changed this");
+    let sourceReads = 0;
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXH_URI && r.method === "GET") {
+        sourceReads += 1;
+        return resp(200, sourceReads === 1 ? ENHOXH_SYNTHETIC_WITH_DESC : CHANGED_XML, OK_XML);
+      }
+      if (r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML, OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(500, "<exc/>", OK_XML);
+      return undefined;
+    });
+
+    const e = await catchErr(
+      setBadiImplementationActive(
+        conn,
+        gate(),
+        { name: "ZMCP_ENH_BADI", active: false },
+        { affects: AFFECTS_SPOT, onBeforeImage: vi.fn(async () => {}) },
+      ),
+    );
+
+    expect(e.code).toBe("ETAG_CONFLICT");
+    expect(adt.verbs).not.toContain("PUT");
+    expect(adt.verbs.filter((v) => v === "UNLOCK").length).toBeGreaterThan(0);
+  });
+});
+
+describe("setBadiImplementationActive — transport preflight refusal", () => {
+  it("no opts.transport at all but the lock reports transport required: TRANSPORT_ERROR, lock released, no PUT", async () => {
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXH_URI && r.method === "GET") return resp(200, ENHOXH_SYNTHETIC_WITH_DESC, OK_XML);
+      if (r.qs._action === "LOCK") return resp(200, LOCK_TRANSPORT_XML(), OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(200, "", OK_XML);
+      return undefined;
+    });
+
+    const e = await catchErr(
+      setBadiImplementationActive(
+        conn,
+        gate(),
+        { name: "ZMCP_ENH_BADI", active: false },
+        { affects: AFFECTS_SPOT, onBeforeImage: vi.fn(async () => {}) },
+      ),
+    );
+
+    expect(e.code).toBe("TRANSPORT_ERROR");
+    expect(adt.verbs).not.toContain("PUT");
+    expect(adt.labels).toEqual([
+      `GET ${ENHOXH_URI}`,
+      `LOCK ${ENHOXH_URI}`,
+      `GET ${ENHOXH_URI}`,
+      `UNLOCK ${ENHOXH_URI}`,
+    ]);
+  });
+
+  it("same refusal, but the best-effort UNLOCK also fails: TRANSPORT_ERROR is still the error reported", async () => {
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXH_URI && r.method === "GET") return resp(200, ENHOXH_SYNTHETIC_WITH_DESC, OK_XML);
+      if (r.qs._action === "LOCK") return resp(200, LOCK_TRANSPORT_XML(), OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(500, "<exc/>", OK_XML);
+      return undefined;
+    });
+
+    const e = await catchErr(
+      setBadiImplementationActive(
+        conn,
+        gate(),
+        { name: "ZMCP_ENH_BADI", active: false },
+        { affects: AFFECTS_SPOT, onBeforeImage: vi.fn(async () => {}) },
+      ),
+    );
+
+    expect(e.code).toBe("TRANSPORT_ERROR");
+    expect(adt.verbs).not.toContain("PUT");
+    expect(adt.verbs.filter((v) => v === "UNLOCK").length).toBeGreaterThan(0);
+  });
+});
+
+describe("setBadiImplementationActive — corrNr qs shape (transport-flavoured)", () => {
+  it("both transport-flavoured: preflight resolves a real corrNr, the PUT qs carries exactly {lockHandle, corrNr}", async () => {
+    const CORRNR = "A4HK900160";
+    const trRequirement = vi.fn(
+      async (): Promise<TrRequirement> => ({
+        kind: "transport-required",
+        mustSupplyCorrNr: true,
+        serverWouldFabricate: false,
+        uri: ENHOXH_URI,
+        operation: "U",
+        devclass: "$TMP",
+        candidates: [],
+        locks: [],
+        messages: [],
+        checkFailed: false,
+        raw: { result: "E", korrflag: "X", recording: "" },
+      }),
+    );
+    const trShow = vi.fn(
+      async (): Promise<TrRequest> => ({
+        trkorr: CORRNR,
+        kind: "workbench",
+        kindRaw: "K",
+        status: "modifiable",
+        statusRaw: "D",
+        owner: "DEVELOPER",
+        description: "ZMCP BAdI live recon",
+        tasks: [],
+        objects: [],
+      }),
+    );
+    const transport = new SessionTransport({ allowTransports: ["*"], cts: { trRequirement, trShow } });
+
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXH_URI && r.method === "GET") return resp(200, ENHOXH_SYNTHETIC_WITH_DESC, OK_XML);
+      if (r.qs._action === "LOCK") return resp(200, LOCK_TRANSPORT_XML(CORRNR), OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(200, "", OK_XML);
+      if (r.url === ENHOXH_URI && r.method === "PUT") return resp(200, "", { etag: "TRETAG=" });
+      return undefined;
+    });
+
+    const res = await setBadiImplementationActive(
+      conn,
+      gate(),
+      { name: "ZMCP_ENH_BADI", active: false },
+      { affects: AFFECTS_SPOT, onBeforeImage: vi.fn(async () => {}), transport, gate: gate(), corrNr: CORRNR },
+    );
+
+    expect(res.changed).toBe(true);
+    const put = adt.calls.find((c) => c.method === "PUT")!;
+    expect(put.qs).toEqual({ lockHandle: "145F86F08B50A4BFBD38B17BA7E13F0CEFA05EFD", corrNr: CORRNR });
+    expect(res.transport).toMatchObject({ status: "transport", required: true, corrNr: CORRNR, corrUser: "DEVELOPER" });
+  });
+
+  it("corrNr divergence: preflight names one request, the lock reports a DIFFERENT one -> TRANSPORT_ERROR, lock released, no PUT", async () => {
+    const NAMED_CORRNR = "A4HK900160";
+    const LOCK_CORRNR = "A4HK900199";
+    const trRequirement = vi.fn(
+      async (): Promise<TrRequirement> => ({
+        kind: "transport-required",
+        mustSupplyCorrNr: true,
+        serverWouldFabricate: false,
+        uri: ENHOXH_URI,
+        operation: "U",
+        devclass: "$TMP",
+        candidates: [],
+        locks: [],
+        messages: [],
+        checkFailed: false,
+        raw: { result: "E", korrflag: "X", recording: "" },
+      }),
+    );
+    const trShow = vi.fn(
+      async (): Promise<TrRequest> => ({
+        trkorr: NAMED_CORRNR,
+        kind: "workbench",
+        kindRaw: "K",
+        status: "modifiable",
+        statusRaw: "D",
+        owner: "DEVELOPER",
+        description: "ZMCP BAdI live recon",
+        tasks: [],
+        objects: [],
+      }),
+    );
+    const transport = new SessionTransport({ allowTransports: ["*"], cts: { trRequirement, trShow } });
+
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXH_URI && r.method === "GET") return resp(200, ENHOXH_SYNTHETIC_WITH_DESC, OK_XML);
+      if (r.qs._action === "LOCK") return resp(200, LOCK_TRANSPORT_XML(LOCK_CORRNR), OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(200, "", OK_XML);
+      return undefined;
+    });
+
+    const e = await catchErr(
+      setBadiImplementationActive(
+        conn,
+        gate(),
+        { name: "ZMCP_ENH_BADI", active: false },
+        { affects: AFFECTS_SPOT, onBeforeImage: vi.fn(async () => {}), transport, gate: gate(), corrNr: NAMED_CORRNR },
+      ),
+    );
+
+    expect(e.code).toBe("TRANSPORT_ERROR");
+    expect(e.details.gatedCorrNr).toBe(NAMED_CORRNR);
+    expect(e.details.serverCorrNr).toBe(LOCK_CORRNR);
+    expect(adt.verbs).not.toContain("PUT");
+    expect(adt.labels).toEqual([
+      `GET ${ENHOXH_URI}`,
+      `LOCK ${ENHOXH_URI}`,
+      `GET ${ENHOXH_URI}`,
+      `UNLOCK ${ENHOXH_URI}`,
+    ]);
+  });
+
+  it("same divergence, but the best-effort UNLOCK also fails: TRANSPORT_ERROR is still the error reported", async () => {
+    const NAMED_CORRNR = "A4HK900160";
+    const LOCK_CORRNR = "A4HK900199";
+    const trRequirement = vi.fn(
+      async (): Promise<TrRequirement> => ({
+        kind: "transport-required",
+        mustSupplyCorrNr: true,
+        serverWouldFabricate: false,
+        uri: ENHOXH_URI,
+        operation: "U",
+        devclass: "$TMP",
+        candidates: [],
+        locks: [],
+        messages: [],
+        checkFailed: false,
+        raw: { result: "E", korrflag: "X", recording: "" },
+      }),
+    );
+    const trShow = vi.fn(
+      async (): Promise<TrRequest> => ({
+        trkorr: NAMED_CORRNR,
+        kind: "workbench",
+        kindRaw: "K",
+        status: "modifiable",
+        statusRaw: "D",
+        owner: "DEVELOPER",
+        description: "ZMCP BAdI live recon",
+        tasks: [],
+        objects: [],
+      }),
+    );
+    const transport = new SessionTransport({ allowTransports: ["*"], cts: { trRequirement, trShow } });
+
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXH_URI && r.method === "GET") return resp(200, ENHOXH_SYNTHETIC_WITH_DESC, OK_XML);
+      if (r.qs._action === "LOCK") return resp(200, LOCK_TRANSPORT_XML(LOCK_CORRNR), OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(500, "<exc/>", OK_XML);
+      return undefined;
+    });
+
+    const e = await catchErr(
+      setBadiImplementationActive(
+        conn,
+        gate(),
+        { name: "ZMCP_ENH_BADI", active: false },
+        { affects: AFFECTS_SPOT, onBeforeImage: vi.fn(async () => {}), transport, gate: gate(), corrNr: NAMED_CORRNR },
+      ),
+    );
+
+    expect(e.code).toBe("TRANSPORT_ERROR");
+    expect(adt.verbs).not.toContain("PUT");
+    expect(adt.verbs.filter((v) => v === "UNLOCK").length).toBeGreaterThan(0);
+  });
+});
+
+describe("setBadiImplementationActive — SESSION_DEAD mid-choreography", () => {
+  it("a session that died between LOCK and the post-lock reread propagates as SESSION_DEAD, and sends NO UNLOCK", async () => {
+    let sourceReads = 0;
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXH_URI && r.method === "GET") {
+        sourceReads += 1;
+        if (sourceReads === 1) return resp(200, ENHOXH_SYNTHETIC_WITH_DESC, OK_XML);
+        return resp(400, ICMENOSESSION_BODY, ICMENOSESSION_HEADERS);
+      }
+      if (r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML, OK_XML);
+      // No UNLOCK route, no PUT route, deliberately.
+      return undefined;
+    });
+
+    const e = await catchErr(
+      setBadiImplementationActive(
+        conn,
+        gate(),
+        { name: "ZMCP_ENH_BADI", active: false },
+        { affects: AFFECTS_SPOT, onBeforeImage: vi.fn(async () => {}) },
+      ),
+    );
+
+    expect(e.code).toBe("SESSION_DEAD");
+    expect(adt.verbs).not.toContain("PUT");
+    expect(adt.verbs).not.toContain("UNLOCK");
+    expect(adt.labels).toEqual([
+      `GET ${ENHOXH_URI}`,
+      `LOCK ${ENHOXH_URI}`,
+      `GET ${ENHOXH_URI}`,
+    ]);
   });
 });
 
@@ -1930,5 +2902,214 @@ describe("putEnhancementDocument — single conn.put call site (structural guard
     const putIndex = src.indexOf("conn.put(");
     expect(putIndex).toBeGreaterThan(fnStart);
     expect(putIndex).toBeLessThan(fnEnd);
+  });
+});
+
+describe("isEnhancementWriteType", () => {
+  it("accepts every supported type", () => {
+    expect(isEnhancementWriteType("ENHO/XH")).toBe(true);
+    expect(isEnhancementWriteType("ENHO/XHH")).toBe(true);
+    expect(isEnhancementWriteType("ENHS/XS")).toBe(true);
+  });
+
+  it("rejects an unsupported string and undefined", () => {
+    expect(isEnhancementWriteType("ENHO/BOGUS")).toBe(false);
+    expect(isEnhancementWriteType(undefined)).toBe(false);
+  });
+});
+
+describe("writeEnhancementDescription — non-string description guard", () => {
+  it("a non-string description (caller bypassing the type system) refuses BAD_INPUT before any network call", async () => {
+    const e = await catchErr(
+      writeEnhancementDescription(
+        null as unknown as AbapConnection,
+        null as unknown as SafetyGate,
+        { type: "ENHO/XHH", name: "ZMCP_ENH_B", description: 123 as unknown as string },
+        { affects: AFFECTS_HOOK },
+      ),
+    );
+    expect(e.code).toBe("BAD_INPUT");
+    expect(e.message).toContain("description must be a string");
+  });
+});
+
+describe("writeEnhancementDescription — unsupported type guard", () => {
+  it("an unrecognised type (caller bypassing the type system) refuses UNSUPPORTED before any network call", async () => {
+    const e = await catchErr(
+      writeEnhancementDescription(
+        null as unknown as AbapConnection,
+        null as unknown as SafetyGate,
+        { type: "ENHO/BOGUS" as unknown as "ENHO/XH", name: "ZMCP_ENH_BADI", description: "irrelevant" },
+        { affects: AFFECTS_SPOT },
+      ),
+    );
+    expect(e.code).toBe("UNSUPPORTED");
+    expect(e.message).toContain("ENHO/BOGUS");
+  });
+});
+
+describe("assertDescriptionLength — Defect 3 guard (>60 chars, CHAR60 adtcore:description)", () => {
+  const LONG_DESCRIPTION = "x".repeat(61);
+
+  it("writeEnhancementDescription refuses BAD_INPUT before any network call", async () => {
+    const { conn, adt } = await connected(() => undefined);
+    const e = await catchErr(
+      writeEnhancementDescription(
+        conn,
+        gate(),
+        { type: "ENHO/XHH", name: "ZMCP_ENH_B", description: LONG_DESCRIPTION },
+        { affects: AFFECTS_HOOK },
+      ),
+    );
+    expect(e.code).toBe("BAD_INPUT");
+    expect(e.message).toContain("61 characters");
+    expect(e.message).toContain("60-character");
+    expect(e.details.length).toBe(61);
+    expect(adt.calls).toHaveLength(0);
+  });
+
+  it("a description exactly 60 characters long is accepted (boundary), reaches the network", async () => {
+    const OK_DESCRIPTION = "x".repeat(60);
+    const { conn } = await connected((r) => {
+      if (r.url === ENHOXHH_URI && r.method === "GET") return resp(200, ENHOXHH_XML, OK_XML);
+      if (r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML, OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(200, "", OK_XML);
+      if (r.url === ENHOXHH_URI && r.method === "PUT") return resp(200, "", { etag: "TAG=" });
+      return undefined;
+    });
+    const res = await writeEnhancementDescription(
+      conn,
+      gate(),
+      { type: "ENHO/XHH", name: "ZMCP_ENH_B", description: OK_DESCRIPTION },
+      { affects: AFFECTS_HOOK },
+    );
+    expect(res.changed).toBe(true);
+  });
+
+  it("setBadiImplementationActive refuses BAD_INPUT before any network call (target.description too long)", async () => {
+    const { conn, adt } = await connected(() => undefined);
+    const e = await catchErr(
+      setBadiImplementationActive(
+        conn,
+        gate(),
+        { name: "ZMCP_ENH_BADI", active: false, description: LONG_DESCRIPTION },
+        { affects: AFFECTS_SPOT, onBeforeImage: vi.fn(async () => {}) },
+      ),
+    );
+    expect(e.code).toBe("BAD_INPUT");
+    expect(e.message).toContain("61 characters");
+    expect(e.details.length).toBe(61);
+    expect(adt.calls).toHaveLength(0);
+  });
+});
+
+describe("resolveBadiImplementationEntry — zero entries", () => {
+  it("an ENHO/XH document with no <enho:badiImplementation> entries at all refuses NOT_FOUND", async () => {
+    const ZERO_IMPLS_XML = ENHOXH_XML_WITH_DESC.replace(ENHOXH_SINGLE_IMPL_BLOCK, "");
+    const { conn, adt } = await connected((r) => {
+      if (r.url === ENHOXH_URI && r.method === "GET") return resp(200, ZERO_IMPLS_XML, OK_XML);
+      return undefined;
+    });
+
+    const e = await catchErr(
+      setBadiImplementationActive(
+        conn,
+        gate(),
+        { name: "ZMCP_ENH_BADI", active: false },
+        { affects: AFFECTS_SPOT, onBeforeImage: vi.fn(async () => {}) },
+      ),
+    );
+
+    expect(e.code).toBe("NOT_FOUND");
+    expect(e.message).toContain("no <enho:badiImplementation> entries");
+    expect(adt.verbs.filter((v) => v === "LOCK")).toHaveLength(0);
+  });
+});
+
+describe("firstHeader — etag header lookup on the PUT response (writeEnhancementDescription)", () => {
+  it("an array-valued etag header uses its first element", async () => {
+    const { conn } = await connected((r) => {
+      if (r.url === ENHOXHH_URI && r.method === "GET") return resp(200, ENHOXHH_XML, OK_XML);
+      if (r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML, OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(200, "", OK_XML);
+      if (r.url === ENHOXHH_URI && r.method === "PUT") return resp(200, "", { etag: ["ARRAYTAG1", "ARRAYTAG2"] });
+      return undefined;
+    });
+    const res = await writeEnhancementDescription(
+      conn,
+      gate(),
+      { type: "ENHO/XHH", name: "ZMCP_ENH_B", description: "array etag" },
+      { affects: AFFECTS_HOOK },
+    );
+    expect(res.etag).toBe("ARRAYTAG1");
+  });
+
+  it("an empty array-valued etag header falls back to canonicalEtag(payload)", async () => {
+    const { conn } = await connected((r) => {
+      if (r.url === ENHOXHH_URI && r.method === "GET") return resp(200, ENHOXHH_XML, OK_XML);
+      if (r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML, OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(200, "", OK_XML);
+      if (r.url === ENHOXHH_URI && r.method === "PUT") return resp(200, "", { etag: [] });
+      return undefined;
+    });
+    const res = await writeEnhancementDescription(
+      conn,
+      gate(),
+      { type: "ENHO/XHH", name: "ZMCP_ENH_B", description: "empty array etag" },
+      { affects: AFFECTS_HOOK },
+    );
+    expect(res.etag).toBe(canonicalEtag(res.xml));
+  });
+
+  it("a null-valued etag header falls back to canonicalEtag(payload)", async () => {
+    const { conn } = await connected((r) => {
+      if (r.url === ENHOXHH_URI && r.method === "GET") return resp(200, ENHOXHH_XML, OK_XML);
+      if (r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML, OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(200, "", OK_XML);
+      if (r.url === ENHOXHH_URI && r.method === "PUT") return resp(200, "", { etag: null });
+      return undefined;
+    });
+    const res = await writeEnhancementDescription(
+      conn,
+      gate(),
+      { type: "ENHO/XHH", name: "ZMCP_ENH_B", description: "null etag" },
+      { affects: AFFECTS_HOOK },
+    );
+    expect(res.etag).toBe(canonicalEtag(res.xml));
+  });
+
+  it("no etag header at all (and an unrelated header present) falls back to canonicalEtag(payload)", async () => {
+    const { conn } = await connected((r) => {
+      if (r.url === ENHOXHH_URI && r.method === "GET") return resp(200, ENHOXHH_XML, OK_XML);
+      if (r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML, OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(200, "", OK_XML);
+      if (r.url === ENHOXHH_URI && r.method === "PUT") return resp(200, "", { "content-type": "application/xml" });
+      return undefined;
+    });
+    const res = await writeEnhancementDescription(
+      conn,
+      gate(),
+      { type: "ENHO/XHH", name: "ZMCP_ENH_B", description: "no etag header" },
+      { affects: AFFECTS_HOOK },
+    );
+    expect(res.etag).toBe(canonicalEtag(res.xml));
+  });
+
+  it("a differently-cased header key (ETag) is still matched case-insensitively", async () => {
+    const { conn } = await connected((r) => {
+      if (r.url === ENHOXHH_URI && r.method === "GET") return resp(200, ENHOXHH_XML, OK_XML);
+      if (r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML, OK_XML);
+      if (r.qs._action === "UNLOCK") return resp(200, "", OK_XML);
+      if (r.url === ENHOXHH_URI && r.method === "PUT")
+        return resp(200, "", { "content-type": "application/xml", ETag: "MIXEDCASETAG" });
+      return undefined;
+    });
+    const res = await writeEnhancementDescription(
+      conn,
+      gate(),
+      { type: "ENHO/XHH", name: "ZMCP_ENH_B", description: "mixed-case header key" },
+      { affects: AFFECTS_HOOK },
+    );
+    expect(res.etag).toBe("MIXEDCASETAG");
   });
 });
