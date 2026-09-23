@@ -74,3 +74,86 @@ export async function searchObjectsTolerant(
     return parseObjectSearchXml(body);
   }
 }
+
+// #217: ADT's inactive-objects worklist — `/sap/bc/adt/activation/inactiveobjects`.
+// It carries no package (see src/adt/inactive-objects.ts for the client-side
+// package scoping). Imported here, at point of use, rather than hoisted to the
+// top import block, so this append does not touch the existing lines above.
+import { translateAdtError } from "./session.js";
+
+export interface InactiveObjectEntry {
+  name: string;
+  type: string;
+  uri: string;
+  user: string;
+  deleted: boolean;
+  parentUri?: string;
+  transport?: string;
+}
+
+/**
+ * Parses the `ioc:inactiveObjects` envelope. Empty body / self-closing root
+ * (`<ioc:inactiveObjects .../>`, the "nothing inactive" shape) -> `[]`. An
+ * `ioc:entry` whose `ioc:object` carries no `ioc:ref` is skipped — there is
+ * nothing to name the object by.
+ */
+export function parseInactiveObjectsXml(body: string): InactiveObjectEntry[] {
+  if (!body || !body.trim()) return [];
+  const doc = xml.parse(body) as Record<string, any>;
+  const root = doc?.["ioc:inactiveObjects"];
+  if (!root || typeof root !== "object") return [];
+
+  const entries = asArray(root["ioc:entry"]);
+  const out: InactiveObjectEntry[] = [];
+  for (const entry of entries) {
+    const objNode = asArray((entry as Record<string, unknown>)["ioc:object"])[0] as
+      | Record<string, unknown>
+      | undefined;
+    if (!objNode) continue;
+    const ref = asArray(objNode["ioc:ref"])[0] as Record<string, unknown> | undefined;
+    if (!ref) continue;
+
+    const transportNode = asArray((entry as Record<string, unknown>)["ioc:transport"])[0] as
+      | Record<string, unknown>
+      | undefined;
+    const transportRef = transportNode
+      ? (asArray(transportNode["ioc:ref"])[0] as Record<string, unknown> | undefined)
+      : undefined;
+
+    out.push({
+      name: String(ref["adtcore:name"] ?? ""),
+      type: String(ref["adtcore:type"] ?? ""),
+      uri: String(ref["adtcore:uri"] ?? ""),
+      user: String(objNode["ioc:user"] ?? ""),
+      deleted: String(objNode["ioc:deleted"] ?? "").toLowerCase() === "true",
+      ...(ref["adtcore:parentUri"] !== undefined ? { parentUri: String(ref["adtcore:parentUri"]) } : {}),
+      ...(transportRef?.["adtcore:name"] !== undefined ? { transport: String(transportRef["adtcore:name"]) } : {}),
+    });
+  }
+  return out;
+}
+
+/**
+ * Fetches the current (or named) user's inactive-objects worklist. `user`
+ * undefined -> the connected user's own worklist; ADT has no `USERNAME=*`
+ * wildcard (verified live — it returns nothing), so there is no "everyone's"
+ * mode here.
+ */
+export async function fetchInactiveObjects(
+  conn: AbapConnection,
+  user?: string,
+): Promise<InactiveObjectEntry[]> {
+  const uri = "/sap/bc/adt/activation/inactiveobjects";
+  try {
+    const { body } = await conn.get(uri, {
+      headers: {
+        Accept: "application/vnd.sap.adt.inactivectsobjects.v1+xml, application/xml;q=0.8",
+      },
+      ...(user ? { qs: { USERNAME: user.toUpperCase() } } : {}),
+    });
+    if (!body || !body.trim()) return [];
+    return parseInactiveObjectsXml(body);
+  } catch (e) {
+    throw translateAdtError(e, { operation: "list inactive objects", uri });
+  }
+}

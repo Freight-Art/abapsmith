@@ -122839,6 +122839,204 @@ function describeLookupError(e) {
 
 // src/tools/activate.ts
 init_types();
+
+// src/adt/object-search.ts
+init_fxp();
+init_session();
+var xml2 = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "",
+  parseAttributeValue: false,
+  trimValues: false
+});
+function asArray4(node2) {
+  if (node2 === void 0 || node2 === null) return [];
+  return Array.isArray(node2) ? node2 : [node2];
+}
+function parseObjectSearchXml(body) {
+  const doc = xml2.parse(body);
+  const root = doc?.["adtcore:objectReferences"] ?? {};
+  const rows = asArray4(root["adtcore:objectReference"]);
+  return rows.map((row2) => {
+    const result = {
+      "adtcore:uri": String(row2["adtcore:uri"] ?? ""),
+      "adtcore:type": String(row2["adtcore:type"] ?? ""),
+      "adtcore:name": String(row2["adtcore:name"] ?? "")
+    };
+    if (row2["adtcore:packageName"] !== void 0) result["adtcore:packageName"] = String(row2["adtcore:packageName"]);
+    if (row2["adtcore:description"] !== void 0) result["adtcore:description"] = String(row2["adtcore:description"]);
+    const m = result["adtcore:name"].match(/([^\s]*)\s*\((.*)\)/);
+    if (m) {
+      result["adtcore:name"] = m[1] ?? "";
+      if (!result["adtcore:description"]) result["adtcore:description"] = m[2] ?? "";
+    }
+    return result;
+  });
+}
+async function searchObjectsTolerant(conn, query, maxResults, objectType2) {
+  if (objectType2?.includes("/")) {
+    const { body } = await conn.get("/sap/bc/adt/repository/informationsystem/search", {
+      headers: { Accept: "application/xml" },
+      qs: { operation: "quickSearch", query, maxResults: String(maxResults), objectType: objectType2 }
+    });
+    return parseObjectSearchXml(body);
+  }
+  try {
+    return await conn.adt.searchObject(query, objectType2, maxResults);
+  } catch (e) {
+    if (!(e instanceof TypeError)) throw e;
+    const { body } = await conn.get("/sap/bc/adt/repository/informationsystem/search", {
+      headers: { Accept: "application/xml" },
+      qs: {
+        operation: "quickSearch",
+        query,
+        maxResults: String(maxResults),
+        ...objectType2 !== void 0 ? { objectType: objectType2 } : {}
+      }
+    });
+    return parseObjectSearchXml(body);
+  }
+}
+function parseInactiveObjectsXml(body) {
+  if (!body || !body.trim()) return [];
+  const doc = xml2.parse(body);
+  const root = doc?.["ioc:inactiveObjects"];
+  if (!root || typeof root !== "object") return [];
+  const entries = asArray4(root["ioc:entry"]);
+  const out = [];
+  for (const entry of entries) {
+    const objNode = asArray4(entry["ioc:object"])[0];
+    if (!objNode) continue;
+    const ref2 = asArray4(objNode["ioc:ref"])[0];
+    if (!ref2) continue;
+    const transportNode = asArray4(entry["ioc:transport"])[0];
+    const transportRef = transportNode ? asArray4(transportNode["ioc:ref"])[0] : void 0;
+    out.push({
+      name: String(ref2["adtcore:name"] ?? ""),
+      type: String(ref2["adtcore:type"] ?? ""),
+      uri: String(ref2["adtcore:uri"] ?? ""),
+      user: String(objNode["ioc:user"] ?? ""),
+      deleted: String(objNode["ioc:deleted"] ?? "").toLowerCase() === "true",
+      ...ref2["adtcore:parentUri"] !== void 0 ? { parentUri: String(ref2["adtcore:parentUri"]) } : {},
+      ...transportRef?.["adtcore:name"] !== void 0 ? { transport: String(transportRef["adtcore:name"]) } : {}
+    });
+  }
+  return out;
+}
+async function fetchInactiveObjects(conn, user) {
+  const uri = "/sap/bc/adt/activation/inactiveobjects";
+  try {
+    const { body } = await conn.get(uri, {
+      headers: {
+        Accept: "application/vnd.sap.adt.inactivectsobjects.v1+xml, application/xml;q=0.8"
+      },
+      ...user ? { qs: { USERNAME: user.toUpperCase() } } : {}
+    });
+    if (!body || !body.trim()) return [];
+    return parseInactiveObjectsXml(body);
+  } catch (e) {
+    throw translateAdtError(e, { operation: "list inactive objects", uri });
+  }
+}
+
+// src/adt/inactive-objects.ts
+init_session();
+var MAX_PACKAGE_DEPTH = 3;
+var MAX_PACKAGE_EXPANSIONS = 25;
+async function fetchPackageNodes(conn, packageName, ctx) {
+  try {
+    const result = await conn.adt.nodeContents("DEVC/K", packageName);
+    return result?.nodes ?? [];
+  } catch (e) {
+    if (typeof e?.status === "number") {
+      throw translateAdtError(e, ctx);
+    }
+    return [];
+  }
+}
+async function listPackageMembers(conn, packageName, recursive) {
+  const root = packageName.toUpperCase();
+  const members = [];
+  const scanned = [];
+  let expansions = 0;
+  let expansionCapped = false;
+  let frontier = [root];
+  for (let level = 1; level <= MAX_PACKAGE_DEPTH && frontier.length > 0; level++) {
+    const nextFrontier = [];
+    for (const pkg of frontier) {
+      if (level > 1) {
+        if (expansions >= MAX_PACKAGE_EXPANSIONS) {
+          expansionCapped = true;
+          continue;
+        }
+        expansions++;
+      }
+      scanned.push(pkg);
+      const ctx = {
+        operation: "list inactive objects",
+        uri: `/sap/bc/adt/packages/${pkg.toLowerCase()}`,
+        name: pkg,
+        type: "DEVC/K"
+      };
+      const nodes = await fetchPackageNodes(conn, pkg, ctx);
+      for (const n of nodes) {
+        const name = n.OBJECT_NAME ?? "";
+        if (!name) continue;
+        const type = n.OBJECT_TYPE ?? "";
+        if (type.toUpperCase() === "DEVC/K") {
+          if (recursive) nextFrontier.push(name.toUpperCase());
+          continue;
+        }
+        members.push({ type, name: name.toUpperCase(), uri: n.OBJECT_URI ?? "", packageName: pkg });
+      }
+    }
+    if (!recursive) break;
+    frontier = nextFrontier;
+  }
+  const depthExhausted = recursive && frontier.length > 0;
+  return { members, packages: scanned, truncated: expansionCapped || depthExhausted };
+}
+async function listInactiveObjectsOfPackage(conn, opts) {
+  const user = (opts.user ?? conn.cfg.user).toUpperCase();
+  const inactive = await fetchInactiveObjects(conn, opts.user);
+  const { members, packages, truncated } = await listPackageMembers(
+    conn,
+    opts.packageName,
+    !!opts.recursive
+  );
+  const entries = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const entry of inactive) {
+    const entryUriLower = entry.uri.toLowerCase();
+    const parentUriLower = entry.parentUri?.toLowerCase();
+    const exact = members.find(
+      (m) => m.type.toUpperCase() === entry.type.toUpperCase() && m.name === entry.name.toUpperCase()
+    );
+    const match = exact ?? members.find((m) => {
+      const memberUriLower = m.uri.toLowerCase();
+      if (!memberUriLower) return false;
+      if (parentUriLower && memberUriLower === parentUriLower) return true;
+      return entryUriLower.startsWith(`${memberUriLower}/`);
+    });
+    if (!match) continue;
+    const key = `${match.type}|${match.name}|${match.packageName}`.toUpperCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    entries.push(
+      exact ? { ...entry, packageName: match.packageName } : {
+        name: match.name,
+        type: match.type,
+        uri: match.uri,
+        user: entry.user,
+        deleted: entry.deleted,
+        packageName: match.packageName
+      }
+    );
+  }
+  return { entries, packages, truncated, user };
+}
+
+// src/tools/activate.ts
 init_compact();
 init_safety();
 init_truncate();
@@ -127921,9 +128119,17 @@ ${rendered}` : ""),
     }
     const journalled2 = entryId !== void 0;
     const cause = isAbapError(e) ? e.message : String(e);
+    const inactiveDeps = isAbapError(e) && Array.isArray(e.details.inactive) ? e.details.inactive.filter((r) => {
+      if (!r || typeof r.name !== "string" || r.name.trim() === "") return false;
+      const sameName = r.name.trim().toLowerCase() === objectName.trim().toLowerCase();
+      const sameType = r.type && written.target.type ? r.type.toLowerCase() === written.target.type.toLowerCase() : true;
+      return !(sameName && sameType);
+    }) : [];
+    const inactiveDepsSummary = inactiveDeps.length > 0 ? " Inactive dependencies: " + inactiveDeps.slice(0, 10).map((r) => `${r.type} ${r.name}`).join(", ") + (inactiveDeps.length > 10 ? `, +${inactiveDeps.length - 10} more` : "") + "." : "";
+    const inactiveDepsHintPrefix = inactiveDeps.length > 0 ? `Activate the inactive dependencies first \u2014 \`abap_activate objects=[...]\` naming them (or \`abap_activate package=${written.target.packageName}\` for everything inactive in the package) \u2014 then activate ${objectName}. ` : "";
     throw new AbapError(
       "CHECK_FAILED",
-      `The source of ${objectName} WAS WRITTEN AND SAVED on ${conn.cfg.sid}, but ` + (attempted ? "activation failed" : "the syntax check failed before activation was attempted") + `, so the object is saved INACTIVE: ${cause}`,
+      `The source of ${objectName} WAS WRITTEN AND SAVED on ${conn.cfg.sid}, but ` + (attempted ? "activation failed" : "the syntax check failed before activation was attempted") + `, so the object is saved INACTIVE: ${cause}` + inactiveDepsSummary,
       {
         written: true,
         activated: false,
@@ -127934,6 +128140,13 @@ ${rendered}` : ""),
         etag: written.etag,
         ...journalled2 ? { journal: entryId } : {},
         ...journalError ? { journalError } : {},
+        ...inactiveDeps.length > 0 ? {
+          inactive_dependencies: inactiveDeps.map((r) => ({
+            name: r.name,
+            type: r.type,
+            ...r.uri ? { uri: r.uri } : {}
+          }))
+        } : {},
         failure: isAbapError(e) ? {
           code: e.code,
           message: e.message,
@@ -127941,7 +128154,7 @@ ${rendered}` : ""),
           ...e.hint ? { hint: e.hint } : {}
         } : cause
       },
-      'The write itself succeeded and is NOT rolled back: the new source is on the server and the object is INACTIVE, so it will not execute and callers still see the last active version. Fix the reported lines \u2014 for a class, abap_write method="<NAME>" repairs one method against the INACTIVE version (no re-read needed; details.failure.details.messages carries each offending line with context); otherwise use edit= or write the full source again \u2014 then abap_activate, or write with activate=true' + (journalled2 ? `, or restore the previous source with abap_journal mode=undo entry=${entryId}.` : ". The write journal is off, so abapsmith cannot undo this for you \u2014 write the previous source back by hand if you need the old version.") + (journalError ? ` NOTE: the journal entry could not be settled (${journalError}), so ${entryId} may still read as pending and undo may decline it \u2014 check abap_journal first.` : "")
+      inactiveDepsHintPrefix + 'The write itself succeeded and is NOT rolled back: the new source is on the server and the object is INACTIVE, so it will not execute and callers still see the last active version. Fix the reported lines \u2014 for a class, abap_write method="<NAME>" repairs one method against the INACTIVE version (no re-read needed; details.failure.details.messages carries each offending line with context); otherwise use edit= or write the full source again \u2014 then abap_activate, or write with activate=true' + (journalled2 ? `, or restore the previous source with abap_journal mode=undo entry=${entryId}.` : ". The write journal is off, so abapsmith cannot undo this for you \u2014 write the previous source back by hand if you need the old version.") + (journalError ? ` NOTE: the journal entry could not be settled (${journalError}), so ${entryId} may still read as pending and undo may decline it \u2014 check abap_journal first.` : "")
     );
   }
   await settle({
@@ -130410,13 +130623,19 @@ var affectsSchema = external_exports.object({
   spotName: external_exports.string().optional()
 });
 var activateInputSchema = {
-  object: external_exports.string().optional().describe("Object reference."),
-  type: external_exports.string().optional().describe("ADT type, e.g. CLAS/OC."),
+  object: external_exports.string().optional().describe(
+    "Object reference. Required unless `objects` (batch), `package` (package activation), or the inline form (mode=check with `type` + `source`, no server object)."
+  ),
+  type: external_exports.string().optional().describe(
+    "ADT type, e.g. CLAS/OC. Also names the type of an inline `source` draft when `object` is omitted (mode=check only): PROG/P, CLAS/OC or INTF/OI."
+  ),
   mode: external_exports.enum(["check", "activate", "format"]).optional().describe(
     "Default activate. format pretty-prints ABAP source: `source` alone formats text (no write), `object` alone formats and saves the object if it changed \u2014 never both."
   ),
-  source: external_exports.string().optional().describe("Unsaved draft to check/activate, or text to format."),
-  corr_nr: external_exports.string().optional().describe("Transport request. $TMP needs none. Not for text format."),
+  source: external_exports.string().optional().describe(
+    "With `object`: draft to check/activate for that object. mode=check without `object`: the draft to check inline (needs `type`). Or text to format."
+  ),
+  corr_nr: external_exports.string().optional().describe("Transport request. $TMP needs none. Not for text format, `objects` or `package`."),
   // Same shape as abap_write's `affects` — REQUIRED to activate an EXISTING
   // ENHO/XH or ENHS/XS (safety.ts); ignored for every other type.
   affects: affectsSchema.optional().describe("Required to activate ENHO/XH or ENHS/XS."),
@@ -130433,7 +130652,11 @@ var activateInputSchema = {
       type: external_exports.string().optional().describe("ADT type, e.g. DTEL/DE."),
       affects: affectsSchema.optional().describe("Required to activate ENHO/XH or ENHS/XS.")
     })
-  ).min(1).max(MAX_ACTIVATION_BATCH).optional().describe("Batch activate, 2+ objects; omit `object`. mode=activate only.")
+  ).min(1).max(MAX_ACTIVATION_BATCH).optional().describe("Batch activate, 2+ objects; omit `object`. mode=activate only."),
+  package: external_exports.string().optional().describe(
+    "mode=activate only: activate every inactive object of this package (your own inactive worklist, intersected with the package contents) in one activation request. Not combinable with `object`, `objects`, `type`, `source`, `affects`."
+  ),
+  recursive: external_exports.boolean().optional().describe("With `package`: also include sub-packages (depth-capped).")
 };
 var ActivateInput = external_exports.object(activateInputSchema);
 async function journalActivations(journal, conn, items2, run, onThrow) {
@@ -130529,8 +130752,16 @@ function renderCoActivated(preaudit) {
 }
 async function abapActivate(conn, input, maxChars, gate, transport, journal, verifyWrites) {
   const mode = input.mode ?? "activate";
+  if (input.recursive !== void 0 && input.package === void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "`recursive` only applies together with `package` \u2014 it has no meaning without one.",
+      {},
+      "Add `package`, or drop `recursive`."
+    );
+  }
   if (input.objects !== void 0) {
-    const stray = ["object", "type", "affects", "corr_nr", "source"].filter(
+    const stray = ["object", "type", "affects", "corr_nr", "source", "package"].filter(
       (k) => input[k] !== void 0
     );
     if (stray.length) {
@@ -130551,16 +130782,41 @@ async function abapActivate(conn, input, maxChars, gate, transport, journal, ver
     }
     return abapActivateBatch(conn, input.objects, maxChars, gate, transport, journal);
   }
+  if (input.package !== void 0) {
+    const stray = ["object", "objects", "type", "source", "affects", "corr_nr"].filter(
+      (k) => input[k] !== void 0
+    );
+    if (stray.length) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `\`package\` activates every inactive object of that package and does not combine with top-level ${stray.map((k) => `\`${k}\``).join(", ")} \u2014 those name a single object, a batch or a transport, which \`package\` does not take (the transport comes from the objects' own locks, as in the \`objects\` batch form).`,
+        { stray },
+        "Drop the field(s) named above, or activate a specific object/batch with `object`/`objects` instead of `package`."
+      );
+    }
+    if (mode !== "activate") {
+      throw new AbapError(
+        "BAD_INPUT",
+        "`package` only supports mode=activate \u2014 there is no package-wide syntax check.",
+        { mode },
+        "Drop `mode` (default is activate), or check objects individually with `object`."
+      );
+    }
+    return abapActivatePackage(conn, input, maxChars, gate, transport, journal);
+  }
   if (mode === "format") {
     return abapActivateFormat(conn, input, maxChars, gate, transport, journal, verifyWrites);
+  }
+  if (input.object === void 0 && input.objects === void 0 && input.package === void 0 && mode === "check" && input.source !== void 0) {
+    return abapActivateInline(conn, input, maxChars, gate);
   }
   const objectRef = input.object;
   if (objectRef === void 0) {
     throw new AbapError(
       "BAD_INPUT",
-      "Pass either `object` (single object) or `objects` (batch \u2014 2 or more objects in one activation request).",
+      "Pass either `object` (single object), `objects` (batch \u2014 2 or more objects in one activation request), or `package` (activate every inactive object of a package). To syntax-check a draft with no server object yet, use mode=check with `type` and `source` instead of `object`.",
       {},
-      'Add `object: "<name>"` to activate one object, or `objects: [...]` to activate several.'
+      'Add `object: "<name>"`, `objects: [...]`, or `package: "<name>"` \u2014 or, with mode=check, `type` + `source` to check a draft inline.'
     );
   }
   const hint = input.type ? specForType(input.type) ?? specForKeyword(input.type) : void 0;
@@ -130749,7 +131005,93 @@ ${renderInactive(activation.inactive)}`);
     maxChars
   });
 }
-async function abapActivateBatch(conn, entries, maxChars, gate, transport, journal) {
+function inlineCheckTarget(type, source) {
+  const spec = specForType(type) ?? specForKeyword(type);
+  if (!spec || spec.type !== "PROG/P" && spec.type !== "CLAS/OC" && spec.type !== "INTF/OI") {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `mode=check without \`object\` can only check PROG/P, CLAS/OC and INTF/OI drafts inline; ${type} is not one of them.`,
+      { type, supported: ["PROG/P", "CLAS/OC", "INTF/OI"] },
+      "Write the object with activate: false and check it with `object`, or pass `object` naming an existing object of that type."
+    );
+  }
+  const resolvedType = spec.type;
+  if (resolvedType === "PROG/P") {
+    const m2 = /^\s*(?:REPORT|PROGRAM)\s+([\w/]+)/im.exec(source);
+    return { spec, type: resolvedType, name: m2 ? m2[1].toUpperCase() : "ZAS_INLINE_CHECK" };
+  }
+  if (resolvedType === "CLAS/OC") {
+    const m2 = /^\s*CLASS\s+([\w/]+)\s+DEFINITION/im.exec(source);
+    if (!m2) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "no `CLASS <name> DEFINITION` statement found in `source`, so the draft cannot be matched to a server object.",
+        {},
+        "Add the `CLASS <name> DEFINITION` statement, or pass `object` naming an existing class instead."
+      );
+    }
+    return { spec, type: resolvedType, name: m2[1].toUpperCase() };
+  }
+  const m = /^\s*INTERFACE\s+([\w/]+)/im.exec(source);
+  if (!m) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "no `INTERFACE <name>` statement found in `source`, so the draft cannot be matched to a server object.",
+      {},
+      "Add the `INTERFACE <name>` statement, or pass `object` naming an existing interface instead."
+    );
+  }
+  return { spec, type: resolvedType, name: m[1].toUpperCase() };
+}
+async function abapActivateInline(conn, input, maxChars, gate) {
+  if (input.type === void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "mode=check without `object` needs `type` (PROG/P, CLAS/OC or INTF/OI) and `source`.",
+      {},
+      "Pass `object` to check an existing object (with or without `source`), or add `type` alongside `source` to check a draft inline with no object."
+    );
+  }
+  const source = input.source;
+  const t = inlineCheckTarget(input.type, source);
+  const respond = (check3, note) => buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      object: `${t.type} ${t.name}`,
+      mode: "check",
+      inline: true,
+      result: check3.ok ? "clean" : `${check3.errors} error(s), ${check3.warnings} warning(s)`,
+      errors: check3.errors,
+      warnings: check3.warnings
+    },
+    body: `# SYNTAX CHECK
+${renderMessages(check3.messages, source).trim() || "(no messages)"}`,
+    bodyLabel: "MESSAGES",
+    notes: [note],
+    hints: ["Line numbers come from the check run and refer to the source that was checked."],
+    maxChars
+  });
+  if (t.type === "PROG/P") {
+    const uri = t.spec.path.replace("{name}", t.name.toLowerCase());
+    const check3 = await checkSource(conn, { uri, sourceUri: `${uri}/source/main`, name: t.name }, source);
+    return respond(check3, "Checked the supplied draft inline (no server object was read or written).");
+  }
+  const target = await resolveWriteTarget(conn, { name: t.name, type: t.type }, "activate");
+  if (!target.exists) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `${t.spec.label} ${t.name} does not exist on ${conn.cfg.sid}; a class or interface draft is checked as a draft of the server object of that name (a missing one is reported as clean by ADT).`,
+      { object: t.name, type: t.type, system: conn.cfg.sid, mode: "check", inline: true },
+      "Write it first with abap_write (activate: false is enough), then check; or check plain report code as PROG/P."
+    );
+  }
+  const check2 = await checkSource(conn, target, source);
+  return respond(
+    check2,
+    `Checked the supplied draft against the existing ${t.spec.label} ${t.name}; nothing was written.`
+  );
+}
+async function abapActivateBatch(conn, entries, maxChars, gate, transport, journal, scope) {
   const wanted = entries.map((e) => {
     const hint = e.type ? specForType(e.type) ?? specForKeyword(e.type) : void 0;
     const parsed = parseObjectRef(e.object, hint);
@@ -130846,6 +131188,11 @@ async function abapActivateBatch(conn, entries, maxChars, gate, transport, journ
       objects: targets.map((t) => t.name).join(", "),
       count: targets.length,
       mode: "activate",
+      ...scope ? {
+        package: scope.package,
+        recursive: scope.recursive,
+        packages_scanned: scope.packages.length
+      } : {},
       result: outcome.warnings > 0 ? `clean, ${outcome.warnings} warning(s)` : "clean",
       activated: outcome.activated,
       ...corrNrs.size ? { transport: [...corrNrs].join(", ") } : {}
@@ -130860,13 +131207,81 @@ ${renderCoActivated(outcome.preaudit)}`] : []
       ...corrNrs.size ? [
         `Transportable object(s) activated under transport ${[...corrNrs].join(", ")}. abap_activate never releases a transport \u2014 see abap_transport_release.`
       ] : [],
-      "No `source` was supplied for any object \u2014 batch activation acts directly on the version already saved on the server for each one; the messages above are the only check that ran."
+      "No `source` was supplied for any object \u2014 batch activation acts directly on the version already saved on the server for each one; the messages above are the only check that ran.",
+      ...scope ? [
+        `Activated ${scope.user}'s inactive objects of package ${scope.package}` + (scope.recursive && scope.packages.length > 1 ? ` and ${scope.packages.length - 1} sub-package(s)` : "") + " \u2014 ADT's inactive worklist is per-user; another user's inactive changes here were not included.",
+        ...scope.skippedDeleted.length ? [
+          `Skipped ${scope.skippedDeleted.length} pending deletion(s) \u2014 abap_activate never activates a deletion: ${scope.skippedDeleted.join(", ")}.`
+        ] : [],
+        ...scope.truncated ? [
+          "The sub-package walk was cut at its cap before finishing \u2014 some sub-packages may not have been scanned."
+        ] : []
+      ] : []
     ],
     hints: [
       "Each object's own section above is what the server tied to it; the (unattributed) section, if present, could not be tied to any one object and still counts against the batch."
     ],
     maxChars
   });
+}
+var DDIC_ACTIVATION_ORDER = ["DOMA/DD", "DTEL/DE", "TABL/DT", "TTYP/DA", "VIEW/DV", "DDLS/DF"];
+async function abapActivatePackage(conn, input, maxChars, gate, transport, journal) {
+  const packageName = input.package;
+  const recursive = input.recursive ?? false;
+  const listing = await listInactiveObjectsOfPackage(conn, { packageName, recursive });
+  const deleted = listing.entries.filter((e) => e.deleted);
+  const candidates = listing.entries.filter((e) => !e.deleted);
+  const subPackageCount = Math.max(listing.packages.length - 1, 0);
+  if (candidates.length === 0) {
+    return buildResponse({
+      header: {
+        system: conn.cfg.sid,
+        package: packageName,
+        recursive,
+        mode: "activate",
+        count: 0,
+        result: "nothing to activate",
+        user: listing.user
+      },
+      body: `No inactive objects of ${listing.user} in ${packageName}` + (recursive && subPackageCount > 0 ? ` or its ${subPackageCount} sub-package(s)` : "") + ".",
+      notes: [
+        "This lists only your own inactive objects \u2014 ADT's inactive worklist is per-user; another user's inactive changes in this package are not visible here.",
+        ...deleted.length ? [
+          `${deleted.length} pending deletion(s) were skipped \u2014 abap_activate never activates a deletion: ${deleted.map((d) => d.name).join(", ")}.`
+        ] : []
+      ],
+      maxChars
+    });
+  }
+  if (candidates.length > MAX_ACTIVATION_BATCH) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `package ${packageName} has ${candidates.length} inactive object(s), over the ${MAX_ACTIVATION_BATCH}-object activation batch limit.`,
+      { package: packageName, count: candidates.length, limit: MAX_ACTIVATION_BATCH },
+      "Activate a sub-package at a time (recursive: false, or a narrower `package`), or use `objects` with a smaller list."
+    );
+  }
+  const rank = (type) => {
+    const i = DDIC_ACTIVATION_ORDER.indexOf(type);
+    return i === -1 ? DDIC_ACTIVATION_ORDER.length : i;
+  };
+  const ordered = candidates.map((c, i) => ({ c, i })).sort((a, b) => rank(a.c.type) - rank(b.c.type) || a.i - b.i).map(({ c }) => c);
+  return abapActivateBatch(
+    conn,
+    ordered.map((c) => ({ object: c.name, type: c.type })),
+    maxChars,
+    gate,
+    transport,
+    journal,
+    {
+      package: packageName,
+      recursive,
+      packages: listing.packages,
+      truncated: listing.truncated,
+      user: listing.user,
+      skippedDeleted: deleted.map((d) => d.name)
+    }
+  );
 }
 async function abapActivateFormat(conn, input, maxChars, gate, transport, journal, verifyWrites) {
   if (input.affects !== void 0) {
@@ -131049,6 +131464,48 @@ function registerActivateTools(mcp, deps) {
       try {
         const a = args;
         const mode = a.mode ?? "activate";
+        if (a.recursive !== void 0 && a.package === void 0) {
+          throw new AbapError(
+            "BAD_INPUT",
+            "`recursive` only applies together with `package` \u2014 it has no meaning without one.",
+            {},
+            "Add `package`, or drop `recursive`."
+          );
+        }
+        if (a.package !== void 0) {
+          const stray = ["object", "objects", "type", "source", "affects", "corr_nr"].filter(
+            (k) => a[k] !== void 0
+          );
+          if (stray.length) {
+            throw new AbapError(
+              "BAD_INPUT",
+              `\`package\` activates every inactive object of that package and does not combine with top-level ${stray.map((k) => `\`${k}\``).join(", ")} \u2014 those name a single object, a batch or a transport, which \`package\` does not take (the transport comes from the objects' own locks, as in the \`objects\` batch form).`,
+              { stray },
+              "Drop the field(s) named above, or activate a specific object/batch with `object`/`objects` instead of `package`."
+            );
+          }
+          if (mode !== "activate") {
+            throw new AbapError(
+              "BAD_INPUT",
+              "`package` only supports mode=activate \u2014 there is no package-wide syntax check.",
+              { mode },
+              "Drop `mode` (default is activate), or check objects individually with `object`."
+            );
+          }
+          const d = deps.safety.evaluate("activate", void 0, { phase: "preflight" });
+          if (!d.allowed && d.rule !== "no object supplied for mutating operation") {
+            throw new AbapError(
+              d.code ?? "READ_ONLY",
+              d.reason,
+              { operation: "activate", rule: d.rule, package: a.package, phase: "preflight" },
+              d.hint
+            );
+          }
+          await deps.ensureConnected();
+          const run2 = (conn) => abapActivate(conn, args, deps.cfg.maxResponseChars, deps.safety, deps.transport, deps.journal);
+          const res2 = await deps.pool.withWrite("abap_activate", void 0, run2);
+          return ok3(res2.text);
+        }
         if (a.objects !== void 0) {
           if (mode !== "activate") {
             throw new AbapError(
@@ -131134,12 +131591,28 @@ function registerActivateTools(mcp, deps) {
           const res2 = await deps.pool.withWrite("abap_activate", writeGateKey(object4, a.type), run2);
           return ok3(res2.text);
         }
+        if (a.object === void 0 && mode === "check" && a.source !== void 0) {
+          if (a.type === void 0) {
+            throw new AbapError(
+              "BAD_INPUT",
+              "mode=check without `object` needs `type` (PROG/P, CLAS/OC or INTF/OI) and `source`.",
+              {},
+              "Pass `object` to check an existing object (with or without `source`), or add `type` alongside `source` to check a draft inline with no object."
+            );
+          }
+          const t = inlineCheckTarget(a.type, a.source);
+          deps.safety.assert("analyze", { name: t.name, type: t.type }, { phase: "preflight" });
+          await deps.ensureConnected();
+          const run2 = (conn) => abapActivate(conn, args, deps.cfg.maxResponseChars, deps.safety, deps.transport, deps.journal);
+          const res2 = await deps.pool.withRead("abap_activate", run2);
+          return ok3(res2.text);
+        }
         if (a.object === void 0) {
           throw new AbapError(
             "BAD_INPUT",
-            "Pass either `object` (single object) or `objects` (batch \u2014 2 or more objects in one activation request).",
+            "Pass either `object` (single object), `objects` (batch \u2014 2 or more objects in one activation request), or `package` (activate every inactive object of a package). To syntax-check a draft with no server object yet, use mode=check with `type` and `source` instead of `object`.",
             {},
-            'Add `object: "<name>"` to activate one object, or `objects: [...]` to activate several.'
+            'Add `object: "<name>"`, `objects: [...]`, or `package: "<name>"` \u2014 or, with mode=check, `type` + `source` to check a draft inline.'
           );
         }
         const object3 = a.object;
@@ -133003,7 +133476,7 @@ init_session();
 init_compact();
 init_ddic_strategy();
 init_ddic_strategy();
-var xml2 = new XMLParser({
+var xml3 = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
   removeNSPrefix: true,
@@ -133077,7 +133550,7 @@ function renderDdlDigest(parsed) {
   };
 }
 function renderTableXmlFallback(body, name, why) {
-  const doc = xml2.parse(body);
+  const doc = xml3.parse(body);
   const fields = [];
   const visit = (key, node2) => {
     if (!node2 || typeof node2 !== "object") return;
@@ -133118,7 +133591,7 @@ function renderTableXmlFallback(body, name, why) {
   };
 }
 function renderTableType(body, name) {
-  const doc = xml2.parse(body);
+  const doc = xml3.parse(body);
   const tt = doc.tableType ?? {};
   const row2 = tt.rowType ?? {};
   const typeKind = xmlText(row2.typeKind) ?? "";
@@ -133324,7 +133797,7 @@ function xmlNum(node2) {
   return Number.isFinite(n) ? n : void 0;
 }
 function parseDomainXml(body, fallbackName) {
-  const doc = xml2.parse(body);
+  const doc = xml3.parse(body);
   const root = doc.domain ?? {};
   const content = root.content ?? {};
   const ti = content.typeInformation ?? {};
@@ -133359,7 +133832,7 @@ function parseDomainXml(body, fallbackName) {
   };
 }
 function parseDataElementXml(body, fallbackName) {
-  const doc = xml2.parse(body);
+  const doc = xml3.parse(body);
   const root = doc.wbobj ?? doc.dataElement ?? {};
   const de = root.dataElement ?? {};
   return {
@@ -133466,13 +133939,13 @@ async function readTableLike(conn, obj) {
     throw classifyDdicFailure(e, ctx);
   }
 }
-var MAX_PACKAGE_DEPTH = 3;
-var MAX_PACKAGE_EXPANSIONS = 25;
+var MAX_PACKAGE_DEPTH2 = 3;
+var MAX_PACKAGE_EXPANSIONS2 = 25;
 var PACKAGE_DESCRIPTION_PREFIX_LOOKUP_CAP = 2e3;
 var PACKAGE_DESCRIPTION_GROUP_CAP = 30;
 var PACKAGE_DESCRIPTION_FALLBACK_LOOKUP_CAP = 6e3;
 function parsePackageHeaderXml(body) {
-  const doc = xml2.parse(body);
+  const doc = xml3.parse(body);
   const root = doc.package ?? {};
   const attrs = root.attributes ?? {};
   const appComp = root.applicationComponent ?? {};
@@ -133514,7 +133987,7 @@ async function fetchPackageHeader(conn, ctx) {
     };
   }
 }
-async function fetchPackageNodes(conn, packageName, ctx) {
+async function fetchPackageNodes2(conn, packageName, ctx) {
   try {
     const result = await conn.adt.nodeContents("DEVC/K", packageName);
     return result?.nodes ?? [];
@@ -133547,7 +134020,7 @@ async function fetchPackageDescriptionsForOne(conn, packageName, query, maxResul
     return { entries: [], failure: `${err.code} \u2014 ${err.message}`, hitCap: false };
   }
   try {
-    const doc = xml2.parse(body);
+    const doc = xml3.parse(body);
     const root = doc.objectReferences ?? {};
     const raw = root.objectReference;
     const list3 = Array.isArray(raw) ? raw : raw ? [raw] : [];
@@ -133656,12 +134129,12 @@ async function readPackage(conn, obj, opts) {
     type: obj.type
   };
   const depth = opts.depth ?? 1;
-  if (!Number.isInteger(depth) || depth < 1 || depth > MAX_PACKAGE_DEPTH) {
+  if (!Number.isInteger(depth) || depth < 1 || depth > MAX_PACKAGE_DEPTH2) {
     throw new AbapError(
       "BAD_INPUT",
-      `depth must be an integer between 1 and ${MAX_PACKAGE_DEPTH}, got ${JSON.stringify(opts.depth)}. Each level beyond the first costs one nodestructure round trip per sub-package found at the level above, so depth is capped rather than left open-ended.`,
-      { depth: opts.depth, maxDepth: MAX_PACKAGE_DEPTH },
-      `Use a depth between 1 and ${MAX_PACKAGE_DEPTH}, or read a sub-package directly: abap_read {"object":"<SUBPACKAGE>","type":"DEVC/K"}.`
+      `depth must be an integer between 1 and ${MAX_PACKAGE_DEPTH2}, got ${JSON.stringify(opts.depth)}. Each level beyond the first costs one nodestructure round trip per sub-package found at the level above, so depth is capped rather than left open-ended.`,
+      { depth: opts.depth, maxDepth: MAX_PACKAGE_DEPTH2 },
+      `Use a depth between 1 and ${MAX_PACKAGE_DEPTH2}, or read a sub-package directly: abap_read {"object":"<SUBPACKAGE>","type":"DEVC/K"}.`
     );
   }
   const typeFilters = normalizedTypeFilters(opts.types);
@@ -133675,7 +134148,7 @@ async function readPackage(conn, obj, opts) {
     const nextFrontier = [];
     for (const packageName of frontier) {
       if (level > 1) {
-        if (expansions >= MAX_PACKAGE_EXPANSIONS) {
+        if (expansions >= MAX_PACKAGE_EXPANSIONS2) {
           notExpanded.push(packageName);
           continue;
         }
@@ -133687,7 +134160,7 @@ async function readPackage(conn, obj, opts) {
         name: packageName,
         type: "DEVC/K"
       };
-      const nodes = await fetchPackageNodes(conn, packageName, nodeCtx);
+      const nodes = await fetchPackageNodes2(conn, packageName, nodeCtx);
       if (nodes.length === 0) emptyPackages.push(packageName);
       const rows = nodes.filter((n) => n.OBJECT_NAME).map((n) => ({
         packageName,
@@ -133803,14 +134276,14 @@ async function readPackage(conn, obj, opts) {
   }
   if (notExpanded.length) {
     notes.push(
-      `Reached MAX_PACKAGE_EXPANSIONS (${MAX_PACKAGE_EXPANSIONS}) nodestructure round trips before depth ${depth} finished expanding every sub-package. NOT expanded: ` + notExpanded.map((n) => `${n} (abap_read {"object":"${n}","type":"DEVC/K"})`).join(", ") + `.`
+      `Reached MAX_PACKAGE_EXPANSIONS (${MAX_PACKAGE_EXPANSIONS2}) nodestructure round trips before depth ${depth} finished expanding every sub-package. NOT expanded: ` + notExpanded.map((n) => `${n} (abap_read {"object":"${n}","type":"DEVC/K"})`).join(", ") + `.`
     );
   }
   if (unexpandedSubPackages.length) {
     const shown = unexpandedSubPackages.slice(0, 5);
     const remaining = unexpandedSubPackages.length - shown.length;
     notes.push(
-      `${unexpandedSubPackages.length} sub-package(s) are listed but NOT expanded: ` + shown.map((n) => `${n} (abap_read {"object":"${n}","type":"DEVC/K"})`).join(", ") + (remaining > 0 ? `, and ${remaining} more` : "") + `. OBJECTS below has a row for each of these sub-packages themselves, not their contents \u2014 depth ${depth} did not reach inside them. Use a higher depth (up to ${MAX_PACKAGE_DEPTH}) to expand them, or read one directly: abap_read {"object":"<name>","type":"DEVC/K"}.`
+      `${unexpandedSubPackages.length} sub-package(s) are listed but NOT expanded: ` + shown.map((n) => `${n} (abap_read {"object":"${n}","type":"DEVC/K"})`).join(", ") + (remaining > 0 ? `, and ${remaining} more` : "") + `. OBJECTS below has a row for each of these sub-packages themselves, not their contents \u2014 depth ${depth} did not reach inside them. Use a higher depth (up to ${MAX_PACKAGE_DEPTH2}) to expand them, or read one directly: abap_read {"object":"<name>","type":"DEVC/K"}.`
     );
   }
   if (descriptionFailures.length) {
@@ -134292,7 +134765,7 @@ var usageReferencesXml = new XMLParser({
 function asRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
 }
-function asArray4(value) {
+function asArray5(value) {
   if (Array.isArray(value)) return value;
   return value === void 0 || value === null ? [] : [value];
 }
@@ -134335,7 +134808,7 @@ function parseProperties(value) {
   const rec = asRecord2(value);
   if (rec === void 0) return {};
   const result = {};
-  for (const raw of asArray4(rec["entry"])) {
+  for (const raw of asArray5(rec["entry"])) {
     const entryNode = asRecord2(raw);
     const key = attr3(entryNode, "key");
     if (key === void 0) continue;
@@ -134344,7 +134817,7 @@ function parseProperties(value) {
   return result;
 }
 function findDocumentation(node2, rel) {
-  for (const raw of asArray4(node2["documentation"])) {
+  for (const raw of asArray5(node2["documentation"])) {
     const docNode = asRecord2(raw);
     if (attr3(docNode, "rel") !== rel) continue;
     return elementText2(raw) ?? "";
@@ -134357,7 +134830,7 @@ function parseElementInfoNode(raw) {
   const name = attr3(node2, "name");
   const shortText = findDocumentation(node2, "shorttext");
   const abapDoc = findDocumentation(node2, "abapdoc");
-  const children = asArray4(node2["elementInfo"]).map(parseElementInfoNode);
+  const children = asArray5(node2["elementInfo"]).map(parseElementInfoNode);
   return {
     ...type !== void 0 ? { type } : {},
     ...name !== void 0 ? { name } : {},
@@ -134511,7 +134984,7 @@ function parseUsageReferences(xml4, ctx) {
   const referencedObjects = asRecord2(root?.["referencedObjects"]);
   if (referencedObjects === void 0) return [];
   const rows = [];
-  for (const raw of asArray4(referencedObjects["referencedObject"])) {
+  for (const raw of asArray5(referencedObjects["referencedObject"])) {
     const row2 = asRecord2(raw);
     if (row2 === void 0) continue;
     const adtObject = asRecord2(row2["adtObject"]) ?? {};
@@ -140441,65 +140914,6 @@ async function buildCallGraph(conn, target, type, direction, depth, max, maxChar
 
 // src/tools/search.ts
 init_search_descriptions();
-
-// src/adt/object-search.ts
-init_fxp();
-var xml3 = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: "",
-  parseAttributeValue: false,
-  trimValues: false
-});
-function asArray5(node2) {
-  if (node2 === void 0 || node2 === null) return [];
-  return Array.isArray(node2) ? node2 : [node2];
-}
-function parseObjectSearchXml(body) {
-  const doc = xml3.parse(body);
-  const root = doc?.["adtcore:objectReferences"] ?? {};
-  const rows = asArray5(root["adtcore:objectReference"]);
-  return rows.map((row2) => {
-    const result = {
-      "adtcore:uri": String(row2["adtcore:uri"] ?? ""),
-      "adtcore:type": String(row2["adtcore:type"] ?? ""),
-      "adtcore:name": String(row2["adtcore:name"] ?? "")
-    };
-    if (row2["adtcore:packageName"] !== void 0) result["adtcore:packageName"] = String(row2["adtcore:packageName"]);
-    if (row2["adtcore:description"] !== void 0) result["adtcore:description"] = String(row2["adtcore:description"]);
-    const m = result["adtcore:name"].match(/([^\s]*)\s*\((.*)\)/);
-    if (m) {
-      result["adtcore:name"] = m[1] ?? "";
-      if (!result["adtcore:description"]) result["adtcore:description"] = m[2] ?? "";
-    }
-    return result;
-  });
-}
-async function searchObjectsTolerant(conn, query, maxResults, objectType2) {
-  if (objectType2?.includes("/")) {
-    const { body } = await conn.get("/sap/bc/adt/repository/informationsystem/search", {
-      headers: { Accept: "application/xml" },
-      qs: { operation: "quickSearch", query, maxResults: String(maxResults), objectType: objectType2 }
-    });
-    return parseObjectSearchXml(body);
-  }
-  try {
-    return await conn.adt.searchObject(query, objectType2, maxResults);
-  } catch (e) {
-    if (!(e instanceof TypeError)) throw e;
-    const { body } = await conn.get("/sap/bc/adt/repository/informationsystem/search", {
-      headers: { Accept: "application/xml" },
-      qs: {
-        operation: "quickSearch",
-        query,
-        maxResults: String(maxResults),
-        ...objectType2 !== void 0 ? { objectType: objectType2 } : {}
-      }
-    });
-    return parseObjectSearchXml(body);
-  }
-}
-
-// src/tools/search.ts
 init_timeouts();
 init_compact();
 init_types();
@@ -140650,8 +141064,8 @@ function isUnspecificQuery(query) {
   return /^[*%\s]*$/.test(query.trim());
 }
 var searchInputSchema = {
-  query: external_exports.string().describe(
-    "Name pattern (mode=objects), target object (mode=where_used/call_graph), or literal/regex text (mode=source)."
+  query: external_exports.string().optional().describe(
+    "Name pattern (mode=objects), target object (mode=where_used/call_graph), or literal/regex text (mode=source). Optional with inactive=true (then a name pattern filter, wildcards `*`)."
   ),
   mode: external_exports.enum(["objects", "where_used", "source", "call_graph"]).optional().describe(
     'Default "objects". "source": raw source-text scan (literal/regex; needs the fluid API; also matches strings, comments and dead code \u2014 prefer "where_used" for real static references). "call_graph": multiple levels of callers or callees.'
@@ -140670,11 +141084,24 @@ var searchInputSchema = {
   types: external_exports.array(external_exports.string()).max(10).optional().describe(`mode=source: object types to scan. One of: ${SOURCE_SCAN_TYPES.join(" ")}. Default: all five.`),
   regex: external_exports.boolean().optional().describe("mode=source: treat `query` as a PCRE pattern instead of literal text."),
   case_sensitive: external_exports.boolean().optional().describe("mode=source: default false."),
-  include_comments: external_exports.boolean().optional().describe("mode=source: also match inside comments (heuristic, line-local). Default false.")
+  include_comments: external_exports.boolean().optional().describe("mode=source: also match inside comments (heuristic, line-local). Default false."),
+  inactive: external_exports.boolean().optional().describe(
+    "mode=objects: list the INACTIVE objects (your own inactive worklist, per user in ADT) that belong to `packages` (required, max 5). Optional `query` (name pattern), `type` filter, `include_subpackages`, `user`."
+  ),
+  user: external_exports.string().optional().describe("inactive=true: list another user's inactive worklist instead of your own.")
 };
 var SearchInput = external_exports.object(searchInputSchema);
 var MAX_CALL_GRAPH_DEPTH = 4;
 async function abapSearch(conn, input, maxChars) {
+  if (input.inactive === true) return abapSearchInactive(conn, input, maxChars);
+  if (input.query === void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "`query` is required unless inactive=true",
+      {},
+      "Pass a name pattern, or `inactive: true` with `packages` to list inactive objects."
+    );
+  }
   const max = input.max ?? 50;
   if (input.type) assertKnownType(input.type);
   const mode = input.mode ?? "objects";
@@ -140694,6 +141121,84 @@ async function abapSearch(conn, input, maxChars) {
     return buildCallGraph(conn, input.query, input.type, input.direction ?? "callers", depth, max, maxChars);
   }
   return searchObjects(conn, input.query, input.type, max, maxChars);
+}
+function inactiveNameFilter(pattern) {
+  const escaped = pattern.trim().replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+  return new RegExp(`^${escaped}$`, "i");
+}
+async function abapSearchInactive(conn, input, maxChars) {
+  if (input.type) assertKnownType(input.type);
+  const spec = input.type ? specForType(input.type) ?? specForKeyword(input.type) : void 0;
+  const wanted = input.type ? spec?.type ?? input.type.toUpperCase().trim() : void 0;
+  const packages = (input.packages ?? []).map((p) => p.toUpperCase());
+  const recursive = !!input.include_subpackages;
+  const max = input.max ?? 50;
+  let user = (input.user ?? conn.cfg.user).toUpperCase();
+  let subpackageCapHit = false;
+  const seen = /* @__PURE__ */ new Set();
+  const all = [];
+  for (const packageName of packages) {
+    const listing = await listInactiveObjectsOfPackage(conn, {
+      packageName,
+      recursive,
+      ...input.user ? { user: input.user } : {}
+    });
+    user = listing.user;
+    if (listing.truncated) subpackageCapHit = true;
+    for (const entry of listing.entries) {
+      const key = `${entry.type}|${entry.name}|${entry.packageName}`.toUpperCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      all.push(entry);
+    }
+  }
+  const nameFilter = input.query ? inactiveNameFilter(input.query) : void 0;
+  const filtered = all.filter((e) => {
+    if (nameFilter && !nameFilter.test(e.name)) return false;
+    if (wanted) {
+      const t = e.type.toUpperCase();
+      if (wanted.includes("/") ? t !== wanted : t.split("/")[0] !== wanted) return false;
+    }
+    return true;
+  });
+  const rows = filtered.slice(0, max);
+  const droppedByCap = filtered.length - rows.length;
+  const capLine = droppedByCap > 0 ? `--- TRUNCATED --- ${droppedByCap} of ${filtered.length} inactive object(s) not shown (display cap max=${max}). Raise \`max\` to see them.` : void 0;
+  const table = rows.length ? textTable(
+    rows.map((e) => ({
+      TYPE: e.type,
+      NAME: e.name,
+      PACKAGE: e.packageName,
+      USER: e.user,
+      STATE: e.deleted ? "pending deletion" : "inactive"
+    })),
+    ["TYPE", "NAME", "PACKAGE", "USER", "STATE"]
+  ) : `No inactive objects of ${user} in ${packages.join(", ")}.`;
+  const body = capLine ? `${table}
+${capLine}` : table;
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      mode: "objects",
+      inactive: true,
+      packages: packages.join(","),
+      include_subpackages: recursive,
+      user,
+      count: rows.length,
+      truncated_by_subpackage_cap: subpackageCapHit || void 0,
+      truncated_by_max: droppedByCap > 0 || void 0
+    },
+    body,
+    bodyLabel: "RESULTS",
+    notes: [
+      `ADT's inactive-objects list is per user: this is ${user}'s worklist; pass \`user\` to see another user's.`,
+      ...subpackageCapHit ? ["Sub-package walk cut at its cap \u2014 some sub-packages may not have been scanned."] : []
+    ],
+    hints: rows.length ? [
+      "Activate them all with abap_activate package=<pkg> (recursive=true for sub-packages), or one at a time with abap_activate object=<name>."
+    ] : [],
+    maxChars
+  });
 }
 var TYPED_FETCH_MARGIN_MIN = 10;
 var TYPED_FETCH_CAP = 1e3;
@@ -140874,8 +141379,9 @@ var SOURCE_ONLY_FIELDS = [
   "case_sensitive",
   "include_comments"
 ];
-function assertNoSourceOnlyFields(input, mode) {
+function assertNoSourceOnlyFields(input, mode, exempt = []) {
   const passed = SOURCE_ONLY_FIELDS.filter((f) => {
+    if (exempt.includes(f)) return false;
     const v = input[f];
     return v !== void 0 && !(Array.isArray(v) && v.length === 0);
   });
@@ -140920,7 +141426,7 @@ function buildSourceScanQuery(input) {
       { type: input.type }
     );
   }
-  const query = input.query.trim();
+  const query = (input.query ?? "").trim();
   if (!query) {
     throw new AbapError("BAD_INPUT", 'mode="source" requires a non-empty `query`.', {});
   }
@@ -141109,6 +141615,38 @@ function registerSearchTools(mcp, deps) {
         const input = args;
         const mode = input.mode ?? "objects";
         assertNoCallGraphOnlyFields(input, mode);
+        if (input.inactive === true) {
+          if (input.mode !== void 0 && input.mode !== "objects") {
+            throw new AbapError("BAD_INPUT", "inactive=true only applies to mode=objects", { mode: input.mode });
+          }
+          const packages = input.packages ?? [];
+          if (packages.length < 1 || packages.length > 5) {
+            throw new AbapError(
+              "BAD_INPUT",
+              "inactive=true needs `packages` (1-5 package names) \u2014 ADT's inactive-objects list carries no package, so abapsmith intersects it with each package's contents",
+              { packages }
+            );
+          }
+          assertNoSourceOnlyFields(input, "objects", ["packages", "include_subpackages"]);
+          await deps.ensureConnected();
+          deps.safety.assert("read");
+          const res2 = await deps.pool.withRead(
+            "abap_search",
+            (conn) => abapSearchInactive(conn, input, deps.cfg.maxResponseChars)
+          );
+          return ok8(res2.text);
+        }
+        if (input.query === void 0) {
+          throw new AbapError(
+            "BAD_INPUT",
+            "`query` is required unless inactive=true",
+            {},
+            "Pass a name pattern, or `inactive: true` with `packages` to list inactive objects."
+          );
+        }
+        if (input.user !== void 0) {
+          throw new AbapError("BAD_INPUT", "`user` only applies to inactive=true", { user: input.user });
+        }
         if (mode === "source") {
           const q = buildSourceScanQuery(input);
           await deps.ensureConnected();

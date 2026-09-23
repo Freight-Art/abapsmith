@@ -23,7 +23,12 @@ import {
   SOURCE_LINE_MAX,
   withSourceContext,
 } from "../adt/activate.js";
-import type { ActivationOutcome, CheckOutcome, FormatOutcome } from "../adt/activate.js";
+import type {
+  ActivationOutcome,
+  CheckOutcome,
+  FormatOutcome,
+  InactiveObjectRef,
+} from "../adt/activate.js";
 import type { AbapConnection } from "../adt/connection.js";
 import { renderCoActivated } from "./activate.js";
 import { enrichLockedError, type LockHolderLookup } from "../adt/locked-holders.js";
@@ -2478,13 +2483,46 @@ export async function abapWrite(
     }
     const journalled = entryId !== undefined; // see the delete branch
     const cause = isAbapError(e) ? e.message : String(e);
+    // Issue #217: assertNoErrors's CHECK_FAILED already carries the dependents still
+    // inactive (e.details.inactive) — surface them here so the caller can act on them
+    // directly instead of parsing the message. Drop any entry that just names the object
+    // we ourselves wrote (same name, and same type when both are known).
+    const inactiveDeps: InactiveObjectRef[] =
+      isAbapError(e) && Array.isArray(e.details.inactive)
+        ? (e.details.inactive as InactiveObjectRef[]).filter((r) => {
+            if (!r || typeof r.name !== "string" || r.name.trim() === "") return false;
+            const sameName = r.name.trim().toLowerCase() === objectName.trim().toLowerCase();
+            const sameType =
+              r.type && written.target.type
+                ? r.type.toLowerCase() === written.target.type.toLowerCase()
+                : true;
+            return !(sameName && sameType);
+          })
+        : [];
+    const inactiveDepsSummary =
+      inactiveDeps.length > 0
+        ? " Inactive dependencies: " +
+          inactiveDeps
+            .slice(0, 10)
+            .map((r) => `${r.type} ${r.name}`)
+            .join(", ") +
+          (inactiveDeps.length > 10 ? `, +${inactiveDeps.length - 10} more` : "") +
+          "."
+        : "";
+    const inactiveDepsHintPrefix =
+      inactiveDeps.length > 0
+        ? "Activate the inactive dependencies first — `abap_activate objects=[...]` naming " +
+          `them (or \`abap_activate package=${written.target.packageName}\` for everything ` +
+          `inactive in the package) — then activate ${objectName}. `
+        : "";
     throw new AbapError(
       "CHECK_FAILED",
       `The source of ${objectName} WAS WRITTEN AND SAVED on ${conn.cfg.sid}, but ` +
         (attempted
           ? "activation failed"
           : "the syntax check failed before activation was attempted") +
-        `, so the object is saved INACTIVE: ${cause}`,
+        `, so the object is saved INACTIVE: ${cause}` +
+        inactiveDepsSummary,
       {
         written: true,
         activated: false,
@@ -2495,6 +2533,15 @@ export async function abapWrite(
         etag: written.etag,
         ...(journalled ? { journal: entryId } : {}),
         ...(journalError ? { journalError } : {}),
+        ...(inactiveDeps.length > 0
+          ? {
+              inactive_dependencies: inactiveDeps.map((r) => ({
+                name: r.name,
+                type: r.type,
+                ...(r.uri ? { uri: r.uri } : {}),
+              })),
+            }
+          : {}),
         failure: isAbapError(e)
           ? {
               code: e.code,
@@ -2504,7 +2551,8 @@ export async function abapWrite(
             }
           : cause,
       },
-      "The write itself succeeded and is NOT rolled back: the new source is on the server " +
+      inactiveDepsHintPrefix +
+        "The write itself succeeded and is NOT rolled back: the new source is on the server " +
         "and the object is INACTIVE, so it will not execute and callers still see the last " +
         "active version. Fix the reported lines — for a class, abap_write method=\"<NAME>\" " +
         "repairs one method against the INACTIVE version (no re-read needed; " +
