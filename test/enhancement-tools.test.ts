@@ -2390,6 +2390,222 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
   });
 });
 
+// #212 — affects defaults to the spot (create_spot/add_badi_def/add_filter_def), is derived from
+// spec.hostName (create_hook) and stays required for the other six operations.
+
+describe("abap_enh — affects is optional where the journal needs no foreign object (#212)", () => {
+  const withJournal = async (fn: (j: Journal) => Promise<void>): Promise<void> => {
+    const dir = await mkdtemp(join(tmpdir(), "abapsmith-enh-journal3-"));
+    try {
+      await fn(new Journal({ dir, enabled: true, maxEntries: 200, maxAgeDays: 30 }, "A4H"));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  };
+
+  const INTF_COLLECTION = "/sap/bc/adt/oo/interfaces";
+
+  function objectHappyPathRoute(collectionUrl: string, objName: string): Route {
+    const objUrl = `${collectionUrl}/${objName.toLowerCase()}`;
+    const sourceUri = `${objUrl}/source/main`;
+    return (r: Recorded) => {
+      if (r.url === objUrl && r.method === "GET" && !r.qs._action) {
+        const res = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
+        throw new HttpClientException(
+          "Request failed with status code 404",
+          "404",
+          404,
+          undefined,
+          r as unknown as HttpClientOptions,
+          res,
+        );
+      }
+      if (r.url === collectionUrl && r.method === "POST") return resp(200, "", {});
+      if (r.url === objUrl && r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML_H, OK_XML);
+      if (r.url === objUrl && r.qs._action === "UNLOCK") return resp(200, "", { "content-type": "text/plain" });
+      if (r.url === sourceUri && r.method === "PUT") return resp(200, "", { "content-type": "text/plain" });
+      return undefined;
+    };
+  }
+
+  function fluidRoute(action: string, result: Record<string, unknown>): Route {
+    const route = dynamicEnhFluidRoute({
+      transcript: () => enhProbeConsole(action, result),
+      packageName: ENH_BRIDGE_PACKAGE,
+    });
+    return (r: Recorded) => {
+      const hit = route(r as unknown as HttpClientOptions);
+      if (hit) return hit;
+      if (r.url.includes("/sap/bc/adt/activation")) return resp(200, "", { "content-length": "0" });
+      return undefined;
+    };
+  }
+
+  function combineRoutes(...routes: Route[]): Route {
+    return (r: Recorded) => {
+      for (const route of routes) {
+        const hit = route(r);
+        if (hit) return hit;
+      }
+      return undefined;
+    };
+  }
+
+  it("create_spot without affects succeeds and journals the spot itself as the affected object", async () => {
+    await withJournal(async (journal) => {
+      const { conn } = await connected(createSpotBridgeRoute(["SPOT-OBJECT-CREATED"]));
+      const { tools } = await registered(conn, { journal });
+
+      const text = okText(
+        await invoke(tools, "abap_enh", {
+          operation: "create_spot",
+          name: "ZMCP_SPOT",
+          spec: { description: "A spot" },
+        }),
+      );
+      expect(text).toContain("SPOT-OBJECT-CREATED");
+
+      const entries = await journal.list();
+      expect(entries).toHaveLength(1);
+      expect(entries[0]!.object.affects).toEqual({ name: "ZMCP_SPOT", packageName: "$TMP" });
+    });
+  });
+
+  it("add_badi_def without affects succeeds and journals the spot", async () => {
+    await withJournal(async (journal) => {
+      const { conn } = await connected(
+        combineRoutes(objectHappyPathRoute(INTF_COLLECTION, "ZIF_MCP_BADI"), fluidRoute("add_badi_def", { added: true })),
+      );
+      const { tools } = await registered(conn, { journal });
+
+      okText(
+        await invoke(tools, "abap_enh", {
+          operation: "add_badi_def",
+          name: "ZMCP_SPOT",
+          spec: { badiName: "ZMCP_BADI", interfaceName: "ZIF_MCP_BADI", singleUse: true, shortText: "test" },
+        }),
+      );
+
+      const entries = await journal.list();
+      expect(entries).toHaveLength(1);
+      expect(entries[0]!.object.affects).toEqual({ name: "ZMCP_SPOT", packageName: "$TMP", spotName: "ZMCP_SPOT" });
+    });
+  });
+
+  it("create_hook without affects derives it from spec host and journals the host program", async () => {
+    await withJournal(async (journal) => {
+      // Real customer PROG/P descriptor (packageRef $TMP, masterSystem A4H): the package comes off the GET.
+      const hostXml = readFileSync(
+        join(dirname(fileURLToPath(import.meta.url)), "fixtures", "live-captured", "073-p2-packageref-prog.xml"),
+        "utf8",
+      );
+      const { conn, adt } = await connected((r: Recorded) => {
+        if (r.url === "/sap/bc/adt/enhancements/enhoxhh" && r.method === "POST") {
+          return resp(201, "", {
+            etag: "20260805153916000application/vnd.sap.adt.enh.enhoxhh.v2+xml",
+            location: "/sap/bc/adt/enhancements/enhoxhh/zmcp_enh_b",
+          });
+        }
+        if (r.url === "/sap/bc/adt/programs/programs/zmcp_badi_host" && r.method === "GET" && !r.qs._action) {
+          return resp(200, hostXml, OK_XML);
+        }
+        return undefined;
+      });
+      const { mcp, tools } = fakeMcp();
+      const deps: EnhToolDeps = {
+        pool: fakePool(conn),
+        safety: gate(),
+        ensureConnected: async () => {},
+        errorResult,
+        cfg: {
+          maxResponseChars: 30_000,
+          allowEnhancements: true,
+          allowSourcePlugins: true,
+          allowEnhancementDelete: true,
+          user: "DEVELOPER",
+        },
+        transport: localTransport(),
+        journal,
+      };
+      registerEnhancementTools(mcp, deps);
+
+      okText(
+        await invoke(tools, "abap_enh", {
+          operation: "create_hook",
+          name: "ZMCP_ENH_B",
+          description: "ZMCP recon hook impl",
+          spec: {
+            hostType: "PROG/P",
+            hostName: "ZMCP_BADI_HOST",
+            hostUri: "/sap/bc/adt/programs/programs/zmcp_badi_host",
+            anchorFullName: "\\PR:ZMCP_BADI_HOST\\FO:COMPUTE\\SE:END\\EI",
+            anchorFullDescription: "Form COMPUTE, End",
+          },
+        }),
+      );
+
+      const getIdx = adt.labels.indexOf("GET /sap/bc/adt/programs/programs/zmcp_badi_host");
+      const postIdx = adt.labels.indexOf("POST /sap/bc/adt/enhancements/enhoxhh");
+      expect(getIdx).toBeGreaterThanOrEqual(0);
+      expect(postIdx).toBeGreaterThan(getIdx);
+
+      const entries = await journal.list();
+      expect(entries).toHaveLength(1);
+      const entry = entries[0]!;
+      expect(entry.object.affects?.name).toBe("ZMCP_BADI_HOST");
+      expect(entry.object.affects?.packageName).toBe("$TMP");
+      expect(entry.object.affects?.masterSystem).toBe("A4H");
+    });
+  });
+
+  it("create_impl without affects is refused BAD_INPUT naming the six operations requiring it, at zero wire cost", async () => {
+    const { conn, adt } = await connected(() => undefined);
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_enh", {
+      operation: "create_impl",
+      name: "ZMCP_ENH_BADI",
+      spec: CREATE_IMPL_SPEC,
+    });
+
+    const payload = errorPayload(result);
+    expect(payload.error).toBe("BAD_INPUT");
+    expect(String(payload.message)).toContain(
+      "create_impl, set_filter_values, exercise, write_description, delete, set_impl_active",
+    );
+    expect(String(payload.message)).toContain("create_spot, add_badi_def and add_filter_def default to the spot");
+    const details = payload["details"] as Record<string, unknown> | undefined;
+    expect(details?.["requiredFor"]).toEqual([
+      "create_impl",
+      "set_filter_values",
+      "exercise",
+      "write_description",
+      "delete",
+      "set_impl_active",
+    ]);
+    expect(adt.calls).toHaveLength(0);
+  });
+
+  it.each([
+    [
+      "set_filter_values",
+      "ZMCP_ENH_BADI",
+      { spotName: "ZMCP_SPOT", implName: "ZMCP_IMPL", filterName: "FLT", filterType: "C", compare: "EQ", value: "X" },
+    ],
+    ["exercise", "ZMCP_BADI", { methodName: "RUN", params: [] }],
+  ] as const)("%s without affects is refused BAD_INPUT at zero wire cost", async (operation, name, spec) => {
+    const { conn, adt } = await connected(() => undefined);
+    const { tools } = await registered(conn);
+
+    const result = await invoke(tools, "abap_enh", { operation, name, spec });
+
+    const payload = errorPayload(result);
+    expect(payload.error).toBe("BAD_INPUT");
+    expect(String(payload.message)).toContain("requires affects");
+    expect(adt.calls).toHaveLength(0);
+  });
+});
+
 // ===========================================================================
 // Defect: create_impl used to report a reference to an
 // implementing class it never creates — SE19 generates that class shell,

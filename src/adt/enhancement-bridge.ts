@@ -55,16 +55,20 @@
  */
 import type { AbapConnection } from "./connection.js";
 import { AbapError, isAbapError } from "./errors.js";
-import type { AuthorizedTarget, SafetyGate } from "../safety.js";
+import { normalizeCorrNr, type AuthorizedTarget, type EnhancementIntent, type SafetyCorr, type SafetyGate } from "../safety.js";
 import type { ActivationResult } from "abap-adt-api/build/api/activate.js";
 import {
   authorizeMutation,
+  preflightPackageCorr,
   writeObject,
   enhancementIntentFor,
   NO_JOURNAL,
   type EnhancedObjectRef,
+  type TransportOptions,
 } from "./write.js";
 import { isNotFoundError } from "./session.js";
+import { isLocalPackageName } from "./transports.js";
+import type { SessionTransport } from "./session-transport.js";
 import {
   activateObject,
   activateWithPreauditSet,
@@ -329,17 +333,11 @@ async function writeActivateRunBridge(
  * it exactly as they used to build one from `writeActivateRunBridge`'s raw
  * classrun output.
  *
- * `dispatch()` runs its own generic write-gate check (`assertTargetsAgainstGate`,
- * `./fluid/dispatch.js`) against the action's declared `targets` before this
- * ever executes, in addition to the caller's own `gate.assertIntent(intent,
- * {op:"write"})` above it. That second check can never refuse a call the
- * first one already approved: `enh`'s actions all target `ENH_CREATE_PACKAGE`
- * ("$TMP"), which the transport-allowlist machinery skips entirely, and the
- * untyped `safetyTarget` `assertTargetsAgainstGate` builds (no `type` field)
- * never reaches `enhancementRules()`'s `isEnhancementType`-gated branch — the
- * one place the existing intent-based gate is stricter than a plain
- * write-gate check. So dispatch()'s check is a strict subset here, not an
- * independent gate that could double-refuse.
+ * `dispatch()` also runs its generic write-gate check against the action's
+ * declared `targets` (the caller's `package_name`/`corr_nr`). It is a subset
+ * of the intent-based `gate.assertIntent` the caller ran first, so it never
+ * refuses what that one approved; `corrSource` tells it a caller-named
+ * request from a session-resolved one.
  *
  * `enh`'s five mutate actions each declare an `object`-typed output, so
  * `dispatch()` hands back exactly one JSON value in `fr.result` — never the
@@ -351,6 +349,7 @@ async function runEnhAction(
   gate: SafetyGate,
   action: string,
   args: Record<string, unknown>,
+  corrSource?: "named" | "auto",
 ): Promise<{ result: Record<string, unknown>; run: RunResult }> {
   const fr = await dispatch(
     { conn, cfg: conn.cfg, gate, tools: ENH_TOOLS },
@@ -359,7 +358,7 @@ async function runEnhAction(
     // action name for all five reroutes) so a FLUID_API_DISABLED refusal
     // names abap_enh, not the internal fluid tool id "enh" dispatch() runs
     // this as under the hood.
-    { tool: enhManifest.id, action, args, caller: { tool: "abap_enh", action } },
+    { tool: enhManifest.id, action, args, caller: { tool: "abap_enh", action }, corrSource },
   );
   if (typeof fr.result !== "object" || fr.result === null || Array.isArray(fr.result)) {
     throw new AbapError(
@@ -383,30 +382,97 @@ async function runEnhAction(
   return { result, run };
 }
 
+/**
+ * Package/corr resolution shared by the five mutate functions: the zero-network
+ * intent preflight, then (transportable package) the real transport resolution
+ * through `preflightPackageCorr`. Local package + named `corr_nr` is BAD_INPUT.
+ */
+async function resolveEnhCorr(
+  conn: AbapConnection,
+  gate: SafetyGate,
+  intent: EnhancementIntent,
+  t: { name: string; type: string; uri: string; packageName: string; exists: boolean },
+  transport: SessionTransport | undefined,
+  named: string | undefined,
+  activate: boolean,
+): Promise<{ corrNr: string; corrSource?: "named" | "auto" }> {
+  const local = isLocalPackageName(t.packageName);
+  if (local && named !== undefined) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `package ${t.packageName} is local; a transport request does not apply.`,
+      { field: "corr_nr", packageName: t.packageName, corrNr: named },
+    );
+  }
+  const preflight: SafetyCorr =
+    named === undefined ? { kind: "unresolved" } : { kind: "transport", corrNr: named, source: "named" };
+  gate.assertIntent(intent, { op: "write", corr: preflight, phase: "preflight" });
+  if (activate) gate.assertIntent(intent, { op: "activate", corr: preflight, phase: "preflight" });
+
+  if (local) return { corrNr: "" };
+
+  if (transport === undefined) {
+    if (named !== undefined) {
+      gate.assertIntent(intent, { op: "write", corr: { kind: "transport", corrNr: named, source: "named" } });
+      return { corrNr: named, corrSource: "named" };
+    }
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `${t.name} needs a transport request (package ${t.packageName} is not local), but no ` +
+        "transport manager is wired into this call. This is an internal wiring failure in " +
+        "abapsmith, not a mistake in the request.",
+      { name: t.name, type: t.type, packageName: t.packageName },
+    );
+  }
+
+  // The gate judges the artefact the intent names (the BAdI for add_badi_def/add_filter_def,
+  // not the spot CTS records); the request itself is still resolved from `t.uri`.
+  const corr = await preflightPackageCorr(
+    conn,
+    { uri: t.uri, name: intent.enhancementName, type: t.type, packageName: t.packageName, exists: t.exists },
+    { transport, gate, corrNr: named, intent },
+  );
+  return { corrNr: corr.corrNr, corrSource: corr.source };
+}
+
 // ---------------------------------------------------------------------------
 // H21 — the marker interface
 // ---------------------------------------------------------------------------
 
 /**
  * Check-then-create-if-missing, per `enhancement-templates.ts`'s H21 doc
- * comment: never overwrite a caller's own interface body. Activation is
- * never skipped either way (fresh or pre-existing) — an inactive marker
- * interface would break the `add_badi_def` call that follows.
+ * comment: never overwrite a caller's own interface body. Always activated,
+ * whatever the caller's `activate` flag: add_badi_def needs it active.
+ * Lands in the BAdI definition's own package and request.
  */
-async function ensureMarkerInterface(conn: AbapConnection, gate: SafetyGate, interfaceName: string): Promise<void> {
+async function ensureMarkerInterface(
+  conn: AbapConnection,
+  gate: SafetyGate,
+  interfaceName: string,
+  packageName: string,
+  transport: SessionTransport | undefined,
+  corr: { corrNr: string; source: "named" | "auto" } | undefined,
+): Promise<void> {
   const name = assertEnhIdentifier(interfaceName, "interfaceName");
   const authorized = await authorizeMutation(conn, gate, "write", {
     type: "INTF/OI",
     name,
-    packageName: ENH_CREATE_PACKAGE,
+    packageName,
     description: "abapsmith BAdI marker interface (H21)",
   });
   if (!authorized.target.exists) {
-    // NO_JOURNAL — a generated $TMP marker interface, not user source; no
+    // A session-resolved request is reused by the session itself; only a caller-named one is
+    // passed on (naming an auto-resolved number would be refused under ABAP_ALLOW_TRANSPORTS=auto).
+    const transportOpts: TransportOptions =
+      transport !== undefined
+        ? { transport, gate, ...(corr?.source === "named" ? { corrNr: corr.corrNr } : {}) }
+        : {};
+    // NO_JOURNAL — a generated marker interface, not user source; no
     // before-image worth journaling.
     await writeObject(conn, authorized, {
       source: markerInterfaceSource(name),
       onBeforeImage: NO_JOURNAL,
+      ...transportOpts,
     });
   }
   gate.assert("activate", {
@@ -518,27 +584,55 @@ export function implUri(enhName: string): string {
 export interface CreateEnhancementSpotParams extends CreateSpotParams {
   /** The object this spot will bind to — see `EnhancementIntent`'s Q2. */
   affects: EnhancedObjectRef;
+  /** Target package (devclass). Default `ENH_CREATE_PACKAGE` ("$TMP"). */
+  packageName?: string;
+  /** Caller-named transport request; ignored/refused on a local package. */
+  corrNr?: string;
+  /** Session transport resolver — required to resolve an omitted `corrNr` on a transportable package. */
+  transport?: SessionTransport;
+  /** Save-only when `false` (default `true`) — the spot is left inactive. */
+  activate?: boolean;
 }
 
 export async function createEnhancementSpot(
   conn: AbapConnection,
   gate: SafetyGate,
   params: CreateEnhancementSpotParams,
-): Promise<{ run: RunResult; transcript: EnhTranscriptResult; activation: ActivationOutcome }> {
+): Promise<{
+  run: RunResult;
+  transcript: EnhTranscriptResult;
+  activation?: ActivationOutcome;
+  corr?: { corrNr: string; source: "named" | "auto" };
+}> {
   const spotName = assertEnhIdentifier(params.spotName, "spotName");
-  const intent = enhancementIntentFor(
-    { name: spotName, type: "ENHS/XS", packageName: ENH_CREATE_PACKAGE },
-    params.affects,
-  );
-  gate.assertIntent(intent, { op: "write" });
-  gate.assertIntent(intent, { op: "activate" });
+  const packageName = (params.packageName ?? ENH_CREATE_PACKAGE).trim().toUpperCase();
+  const named = normalizeCorrNr(params.corrNr);
+  const activate = params.activate ?? true;
+  const intent = enhancementIntentFor({ name: spotName, type: "ENHS/XS", packageName }, params.affects);
 
-  const { result, run } = await runEnhAction(conn, gate, "create_spot", {
-    spot_name: spotName,
-    description: params.description,
-    package_name: ENH_CREATE_PACKAGE,
-    corr_nr: "",
-  });
+  const resolved = await resolveEnhCorr(
+    conn,
+    gate,
+    intent,
+    { name: spotName, type: "ENHS/XS", uri: spotUri(spotName), packageName, exists: false },
+    params.transport,
+    named,
+    activate,
+  );
+
+  const { result, run } = await runEnhAction(
+    conn,
+    gate,
+    "create_spot",
+    {
+      spot_name: spotName,
+      description: params.description,
+      package_name: packageName,
+      corr_nr: resolved.corrNr,
+      activate,
+    },
+    resolved.corrSource,
+  );
   const transcript: EnhTranscriptResult = {
     tags: result.created === true ? ["SPOT-OBJECT-CREATED"] : [],
     raw: JSON.stringify(result),
@@ -548,8 +642,13 @@ export async function createEnhancementSpot(
   // Closes the isActive-vs-adtcore:version gap (see header). Not
   // assertNoErrors-wrapped: creation is already confirmed above, so a
   // failure here means "created, not activated", not "nothing created".
-  const activation = await activateObject(conn, { name: spotName, uri: spotUri(spotName) });
-  return { run, transcript, activation };
+  const activation = activate ? await activateObject(conn, { name: spotName, uri: spotUri(spotName) }) : undefined;
+  return {
+    run,
+    transcript,
+    ...(activation !== undefined ? { activation } : {}),
+    ...(resolved.corrSource !== undefined ? { corr: { corrNr: resolved.corrNr, source: resolved.corrSource } } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -559,35 +658,67 @@ export async function createEnhancementSpot(
 export interface AddBadiDefinitionParams extends AddBadiDefParams {
   spotName: string;
   affects: EnhancedObjectRef;
+  packageName?: string;
+  corrNr?: string;
+  transport?: SessionTransport;
+  activate?: boolean;
 }
 
 export async function addBadiDefinition(
   conn: AbapConnection,
   gate: SafetyGate,
   params: AddBadiDefinitionParams,
-): Promise<{ run: RunResult; transcript: EnhTranscriptResult; activation: ActivationOutcome }> {
+): Promise<{
+  run: RunResult;
+  transcript: EnhTranscriptResult;
+  activation?: ActivationOutcome;
+  corr?: { corrNr: string; source: "named" | "auto" };
+}> {
   const spotName = assertEnhIdentifier(params.spotName, "spotName");
   const badiName = assertEnhIdentifier(params.badiName, "badiName");
   const interfaceName = assertEnhIdentifier(params.interfaceName, "interfaceName");
-  const intent = enhancementIntentFor(
-    { name: badiName, type: "ENHS/XS", packageName: ENH_CREATE_PACKAGE },
-    { ...params.affects, spotName },
+  const packageName = (params.packageName ?? ENH_CREATE_PACKAGE).trim().toUpperCase();
+  const named = normalizeCorrNr(params.corrNr);
+  const activate = params.activate ?? true;
+  const intent = enhancementIntentFor({ name: badiName, type: "ENHS/XS", packageName }, { ...params.affects, spotName });
+
+  const resolved = await resolveEnhCorr(
+    conn,
+    gate,
+    intent,
+    { name: spotName, type: "ENHS/XS", uri: spotUri(spotName), packageName, exists: true },
+    params.transport,
+    named,
+    activate,
   );
-  gate.assertIntent(intent, { op: "write" });
-  gate.assertIntent(intent, { op: "activate" });
 
-  // H21 — before touching the spot at all.
-  await ensureMarkerInterface(conn, gate, interfaceName);
+  // H21 — before touching the spot at all. Always activated regardless of
+  // `activate` (the marker interface must be active for add_badi_def to work).
+  await ensureMarkerInterface(
+    conn,
+    gate,
+    interfaceName,
+    packageName,
+    params.transport,
+    resolved.corrSource !== undefined ? { corrNr: resolved.corrNr, source: resolved.corrSource } : undefined,
+  );
 
-  const { result, run } = await runEnhAction(conn, gate, "add_badi_def", {
-    spot_name: spotName,
-    badi_name: badiName,
-    interface_name: interfaceName,
-    single_use: params.singleUse,
-    short_text: params.shortText,
-    package_name: ENH_CREATE_PACKAGE,
-    corr_nr: "",
-  });
+  const { result, run } = await runEnhAction(
+    conn,
+    gate,
+    "add_badi_def",
+    {
+      spot_name: spotName,
+      badi_name: badiName,
+      interface_name: interfaceName,
+      single_use: params.singleUse,
+      short_text: params.shortText,
+      package_name: packageName,
+      corr_nr: resolved.corrNr,
+      activate,
+    },
+    resolved.corrSource,
+  );
   const transcript: EnhTranscriptResult = {
     tags: result.added === true ? ["BADI-DEF-ADDED"] : [],
     raw: JSON.stringify(result),
@@ -598,8 +729,13 @@ export async function addBadiDefinition(
   // spot alone (badiName has no own ADT object/URI) — not H23's joint form.
   // Non-fatal, unlike H21's marker-interface activation above: creation is
   // already confirmed by the transcript assertion.
-  const activation = await activateObject(conn, { name: spotName, uri: spotUri(spotName) });
-  return { run, transcript, activation };
+  const activation = activate ? await activateObject(conn, { name: spotName, uri: spotUri(spotName) }) : undefined;
+  return {
+    run,
+    transcript,
+    ...(activation !== undefined ? { activation } : {}),
+    ...(resolved.corrSource !== undefined ? { corr: { corrNr: resolved.corrNr, source: resolved.corrSource } } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -609,32 +745,50 @@ export async function addBadiDefinition(
 export interface AddFilterDefinitionParams extends AddFilterDefParams {
   spotName: string;
   affects: EnhancedObjectRef;
+  packageName?: string;
+  corrNr?: string;
+  transport?: SessionTransport;
+  activate?: boolean;
 }
 
 export async function addFilterDefinition(
   conn: AbapConnection,
   gate: SafetyGate,
   params: AddFilterDefinitionParams,
-): Promise<{ run: RunResult; transcript: EnhTranscriptResult; activation: ActivationOutcome }> {
+): Promise<{
+  run: RunResult;
+  transcript: EnhTranscriptResult;
+  activation?: ActivationOutcome;
+  corr?: { corrNr: string; source: "named" | "auto" };
+}> {
   const spotName = assertEnhIdentifier(params.spotName, "spotName");
   const badiName = assertEnhIdentifier(params.badiName, "badiName");
-  const intent = enhancementIntentFor(
-    { name: badiName, type: "ENHS/XS", packageName: ENH_CREATE_PACKAGE },
-    { ...params.affects, spotName },
+  const packageName = (params.packageName ?? ENH_CREATE_PACKAGE).trim().toUpperCase();
+  const named = normalizeCorrNr(params.corrNr);
+  const activate = params.activate ?? true;
+  const intent = enhancementIntentFor({ name: badiName, type: "ENHS/XS", packageName }, { ...params.affects, spotName });
+
+  const resolved = await resolveEnhCorr(
+    conn,
+    gate,
+    intent,
+    { name: spotName, type: "ENHS/XS", uri: spotUri(spotName), packageName, exists: true },
+    params.transport,
+    named,
+    activate,
   );
-  gate.assertIntent(intent, { op: "write" });
-  gate.assertIntent(intent, { op: "activate" });
 
   const args: Record<string, unknown> = {
     spot_name: spotName,
     badi_name: badiName,
     filter_name: params.filterName,
     filter_type: params.filterType,
-    package_name: ENH_CREATE_PACKAGE,
-    corr_nr: "",
+    package_name: packageName,
+    corr_nr: resolved.corrNr,
   };
   if (params.filterText !== undefined) args.filter_text = params.filterText;
-  const { result, run } = await runEnhAction(conn, gate, "add_filter_def", args);
+  args.activate = activate;
+  const { result, run } = await runEnhAction(conn, gate, "add_filter_def", args, resolved.corrSource);
   const transcript: EnhTranscriptResult = {
     tags: result.added === true ? ["FILTER-DEF-ADDED"] : [],
     raw: JSON.stringify(result),
@@ -646,8 +800,13 @@ export async function addFilterDefinition(
   // DEFINITION supports filtering (spot-level metadata) — AddFilterDefParams
   // carries no implementation identifier, so there is no second object to
   // name in a joint call. Same target as addBadiDefinition/createEnhancementSpot.
-  const activation = await activateObject(conn, { name: spotName, uri: spotUri(spotName) });
-  return { run, transcript, activation };
+  const activation = activate ? await activateObject(conn, { name: spotName, uri: spotUri(spotName) }) : undefined;
+  return {
+    run,
+    transcript,
+    ...(activation !== undefined ? { activation } : {}),
+    ...(resolved.corrSource !== undefined ? { corr: { corrNr: resolved.corrNr, source: resolved.corrSource } } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -673,6 +832,10 @@ async function implementingClassExists(conn: AbapConnection, className: string):
 
 export interface CreateBadiImplementationParams extends CreateImplParams {
   affects: EnhancedObjectRef;
+  packageName?: string;
+  corrNr?: string;
+  transport?: SessionTransport;
+  activate?: boolean;
 }
 
 export async function createBadiImplementation(
@@ -682,31 +845,47 @@ export async function createBadiImplementation(
 ): Promise<{
   run: RunResult;
   transcript: EnhTranscriptResult;
-  activation: ActivationOutcome;
+  activation?: ActivationOutcome;
   implClass: { name: string; exists: boolean | undefined };
+  corr?: { corrNr: string; source: "named" | "auto" };
 }> {
   const enhName = assertEnhIdentifier(params.enhName, "enhName");
   const spotName = assertEnhIdentifier(params.spotName, "spotName");
   const badiName = assertEnhIdentifier(params.badiName, "badiName");
   const implClass = assertEnhIdentifier(params.implClass, "implClass");
-  const intent = enhancementIntentFor(
-    { name: enhName, type: "ENHO/XH", packageName: ENH_CREATE_PACKAGE },
-    { ...params.affects, spotName },
-  );
-  gate.assertIntent(intent, { op: "write" });
-  gate.assertIntent(intent, { op: "activate" });
+  const packageName = (params.packageName ?? ENH_CREATE_PACKAGE).trim().toUpperCase();
+  const named = normalizeCorrNr(params.corrNr);
+  const activate = params.activate ?? true;
+  const intent = enhancementIntentFor({ name: enhName, type: "ENHO/XH", packageName }, { ...params.affects, spotName });
 
-  const { result, run } = await runEnhAction(conn, gate, "create_impl", {
-    enh_name: enhName,
-    spot_name: spotName,
-    badi_name: badiName,
-    impl_name: params.implName,
-    impl_class: implClass,
-    active: params.active,
-    description: params.description,
-    package_name: ENH_CREATE_PACKAGE,
-    corr_nr: "",
-  });
+  const resolved = await resolveEnhCorr(
+    conn,
+    gate,
+    intent,
+    { name: enhName, type: "ENHO/XH", uri: implUri(enhName), packageName, exists: false },
+    params.transport,
+    named,
+    activate,
+  );
+
+  const { result, run } = await runEnhAction(
+    conn,
+    gate,
+    "create_impl",
+    {
+      enh_name: enhName,
+      spot_name: spotName,
+      badi_name: badiName,
+      impl_name: params.implName,
+      impl_class: implClass,
+      active: params.active,
+      description: params.description,
+      package_name: packageName,
+      corr_nr: resolved.corrNr,
+      activate,
+    },
+    resolved.corrSource,
+  );
   const tags: EnhTag[] = [];
   if (result.created === true) tags.push("ENHO-OBJECT-CREATED");
   if (result.impl_added === true) tags.push("IMPL-ADDED");
@@ -720,13 +899,19 @@ export async function createBadiImplementation(
   // reliably sets the runtime dispatch flag (ls_impl-active) but does NOT
   // reliably promote adtcore:version to active. enhancement-write.ts's
   // writeAndActivateEnhancementDescription closes the identical gap with an
-  // extra activateObject call; done here directly and unconditionally
+  // extra activateObject call; done here directly when `activate` is true
   // (params.active is the orthogonal runtime dispatch flag). Not
   // assertNoErrors-wrapped: creation is already confirmed above, so a
   // failure here means "created, not activated", not "nothing created".
-  const activation = await activateObject(conn, { name: enhName, uri: implUri(enhName) });
+  const activation = activate ? await activateObject(conn, { name: enhName, uri: implUri(enhName) }) : undefined;
   const exists = await implementingClassExists(conn, implClass);
-  return { run, transcript, activation, implClass: { name: implClass, exists } };
+  return {
+    run,
+    transcript,
+    ...(activation !== undefined ? { activation } : {}),
+    implClass: { name: implClass, exists },
+    ...(resolved.corrSource !== undefined ? { corr: { corrNr: resolved.corrNr, source: resolved.corrSource } } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -741,47 +926,79 @@ export interface SetFilterValuesRequestParams extends SetFilterValuesParams {
   affects: EnhancedObjectRef;
   /** Fired before H23's joint activation POST — see {@link activateSpotAndImplementation}'s `onBeforeActivation` doc for why it's required. `NO_JOURNAL` opts out. */
   onJointActivation: () => Promise<void>;
+  packageName?: string;
+  corrNr?: string;
+  transport?: SessionTransport;
+  activate?: boolean;
 }
 
 export async function setFilterValues(
   conn: AbapConnection,
   gate: SafetyGate,
   params: SetFilterValuesRequestParams,
-): Promise<{ run: RunResult; transcript: EnhTranscriptResult; jointActivation: ActivationOutcome }> {
+): Promise<{
+  run: RunResult;
+  transcript: EnhTranscriptResult;
+  jointActivation?: ActivationOutcome;
+  corr?: { corrNr: string; source: "named" | "auto" };
+}> {
   const enhName = assertEnhIdentifier(params.enhName, "enhName");
   const spotName = assertEnhIdentifier(params.spotName, "spotName");
-  const intent = enhancementIntentFor(
-    { name: enhName, type: "ENHO/XH", packageName: ENH_CREATE_PACKAGE },
-    { ...params.affects, spotName },
-  );
-  gate.assertIntent(intent, { op: "write" });
-  gate.assertIntent(intent, { op: "activate" });
+  const packageName = (params.packageName ?? ENH_CREATE_PACKAGE).trim().toUpperCase();
+  const named = normalizeCorrNr(params.corrNr);
+  const activate = params.activate ?? true;
+  const intent = enhancementIntentFor({ name: enhName, type: "ENHO/XH", packageName }, { ...params.affects, spotName });
 
-  const { result, run } = await runEnhAction(conn, gate, "set_filter_values", {
-    enh_name: enhName,
-    impl_name: params.implName,
-    filter_name: params.filterName,
-    filter_type: params.filterType,
-    compare: params.compare,
-    value: params.value,
-    package_name: ENH_CREATE_PACKAGE,
-    corr_nr: "",
-  });
+  const resolved = await resolveEnhCorr(
+    conn,
+    gate,
+    intent,
+    { name: enhName, type: "ENHO/XH", uri: implUri(enhName), packageName, exists: true },
+    params.transport,
+    named,
+    activate,
+  );
+
+  const { result, run } = await runEnhAction(
+    conn,
+    gate,
+    "set_filter_values",
+    {
+      enh_name: enhName,
+      impl_name: params.implName,
+      filter_name: params.filterName,
+      filter_type: params.filterType,
+      compare: params.compare,
+      value: params.value,
+      package_name: packageName,
+      corr_nr: resolved.corrNr,
+      activate,
+    },
+    resolved.corrSource,
+  );
   const transcript: EnhTranscriptResult = {
     tags: result.replaced === true ? ["IMPL-REPLACED"] : [],
     raw: JSON.stringify(result),
   };
   assertEnhTranscript(transcript, ["IMPL-REPLACED"], `Setting filter values on implementation ${enhName}`);
 
+  if (!activate) {
+    return {
+      run,
+      transcript,
+      ...(resolved.corrSource !== undefined ? { corr: { corrNr: resolved.corrNr, source: resolved.corrSource } } : {}),
+    };
+  }
+
   // H23: the inline implementation-level activate above is necessary but
   // not sufficient (fixtures 471/473/478 vs 492) — a second gate check plus
   // the joint call. `authorizeIntent` (not `assertIntent`) so the minted
   // token is the only way to reach `activateSpotAndImplementation`'s
-  // `conn.post`.
+  // `conn.post`. Skipped entirely when `activate` is false.
   const jointAuthorized = gate.authorizeIntent(
     "activate",
     intent,
-    { name: enhName, packageName: ENH_CREATE_PACKAGE, type: "ENHO/XH" },
+    { name: enhName, packageName, type: "ENHO/XH" },
   );
   const jointActivation = await activateSpotAndImplementation(
     conn,
@@ -796,7 +1013,12 @@ export async function setFilterValues(
     what: `H23 joint activation of spot ${spotName} + implementation ${enhName} after a filter change`,
     name: enhName,
   });
-  return { run, transcript, jointActivation };
+  return {
+    run,
+    transcript,
+    jointActivation,
+    ...(resolved.corrSource !== undefined ? { corr: { corrNr: resolved.corrNr, source: resolved.corrSource } } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------

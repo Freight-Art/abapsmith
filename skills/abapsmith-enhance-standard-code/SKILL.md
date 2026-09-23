@@ -43,9 +43,14 @@ are refused; give the plain type name SAP would resolve, not ABAP syntax.
 
 ## Hard boundaries
 
-- **Every create lands in `$TMP`.** All seven create operations, hooks included.
-  There is no package argument that changes this. A BAdI that must ship cannot be
-  built here — say so instead of trying.
+- **`create_spot`, `add_badi_def`, `add_filter_def`, `create_impl` and
+  `set_filter_values` take `package` (default `$TMP`), `corr_nr` and
+  `activate`.** Against a transportable package, `corr_nr` follows the same
+  transport rules as `abap_write`. `activate: false` saves the object without
+  activating it — read it with `abap_read`, then `abap_activate` it
+  explicitly when ready. `create_hook` still always lands in `$TMP` (use
+  `spec.activate` for it). `exercise` creates nothing of the caller's — its
+  bridge lives in `$ABAPSMITH_FLUID_API`. See `doc/TOOLS/enhancements.md`.
 - **Creates are not atomic.** A call that throws may still have created a locked,
   empty shell. Check whether the object exists before retrying; a blind retry
   compounds the mess.
