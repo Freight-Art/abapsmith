@@ -22,28 +22,99 @@ reaching SAP.
 | `include` | enum `main` \| `definitions` \| `implementations` \| `macros` \| `testclasses` | no | `main` | `CLAS/OC` only — which class sub-include to write. `testclasses` is the ABAP Unit test include (CCAU). A write REPLACES the whole named include; there is no partial/patch write to an include (`edit`/`method` still target `main` only). |
 | `ddic` | object | no | — | Structured create for `DOMA/DD`/`DTEL/DE`/`TTYP/DA` only — alternative to `source` (never both; an empty `source: ""` counts as absent). `DOMA/DD` takes `fixedValues: [{low, high?, text}]` and `valueTable`, and computes `outputLength` from the type unless given. See `abapsmith-create-ddic-objects` for which fields apply to which type. |
 | `package` | string | no | `$TMP` | Package for a **new** object. Must be allowlisted. For a new `DEVC/K` this is the SUPERpackage, not a sibling — omitting it would create a ROOT package, which the safety gate refuses. |
-| `description` | string | no (required for `TRAN/T`, for any `ddic` create, and for `mode="update"` on `VIEW/DV`, `TRAN/T` or `SHLP/DH`) | — | Short description for a **new** object, or the replacement description on an `update` — `DDIF_VIEW_PUT`/`RPY_TRANSACTION_INSERT`/`DDIF_SHLP_PUT` all replace the description along with everything else, so an update that wants to keep the old text must pass it again. |
+| `description` | string | no — required only for `mode="update"` on `VIEW/DV`, `TRAN/T` or `SHLP/DH` | — | Short description for a **new** object, or the replacement description on an `update` — `DDIF_VIEW_PUT`/`RPY_TRANSACTION_INSERT`/`DDIF_SHLP_PUT` all replace the description along with everything else, so an update that wants to keep the old text must pass it again. Omitted on a **create** it defaults instead of being refused: to the object name for `TRAN/T`, `VIEW/DV`, `SHLP/DH` and the structured `ddic` types (`DOMA/DD`, `DTEL/DE`, `TTYP/DA`), and to `<TABLE> index <ID>` for `TABL/DI`; the response notes which default it used. Limits, stated in the schema rather than discovered by trial: 36 characters for a `TRAN/T` description (`TSTCT-TTEXT`) — refused zero-network with `BAD_INPUT` quoting 36 — and 60 characters for DDIC short texts. |
 | `expect_etag` | string | no | — | Etag from a prior `abap_read`. Write is rejected (`ETAG_CONFLICT`) if the object changed since. Also guards `mode=delete`. |
 | `mode` | enum `write` \| `delete` \| `update` | no | `write` | `write` creates (or edits source in place for most types); `delete` removes the object; `update` retargets/replaces an EXISTING `VIEW/DV`, `TRAN/T` or `SHLP/DH` through the classic fluid bridge (`DDIF_VIEW_PUT`, `RPY_TRANSACTION_DELETE`+`RPY_TRANSACTION_INSERT`, `DDIF_SHLP_PUT` — each replaces the WHOLE definition, not a patch) — refused zero-network, no server call, for every other type. |
 | `activate` | boolean | no | `true` | Activate after a successful write. |
 | `verify` | boolean | no | — | Raise this one call to `verified` mode — reads the object back after a successful write. Raise-only: cannot lower a server `ABAP_VERIFY_WRITES=verified` default. |
 | `format` | boolean | no | — | Pretty-print the source before writing. |
-| `corr_nr` | string | no | — | Transport request to write into. Omit for `$TMP`-local objects. Never required: for every transportable create — the classic-bridge types `TRAN/T`, `SHLP/DH`, `VIEW/DV`, `TABL/DI` and `DEVC/K` included (they register via `RS_CORR_INSERT`, which needs a request, so the server resolves one) — omitting it takes the same route as a class create: the safety gate judges the write first, with no wire request, then the session resolver picks a request in the order given under "How the request is chosen" below, and the response's `transport:` field names it. Under `ABAP_ALLOW_TRANSPORTS=auto` a named value is refused (`SAFETY_DENIED`, rule `transport allowlist`, `retryable: false`) regardless of which request — omit the field. Refused for any bridge create into a `$` package. For `mode="update"` on any of the three, `corr_nr` is always optional, never required, regardless of package — the object already exists and is already recorded wherever CTS holds it; a named value is passed through as-is (`corrSource: "named"`), nothing re-derives or requires it. Also refused for a `VIEW/DV`/`TRAN/T`/`SHLP/DH` delete — none of the three delete bridges takes a transport parameter, and none is needed: the delete registers nothing in CTS, so it is judged as a local mutation regardless of `ABAP_ALLOW_TRANSPORTS`. For any other `mode=delete`, a named `corr_nr` that disagrees with the request CTS already records the object in is refused before anything is deleted, pre-lock — see "`mode=delete` and transport requests" below; left unnamed, the request that already holds the object wins the deletion, resolved automatically. A `mode=write`/`edit` naming a different `corr_nr` is never refused this way — the write proceeds under the request CTS already holds, reported rather than silently substituted. |
+| `corr_nr` | string | no | — | Transport request to write into. Omit for `$TMP`-local objects. Never required: for every transportable create — the classic-bridge types `TRAN/T`, `SHLP/DH`, `VIEW/DV`, `TABL/DI` and `DEVC/K` included (they register via `RS_CORR_INSERT`, which needs a request, so the server resolves one) — omitting it takes the same route as a class create: the safety gate judges the write first, with no wire request, then the session resolver picks a request in the order given under "How the request is chosen" below, and the response's `transport:` field names it. Under `ABAP_ALLOW_TRANSPORTS=auto` a named value is accepted only when it is (a) a request this session created (`abap_transport operation=create`, `abap_img_edit create_request`, or one created for a package by an earlier write in this session), or (b) a modifiable workbench request owned by the connected user carrying abapsmith's own session description for the same package — exactly the requests auto would choose itself; any other named value is refused (`SAFETY_DENIED`, rule `transport allowlist`, `retryable: false`), and the refusal lists the acceptable requests ("Acceptable: A4HK900200" or "none yet — omit corr_nr to have one created"). Refused for any bridge create into a `$` package. For `mode="update"` on any of the three, `corr_nr` is always optional, never required, regardless of package — the object already exists and is already recorded wherever CTS holds it; a named value is passed through as-is (`corrSource: "named"`), nothing re-derives or requires it. Also refused for a `VIEW/DV`/`SHLP/DH` delete — neither bridge takes a transport parameter, and none is needed: the delete registers nothing in CTS, so it is judged as a local mutation regardless of `ABAP_ALLOW_TRANSPORTS`. `TRAN/T` delete is different (#202): its bridge now passes `corr_nr` to `RPY_TRANSACTION_DELETE`, which registers it via `RS_CORR_INSERT` (dialog suppressed, so the SAPLSTRD 0300 request-choice popup that used to break a delete against a transportable package never appears). Omit it and the request is picked the same way a `TRAN/T` create picks one (the session resolver, under `ABAP_ALLOW_TRANSPORTS`); name one and it is judged under the normal transport allowlist rules, exactly like a create; name one against a `$TMP`/`$`-package transaction and it is refused, same as a `TRAN/T` create into a `$` package. For any other `mode=delete`, a named `corr_nr` that disagrees with the request CTS already records the object in is refused before anything is deleted, pre-lock — see "`mode=delete` and transport requests" below; left unnamed, the request that already holds the object wins the deletion, resolved automatically. A `mode=write`/`edit` naming a different `corr_nr` is never refused this way — the write proceeds under the request CTS already holds, reported rather than silently substituted. |
 | `software_component` | string | no | — | `DEVC/K` (package) only: `LOCAL`, or a transportable component (e.g. `HOME`) — the latter needs `corr_nr` unless the package is `$TMP`-local. |
 | `package_type` | string | no | `development` | `DEVC/K` only. |
 | `transport_layer` | string | no | — | `DEVC/K` only. |
 | `base_table` | string | no (required for `VIEW/DV` create or `mode="update"`) | — | `VIEW/DV` — the single base DDIC table. An update REPLACES the whole projection, so it must be repeated even to leave it unchanged. Also accepted for `TABL/DI` create/delete — see "`TABL/DI` addressing" below; there it names the index's base table rather than a view's projection source. |
 | `view_fields` | array\<string\> | no (required for `VIEW/DV` create or `mode="update"`) | — | `VIEW/DV` only — the fields to project, in order. Same replace-the-whole-list rule as `base_table` on an update; `DDIF_VIEW_PUT` refuses a view projecting no field at all. |
-| `program` | string | no (required for `TRAN/T` create or `mode="update"`) | — | `TRAN/T` only — the existing SUBMIT-only report the transaction starts. On `mode="update"` this retargets an existing transaction to a different (already-existing) program; abapsmith checks the program exists before calling `RPY_TRANSACTION_DELETE`+`RPY_TRANSACTION_INSERT`. |
+| `program` | string | no (required for `TRAN/T` create with `kind="report"` (the default) or `kind="dialog"`, and for `mode="update"`) | — | `TRAN/T` only — the existing SUBMIT-only report the transaction starts. On `mode="update"` this retargets an existing REPORT transaction to a different (already-existing) program; abapsmith checks the program exists before calling `RPY_TRANSACTION_DELETE`+`RPY_TRANSACTION_INSERT`. `mode="update"` still retargets report transactions only — see `kind` below. |
+| `kind` | enum `report` \| `dialog` \| `parameter` \| `variant` \| `oo` | no | `report` | `TRAN/T` create only — which SE93 transaction shape to build. `report`: `program`, dynpro fixed at `1000`. `dialog`: `program` plus `screen` (a 4-digit dynpro number). `parameter`: `target_transaction`, plus optional `parameters` (array of `{field, value}`) and `skip_first_screen`. `variant`: `target_transaction` and `variant`, plus optional `cross_client_variant`. `oo`: `class` and `method`, plus optional `update_mode` (`S`\|`A`\|`L`) — stored the way SE93 stores an OO transaction WITH the transaction model: a parameter transaction on `OS_APPLICATION` (`TSTCP` `/*OS_APPLICATION CLASS=...;METHOD=...;UPDATE_MODE=...;`). The field each kind requires is checked before the bridge runs — a missing one is `BAD_INPUT` naming the field, zero-network. An OO transaction WITHOUT the transaction model (`TSTCP` `\CLASS=...\METHOD=...`, including a class local to a program) has no `RPY_TRANSACTION_INSERT` branch, so this tool cannot create one — it stays read-only; see `doc/CAPABILITIES/object-types.md`. |
+| `screen` | string | no (required for `TRAN/T` create with `kind="dialog"`) | — | `TRAN/T` `kind="dialog"` only — the 4-digit dynpro number of `program` the transaction starts on. |
+| `target_transaction` | string | no (required for `TRAN/T` create with `kind="parameter"` or `kind="variant"`) | — | `TRAN/T` `kind="parameter"`/`kind="variant"` only — the existing transaction this one is a parameter or variant transaction for. |
+| `parameters` | array of `{field, value}` | no | — | `TRAN/T` `kind="parameter"` only — SPA/GPA or screen field values set when `target_transaction` starts. |
+| `skip_first_screen` | boolean | no | — | `TRAN/T` `kind="parameter"` only — whether `target_transaction`'s first screen is skipped. |
+| `variant` | string | no (required for `TRAN/T` create with `kind="variant"`) | — | `TRAN/T` `kind="variant"` only — the existing ABAP variant of `target_transaction` this transaction starts with. |
+| `cross_client_variant` | boolean | no | — | `TRAN/T` `kind="variant"` only — whether `variant` is a cross-client variant. |
+| `class` | string | no (required for `TRAN/T` create with `kind="oo"`) | — | `TRAN/T` `kind="oo"` only — the ABAP OO class the transaction starts. |
+| `method` | string | no (required for `TRAN/T` create with `kind="oo"`) | — | `TRAN/T` `kind="oo"` only — the class method called. |
+| `update_mode` | enum `S` \| `A` \| `L` | no | — | `TRAN/T` `kind="oo"` only — the LUW update mode (Synchronous \| Asynchronous \| Local). |
 | `shlp` | object | no (required for `SHLP/DH` create or `mode="update"`) | — | `SHLP/DH` only — the search help's full DD30V/DD32P/DD31V/DD33V shape: `selectionMethod`, `selectionMethodType` (enum `T`\|`V`\|`M`), `dialogType`, `textTable`, `hotKey`, `elementary` (if true, `fields` must carry at least one import and one export parameter; if false, an empty `includes` is now accepted — it activates fine on a real system, so the old "has nothing to collect" refusal was removed), `fields` (array of `{name, dataElement, import?, export?, defaultValue?}`), `includes` (array of `{name}`, other search helps this one includes), `assignments` (array of `{field, includedHelp, includedField, direction}`, `direction` enum `I`\|`E`). Every `assignments[i].field` must name one of this call's own `fields[].name`, and every `assignments[i].includedHelp` must name one of this call's own `includes[].name` (both case-insensitive) — refused `BAD_INPUT` zero-network otherwise, before any server call; see "Search help refusals and DH109" below for why. `selectionMethod`/`selectionMethodType` are both optional — omit both for a collective search help, or for an elementary one driven by a search-help exit instead of a table/view (five standard SAP elementary helps carry a blank DD30V-SELMETHOD this way). An update REPLACES the whole interface/includes/assignments list — nothing already defined carries over; see `SearchHelpParams` in `src/adt/shlp-create.ts`. |
 | `confirm_in_use` | boolean | no | — | `SHLP/DH` `mode="delete"` only: required `true` when the search help is still attached to a data element, a table/view field, or included by a collective search help (`DD04L`/`DD35L`/`DD31S` show it in use). Refused zero-network for any other type/mode combination. Only the active version is checked for in-use; an inactive-only leftover (see below) has none of these attachments by definition and never needs it. |
 | `confirm_maintenance_dialog` | boolean | no | — | `VIEW/DV` `mode="delete"` only: overrides the bridge's refusal when the view still has a generated SE54 maintenance dialog (`TVDIR`) — deleting the view would leave that dialog broken. The refusal names the specific dialog (function group, area, package, screen) so a caller can read it before passing this. Refused zero-network for any other type/mode combination. |
 | `confirm_in_role_menu` | boolean | no | — | `TRAN/T` `mode="delete"` or `mode="update"` (retarget) only: overrides the bridge's refusal when the tcode is already assigned to one or more roles' menus (`AGR_TCODES`). Deleting it removes it from those menus; retargeting it changes what those menu entries launch. The refusal names the specific roles. An SM01 transaction lock is **not** checked either way, by design — see `doc/LIMITATIONS/editing.md`. Refused zero-network for any other type/mode combination. |
 | `affects` | object `{name, packageName, masterSystem?, spotName?}` | no (required for `ENHO/XHH`) | — | The object this write's target enhancement binds to. |
-| `objects` | array of `{object, type?, affects?}`, 1–10 entries | no | — | Batch form: delete several objects in one call, one at a time, in the order given. `mode=delete` only. Mutually exclusive with `object` — exactly one of the two, never both and never neither. |
+| `objects` | array of `{object, type?, affects?}`, 1–10 entries | no | — | Batch form: delete several objects in one call, one at a time, in the order given. `mode=delete` only. Mutually exclusive with `object` — exactly one of the two, never both and never neither. `TRAN/T` entries are supported (#202): each one is resolved and gated exactly like a single `TRAN/T` delete (auto-resolved `corr_nr`, same as any other batch entry — see below), one `RPY_TRANSACTION_DELETE` bridge call per entry, and not journalled, same as a single `TRAN/T` delete. The other bridge-only types — `VIEW/DV`, `SHLP/DH`, `TABL/DI` — are still not deletable through this batch form; naming one is refused `BAD_INPUT` naming the entry, not a bare `UNSUPPORTED`. |
 | `dry_run` | boolean | no | — | Resolve, read, apply the edit locally and run the safety gate, but return a diff preview instead of writing. Works with `source`, `edit`, `method`, `ddic` and `mode=delete`. Refused with `BAD_INPUT` for `objects`, for `DEVC/K`, and — for every mode, not just create — for the four bridge-only types (`SHLP/DH`, `VIEW/DV`, `TRAN/T`, `TABL/DI`): the dispatch check runs before any create/update/delete branching, so a dry-run `mode="delete"` or `mode="update"` on one of these is refused the same as a create. |
 | `fixed_point_arithmetic` | boolean | no | `true` | `PROG/P` create only — sends `abapsource:fixPointArithmetic="true"` in the ADT create payload; `false` omits the attribute. Named against any other type: `BAD_INPUT`, before any request. |
-| `text_pool` | object `{symbols?, selection_texts?}` | no | — | `PROG/P` only — writes the program's text pool (text symbols and selection texts) through the `PROG/PX` textelements resource. `symbols`: map of 1–3 alphanumeric key (uppercased) to text up to 132 chars. `selection_texts`: map of up to 8-char name (parameter/select-option name, uppercased) to text up to 30 chars. With `source`, written after the source write and activation; without `source`, allowed only on an existing program (`BAD_INPUT` on a non-existing one). Named against any other type: `BAD_INPUT`, before any request. See "Program text pool (`text_pool`)" below. |
+| `text_pool` | object `{symbols?, selection_texts?, headings?}` | no | — | `PROG/P`, `CLAS/OC` or `FUGR/F` only — writes the object's text pool through its own textelements resource (`PROG/PX`/`CLAS/OCX`/`FUGR/PX`). `PROG/P` and `FUGR/F` take `symbols`, `selection_texts` and `headings`; `CLAS/OC` has text symbols only — naming `selection_texts` or `headings` for a `CLAS/OC` is refused `BAD_INPUT` before any request. `symbols`: map of 1–3 alphanumeric key (uppercased) to text up to 132 chars. `selection_texts`: map of up to 8-char name (parameter/select-option name, uppercased) to text up to 30 chars. `headings`: `{list_header?: string (max 70 chars), column_headers?: string[] (max 4 entries, each max 132 chars)}` — the report's list header and up to four column heading lines (SE38 "List Headings"). Each group given (`symbols`, `selection_texts`, `headings`) REPLACES that whole group — an omitted field or a missing entry is written empty. With `source`, written after the source write and activation; without `source`, allowed only on an existing object (`BAD_INPUT` "text_pool without source needs an existing object" on a non-existing one). Named against any other type: `BAD_INPUT` before any request, naming the supported types (e.g. "`text_pool` applies to PROG/P, CLAS/OC and FUGR/F only, not INTF/OI."). See "Text pool (`text_pool`)" below. |
+
+**`TRAN/T` create kinds (`kind`)**: one example per kind. `type` is always
+`TRAN/T`; `package`, `description` and `corr_nr` work the same as any other
+create and are omitted below for brevity.
+
+Report (the default — `kind` can be omitted):
+
+```json
+{ "object": "ZTM_REPORT", "type": "TRAN/T", "program": "ZTM_REPORT_PROG" }
+```
+
+Dialog:
+
+```json
+{
+  "object": "ZTM_DIALOG",
+  "type": "TRAN/T",
+  "kind": "dialog",
+  "program": "ZTM_DIALOG_PROG",
+  "screen": "0100"
+}
+```
+
+Parameter:
+
+```json
+{
+  "object": "ZTM_PARAM",
+  "type": "TRAN/T",
+  "kind": "parameter",
+  "target_transaction": "SM30",
+  "parameters": [{ "field": "VIEWNAME", "value": "ZTM_V" }],
+  "skip_first_screen": true
+}
+```
+
+Variant:
+
+```json
+{
+  "object": "ZTM_VARIANT",
+  "type": "TRAN/T",
+  "kind": "variant",
+  "target_transaction": "SE38",
+  "variant": "ZTM_VAR1",
+  "cross_client_variant": false
+}
+```
+
+OO (with the transaction model — the only OO shape this tool can create):
+
+```json
+{
+  "object": "ZTM_OO",
+  "type": "TRAN/T",
+  "kind": "oo",
+  "class": "ZCL_TM_HANDLER",
+  "method": "RUN",
+  "update_mode": "S"
+}
+```
 
 **Search help refusals and DH109**: `DDIF_SHLP_PUT` succeeds and
 `DDIF_SHLP_ACTIVATE` then returns `rc = 8` with message `DH109` ("search
@@ -142,8 +213,16 @@ writes and the bridge creates `VIEW/DV`, `TRAN/T`, `SHLP/DH`, `TABL/DI` and
 order:
 
 1. A **server pin** — CTS already records the object in a request.
-2. A **named request** — a `corr_nr` the caller gave, or a request listed
-   in `ABAP_ALLOW_TRANSPORTS`.
+2. A **named request** — a `corr_nr` the caller gave. Under a pinned list
+   or `*`, any request `ABAP_ALLOW_TRANSPORTS` accepts reaches this tier.
+   Under `auto`, this tier is reached only when the named request is (a) a
+   request this session created, or (b) a modifiable workbench request
+   owned by the connected user carrying abapsmith's own session
+   description for the same package — exactly the requests auto would
+   pick itself. A named request that is neither is refused before the
+   resolver runs (`SAFETY_DENIED`, rule `transport allowlist`), and the
+   refusal lists the acceptable requests ("Acceptable: A4HK900200" or
+   "none yet — omit corr_nr to have one created").
 3. A **request this session created** (`abap_transport operation=create`,
    or an earlier auto-create this session). Taken from CTS's candidate
    list for the package when it appears there; when the candidate list
@@ -167,6 +246,25 @@ creating a new request because this session has no request of its own
 (…)` — or `because the session's own request <SESSION> is no longer
 usable` when a cached request went stale — followed by the existing "THIS
 SESSION DID NOT CREATE IT …" warning.
+
+**`MSAG/N` create and the self-locked LOCK** (#205): SAP keeps a message
+class's create enqueue for the rest of a stateful ADT session, so a LOCK
+issued in the same session right after the create POST is refused —
+`LOCKED`, blocked by our own connected user, even though the create
+itself succeeded. `MSAG/N` is the one type whose registry entry
+(`REGISTRY["MSAG/N"].create.statelessPost`) marks its create POST to go out
+stateless, before the session that will hold the lock even opens, so the
+enqueue ends with the request instead of outliving it. As a second,
+type-independent safety net, a LOCK right after any create that comes
+back refused by the connected user's own enqueue is retried once, in a
+fresh session; the write's response then carries a note: "The create left
+the server's own enqueue on `<OBJ>` (blocking user = the connected user),
+so the lock was retried once in a fresh session; it succeeded and the
+content was written under that lock (#205)." A lock genuinely held by
+someone else still surfaces as `LOCKED` with `created: true` — the retry
+only ever fires for our own enqueue. A second write against an existing
+message class takes the ordinary update path (`created: false`) and never
+hits this at all.
 
 **Read-back after bridge creates** (#173): after a `TABL/DI`, `VIEW/DV`
 or `TRAN/T` bridge create, abapsmith reads the request back — a transport
@@ -270,9 +368,12 @@ the response.
 **Batch delete (`objects`)**: there is **no server-side batch-delete
 endpoint** — unlike `abap_activate`'s `objects`, which posts to ADT's own
 multi-object activation service, this is a client-side loop issuing the exact
-same per-object `lock → GET → DELETE` sequence a single-object delete issues,
-one object at a time, each fully awaited (including its journal write) before
-the next begins. **Nothing is saved on the wire.** What it saves is model
+same per-object delete a single-object call issues, one object at a time,
+each fully awaited (including its journal write, where the type journals at
+all) before the next begins: the ordinary `lock → GET → DELETE` sequence for
+an ADT-native type, or one `RPY_TRANSACTION_DELETE` bridge call for a
+`TRAN/T` entry (#202) — not journalled, same as a single `TRAN/T` delete.
+**Nothing is saved on the wire.** What it saves is model
 turns — one tool call instead of N — not HTTP round trips and not server load.
 
 - **Ordering is caller-owned.** Objects are deleted in exactly the order given;
@@ -323,6 +424,16 @@ error that ADT already refuses at save time (a missing period,
 new object the just-created shell is deleted again and the response says
 so; only errors that pass the save and fail the check leave the object
 inactive.
+A different `CHECK_FAILED` shape shows up when the object's own syntax
+check passes and the save succeeds, but activation itself fails because
+OTHER objects it depends on are still inactive — the object being written
+is not at fault. `details` now carries `inactive_dependencies: [{name,
+type, uri?}]`, read off the activation reply with no extra request, the
+message ends with "Inactive dependencies: TABL/DT ZAS_T217", and the hint
+says to activate them first, either `abap_activate objects=[...]` naming
+them or `abap_activate package=<package>` for the whole package. When
+activation was instead skipped because the syntax check itself failed, no
+such list exists — the check reply does not say which objects are inactive.
 Every successful write is journalled (`abap_journal`) and undoable, except
 enhancement objects (`ENHO/XH`, `ENHO/XHH`, `ENHS/XS`), which can never be
 undone even with `force:true`, and except the bridge routes for `SHLP/DH`,
@@ -433,25 +544,62 @@ generating and running an ABAP program, leaving nothing to preview short of
 doing it; and `DEVC/K` (package create), where a transportable package create must claim
 or create its transport request before anything else can be decided.
 
-**Program text pool (`text_pool`)**: `PROG/PT` is the program's GUI title
-(`SET TITLEBAR`, Menu Painter/SE41), not the text pool, and stays
-unwritable. The text pool — text symbols and selection texts — is a
-separate ADT resource, `/sap/bc/adt/textelements/programs/{name}`, type
-`PROG/PX`, and is written through `text_pool` on a `PROG/P` write. Given
-alongside `source`, the text pool write runs after the source write and
-its activation; given alone, it targets an existing program's already-live
-source and is refused `BAD_INPUT` if the program does not exist yet.
-Naming `text_pool` against any type other than `PROG/P` is refused
-`BAD_INPUT` before any request, same as `fixed_point_arithmetic`. Texts
-are written in the session's logon language, and the textelements
-resource is then activated, unless `activate: false` is passed — the same
-flag that controls source activation. Text-pool writes ARE journalled — as
-an irreversible `update` entry on the `PROG/PX` textelements resource
-(history only, visible in `abap_journal mode=list`) — but `abap_journal
-mode=undo` refuses it: rewrite the texts with another `text_pool` call to
-revert. A successful write reports `text_pool: symbols N,
-selection_texts M (<language>)` and `text_pool_activated: yes|no` in the
-response.
+**Text pool (`text_pool`)**: `PROG/PT` is the program's GUI title (`SET
+TITLEBAR`, Menu Painter/SE41), not the text pool, and stays unwritable. The
+text pool is a separate ADT resource per type:
+`/sap/bc/adt/textelements/programs/{name}` (type `PROG/PX`) for `PROG/P`,
+`/sap/bc/adt/textelements/classes/{name}` (type `CLAS/OCX`) for `CLAS/OC`,
+and `/sap/bc/adt/textelements/functiongroups/{name}` (type `FUGR/PX`) for
+`FUGR/F` — all three advertised by the discovery document with the same
+media types. `text_pool` on a write of one of these three types writes
+whichever resource applies.
+
+A `PROG/P` or `FUGR/F` text pool takes `symbols`, `selection_texts` and
+`headings`. A `CLAS/OC` text pool has text symbols only — naming
+`selection_texts` or `headings` for a `CLAS/OC` is refused `BAD_INPUT`
+before any request ("applies to PROG/P and FUGR/F only"). `symbols`: map
+of 1–3 alphanumeric key (uppercased) to text up to 132 chars.
+`selection_texts`: map of up to 8-char name (parameter/select-option name,
+uppercased) to text up to 30 chars. `headings`: `{list_header?: string
+(max 70 chars), column_headers?: string[] (max 4 entries, each max 132
+chars)}` — the report's list header and up to four column heading lines
+(SE38 "List Headings"). Each group given — `symbols`, `selection_texts` or
+`headings` — REPLACES that whole group: an omitted `list_header` or a
+missing `column_headers` entry is written empty (cleared), the same
+replace-the-whole-group rule `symbols`/`selection_texts` already had.
+
+Given alongside `source`, the text pool write runs after the source write
+and its activation; given alone, it targets an existing object's
+already-live source and is refused `BAD_INPUT` ("text_pool without source
+needs an existing object") if the object does not exist yet. Naming
+`text_pool` against any type other than `PROG/P`, `CLAS/OC` or `FUGR/F` is
+refused `BAD_INPUT` before any request, naming the supported types (e.g.
+"`text_pool` applies to PROG/P, CLAS/OC and FUGR/F only, not INTF/OI."),
+same as `fixed_point_arithmetic`.
+
+**Language.** The textelements resource has no language selector of its
+own. Probed on A4H: a `sap-language`/`language` query parameter, an
+`Accept-Language`/`sap-language` header, and logging on with
+`ABAP_LANGUAGE=EN` vs `DE` all returned the same master-language texts (a
+German-master SAP report came back German under an EN logon). Texts are
+read and written in the object's own master language; there is no
+per-call `language` parameter on `text_pool`, and translations stay an
+SE63 task.
+
+The textelements resource is then activated with its own type
+(`PROG/PX`/`CLAS/OCX`/`FUGR/PX`), unless `activate: false` is passed — the
+same flag that controls source activation. Text-pool writes ARE
+journalled — as an irreversible `update` entry on the object's own
+textelements resource (history only, visible in `abap_journal mode=list`)
+— but `abap_journal mode=undo` refuses it: rewrite the texts with another
+`text_pool` call to revert.
+
+A successful write reports `text_pool_activated: yes|no` and a
+`text_pool:` header line: for `PROG/P` and `FUGR/F`, `symbols N,
+selection_texts M (<language>)`, with `, headings K` appended when
+`headings` was given (`K` counts the non-empty heading lines actually
+written); for `CLAS/OC`, `symbols N (<language>)`. `<language>` is the
+object's master language, read off the textelements descriptor.
 
 ```json
 {
@@ -460,6 +608,33 @@ response.
   "text_pool": {
     "symbols": { "001": "Hello" },
     "selection_texts": { "P_X": "Parameter X" }
+  }
+}
+```
+
+`CLAS/OC`, text symbols only:
+
+```json
+{
+  "object": "ZCL_DEMO_ORDER",
+  "type": "CLAS/OC",
+  "text_pool": {
+    "symbols": { "001": "Order handler" }
+  }
+}
+```
+
+`PROG/P`, list header and column headings:
+
+```json
+{
+  "object": "ZDEMO_REPORT",
+  "type": "PROG/P",
+  "text_pool": {
+    "headings": {
+      "list_header": "Issue 199 headings",
+      "column_headers": ["Col A", "Col B"]
+    }
   }
 }
 ```
@@ -494,13 +669,15 @@ needs `canWrite` like `mode=activate`. See
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
-| `object` | string | yes, unless `objects` is used or `mode=format` with `source` | — | Object reference. |
-| `type` | string | no | — | ADT type hint. |
+| `object` | string | yes, unless `objects`, `package`, the inline form (`mode=check` + `type` + `source`) or `mode=format` with `source` is used | — | Object reference. |
+| `type` | string | no | — | ADT type hint. Required, and restricted to `PROG/P`, `CLAS/OC` or `INTF/OI`, for the inline check form (`mode=check`, no `object`) — see ["Inline check"](#inline-check-modecheck-with-type--source) below. |
 | `mode` | enum `check` \| `activate` \| `format` | no | `activate` | Check only, check then activate, or pretty-print. |
-| `source` | string | no | — | For `mode=check`/`mode=activate`: draft to check. Omitted for `mode=check`, the saved server version is fetched and checked instead — refused with `BAD_INPUT` only when there's genuinely nothing saved to check (object doesn't exist yet, or its type has no `/source/main`). Omitted for `mode=activate`, the saved server version is activated with no pre-flight check. For `mode=format`: text to format directly (mutually exclusive with `object` — exactly one of the two, never both, never neither). |
-| `corr_nr` | string | no | — | Transport request to activate into (`mode=activate`) or to write into if the reformatted object changed (`mode=format`, object form only — refused with `BAD_INPUT` on the text form, which writes nothing). |
-| `affects` | object | no (required to activate an existing `ENHO/XH`/`ENHS/XS`) | — | The object the enhancement binds to. Refused with `BAD_INPUT` for `mode=format`. |
-| `objects` | array of `{object, type?, affects?}`, 1–50 entries | no | — | Batch form: activate several objects through ADT's multi-object activation endpoint instead of one call each. Mutually exclusive with `object`/`type`/`affects`/`corr_nr`/`source`, and `mode=activate` only (no batch syntax check, and refused with `BAD_INPUT` for `mode=format`). |
+| `source` | string | no | — | For `mode=check`/`mode=activate` with `object`: draft to check. Omitted for `mode=check`, the saved server version is fetched and checked instead — refused with `BAD_INPUT` only when there's genuinely nothing saved to check (object doesn't exist yet, or its type has no `/source/main`). Omitted for `mode=activate`, the saved server version is activated with no pre-flight check. For `mode=check` with no `object`: the draft source for the inline check form (required there — see below). For `mode=format`: text to format directly (mutually exclusive with `object` — exactly one of the two, never both, never neither). |
+| `corr_nr` | string | no | — | Transport request to activate into (`mode=activate`, `object` form only — the `objects` and `package` forms take the transport from each object's own lock and refuse `corr_nr` with `BAD_INPUT`) or to write into if the reformatted object changed (`mode=format`, object form only — refused with `BAD_INPUT` on the text form, which writes nothing). |
+| `affects` | object | no (required to activate an existing `ENHO/XH`/`ENHS/XS`) | — | The object the enhancement binds to. Refused with `BAD_INPUT` for `mode=format`, `mode=check` with no `object`, and `package`. |
+| `objects` | array of `{object, type?, affects?}`, 1–50 entries | no | — | Batch form: activate several objects through ADT's multi-object activation endpoint instead of one call each. Mutually exclusive with `object`/`type`/`affects`/`corr_nr`/`source`/`package`, and `mode=activate` only (no batch syntax check, and refused with `BAD_INPUT` for `mode=format`). |
+| `package` | string | no | — | Package form (`mode=activate` only): activate every inactive object of the caller's worklist belonging to this package instead of naming objects one by one — see ["Package activation"](#package-activation-package) below. Mutually exclusive with `object`/`objects`/`type`/`source`/`affects`/`corr_nr`. |
+| `recursive` | boolean | no | `false` | `package` only. Also activate inactive objects belonging to every sub-package under `package`. Refused with `BAD_INPUT` without `package`. |
 
 **Batch activation (`objects`)**: sends the object list to ADT's own
 multi-object activation endpoint, rather than one `abap_activate` call per
@@ -539,6 +716,87 @@ uses. Re-read the object to see its state, then settle the entry by hand with
 `abap_journal mode=reconcile` once its outcome is established. An
 object in a chunk that was never sent at all, because an earlier chunk
 failed first, settles `failed`, with an error saying so.
+
+### Inline check (`mode=check` with `type` + `source`)
+
+A fourth form of `abap_activate`: check a draft that has no `object` at
+all. Read-only, exactly like the object-form `mode=check` — no lock,
+nothing written, works under `ABAP_MODE=read`.
+
+```json
+{
+  "mode": "check",
+  "type": "PROG/P",
+  "source": "REPORT zas_213.\nWRITE 'hello'."
+}
+```
+
+`type` must be one of `PROG/P`, `CLAS/OC` or `INTF/OI` — anything else is
+refused `UNSUPPORTED`, naming those three; a missing `type` is `BAD_INPUT`.
+Both refusals cost zero requests.
+
+The two families behave differently:
+
+- **`PROG/P`** is checked against no server object at all — there is
+  nothing on the server this draft could collide with. The report name
+  comes from its own `REPORT`/`PROGRAM` statement; a draft missing that
+  statement is not refused locally, it is reported by the server as a
+  finding on line 1.
+- **`CLAS/OC`** and **`INTF/OI`** are checked as a draft OF THE EXISTING
+  server object named in the draft's own `CLASS <name> DEFINITION` or
+  `INTERFACE <name>`. If that object does not already exist on the server,
+  the call returns `NOT_FOUND` rather than running the check — ADT would
+  otherwise report a draft against a nonexistent class as clean without
+  actually processing it, which is worse than refusing outright. Write the
+  object first with `activate: false` to get something to check a draft
+  against, or check the code as plain `PROG/P` instead.
+
+Findings have the same shape as the object-form check — `line`, `column`,
+`severity`, `message` under `# SYNTAX CHECK` — and the response header
+carries `object: "PROG/P ZAS_213"` (or whichever type/name the draft
+names), `mode: check`, `inline: true`, `result`, `errors`, `warnings`.
+
+With this fourth form, the tool now covers five shapes: `object` (+
+optional `source`) to check or activate one existing object, `objects` to
+batch-activate several, the inline form above to check a draft with no
+object, `package` to activate a whole package's worklist (below), and
+`mode=format` to pretty-print.
+
+### Package activation (`package`)
+
+```json
+{
+  "mode": "activate",
+  "package": "ZAS_PKG213",
+  "recursive": true
+}
+```
+
+Activates every inactive object of the CALLER's activation worklist that
+belongs to `package` (and, with `recursive: true`, its sub-packages) in
+one activation request, so the server — not abapsmith — orders the
+dependencies. `package` is `mode=activate` only, and mutually exclusive
+with `object`/`objects`/`type`/`source`/`affects` — combined with any of
+them it is refused `BAD_INPUT` before any request; on a read-only server
+it is refused before any request too.
+
+Objects pending deletion are skipped and reported rather than activated.
+DDIC types are sent first — `DOMA`, `DTEL`, `TABL`, `TTYP`, `VIEW`, `DDLS`,
+then everything else — and the existing DDIC fan-out chunking
+(`ABAP_MAX_DDIC_ACTIVATION_BATCH`, default 5, see
+[doc/CONFIGURATION/concurrency-and-activation.md](../CONFIGURATION/concurrency-and-activation.md#batch-activation))
+still splits a large DDIC set into consecutive requests. More than 50
+inactive objects in scope is refused `BAD_INPUT` — activate a subset with
+`objects` instead. Every member goes through the same per-object safety
+gate, transport resolution and journal entry as the `objects` batch form.
+
+The result is the ordinary batch-activation result — per-object rows with
+findings, `# CO-ACTIVATED`, `# INACTIVE DEPENDENTS` — plus `package`,
+`recursive` and `packages_scanned` in the header. An empty worklist
+activates nothing and returns `count: 0`, `result: "nothing to activate"`
+with no write at all. See
+[doc/TOOLS/read-and-search.md § Inactive objects](read-and-search.md#inactive-objects-inactive-true)
+for listing the same worklist before activating it.
 
 ### mode=format: the pretty printer
 

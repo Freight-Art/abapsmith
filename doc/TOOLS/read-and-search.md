@@ -55,14 +55,19 @@ nothing at all, which happens for generated function modules (e.g.
 
 A whole-object source read of a `PROG/P` reports `fixed_point_arithmetic:
 true|false` in the header, read off the program's own descriptor — the
-line is omitted when that descriptor could not be read. When the program
-has any text symbols or selection texts, the same read also appends a
-`TEXT POOL` section listing them, read from the `PROG/PX` textelements
-resource — see `doc/TOOLS/write-and-activate.md` for how `abap_write`'s
-`text_pool` parameter writes them. A program with no text symbols and no
-selection texts gets no such section. List headings (`SELECTION-SCREEN
-BEGIN OF SCREEN`/`TAB` frame titles) are not part of the text pool and are
-not shown here.
+line is omitted when that descriptor could not be read. When the object
+has any text symbols, selection texts or headings, a whole-object source
+read (first page, not an outline, not a method or include read) of a
+`PROG/P`, `CLAS/OC` or `FUGR/F` also appends a `TEXT POOL` section listing
+them, read from the object's own textelements resource
+(`PROG/PX`/`CLAS/OCX`/`FUGR/PX`) — see `doc/TOOLS/write-and-activate.md`
+for how `abap_write`'s `text_pool` parameter writes them. The section
+gains a `headings:` group with `list_header` and `column_header_1`..
+`column_header_4` lines (only the non-empty ones). An object with none of
+these gets no such section. A large `CLAS/OC` that defaults to an outline
+read shows no `TEXT POOL` section — read it with `full=true` or a paged
+read to see one. List headings ARE part of this section; `SELECTION-SCREEN`
+frame titles and GUI titles are not.
 
 ### Large sources: outline by default, `pattern`, and `full`
 
@@ -1328,19 +1333,21 @@ than the mode disappearing from the tool list.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
-| `query` | string | yes | — | Name pattern (`mode=objects`), target object (`mode=where_used`/`call_graph`), or literal/regex text (`mode=source`, max 255 characters). |
+| `query` | string | yes, except with `inactive: true` | — | Name pattern (`mode=objects`), target object (`mode=where_used`/`call_graph`), or literal/regex text (`mode=source`, max 255 characters). Under `inactive: true` it is an optional name-pattern filter over the inactive worklist instead of a required scope. |
 | `mode` | enum `objects` \| `where_used` \| `source` \| `call_graph` | no | `objects` | Object search, where-used analysis, a source-text scan, or a multi-level caller/callee walk — see ["mode=call_graph: caller/callee tree"](#modecall_graph-callercallee-tree) below. |
-| `type` | string | no | — | `mode=objects`/`where_used`/`call_graph` only. Restrict to one ADT type. Refused under `mode=source` — use `types` instead. |
+| `type` | string | no | — | `mode=objects`/`where_used`/`call_graph` only. Restrict to one ADT type. Refused under `mode=source` — use `types` instead. Also accepted with `inactive: true` to filter the worklist to one type. |
 | `direction` | enum `callers` \| `callees` | no | `callers` | `mode=call_graph` only. `callers`: who calls this (via `usageReferences`, same endpoint as `where_used`). `callees`: what this calls (a static text parse of its own source). Refused with `BAD_INPUT` under any other mode. |
 | `depth` | number (int, positive) | no | `2` | `mode=call_graph` only. Levels to expand. Max 4 — a `depth` above the max is refused with `BAD_INPUT`, never silently clamped down to it. Refused with `BAD_INPUT` under any other mode. |
-| `max` | number (int, positive, ≤200) | no | `50` rows (`objects`/`where_used`), `100` hits (`source`), or `50` children per node (`call_graph`) | Maximum rows/hits/children to return. For `call_graph`, narrowing `query` (not lowering `max`) is what makes a broad call cheaper — see the Evidence paragraph below. |
-| `packages` | array of string | no | — | `mode=source` only. Package scope (TADIR-DEVCLASS). Required unless `objects` narrows the scope instead. |
-| `include_subpackages` | boolean | no | `false` | `mode=source` only. Also scan every package transitively under `packages` (walks TDEVC-PARENTCL). |
+| `max` | number (int, positive, ≤200) | no | `50` rows (`objects`/`where_used`), `100` hits (`source`), or `50` children per node (`call_graph`) | Maximum rows/hits/children to return. For `call_graph`, narrowing `query` (not lowering `max`) is what makes a broad call cheaper — see the Evidence paragraph below. Also applies to `inactive: true`. |
+| `packages` | array of string | no | — | `mode=source`, or `inactive: true`. Package scope (TADIR-DEVCLASS). Required for `mode=source` unless `objects` narrows the scope instead; required for `inactive: true` (1-5 packages). |
+| `include_subpackages` | boolean | no | `false` | `mode=source`, or `inactive: true`. Also scan every package transitively under `packages` (walks TDEVC-PARENTCL). |
 | `objects` | string | no | — | `mode=source` only. Object-name pattern, `*` wildcard (e.g. `"ZCL_MY_*"`). A bare `"*"` does not count as a scope by itself. Alternative to, or combined with, `packages`. |
 | `types` | array of string | no | all five | `mode=source` only. Which object types to scan: `PROG`, `CLAS`, `INTF`, `FUGR`, `DDLS`. |
 | `regex` | boolean | no | `false` | `mode=source` only. Treat `query` as a PCRE pattern instead of a literal substring. |
 | `case_sensitive` | boolean | no | `false` | `mode=source` only. |
 | `include_comments` | boolean | no | `false` | `mode=source` only. Also match inside comments (see below). |
+| `inactive` | boolean | no | `false` | List inactive objects belonging to `packages` instead of running any of the four searches above — see ["Inactive objects"](#inactive-objects-inactive-true) below. |
+| `user` | string | no | caller's own user | `inactive: true` only. List another user's inactive worklist instead of the caller's own. |
 
 Notes: for `mode=where_used`, ADT's `usageReferences` endpoint ignores every
 known limit parameter and always returns the complete result set
@@ -1352,13 +1359,74 @@ displayed row has a parent container in its ADT URI — a FUGR/FF function
 module or a FUGR/I function-group include — in which case a fifth `group`
 column is added, and the response carries a hint that `group` is the
 function group the row lives in while `package` remains the row's own
-package, not its group. A bare `"*"` query is accepted under `mode=objects`,
-with or without `type`, and returns rows within the same fetch window as
-any other query (typed: `10 × max`, capped at 1000) — the type filter is
-applied by this tool after the fetch, not by the server, so the window
-disclosure applies the same way. An object name that isn't plain text — whitespace-padded or
+package, not its group. An object name that isn't plain text — whitespace-padded or
 numeric-looking, e.g. a WDCC/YG row named `00` — is returned verbatim as a
 string rather than coerced to a number.
+
+### Inactive objects (`inactive: true`)
+
+```json
+{
+  "inactive": true,
+  "packages": ["ZAS_PKG213"],
+  "include_subpackages": true,
+  "query": "ZAS_*",
+  "type": "TABL/DT"
+}
+```
+
+Lists the inactive objects that belong to the given packages — a
+package-scoped view of what would otherwise be a flat worklist. ADT's own
+resource for this, `/sap/bc/adt/activation/inactiveobjects`, is a
+PER-USER worklist with no package attribute at all: there is no server
+call that answers "what's inactive in this package." abapsmith fetches
+the worklist for one user — the caller by default, or whoever `user`
+names — and intersects it client-side with each package's own contents
+(walking sub-packages too when `include_subpackages` is set, depth-capped
+the same way `abap_read`'s package listing is). `query` is optional here,
+a name-pattern filter over the intersected result — every other form of
+`abap_search` requires it; `packages` is required here (1-5 packages) —
+every other form does not.
+
+Columns: `TYPE`, `NAME`, `PACKAGE`, `USER`, `STATE` (`inactive` or
+`pending deletion`). The response header carries `mode: objects`,
+`inactive: true`, `packages`, `include_subpackages`, `user`, `count`.
+
+Because the underlying worklist is per user, objects that OTHER users
+left inactive are never included unless `user` names them explicitly — a
+package can have inactive objects sitting outside every listing this call
+can produce for one user at a time.
+
+To activate what this lists, see
+[doc/TOOLS/write-and-activate.md § Package activation](write-and-activate.md#package-activation-package)
+(`abap_activate package=<package>`), which activates the same caller's
+worklist scoped to a package in one call rather than listing it.
+
+**`mode=objects` fetch window, `objectType` and the search timeout** (#206):
+a typed `mode=objects` search used to fetch `max × 10` rows of mixed type
+and rely entirely on a client-side filter — on a broad wildcard under a
+type filter this could take ~19 seconds and still miss the match. It now
+asks the server for `max` plus a margin — `max + max(10, ceil(max/2))`,
+capped at 1000 — instead of `max × 10`; an untyped search asks for exactly
+`max`. The request also now carries `objectType`: the type GROUP (e.g.
+`CLAS`, `FUGR`) when `query` is a name pattern, or the full sub-type (e.g.
+`FUGR/F`, `TABL/DS`) when `query` is a bare wildcard — the server answers
+that type-scoped listing in well under a second, but the rows it returns
+omit `description` (and, for some types, `package`), disclosed by a
+`TYPE-SCOPED LISTING` note in the response. The client-side sub-type
+filter still runs either way: the server's own sub-type filter is not
+exact, and captures 818/819 show it can still leak sibling sub-types
+through. A bare `"*"` (or `"**"`/`"%"`, or an empty string) with no `type`
+is refused `BAD_INPUT` before any request — `mode=objects` has no package
+scope to bound it, so it would run into the timeout instead of finishing;
+add a `type` (e.g. `"CLAS/OC"` or `"FUGR/F"`) or narrow the pattern to a
+name prefix such as `"Z*"`. The quick search itself now runs under its own
+per-request timeout, `ABAP_SEARCH_TIMEOUT_MS` (config `searchTimeoutMs`,
+default `60000`) — see
+[doc/CONFIGURATION/connection.md](../CONFIGURATION/connection.md) — and a
+timeout is reported as `TIMEOUT` naming that variable. Measured on A4H:
+`query="*"`, `type="FUGR/F"`, `max=3` went from ~19s with 0 matches to
+well under a second with 3 matches.
 
 ### mode=source: line-wise source-text scan
 

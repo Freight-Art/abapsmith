@@ -18,21 +18,25 @@ connection, step, inspect the stack, and stop.
 **Availability**: case 2 — always registered. `stack`, `frame`, `status`,
 `keepalive`, `stop`, and `breakpoints`/`watch` with `op="list"` are ungated
 (read-only, or a client-side record of what this session already armed).
-`start`, `step`, and `breakpoints`/`watch` with `op="add"`/`"remove"` are
-gated on `canWrite` (they arm, remove, or advance a live debuggee).
+`start`, `step`, `set_value`, and `breakpoints`/`watch` with
+`op="add"`/`"remove"` are gated on `canWrite` (they arm, remove, advance, or
+write to a live debuggee) — refused with `READ_ONLY` before any request in
+read mode. Like `step`, `set_value`'s write is authorized against the
+object the session was started on, not against `stateId` or `variable`.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
-| `action` | enum `start` \| `step` \| `stack` \| `frame` \| `breakpoints` \| `watch` \| `keepalive` \| `stop` \| `status` | yes | — | What to do. |
+| `action` | enum `start` \| `step` \| `stack` \| `frame` \| `breakpoints` \| `watch` \| `set_value` \| `keepalive` \| `stop` \| `status` | yes | — | What to do. |
 | `breakpoints` | array of line/exception/statement/message breakpoint objects | required for `action=start` and for `action=breakpoints` `op=add` | — | At least one entry. Kinds may mix within one array. Validated against SAP before anything is armed. |
 | `run` | object `{object, mode?}` | required for `action=start` | — | Program to trigger, on a separate connection. `mode`: `class` \| `report` \| `auto`, default `auto`. |
 | `step` | enum `into` \| `over` \| `return` \| `continue` \| `runToLine` \| `jumpToLine` | required for `action=step` | — | How to advance. `continue` may end the session. `jumpToLine` is disabled by default. |
 | `toLine` | number (int, 1–999999) | required for `step=runToLine`/`jumpToLine` | — | 1-based target line in the current frame's own source. |
-| `stateId` | string | required for `action=step`/`stack`/`frame`/`breakpoints`/`watch` | — | Identifies one stop. The 12-character id printed by the most recent response; the full 64-character digest or any prefix of at least 8 characters is accepted too. A stale id is refused, naming the current one. |
+| `stateId` | string | required for `action=step`/`stack`/`frame`/`breakpoints`/`watch`/`set_value` | — | Identifies one stop. The 12-character id printed by the most recent response; the full 64-character digest or any prefix of at least 8 characters is accepted too. A stale id is refused, naming the current one. |
 | `frame` | number (int, ≥1) | required for `action=frame` | — | 1-based stack position to move the read cursor to. |
 | `op` | enum `list` \| `add` \| `remove` | no | `list` for `action=breakpoints`; for `action=watch`, `add` when `variable` is given, else `list` | `action=breakpoints`/`watch` only — which operation to perform. |
 | `id` | string | required for `op=remove` | — | `action=breakpoints`/`watch` only — the id to remove; restricted to an id this session owns. |
-| `variable` | string | required for `action=watch` `op=add` | — | Variable path to watch, same syntax `abap_debug_value` accepts. Presence selects `op=add`. |
+| `variable` | string | required for `action=watch` `op=add`, and for `action=set_value` | — | Variable path, same syntax `abap_debug_value` accepts: a simple name (`LV_FLAG`), a structure component (`LS_S-FLAG`), or a table cell (`LT_T[1]-FLAG`). For `action=watch`, presence selects `op=add`. For `action=set_value`, names the variable to write. |
+| `value` | string | required for `action=set_value` | — | New value, as a string; empty string allowed. Validated against the variable's type before anything is sent to SAP (length/digits/date/time/numeric range/decimal/hex, depending on type) — a mismatch is refused `BAD_INPUT` with no request made. |
 | `condition` | string (≤255 chars) | no | — | `action=watch` `op=add` only — ABAP boolean expression; the watchpoint only suspends when it evaluates true. Distinct from the per-breakpoint `condition` nested inside `breakpoints[]` entries below, which conditions a breakpoint instead. |
 | `confirm` | string | no (required for `step=jumpToLine`) | — | Must literally be `"jumpToLine"`. Also needs `ABAP_ALLOW_DEBUG_JUMP_TO_LINE=true`. |
 | `force` | boolean | no | — | `action=stop` only — also force-terminate a debuggee this server's own identity left attached after an unclean exit. |
@@ -173,7 +177,8 @@ survey. `frame` returns the newly-selected frame's own variable survey, in
 addition to moving the read cursor. `breakpoints` lists, adds, or removes
 this session's own armed breakpoints without restarting it (see below).
 `watch` adds, lists, or removes watchpoints on this session (see below).
-`keepalive` resets the idle timer on a suspended/caught session without
+`set_value` writes one variable, structure component, or table cell at the
+current stop (see below). `keepalive` resets the idle timer on a suspended/caught session without
 stepping. `stop` is idempotent — safe to call with no session active — and
 returns the target program's captured output; it also best-effort releases a
 debug listener left armed by an earlier process instance when this process
@@ -285,6 +290,50 @@ Verified live 2026-09-15: a watchpoint on `LV_TOTAL` with
 `condition: "LV_TOTAL > 3"` did not report the writes that moved the
 variable 0→1 and 1→3, and reported the hit at 3→6 — so the condition,
 not merely the write, gated the stop.
+
+### `action="set_value"` — write one variable
+
+Requires edit/admin mode (`READ_ONLY` in read mode, before any request) and
+is authorized against the object the session was started on, the same as
+`step`. The session must be suspended — `set_value` against a session that
+is not currently stopped is refused `DEBUG_NOT_STOPPED`.
+
+`set_value` reads `variable` first and refuses to write it,
+non-retryably (`DEBUG_VALUE_NOT_WRITABLE`), when it is a constant, a
+read-only parameter, a reference, a structure or table addressed as a
+whole (address a component or a cell instead — `LS_S-FLAG`, `LT_T[1]-FLAG`),
+or a generic type.
+
+Otherwise `value` is validated against the variable's type before anything
+is sent to SAP — `C` length, `N` digits, `D` a valid date, `T` a valid time,
+`I`/`INT8` in range, `P` a decimal number, `F` a number, `X` a hex string of
+the right length — and a mismatch is refused `BAD_INPUT` with no request
+made. This exists because SAP itself does not refuse a bad value, it
+converts it silently: live on A4H, writing `"TOOLONG"` to a `C(1)` field
+stored `"T"`; `"12a"` to an `N(4)` field stored `"0012"`; an invalid date
+`20261332` to a `D` field was accepted; and a `P` value was rounded to the
+field's own decimals. Rather than pass that surprise through, abapsmith
+checks first and refuses client-side instead.
+
+The response carries the old value (as read before the write) and the new
+value — not the string that was sent, but what SAP itself reports the
+variable now holds, with a note when that differs from what was sent (SAP
+converted it). Every `set_value` call in a session is recorded, and the
+session's final output — the stop response for the change itself, and the
+response when the debuggee later runs to completion — carries a
+`MODIFIED VALUES` section listing each change: path, old value, new value,
+and where it happened. The change lives only in the running program's
+memory for this one run; nothing is persisted to the database or the
+object's source.
+
+```json
+{
+  "action": "set_value",
+  "stateId": "<stateId>",
+  "variable": "LS_ORDER-STATUS",
+  "value": "C"
+}
+```
 
 ### `action="stop"` — cleanup timing and forced clearing
 

@@ -369,8 +369,10 @@ const TRANSPORT_HINT_TERMINAL =
  *   set it is sent in a circle. The remedy is always an argument the CALLER
  *   controls (omit `corr_nr`, pass one of the listed requests, write to a
  *   `$`-package) or "ask the operator".
- * - Under `auto` it says outright that naming a request is refused
- *   regardless of WHICH request, so the caller does not try another number.
+ * - Under `auto` it says which named requests ARE accepted (one this
+ *   session created, or one already attributed to abapsmith) rather than
+ *   telling the caller naming is refused outright, so it does not try a
+ *   request that would in fact be accepted.
  */
 export function transportAllowlistHint(allowTransports: readonly string[]): string {
   const normalized = allowTransports.map((t) => t.trim().toUpperCase()).filter((t) => t !== "");
@@ -394,8 +396,11 @@ export function transportAllowlistHint(allowTransports: readonly string[]): stri
       "The server picks the request itself under ABAP_ALLOW_TRANSPORTS=auto. Omit corr_nr: a " +
       "modifiable workbench request this session created (abap_transport operation=create) or " +
       "already attributed to itself is reused for the package, otherwise one is created — either " +
-      "way the response's transport field names it. Naming a request is refused regardless of " +
-      "which request. " +
+      "way the response's transport field names it. A named corr_nr is accepted only when it is " +
+      "a request this session created (abap_transport operation=create, abap_img_edit " +
+      "create_request, or one created for a package by an earlier write) or a modifiable request " +
+      "already attributed to abapsmith for the same package — exactly the requests auto would " +
+      "pick itself; any other request is refused. " +
       TRANSPORT_HINT_TERMINAL
     );
   }
@@ -1187,11 +1192,29 @@ export class AuthorizedTarget<
   }
 }
 
+/**
+ * Hooks the gate needs from outside its own config, for checks that depend
+ * on process state rather than static configuration.
+ */
+export interface SafetyGateHooks {
+  /** TRKORRs the session registry recorded as created in this process (`SessionTransport.sessionCreatedRequests`). Default: none. */
+  sessionCreatedRequests?: () => readonly string[];
+}
+
 export class SafetyGate {
   /** Audit trail for {@link resetWriteLockout} — see {@link writeLockoutResets}. */
   private readonly lockoutResets: string[] = [];
 
-  constructor(private cfg: SafetyConfig) {}
+  constructor(
+    private cfg: SafetyConfig,
+    private hooks: SafetyGateHooks = {},
+  ) {}
+
+  #sessionCreated(trkorr: string): boolean {
+    const created = this.hooks.sessionCreatedRequests?.() ?? [];
+    const wanted = trkorr.trim().toUpperCase();
+    return created.some((t) => t.trim().toUpperCase() === wanted);
+  }
 
   /**
    * "Why is this capability off, and what actually turns it on?" — computed
@@ -1846,13 +1869,28 @@ export class SafetyGate {
         // ("AUTO" isn't in the list) — a vetted, specific list shouldn't let
         // an auto-selected transport slip through under a different name.
         const requested = corr.corrNr.trim().toUpperCase();
-        const ok = normalized.includes(requested) || (corr.source === "auto" && normalized.includes("AUTO"));
+        // Under auto, a NAMED request is accepted when this session created it — the
+        // registry only holds TRKORRs `noteCreated` recorded in this process, so a
+        // request from outside this process (or a different session) never passes here.
+        const sessionCreated =
+          corr.source === "named" && normalized.includes("AUTO") && this.#sessionCreated(requested);
+        const ok =
+          normalized.includes(requested) || (corr.source === "auto" && normalized.includes("AUTO")) || sessionCreated;
         if (!ok) {
+          const createdHere = this.hooks.sessionCreatedRequests?.() ?? [];
+          const reason =
+            normalized.includes("AUTO") && corr.source === "named"
+              ? `Transport ${corr.corrNr} is not permitted by ABAP_ALLOW_TRANSPORTS ` +
+                `[${allowTransports.join(", ")}]: under auto a named request must be one this ` +
+                "session created" +
+                (createdHere.length > 0
+                  ? ` — this session created ${createdHere.join(", ")}.`
+                  : " — this session has created none yet; omit corr_nr to have one picked or created.")
+              : `Transport ${corr.corrNr} is not permitted by ABAP_ALLOW_TRANSPORTS ` +
+                `[${allowTransports.join(", ")}].`;
           return {
             allowed: false,
-            reason:
-              `Transport ${corr.corrNr} is not permitted by ABAP_ALLOW_TRANSPORTS ` +
-              `[${allowTransports.join(", ")}].`,
+            reason,
             rule: "transport allowlist",
             code: "SAFETY_DENIED",
             hint: transportAllowlistHint(allowTransports),

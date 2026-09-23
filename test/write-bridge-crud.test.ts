@@ -44,6 +44,7 @@ import { Journal } from "../src/journal.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
 import { searchResultsXml } from "./helpers/fake-adt.js";
 import { classicFake, useFluidState } from "./helpers/fluid-classic-fake.js";
+import { isTstcSelect, tstcSelectResponse, type TstcRow } from "./helpers/tstc-select-fake.js";
 
 const MAX = 20_000;
 
@@ -135,6 +136,42 @@ async function connected(route: Route): Promise<{ conn: AbapConnection; adt: Fak
     log: () => {},
     breaker: new AuthCircuitBreaker(),
   });
+  await conn.connect();
+  adt.calls.length = 0;
+  return { conn, adt };
+}
+
+/** `isTstcSelect`-matched requests answered from `rows`; every other request falls to `route`. */
+const withTstc = (rows: readonly TstcRow[], route: Route): Route => (r) =>
+  isTstcSelect(r) ? tstcSelectResponse(rows) : route(r);
+
+/**
+ * Like `withTstc`, but the FIRST `isTstcSelect` match answers `rows` and every
+ * later one answers empty — models a delete's own pre-check (row present) then
+ * post-delete `verifyTransactionDeleted` cross-check (row now gone) for a single
+ * object touched exactly twice.
+ */
+const withTstcThenGone = (rows: readonly TstcRow[], route: Route): Route => {
+  let calls = 0;
+  return (r) => {
+    if (isTstcSelect(r)) {
+      calls++;
+      return tstcSelectResponse(calls === 1 ? rows : []);
+    }
+    return route(r);
+  };
+};
+
+/**
+ * `connected()` checks `baseRoute` BEFORE the caller's own route, and `baseRoute`
+ * unconditionally answers every `/datapreview/freestyle` request with the T000
+ * system-role body — which would swallow a TSTC select before `withTstc` above ever
+ * saw it. This variant checks the caller's route first, the same ordering
+ * test/batch-delete-session-per-entry.test.ts's own `connected()` uses.
+ */
+async function connectedTstcFirst(route: Route): Promise<{ conn: AbapConnection; adt: FakeAdt }> {
+  const adt = new FakeAdt((r) => route(r) ?? baseRoute(r));
+  const conn = new AbapConnection(cfg(), { httpClient: adt, log: () => {}, breaker: new AuthCircuitBreaker() });
   await conn.connect();
   adt.calls.length = 0;
   return { conn, adt };
@@ -524,6 +561,102 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
 });
 
 // ---------------------------------------------------------------------------
+// Issue #209: a create with no `description` used to be refused BAD_INPUT
+// zero-network; it now defaults to the object's own name (upper-cased) and
+// the create proceeds, with the response notes saying so.
+// ---------------------------------------------------------------------------
+
+describe("abapCreateViaBridge — description defaulting (issue #209)", () => {
+  it("a VIEW/DV with no `description` defaults it to the view's own name and creates successfully", async () => {
+    const classic = classicFake({ action: "create_view", lines: () => ["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"] });
+    const vit = vitRoute("confirmed", "viewdv", "ZMCP_V_CARRIER", "VIEW/DV", "$TMP");
+    const { conn } = await connected(both(classic.route, vit));
+    const result = await abapWrite(
+      conn,
+      {
+        object: "ZMCP_V_CARRIER",
+        type: "VIEW/DV",
+        package: "$TMP",
+        base_table: "ZMCP_CARRIER",
+        view_fields: ["CARRIER_ID", "NAME"],
+      },
+      MAX,
+      gate(),
+    );
+    expect(result.text).toMatch(/created: true/);
+    expect(result.text).toMatch(/description defaulted to "ZMCP_V_CARRIER" \(none was given\)\./);
+  });
+
+  it("a TRAN/T with no `description` defaults it to the tcode's own name and creates successfully", async () => {
+    const classic = classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] });
+    const vit = vitRoute("confirmed", "trant", TCODE, "TRAN/T", "$TMP");
+    const { conn } = await connected(both(programRoute(PROGRAM), classic.route, vit));
+    const result = await abapWrite(
+      conn,
+      { object: TCODE, type: "TRAN/T", package: "$TMP", program: PROGRAM },
+      MAX,
+      gate(),
+    );
+    expect(result.text).toMatch(/created: true/);
+    expect(result.text).toMatch(new RegExp(`description defaulted to "${TCODE}" \\(none was given\\)\\.`));
+  });
+
+  it("a create WITH an explicit `description` does not emit the defaulting note", async () => {
+    const classic = classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] });
+    const vit = vitRoute("confirmed", "trant", TCODE, "TRAN/T", "$TMP");
+    const { conn } = await connected(both(programRoute(PROGRAM), classic.route, vit));
+    const result = await abapWrite(conn, TRAN_INPUT, MAX, gate());
+    expect(result.text).toMatch(/created: true/);
+    expect(result.text).not.toMatch(/description defaulted to/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Issue #201: the VIT bridge's own stub can answer 200 for a TRAN/T TSTC has
+// no row for at all — a stale/generic stub response, not evidence of a real
+// transaction. This only runs when the journal is on (the pre-create VIT
+// probe only happens then), so every test below passes one.
+// ---------------------------------------------------------------------------
+
+describe("abapCreateViaBridge — TSTC cross-check on a VIT-confirmed TRAN/T (issue #201)", () => {
+  const withJournal = async (fn: (journal: Journal) => Promise<void>): Promise<void> => {
+    const dir = await mkdtemp(join(tmpdir(), "abapsmith-bridge-tstc-journal-"));
+    try {
+      await fn(new Journal({ dir, enabled: true, maxEntries: 200, maxAgeDays: 30 }, "A4H"));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  };
+
+  it("TSTC has no row for it: treated as absent, created, and the response notes the stale VIT stub (issue #201)", async () => {
+    await withJournal(async (journal) => {
+      const vit = vitRoute("confirmed", "trant", TCODE, "TRAN/T", "$TMP");
+      const classic = classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] });
+      const { conn } = await connectedTstcFirst(withTstc([], both(programRoute(PROGRAM), classic.route, vit)));
+      const result = await abapWrite(conn, TRAN_INPUT, MAX, gate(), journal);
+      expect(result.text).toMatch(/created: true/);
+      expect(result.text).toMatch(
+        new RegExp(`The VIT bridge answered 200 for ${TCODE}.*TSTC has no row for it.*treated as absent and created \\(issue #201\\)`),
+      );
+    });
+  });
+
+  it("TSTC confirms a row: refused CHECK_FAILED naming the existing program, zero bridge classes deployed", async () => {
+    await withJournal(async (journal) => {
+      const vit = vitRoute("confirmed", "trant", TCODE, "TRAN/T", "$TMP");
+      const classic = classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] });
+      const rows: TstcRow[] = [{ TCODE, PGMNA: "ZMCP_OLD_PROGRAM", DYPNO: "1000", CINFO: "80" }];
+      const { conn } = await connectedTstcFirst(withTstc(rows, both(programRoute(PROGRAM), classic.route, vit)));
+      const err = await catchErr(abapWrite(conn, TRAN_INPUT, MAX, gate(), journal));
+      expect(err.code).toBe("CHECK_FAILED");
+      expect(String(err.message)).toMatch(/already exists/);
+      expect(String(err.message)).toMatch(/TSTC confirms a row \(program ZMCP_OLD_PROGRAM\)/);
+      expect(classic.deployed().length).toBe(0);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Task 3: the create-response's reversal note reflects THIS create's
 // own registration read-back — registered / unregistered / unknown — never
 // a blanket "undo can delete it" promise. An object can land active but
@@ -649,10 +782,14 @@ describe("abapDeleteViaBridge — dispatch and create-only-field refusals", () =
   });
 
   it("mode:'delete' on TRAN/T dispatches to the transaction delete bridge, not the view one", async () => {
-    const found = vitRoute("confirmed", "trant", "ZMCPT01", "TRAN/T", "ZTM");
+    // $TMP: dispatch routing, not transport resolution, is under test here.
+    const found = vitRoute("confirmed", "trant", "ZMCPT01", "TRAN/T", "$TMP");
     const gone = vitRoute("absent", "trant", "ZMCPT01", "TRAN/T");
     const classic = classicFake({ action: "delete_transaction", lines: () => ["TRAN-DELETED", "TRAN-GONE"] });
-    const { conn } = await connected(both(classic.route, (r) => found(r) ?? gone(r)));
+    const rows: TstcRow[] = [{ TCODE: "ZMCPT01", PGMNA: PROGRAM, DYPNO: "1000", CINFO: "00" }];
+    const { conn } = await connectedTstcFirst(
+      withTstcThenGone(rows, both(classic.route, (r) => found(r) ?? gone(r))),
+    );
     const result = await abapWrite(
       conn,
       { object: "ZMCPT01", type: "TRAN/T", mode: "delete" },
@@ -677,11 +814,32 @@ describe("abapDeleteViaBridge — dispatch and create-only-field refusals", () =
     expect(String(e.message)).toMatch(/base_table/);
   });
 
-  it("a TRAN/T delete carrying corr_nr is refused BAD_INPUT — neither delete bridge takes a transport parameter", async () => {
+  it("a VIEW/DV delete carrying corr_nr is refused BAD_INPUT zero-network — the view delete bridge takes no transport parameter", async () => {
     const offline = null as unknown as AbapConnection;
     const e = await catchErr(
       abapWrite(
         offline,
+        { object: "ZMCP_V_CARRIER", type: "VIEW/DV", mode: "delete", corr_nr: "TR1K900123" },
+        MAX,
+        gate(),
+      ),
+    );
+    expect(e.code).toBe("BAD_INPUT");
+    expect(String(e.message)).toMatch(/corr_nr/);
+  });
+
+  // Issue #202: a TRAN/T delete's corr_nr can no longer be refused zero-network the way
+  // VIEW/DV's still is — it is resolved AFTER the object's real package is read back via
+  // the VIT bridge (deleteTransactionViaBridge itself refuses a corr_nr for a local
+  // package, same rule as its create-side sibling), so this needs a connected fake.
+  it("a TRAN/T delete of an object confirmed in $TMP carrying corr_nr is refused BAD_INPUT — a local package takes no transport", async () => {
+    const found = vitRoute("confirmed", "trant", "ZMCPT01", "TRAN/T", "$TMP");
+    const classic = classicFake({ action: "delete_transaction", lines: () => ["TRAN-DELETED", "TRAN-GONE"] });
+    const rows: TstcRow[] = [{ TCODE: "ZMCPT01", PGMNA: PROGRAM, DYPNO: "1000", CINFO: "00" }];
+    const { conn } = await connectedTstcFirst(withTstc(rows, both(classic.route, found)));
+    const e = await catchErr(
+      abapWrite(
+        conn,
         { object: "ZMCPT01", type: "TRAN/T", mode: "delete", corr_nr: "TR1K900123" },
         MAX,
         gate(),
@@ -689,6 +847,25 @@ describe("abapDeleteViaBridge — dispatch and create-only-field refusals", () =
     );
     expect(e.code).toBe("BAD_INPUT");
     expect(String(e.message)).toMatch(/corr_nr/);
+    expect(classic.deployed().length).toBe(0);
+  });
+
+  it("a TRAN/T delete of an object confirmed in a transportable package, WITH a corr_nr, reaches the bridge and succeeds", async () => {
+    const found = vitRoute("confirmed", "trant", "ZMCPT01", "TRAN/T", "ZTM");
+    const gone = vitRoute("absent", "trant", "ZMCPT01", "TRAN/T");
+    const classic = classicFake({ action: "delete_transaction", lines: () => ["TRAN-REGISTERED", "TRAN-DELETED", "TRAN-GONE"] });
+    const rows: TstcRow[] = [{ TCODE: "ZMCPT01", PGMNA: PROGRAM, DYPNO: "1000", CINFO: "00" }];
+    const { conn } = await connectedTstcFirst(
+      withTstcThenGone(rows, both(classic.route, (r) => found(r) ?? gone(r))),
+    );
+    const result = await abapWrite(
+      conn,
+      { object: "ZMCPT01", type: "TRAN/T", mode: "delete", corr_nr: "TR1K900123" },
+      MAX,
+      gate(),
+    );
+    expect(result.text).toMatch(/deleted:\s*true/);
+    expect(result.text).toMatch(/transport: TR1K900123/);
   });
 
   it("a delete whose read-back and search both CONFIRM the object still present is reported as CHECK_FAILED, never as a successful delete", async () => {
@@ -710,10 +887,14 @@ describe("abapDeleteViaBridge — dispatch and create-only-field refusals", () =
   });
 
   it("the delete-response notes no longer claim there is no delete endpoint for this type", async () => {
-    const found = vitRoute("confirmed", "trant", "ZMCPT01", "TRAN/T", "ZTM");
+    // $TMP: response-text shape, not transport resolution, is under test here.
+    const found = vitRoute("confirmed", "trant", "ZMCPT01", "TRAN/T", "$TMP");
     const gone = vitRoute("absent", "trant", "ZMCPT01", "TRAN/T");
     const classic = classicFake({ action: "delete_transaction", lines: () => ["TRAN-DELETED", "TRAN-GONE"] });
-    const { conn } = await connected(both(classic.route, (r) => found(r) ?? gone(r)));
+    const rows: TstcRow[] = [{ TCODE: "ZMCPT01", PGMNA: PROGRAM, DYPNO: "1000", CINFO: "00" }];
+    const { conn } = await connectedTstcFirst(
+      withTstcThenGone(rows, both(classic.route, (r) => found(r) ?? gone(r))),
+    );
     const result = await abapWrite(
       conn,
       { object: "ZMCPT01", type: "TRAN/T", mode: "delete" },

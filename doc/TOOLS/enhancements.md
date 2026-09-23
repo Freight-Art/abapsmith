@@ -15,10 +15,11 @@ pure read with no gate call. Every other operation is gated on `canWrite`
 | `name` | string | yes | — | Meaning depends on `operation` — see below. |
 | `description` | string (max 60 chars) | required for `write_description`/`create_hook` | — | New root description, or (for `create_hook`) the new plug-in's description. |
 | `spec` | object (free-form, per-operation fields) | required for most create/hook/exercise/set_impl_active operations | — | Operation-specific fields — see notes. |
-| `affects` | object `{name, packageName, masterSystem?, spotName?}` | required for every operation except `discover_hook_anchors` | — | The object this enhancement changes the behaviour of. |
-| `corr_nr` | string | no | — | `write_description`/`delete`/`set_impl_active` only — transport request. |
+| `affects` | object `{name, packageName, masterSystem?, spotName?}` | required for `create_impl`, `set_filter_values`, `exercise`, `write_description`, `delete`, `set_impl_active` | — | The object this enhancement changes the behaviour of. `create_spot`/`add_badi_def`/`add_filter_def` default it to the spot being created or extended; `create_hook` derives it from the host named in `spec` (one read of that host object); `discover_hook_anchors` never uses it. |
+| `package` | string | no | `$TMP` | The five fluid ops only — `create_spot`, `add_badi_def`, `add_filter_def`, `create_impl`, `set_filter_values`. Trimmed and uppercased. Given on any other operation → `BAD_INPUT`, zero network. |
+| `corr_nr` | string | no | — | `write_description`/`delete`/`set_impl_active` — transport request (unchanged). Also the five fluid ops, when `package` resolves to a transportable (non-`$`) package — see below. A local package with `corr_nr` set on a fluid op → `BAD_INPUT`, zero network. |
 | `expect_etag` | string | no | — | `write_description`/`delete`/`set_impl_active` only — compare-before-write. |
-| `activate` | boolean | no | — | `write_description` only — also activate after a changed write. |
+| `activate` | boolean | no | see meaning | `write_description` — activate after a changed write, when `activate === true`. The five fluid ops — default `true`; `false` saves without activating. `create_hook` — controlled by `spec.activate`, not this field. `set_impl_active` always activates; this field does not apply to it. |
 
 `name` by operation: `write_description`/`delete`/`set_impl_active` — the
 container object's own name (for `set_impl_active`, never the nested
@@ -28,13 +29,48 @@ spot name. `add_badi_def`/`add_filter_def` — the already-locked spot name.
 `exercise` — the BAdI definition's name. `create_hook` — the new hook
 object's name. Ignored by `discover_hook_anchors`.
 
-Notes: the six create-family operations (`create_spot`, `add_badi_def`,
-`add_filter_def`, `create_impl`, `set_filter_values`, `exercise`) always
-land in `$TMP` and always activate — there is no non-activating create.
-`delete` is irreversible and hard-refused against an `ENHO/XH` with an
-active BAdI implementation (deactivate it first via `set_impl_active`).
+Notes: `delete` is irreversible and hard-refused against an `ENHO/XH` with
+an active BAdI implementation (deactivate it first via `set_impl_active`).
 `set_impl_active` is reversible — call again with the opposite value to
 undo.
+
+## Package, transport and activation
+
+`package`, `corr_nr` and `activate` apply only to the five fluid ops —
+`create_spot`, `add_badi_def`, `add_filter_def`, `create_impl`,
+`set_filter_values`. Each one defaults to `$TMP` when `package` is
+omitted. Against a transportable (non-`$`) package, they follow the same
+transport rules as `abap_write`: under `ABAP_ALLOW_TRANSPORTS`, a named
+`corr_nr` must be on the allowlist; when it is omitted, the session
+resolver reuses this session's open request for that package or creates
+one (`auto`); an explicitly empty allowlist refuses before any request is
+sent. The safety gate's verdict is taken before the resolver is given a
+chance to create a request — see [doc/SAFETY/safety-gate.md](../SAFETY/safety-gate.md),
+the transport allowlist check.
+
+`add_badi_def`, `add_filter_def` and `set_filter_values` change a spot
+or implementation that already exists: pass the `package` it already
+lives in (and, for a transportable one, the request rules above apply
+again). The call does not look the package up.
+
+`activate: false` saves the object without activating it, for everything
+the call creates or changes, with one exception: `add_badi_def`'s marker
+interface (`INTF/OI`) is always activated, because the BAdI definition
+needs it active. A call made with `activate: false` leaves its object
+inactive for review: read it with `abap_read` (`enhancements: true` — an
+`ENHS/XS` or `ENHO/XH` has no source), then activate it with
+`abap_activate`, which needs the same `affects` the create was judged
+against; the response's NOTE spells out both calls.
+
+`exercise` takes none of the three — it creates nothing of the caller's;
+its generated bridge class lives in `$ABAPSMITH_FLUID_API`, not in the
+caller's package. `create_hook` is unaffected by any of this: it still
+lands in `$TMP` unconditionally and its activation is controlled by
+`spec.activate`, not by `activate`.
+
+The journal records `affects` exactly as the call used it: the defaulted
+spot for `create_spot`/`add_badi_def`/`add_filter_def`, and the derived
+host object for `create_hook`.
 
 ## Spec field reference (per operation)
 

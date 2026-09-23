@@ -23,11 +23,12 @@ function searchConn(handlers: {
   usageReferences?: () => Promise<unknown[]>;
 }): AbapConnection {
   return {
-    cfg: { sid: "A4H" },
+    cfg: { sid: "A4H", searchTimeoutMs: 60_000 },
     adt: {
       searchObject: handlers.searchObject ?? (async () => []),
       usageReferences: handlers.usageReferences ?? (async () => []),
     },
+    withRequestTimeout: async (_ms: number, fn: () => Promise<unknown>) => fn(),
   } as unknown as AbapConnection;
 }
 

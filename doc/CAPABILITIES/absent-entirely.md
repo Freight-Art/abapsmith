@@ -10,8 +10,6 @@ Things a reader might expect and will not find here:
   finding instead of fixing it.
 - Web Dynpro, FPM and Fiori UI automation — `abap_ui` drives classic dynpro
   only.
-- Writing debugger variables — the underlying set-value verb is left
-  unexposed by deliberate design.
 - Deactivation of an activated object — ADT itself has no deactivate
   operation, so nothing here can offer one.
 - ABAP Messaging Channels (`SAMC`) and ABAP Push Channels (`SAPC`) — config XML

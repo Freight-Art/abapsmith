@@ -33,10 +33,12 @@ called `AUTO`, which matches nothing).
 
 Two consequences worth stating to the user:
 
-- **Under `auto` you cannot choose the request.** Naming one is refused
-  regardless of which request; the server reuses a modifiable request this
-  session created (or one attributed to abapsmith) for the package, else creates
-  one. Say which request it landed in, read back from the write response's
+- **Under `auto` you almost never get to choose the request.** Naming one
+  is refused unless it is a request this session already created, or a
+  modifiable request already attributed to abapsmith for the same
+  package — exactly what the server would otherwise reuse (or, absent
+  either, create) on its own. Say which request it landed in, read back
+  from the write response's
   `transport:` field — the user cannot ship what they cannot find.
 - **Pinning a request forbids auto-creation.** Omitting `corr_nr` under a pinned
   list uses the first pinned request that is still modifiable, and fails once
@@ -74,12 +76,16 @@ allowlist. Omit the field instead.
      work around.
    - Pass the number as `corr_nr`.
 
-**Under `auto`, never call `transport_create` before a write.** A named
-`corr_nr` is refused under `auto` regardless of which request, so calling
-`transport_create` first buys you nothing — it can't be passed to the write
-that follows — and just leaves an extra, empty request behind if the
-resolver doesn't happen to pick it back up. Omit `corr_nr` and read the
-request back from the write response instead (step 2).
+**Under `auto`, calling `transport_create` before a write is usually
+pointless, not refused.** A named `corr_nr` created by this same session
+IS accepted under `auto` (it is exactly the tier-(a) case above), so a
+`transport_create` followed by that number on the write does work — but
+omitting `corr_nr` reaches the same request anyway, since the resolver
+reuses a request this session created before it creates a new one. The
+one thing that still buys nothing is naming a request `transport_create`
+did NOT just create in this session: that is refused, same as any other
+untied request. Prefer omitting `corr_nr` and reading the request back
+from the write response instead (step 2).
 
 This applies to every transportable create, including the classic-bridge types
 (`VIEW/DV`, `TRAN/T`, `SHLP/DH`, `TABL/DI`, `DEVC/K`): none of them requires a

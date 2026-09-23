@@ -167,19 +167,69 @@ export const classicManifest: FluidManifest = {
     {
       name: "create_transaction",
       category: "mutate",
-      description: "Registers a dialog transaction code against a report and dynpro 1000.",
+      description:
+        "Creates a transaction code: report (default), dialog, parameter, variant, or an OO " +
+        "transaction with transaction model (stored as a parameter transaction on OS_APPLICATION).",
       input: {
         type: "object",
-        required: ["tcode", "program", "description", "package_name", "corr_nr"],
+        required: ["tcode", "description", "package_name", "corr_nr", "transaction_type"],
         properties: {
           tcode: { type: "string", maxLength: 20, description: "The transaction code to create." },
-          program: { type: "string", maxLength: 40, description: "The report the tcode starts." },
-          description: { type: "string", maxLength: 60, description: "Short text." },
+          program: {
+            type: "string",
+            maxLength: 40,
+            description: "The report/screen program the tcode starts. Required for transaction_type R/D.",
+          },
+          description: { type: "string", maxLength: 36, description: "Short text (TSTCT-TTEXT)." },
           package_name: { type: "string", maxLength: 30, description: "Target package (devclass)." },
           corr_nr: {
             type: "string",
             maxLength: 10,
             description: "Transport request. Empty string for a $ (local) package.",
+          },
+          transaction_type: {
+            type: "string",
+            enum: ["R", "D", "P", "V"],
+            description:
+              "R report (program), D dialog (program+dynpro), P parameter (called_transaction+parameters), " +
+              "V variant (called_transaction+variant). There is no OO type; OO with transaction model is " +
+              "sent as P against called_transaction OS_APPLICATION with CLASS/METHOD/UPDATE_MODE parameters.",
+          },
+          dynpro: {
+            type: "string",
+            maxLength: 4,
+            description: "The 4-digit dynpro the tcode starts on. transaction_type D only.",
+          },
+          called_transaction: {
+            type: "string",
+            maxLength: 20,
+            description: "The transaction this one calls into. transaction_type P/V only.",
+          },
+          skip_first_screen: {
+            type: "boolean",
+            description: "Whether called_transaction's first screen is skipped. transaction_type P only.",
+          },
+          variant: {
+            type: "string",
+            maxLength: 30,
+            description: "The screen variant passed to called_transaction. transaction_type V only.",
+          },
+          cross_client_variant: {
+            type: "boolean",
+            description:
+              "Whether variant is cross-client (TSTCP @@) rather than client-specific (@). transaction_type V only.",
+          },
+          parameters: {
+            type: "array",
+            description: "TSTCP screen-field assignments. transaction_type P only.",
+            items: {
+              type: "object",
+              required: ["field", "value"],
+              properties: {
+                field: { type: "string", maxLength: 30, description: "Screen field name." },
+                value: { type: "string", maxLength: 255, description: "Value assigned to the field." },
+              },
+            },
           },
         },
       },
@@ -196,7 +246,7 @@ export const classicManifest: FluidManifest = {
         properties: {
           tcode: { type: "string", maxLength: 20, description: "The existing transaction code to retarget." },
           program: { type: "string", maxLength: 40, description: "The new report the tcode starts." },
-          description: { type: "string", maxLength: 60, description: "Short text." },
+          description: { type: "string", maxLength: 36, description: "Short text (TSTCT-TTEXT)." },
           package_name: { type: "string", maxLength: 30, description: "Target package (devclass)." },
           corr_nr: {
             type: "string",
@@ -217,13 +267,20 @@ export const classicManifest: FluidManifest = {
     {
       name: "delete_transaction",
       category: "mutate",
-      description: "Deletes a dialog transaction code and confirms the TSTC row is gone.",
+      description: "Deletes a transaction code and confirms the TSTC row is gone.",
       input: {
         type: "object",
         required: ["tcode", "package_name"],
         properties: {
           tcode: { type: "string", maxLength: 20, description: "The transaction code to delete." },
           package_name: { type: "string", maxLength: 30, description: "The tcode's current package, for the gate." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description:
+              "Transport request. Required for a transportable package (RPY_TRANSACTION_DELETE registers " +
+              "the delete via RS_CORR_INSERT first); empty string, or omitted, for a $ (local) package.",
+          },
           confirm_in_role_menu: {
             type: "boolean",
             description:
@@ -233,7 +290,7 @@ export const classicManifest: FluidManifest = {
         },
       },
       output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
-      targets: { object: "/tcode", package: "/package_name", corr: "local" },
+      targets: { object: "/tcode", package: "/package_name", transport: "/corr_nr" },
     },
     {
       name: "create_index",

@@ -33,11 +33,11 @@ interface Call {
 
 /**
  * `group` given: candidates are matched by name pattern AND type-group only
- * (the sub-type suffix, e.g. the "/XS" in "ENHS/XS", is never even sent —
- * `searchObjects` only ever passed the group part) — then `max` truncates
- * that candidate set before any sub-type distinction is made, and rows come
- * back stripped of `adtcore:description`/`adtcore:packageName` (captures
- * 818/819).
+ * (a group such as "CLAS", or the full sub-type such as "TABL/DS" that #206
+ * sends for an unspecific query) — then `max` truncates that candidate set
+ * before any sub-type distinction is made. Only a sub-typed objectType
+ * ("TABL/DS") strips `adtcore:description`/`adtcore:packageName`, as
+ * captures 818/819 show; a bare group keeps both.
  * `group` omitted: candidates are matched by name pattern only, across every
  * type, then `max` truncates, and every attribute is kept.
  * Either way, results are handed back sorted by name — the same order ADT's
@@ -47,10 +47,10 @@ function fakeSearchBackend(all: Row[], calls: Call[]) {
   return async (query: string, group?: string, max?: number): Promise<Row[]> => {
     calls.push({ query, group, max });
     const byName = all.filter((r) => nameMatches(query, r["adtcore:name"]));
-    const candidates = group ? byName.filter((r) => r["adtcore:type"].split("/")[0] === group) : byName;
+    const candidates = group ? byName.filter((r) => r["adtcore:type"].split("/")[0] === group.split("/")[0]) : byName;
     const sorted = [...candidates].sort((a, b) => a["adtcore:name"].localeCompare(b["adtcore:name"]));
     const page = sorted.slice(0, max ?? sorted.length);
-    if (!group) return page;
+    if (!group?.includes("/")) return page;
     return page.map((r) => {
       const { "adtcore:description": _d, "adtcore:packageName": _p, ...rest } = r;
       return rest as Row;
@@ -60,8 +60,9 @@ function fakeSearchBackend(all: Row[], calls: Call[]) {
 
 function searchConn(searchObject: (q: string, group?: string, max?: number) => Promise<unknown[]>): AbapConnection {
   return {
-    cfg: { sid: "A4H" },
+    cfg: { sid: "A4H", searchTimeoutMs: 60_000 },
     adt: { searchObject, usageReferences: async () => [] },
+    withRequestTimeout: async (_ms: number, fn: () => Promise<unknown>) => fn(),
   } as unknown as AbapConnection;
 }
 
@@ -117,12 +118,15 @@ describe("abap_search: the ZTMD_ES_HW17 invariant", () => {
   });
 });
 
-describe("abap_search no longer sends objectType, and widens the window when typed", () => {
+// #206: the server's own type filter is trusted again for speed, so a typed
+// call now sends the type GROUP to searchObject (not undefined) and the
+// fetch window is a margin above `max`, not a 10x multiplier.
+describe("abap_search sends the type GROUP, and widens the window with a margin, when typed", () => {
   const ROWS: Row[] = [
     { "adtcore:type": "CLAS/OC", "adtcore:name": "ZCL_ONE", "adtcore:packageName": "ZPKG", "adtcore:description": "one" },
   ];
 
-  it("passes group=undefined to searchObject for both untyped and typed calls", async () => {
+  it("passes group=undefined to searchObject when untyped, and the type's GROUP when typed (#206)", async () => {
     const calls: Call[] = [];
     const conn = searchConn(fakeSearchBackend(ROWS, calls));
 
@@ -131,10 +135,10 @@ describe("abap_search no longer sends objectType, and widens the window when typ
 
     expect(calls).toHaveLength(2);
     expect(calls[0]!.group).toBeUndefined();
-    expect(calls[1]!.group).toBeUndefined();
+    expect(calls[1]!.group).toBe("CLAS");
   });
 
-  it("requests max as-is when untyped, and a widened window (max * 10, capped at 1000) when typed", async () => {
+  it("requests max as-is when untyped, and max + margin(max) (capped at 1000) when typed (#206)", async () => {
     const calls: Call[] = [];
     const conn = searchConn(fakeSearchBackend(ROWS, calls));
 
@@ -142,14 +146,17 @@ describe("abap_search no longer sends objectType, and widens the window when typ
     expect(calls[0]!.max).toBe(50);
 
     await abapSearch(conn, { query: "Z*", type: "CLAS/OC", max: 50 }, 20_000);
-    expect(calls[1]!.max).toBe(500);
+    expect(calls[1]!.max).toBe(75); // 50 + max(10, ceil(50/2)=25) = 75
 
     await abapSearch(conn, { query: "Z*", type: "CLAS/OC", max: 200 }, 20_000);
-    expect(calls[2]!.max).toBe(1000); // capped, not 2000
+    expect(calls[2]!.max).toBe(300); // 200 + max(10, ceil(200/2)=100) = 300
   });
 });
 
-describe("abap_search keeps description and packageName on typed rows", () => {
+// #206 sends the GROUP for a specific query, and the group path keeps
+// description/packageName (only the sub-typed path of an unspecific query
+// strips them — captures 818/819, and the TYPE-SCOPED LISTING note).
+describe("abap_search: a typed group-scoped search keeps description/packageName", () => {
   const ROWS: Row[] = [
     {
       "adtcore:type": "CLAS/OC",
@@ -159,7 +166,7 @@ describe("abap_search keeps description and packageName on typed rows", () => {
     },
   ];
 
-  it("renders package and description for a typed search, not blank columns", async () => {
+  it("still renders package/description for a typed specific query, since only the group is sent (#206)", async () => {
     const conn = searchConn(fakeSearchBackend(ROWS, []));
     const r = await abapSearch(conn, { query: "ZCL_TYPED", type: "CLAS/OC", max: 50 }, 20_000);
     expect(r.text).toContain("ZPKG_TYPED");
@@ -188,31 +195,29 @@ describe("abap_search honours a sub-type specForType does not know", () => {
 });
 
 describe("abap_search marks window exhaustion in the body, not just the notes", () => {
-  // Isolated from the display cap below: `max` is sized so every matching
-  // (CLAS/OC) row fits under it — only the fetch window itself is at issue.
-  const windowOf = (clasCount: number, fillerCount: number): Row[] => [
-    ...Array.from({ length: clasCount }, (_, i) => ({
+  // #206: a typed, non-wildcard-only query now sends the GROUP to
+  // searchObject, so the fake's own group filter excludes any non-CLAS
+  // filler before the candidate list is ever truncated — a "filler" of
+  // another group can no longer be the thing that fills the window, so this
+  // helper only produces CLAS/OC rows.
+  const windowOf = (clasCount: number): Row[] =>
+    Array.from({ length: clasCount }, (_, i) => ({
       "adtcore:type": "CLAS/OC",
       "adtcore:name": `ZWIN_A_${String(i).padStart(3, "0")}`,
-    })),
-    ...Array.from({ length: fillerCount }, (_, i) => ({
-      "adtcore:type": "PROG/P",
-      "adtcore:name": `ZWIN_B_${String(i).padStart(3, "0")}`,
-    })),
-  ];
+    }));
 
   it("carries a --- TRUNCATED --- marker in the body when the fetch window comes back full", async () => {
-    // type given, max=2 -> fetchMax = min(1000, 2*10) = 20; exactly 20 candidates fills it.
-    const conn = searchConn(fakeSearchBackend(windowOf(2, 18), []));
+    // type given, max=2 -> fetchMax = 2 + max(10, ceil(2/2)=1) = 12 (#206); exactly 12 candidates fills it.
+    const conn = searchConn(fakeSearchBackend(windowOf(12), []));
     const r = await abapSearch(conn, { query: "ZWIN_*", type: "CLAS/OC", max: 2 }, 20_000);
-    expect(r.text).toContain("matches: 2"); // both CLAS/OC rows shown, no display cap involved
+    expect(r.text).toContain("matches: 2"); // only the first `max` shown; display cap is a separate concern
     expect(r.text).toContain("--- TRUNCATED ---");
     expect(r.text).toMatch(/may be incomplete/);
     expect(r.text).toMatch(/raise `max`|Raise `max`/i);
   });
 
   it("carries no truncation marker when the server sent fewer rows than the window", async () => {
-    const conn = searchConn(fakeSearchBackend(windowOf(5, 0), []));
+    const conn = searchConn(fakeSearchBackend(windowOf(5), []));
     const r = await abapSearch(conn, { query: "ZWIN_*", type: "CLAS/OC", max: 5 }, 20_000);
     expect(r.text).not.toContain("--- TRUNCATED ---");
   });

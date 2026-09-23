@@ -20,17 +20,20 @@ interface Row {
 }
 
 /** Models the server's own pagination: it never sends more than the
- *  requested window. No name or group matching — `searchObjects` always
- *  calls with group=undefined, and the query pattern is irrelevant to these
- *  tests; only row counts and types are. */
+ *  requested window. No name or group matching — a typed call now sends a
+ *  group (#206), but this fake deliberately ignores it and the query
+ *  pattern, since the server's own type filter is not trusted anyway and
+ *  `searchObjects` re-filters by exact type client-side regardless; only row
+ *  counts and types are. */
 function fixedWindowBackend(available: Row[]): (query: string, group?: string, max?: number) => Promise<Row[]> {
   return async (_query, _group, max) => available.slice(0, max ?? available.length);
 }
 
 function searchConn(searchObject: (q: string, group?: string, max?: number) => Promise<unknown[]>): AbapConnection {
   return {
-    cfg: { sid: "A4H" },
+    cfg: { sid: "A4H", searchTimeoutMs: 60_000 },
     adt: { searchObject, usageReferences: async () => [] },
+    withRequestTimeout: async (_ms: number, fn: () => Promise<unknown>) => fn(),
   } as unknown as AbapConnection;
 }
 
@@ -73,18 +76,18 @@ describe("page-full-at-max note, untyped: trigger and complement", () => {
 
 describe("page-full-at-max note, typed: keys on the widened fetch window, not the caller's max", () => {
   it("fires and names the fetch window, not the caller's max, when fetchMax is exactly filled", async () => {
-    const max = 3; // fetchMax = min(1000, 3*10) = 30
-    const conn = searchConn(fixedWindowBackend(rowsOfType("CLAS/OC", 30, "ZT1_")));
+    const max = 3; // #206: fetchMax = min(1000, 3 + max(10, ceil(3/2)=2)) = 13
+    const conn = searchConn(fixedWindowBackend(rowsOfType("CLAS/OC", 13, "ZT1_")));
     const r = await abapSearch(conn, { query: "ZT1_*", type: "CLAS/OC", max }, 20_000);
     const noteLine = r.text.split("\n").find((l) => l.includes("returned its full page of"));
     expect(noteLine).toBeDefined();
-    expect(noteLine).toContain("at max=30");
+    expect(noteLine).toContain("at max=13");
     expect(noteLine).not.toContain("at max=3;");
   });
 
   it("stays absent when the server sends more than the caller's max but the fetch window is not full", async () => {
-    const max = 3; // fetchMax = 30
-    // 10 rows: more than the caller's max=3, well under fetchMax=30 — the
+    const max = 3; // #206: fetchMax = 13
+    // 10 rows: more than the caller's max=3, under fetchMax=13 — the
     // exact case that would wrongly trigger the note if its guard were ever
     // simplified back to results.length >= max instead of >= fetchMax.
     const conn = searchConn(fixedWindowBackend(rowsOfType("CLAS/OC", 10, "ZT2_")));
@@ -103,7 +106,7 @@ interface Combo {
   expectZero: boolean;
 }
 
-const TYPED_MAX = 2; // fetchMax = min(1000, 2*10) = 20
+const TYPED_MAX = 2; // #206: fetchMax = min(1000, 2 + max(10, ceil(2/2)=1)) = 12
 const UNTYPED_MAX = 5; // fetchMax = max = 5
 
 // Every genuinely reachable cell of {untyped, typed} x {window full, window
@@ -116,11 +119,12 @@ const UNTYPED_MAX = 5; // fetchMax = max = 5
 // the same arithmetic rules out untyped + full + zero.
 const COMBOS: Combo[] = [
   {
+    // #206: fetchMax = 12 (was 20); counts rescaled to keep the same shape.
     label: "typed, window full, type filter drops rows, some survive",
     type: "CLAS/OC",
     max: TYPED_MAX,
-    wantedCount: 15,
-    unwantedCount: 5,
+    wantedCount: 9,
+    unwantedCount: 3,
     expectFull: true,
     expectZero: false,
   },
@@ -129,7 +133,7 @@ const COMBOS: Combo[] = [
     type: "CLAS/OC",
     max: TYPED_MAX,
     wantedCount: 0,
-    unwantedCount: 20,
+    unwantedCount: 12,
     expectFull: true,
     expectZero: true,
   },
@@ -137,7 +141,7 @@ const COMBOS: Combo[] = [
     label: "typed, window full, type filter drops nothing, some survive",
     type: "CLAS/OC",
     max: TYPED_MAX,
-    wantedCount: 20,
+    wantedCount: 12,
     unwantedCount: 0,
     expectFull: true,
     expectZero: false,
@@ -146,8 +150,8 @@ const COMBOS: Combo[] = [
     label: "typed, window not full, type filter drops rows, some survive",
     type: "CLAS/OC",
     max: TYPED_MAX,
-    wantedCount: 10,
-    unwantedCount: 5,
+    wantedCount: 6,
+    unwantedCount: 3,
     expectFull: false,
     expectZero: false,
   },
@@ -156,7 +160,7 @@ const COMBOS: Combo[] = [
     type: "CLAS/OC",
     max: TYPED_MAX,
     wantedCount: 0,
-    unwantedCount: 10,
+    unwantedCount: 9,
     expectFull: false,
     expectZero: true,
   },
@@ -164,7 +168,7 @@ const COMBOS: Combo[] = [
     label: "typed, window not full, type filter drops nothing, some survive",
     type: "CLAS/OC",
     max: TYPED_MAX,
-    wantedCount: 10,
+    wantedCount: 6,
     unwantedCount: 0,
     expectFull: false,
     expectZero: false,
@@ -212,7 +216,8 @@ async function runCombo(c: Combo) {
   const available = c.type
     ? [...rowsOfType(c.type, c.wantedCount, "ZW_"), ...rowsOfType("PROG/P", c.unwantedCount, "ZP_")]
     : rowsOfType("CLAS/OC", c.wantedCount, "ZW_");
-  const fetchMax = c.type ? Math.min(1000, c.max * 10) : c.max;
+  // #206: a margin above `max`, not a 10x multiplier.
+  const fetchMax = c.type ? Math.min(1000, c.max + Math.max(10, Math.ceil(c.max / 2))) : c.max;
   const conn = searchConn(fixedWindowBackend(available));
   const r = await abapSearch(conn, { query: "Z*", type: c.type, max: c.max }, 20_000);
   const serverHits = headerNumber(r.text, "serverHits");

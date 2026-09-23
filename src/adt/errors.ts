@@ -283,6 +283,21 @@ export type AbapErrorCode =
    * (mirrors `ENHANCEMENT_DISABLED`). Ordinary stepping never uses this code.
    */
   | "DEBUG_JUMP_DISABLED"
+  /**
+   * #198 — `action:"set_value"` (or another stop-scoped write) was called
+   * with no debug session stopped: no active session at all, or one whose
+   * status is not `"suspended"` (running, dead, idle). Names the current
+   * status when one exists.
+   */
+  | "DEBUG_NOT_STOPPED"
+  /**
+   * #198 — `action:"set_value"` refused the target variable itself: a
+   * constant, a read-only parameter, a reference/object, a structure, a
+   * table, or another non-scalar/non-string type. Distinct from
+   * `DEBUG_NOT_STOPPED` (no session to act on) and `BAD_INPUT` (the value
+   * text itself does not fit the variable's type).
+   */
+  | "DEBUG_VALUE_NOT_WRITABLE"
   // ---- Runtime-error dumps (ST22) ----
   /**
    * Variable-contents tier of a runtime-error dump was requested and
@@ -494,6 +509,8 @@ export const RETRYABILITY: Record<AbapErrorCode, Retryability> = {
   DEBUG_SESSION_LOCKED_CROSS_PROCESS: "conditional",
   DEBUG_ALL_LEASES_BUSY: "conditional", // resolves once a lane frees up; not fixable by a different argument, but not permanent either
   DEBUG_JUMP_DISABLED: "terminal", // the flag is off; no argument enables it
+  DEBUG_NOT_STOPPED: "conditional", // no suspended session to act on right now; a later stop may fix it
+  DEBUG_VALUE_NOT_WRITABLE: "terminal", // constant, read-only, reference, structure, table or generic type
   DUMP_VARIABLES_DISABLED: "terminal", // the flag is off; no argument enables it
   INTERNAL_GATE_MISUSE: "terminal", // a call-site wiring bug, not a caller-facing decision
   SERVICE_NOT_PUBLISHED: "conditional",

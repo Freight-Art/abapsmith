@@ -300,11 +300,27 @@ const CASES: readonly BridgeCase[] = [
         vitRoute("trant", TCODE, "TRAN/T"),
       ),
     classic: () => classicFake({ action: "create_transaction", lines: () => ["TRAN-CREATED"] }),
+    // Full shape `transactionInsertArgs` (src/adt/tran-create.ts) returns for
+    // kind="report" (the default here): every kind-specific field is present,
+    // just empty/false/"" for the fields report doesn't use.
     invoker: (corrNr) =>
       invokerName(
         CLASSIC_TOOL_ID,
         "create_transaction",
-        { tcode: TCODE, program: PROGRAM, description: "Carrier list", package_name: PKG, corr_nr: corrNr },
+        {
+          tcode: TCODE,
+          description: "Carrier list",
+          package_name: PKG,
+          corr_nr: corrNr,
+          transaction_type: "R",
+          program: PROGRAM,
+          dynpro: "1000",
+          called_transaction: "",
+          skip_first_screen: false,
+          variant: "",
+          cross_client_variant: false,
+          parameters: [],
+        },
         FLUID_CONTRACT,
       ),
   },
@@ -419,7 +435,7 @@ describe("issue #141: under ABAP_ALLOW_TRANSPORTS=auto every bridge create resol
       expect(e.details.rule, c.type).toBe("transport allowlist");
       expect(e.retryable, c.type).toBe(false);
       expect(e.hint, c.type).toMatch(/Omit corr_nr/);
-      expect(e.hint, c.type).toMatch(/refused regardless of which request/);
+      expect(e.hint, c.type).toMatch(/accepted only when it is a request this session created/);
       expect(e.hint, c.type).toMatch(/terminal/);
       expect(trCreate, c.type).not.toHaveBeenCalled();
       expect(classic.deployed().length, c.type).toBe(0);
@@ -501,5 +517,61 @@ describe("issue #142: the gate verdict comes BEFORE any request is created, and 
     expect(classic.deployed().length).toBe(0);
     // The manager knows it created it, so abap_transport can find it.
     expect(mgr.createdThisSession(CREATED)).toBe(true);
+  });
+});
+
+describe("issue #209: SHLP/DH and TABL/DI bridge creates default a missing description too, same as VIEW/DV and TRAN/T", () => {
+  it("SHLP/DH: omitted description defaults to the object's own name and notes it", async () => {
+    const c = CASES[2]!;
+    expect(c.type).toBe("SHLP/DH");
+    const { description: _drop, ...rest } = c.input;
+    const input = rest;
+    const classic = c.classic();
+    const { conn } = await connected(both(classic.route, c.routes()));
+    const { mgr } = autoMgr();
+
+    const result = await abapWrite(conn, input as never, MAX, gateWith(["auto"]), undefined, mgr);
+
+    expect(result.text).toMatch(/created:\s*true/);
+    expect(result.text).toMatch(new RegExp(`description defaulted to "${SHLP}" \\(none was given\\)\\.`));
+  });
+
+  it("SHLP/DH: an explicit description is used as given and defaults no note", async () => {
+    const c = CASES[2]!;
+    const classic = c.classic();
+    const { conn } = await connected(both(classic.route, c.routes()));
+    const { mgr } = autoMgr();
+
+    const result = await abapWrite(conn, c.input as never, MAX, gateWith(["auto"]), undefined, mgr);
+
+    expect(result.text).toMatch(/created:\s*true/);
+    expect(result.text).not.toMatch(/description defaulted to/);
+  });
+
+  it("TABL/DI: omitted description defaults to `<base table> index <id>` and notes it", async () => {
+    const c = CASES[3]!;
+    expect(c.type).toBe("TABL/DI");
+    const { description: _drop, ...rest } = c.input;
+    const input = rest;
+    const classic = c.classic();
+    const { conn } = await connected(both(classic.route, c.routes()));
+    const { mgr } = autoMgr();
+
+    const result = await abapWrite(conn, input as never, MAX, gateWith(["auto"]), undefined, mgr);
+
+    expect(result.text).toMatch(/created:\s*true/);
+    expect(result.text).toMatch(new RegExp(`description defaulted to "${TABLE} index ${INDEX}" \\(none was given\\)\\.`));
+  });
+
+  it("TABL/DI: an explicit description is used as given and defaults no note", async () => {
+    const c = CASES[3]!;
+    const classic = c.classic();
+    const { conn } = await connected(both(classic.route, c.routes()));
+    const { mgr } = autoMgr();
+
+    const result = await abapWrite(conn, c.input as never, MAX, gateWith(["auto"]), undefined, mgr);
+
+    expect(result.text).toMatch(/created:\s*true/);
+    expect(result.text).not.toMatch(/description defaulted to/);
   });
 });

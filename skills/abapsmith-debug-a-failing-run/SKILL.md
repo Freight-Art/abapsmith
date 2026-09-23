@@ -168,7 +168,11 @@ unconditionally when you are done is harmless and is the right habit.
   uncaught raise, use a line breakpoint on the `RAISE` statement, or the
   statement breakpoint `RAISE EXCEPTION TYPE` paired with a line breakpoint
   in the target object.
-- **Variables are read-only by design** — there is no "set variable".
+- **`abap_debug { action: "set_value", stateId, variable, value }`** writes
+  one variable, structure component, or table cell at a stop — use it to
+  test a hypothesis, e.g. flip a flag and `step: "continue"` to see whether
+  that changes the outcome. Needs edit/admin mode and a suspended session;
+  every change is listed in the session's final summary.
 - `frame` moves the read cursor only — it does not unwind or re-execute anything.
 - `skipCount` is accepted and sent to SAP but **not enforced** — use
   `step: "continue"` instead.

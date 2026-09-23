@@ -39,6 +39,11 @@ abap_write { object, type, package: "$TMP", source, description }
   its own nested object, not a `mode`; `mode` takes `write`, `delete`, or
   `update` (the last one only for `VIEW/DV`, `TRAN/T` and `SHLP/DH` — see
   `doc/TOOLS/write-and-activate.md`).
+- `TRAN/T` create takes a `kind` — `report` (the default), `dialog`,
+  `parameter`, `variant` or `oo` — each needing its own fields (`program`,
+  `target_transaction`, `class`, …); see `doc/TOOLS/write-and-activate.md`.
+  `description` is optional for `TRAN/T` (defaults to the object name) and
+  capped at 36 characters.
 - A bare `{object, source}` full rewrite does **not** auto-supply the etag. Pass
   `expect_etag` yourself or you will silently overwrite a concurrent change.
 - Pass `dry_run: true` to see the gate verdict, the package a create would

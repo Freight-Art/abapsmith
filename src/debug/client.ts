@@ -712,13 +712,15 @@ export class DebugClient {
     };
   }
 
-  async setVariableValue(variableName: string, value: string): Promise<void> {
-    await this.transport.request({
+  /** Returns the value SAP actually stored after any type conversion (e.g. truncation, rounding). */
+  async setVariableValue(variableName: string, value: string): Promise<string> {
+    const res = await this.transport.request({
       method: "POST",
       path: setVariableValueUrl(variableName),
       headers: { Accept: DBG_XML_ACCEPT },
       body: value,
     });
+    return res.body;
   }
 
   // --- Settings ------------------------------------------------------

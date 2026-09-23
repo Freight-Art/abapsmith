@@ -365,10 +365,19 @@ for the modifiable requests of the **package** (the object cannot be
 classified before it exists) and reuses one this session created or one
 attributed to abapsmith, else creates one; the write response's
 `transport:` field names the request either way, with the resolver's
-reason. Under `ABAP_ALLOW_TRANSPORTS=auto` a named `corr_nr` is refused
-regardless of which request — `SAFETY_DENIED`, rule `transport allowlist`,
-`retryable: false`, hint "omit corr_nr". `TRANSPORT_ERROR` on these paths
-now means a request was genuinely needed and none could be resolved (no
+reason. Under `ABAP_ALLOW_TRANSPORTS=auto`, a named `corr_nr` is refused
+(`SAFETY_DENIED`, rule `transport allowlist`, `retryable: false`) unless it
+is (a) a request this session created, or (b) a modifiable workbench
+request already attributed to abapsmith for the same package — exactly
+the requests auto would pick itself; the refusal lists the acceptable
+requests, e.g. "Acceptable: A4HK900200" or "none yet — omit corr_nr to
+have one created" (#208). The classic-bridge creates listed above accept
+(a) — their zero-wire pre-check runs `assertTargetsAgainstGate`/the safety
+gate's own session-registry hook, which knows what this session created —
+but not (b): the modifiable-request-attributed-to-abapsmith check only
+runs once CTS is consulted for the package's candidates, and the bridge
+creates' pre-check runs before that. `TRANSPORT_ERROR` on these paths
+still means a request was genuinely needed and none could be resolved (no
 transport manager wired into the call, or CTS refused the create), not
 "pass a corr_nr".
 

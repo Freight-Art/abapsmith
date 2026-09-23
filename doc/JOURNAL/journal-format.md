@@ -77,7 +77,7 @@ subset named above.
 | Journalled | Not journalled |
 |---|---|
 | `abap_write` (create/update/delete) | FPM tools |
-| `abap_write text_pool` (irreversible `update` entry on the `PROG/PX` textelements resource, history only) | — |
+| `abap_write text_pool` (irreversible `update` entry on the object's textelements resource (`PROG/PX`, `CLAS/OCX` or `FUGR/PX`), history only) | — |
 | `abap_transport` (create / add-user / set-owner / release) | `abap_bopf_edit operation:"activate"` (no mutation of the BO's own model — see below) |
 | `abap_enh`: 9 of its 11 operations (see below) | `abap_enh`'s `discover_hook_anchors` (read-only) and `exercise` (mutates no ADT object of its own) |
 | `abap_activate` — single and batch | — |
