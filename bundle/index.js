@@ -61702,7 +61702,7 @@ var init_capabilities = __esm({
         // re-checked and unaffected). An earlier report asserted message classes "do
         // not create at all" — like DTEL/DE, that did not reproduce. Full
         // record: the git history.
-        create: { vendor: true, verified: true },
+        create: { vendor: true, verified: true, statelessPost: true },
         delete: true,
         activate: false
       },
@@ -62287,7 +62287,7 @@ function transportAllowlistHint(allowTransports) {
   }
   const pins = normalized.filter((t) => t !== "AUTO");
   if (pins.length === 0) {
-    return "The server picks the request itself under ABAP_ALLOW_TRANSPORTS=auto. Omit corr_nr: a modifiable workbench request this session created (abap_transport operation=create) or already attributed to itself is reused for the package, otherwise one is created \u2014 either way the response's transport field names it. Naming a request is refused regardless of which request. " + TRANSPORT_HINT_TERMINAL;
+    return "The server picks the request itself under ABAP_ALLOW_TRANSPORTS=auto. Omit corr_nr: a modifiable workbench request this session created (abap_transport operation=create) or already attributed to itself is reused for the package, otherwise one is created \u2014 either way the response's transport field names it. A named corr_nr is accepted only when it is a request this session created (abap_transport operation=create, abap_img_edit create_request, or one created for a package by an earlier write) or a modifiable request already attributed to abapsmith for the same package \u2014 exactly the requests auto would pick itself; any other request is refused. " + TRANSPORT_HINT_TERMINAL;
   }
   const omitClause = normalized.includes("AUTO") ? "or omit corr_nr to let the server pick or create one" : "or omit corr_nr to use the first of them that is still modifiable";
   return `Only these requests are permitted: ${pins.join(", ")}. Pass one of them as corr_nr, ${omitClause}. No other request number passes; ask the operator to extend the list if the work must go elsewhere. ` + TRANSPORT_HINT_TERMINAL;
@@ -62649,12 +62649,19 @@ var init_safety = __esm({
       }
     };
     SafetyGate = class {
-      constructor(cfg) {
+      constructor(cfg, hooks = {}) {
         this.cfg = cfg;
+        this.hooks = hooks;
       }
       cfg;
+      hooks;
       /** Audit trail for {@link resetWriteLockout} — see {@link writeLockoutResets}. */
       lockoutResets = [];
+      #sessionCreated(trkorr) {
+        const created = this.hooks.sessionCreatedRequests?.() ?? [];
+        const wanted = trkorr.trim().toUpperCase();
+        return created.some((t) => t.trim().toUpperCase() === wanted);
+      }
       /**
        * "Why is this capability off, and what actually turns it on?" — computed
        * from {@link SafetyConfig.abapMode} (the mechanism that made the decision)
@@ -63054,11 +63061,14 @@ var init_safety = __esm({
           const normalized = allowTransports.map((t) => t.trim().toUpperCase());
           if (!normalized.includes("*") && corr.kind === "transport") {
             const requested = corr.corrNr.trim().toUpperCase();
-            const ok25 = normalized.includes(requested) || corr.source === "auto" && normalized.includes("AUTO");
+            const sessionCreated = corr.source === "named" && normalized.includes("AUTO") && this.#sessionCreated(requested);
+            const ok25 = normalized.includes(requested) || corr.source === "auto" && normalized.includes("AUTO") || sessionCreated;
             if (!ok25) {
+              const createdHere = this.hooks.sessionCreatedRequests?.() ?? [];
+              const reason = normalized.includes("AUTO") && corr.source === "named" ? `Transport ${corr.corrNr} is not permitted by ABAP_ALLOW_TRANSPORTS [${allowTransports.join(", ")}]: under auto a named request must be one this session created` + (createdHere.length > 0 ? ` \u2014 this session created ${createdHere.join(", ")}.` : " \u2014 this session has created none yet; omit corr_nr to have one picked or created.") : `Transport ${corr.corrNr} is not permitted by ABAP_ALLOW_TRANSPORTS [${allowTransports.join(", ")}].`;
               return {
                 allowed: false,
-                reason: `Transport ${corr.corrNr} is not permitted by ABAP_ALLOW_TRANSPORTS [${allowTransports.join(", ")}].`,
+                reason,
                 rule: "transport allowlist",
                 code: "SAFETY_DENIED",
                 hint: transportAllowlistHint(allowTransports)
@@ -64989,8 +64999,20 @@ var init_source = __esm({
 });
 
 // src/adt/timeouts.ts
+function familyTimeoutMs(cfg, family) {
+  switch (family) {
+    case "bopf":
+      return cfg.bopfTimeoutMs;
+    case "activate":
+      return cfg.activateTimeoutMs;
+    case "run":
+      return cfg.runTimeoutMs;
+    case "search":
+      return cfg.searchTimeoutMs;
+  }
+}
 function longestRequestTimeoutMs(cfg) {
-  return Math.max(cfg.timeoutMs, cfg.bopfTimeoutMs, cfg.activateTimeoutMs, cfg.runTimeoutMs);
+  return Math.max(cfg.timeoutMs, cfg.bopfTimeoutMs, cfg.activateTimeoutMs, cfg.runTimeoutMs, cfg.searchTimeoutMs);
 }
 function isTransportTimeout(e) {
   if (!e || typeof e !== "object") return false;
@@ -65031,7 +65053,8 @@ var init_timeouts = __esm({
     TIMEOUT_ENV_VAR = {
       bopf: "ABAP_BOPF_TIMEOUT_MS",
       activate: "ABAP_ACTIVATE_TIMEOUT_MS",
-      run: "ABAP_RUN_TIMEOUT_MS"
+      run: "ABAP_RUN_TIMEOUT_MS",
+      search: "ABAP_SEARCH_TIMEOUT_MS"
     };
   }
 });
@@ -68453,6 +68476,7 @@ function loadConfig(opts = {}) {
     bopfTimeoutMs: env.ABAP_BOPF_TIMEOUT_MS ?? 18e4,
     activateTimeoutMs: env.ABAP_ACTIVATE_TIMEOUT_MS ?? 18e4,
     runTimeoutMs: env.ABAP_RUN_TIMEOUT_MS ?? 18e4,
+    searchTimeoutMs: env.ABAP_SEARCH_TIMEOUT_MS ?? 6e4,
     lockWaitMs: env.ABAP_LOCK_WAIT_MS ?? 5e3,
     stateDir: env.ABAP_STATE_DIR ?? ".abapsmith",
     maxResponseChars: env.ABAP_MAX_RESPONSE_CHARS,
@@ -68969,6 +68993,8 @@ var init_config = __esm({
       activateTimeoutMs: external_exports.coerce.number().int().positive().default(18e4),
       /** Per-request timeout for abap_run classrun execution (`ABAP_RUN_TIMEOUT_MS`). */
       runTimeoutMs: external_exports.coerce.number().int().positive().default(18e4),
+      /** Per-request timeout for abap_search's repository quick search (`ABAP_SEARCH_TIMEOUT_MS`). */
+      searchTimeoutMs: external_exports.coerce.number().int().positive().default(6e4),
       /** How long to wait for the cross-process journal index lock before giving up. */
       lockWaitMs: external_exports.coerce.number().int().positive().default(5e3),
       /** Directory for cross-process state — the journal index lockfile and the durable auth latch. Default `<cwd>/.abapsmith`. */
@@ -106463,6 +106489,10 @@ var SessionTransport = class _SessionTransport {
   noteCreated(trkorr) {
     this.#created.add(trkorr.trim().toUpperCase());
   }
+  /** TRKORRs this session has created, uppercase, in the order they were recorded. */
+  sessionCreatedRequests() {
+    return [...this.#created];
+  }
   /**
    * Decide which transport request this write goes into.
    *
@@ -106592,6 +106622,52 @@ var SessionTransport = class _SessionTransport {
     }
     if (wanted !== void 0) {
       if (!this.#callerMayName(wanted)) {
+        if (this.#policy.auto) {
+          if (this.createdThisSession(wanted)) {
+            const problem2 = await this.#checkUsable(conn, wanted);
+            if (problem2) return problem2;
+            this.#state = {
+              kind: "active",
+              trkorr: wanted,
+              devclass,
+              createdAt: this.#now().toISOString(),
+              origin: "adopted"
+            };
+            return this.#autoGranted(
+              wanted,
+              "session-created",
+              `Using ${wanted}: named by the caller and created by this session.`
+            );
+          }
+          const me = this.#whoami();
+          const attributed = candidates.find(
+            (c) => c.trkorr.toUpperCase() === wanted.toUpperCase() && me !== void 0 && me !== "" && this.#isAttributedTo(c, me)
+          );
+          if (attributed !== void 0) {
+            this.#state = {
+              kind: "active",
+              trkorr: wanted,
+              devclass,
+              createdAt: this.#now().toISOString(),
+              origin: "adopted"
+            };
+            return this.#autoGranted(
+              wanted,
+              "session-adopted",
+              `Using ${wanted}: named by the caller; a modifiable workbench request owned by ${me} carrying abapsmith's own description for package ${devclass} \u2014 the request auto would have adopted. THIS SESSION DID NOT CREATE IT.`
+            );
+          }
+          const acceptable = [
+            ...this.sessionCreatedRequests(),
+            ...candidates.filter((c) => me !== void 0 && me !== "" && this.#isAttributedTo(c, me)).map((c) => c.trkorr.toUpperCase())
+          ].filter((t, i, arr) => arr.indexOf(t) === i);
+          return denied(
+            "not-allowlisted",
+            "TRANSPORT_ERROR",
+            `Transport ${wanted} is not permitted by ABAP_ALLOW_TRANSPORTS [auto]: this session did not create it, and it is not a modifiable request attributed to abapsmith for package ${devclass ?? "?"}. Acceptable: ${acceptable.length ? acceptable.join(", ") : "none yet \u2014 omit corr_nr to have one created"}.`,
+            transportAllowlistHint(this.#allowTransports)
+          );
+        }
         return denied(
           "not-allowlisted",
           "TRANSPORT_ERROR",
@@ -106843,7 +106919,7 @@ var SessionTransport = class _SessionTransport {
         // CTS's candidate list can still show a request the trShow probe
         // just proved dead above; the probe is the newer evidence, so a
         // just-retired request must never be re-adopted in this call.
-        (retired === void 0 || c.trkorr.toUpperCase() !== retired.toUpperCase()) && c.kind === "workbench" && c.status === "modifiable" && c.owner.toUpperCase() === me.toUpperCase() && this.#isOwnDescription(c.description) && // Already had its chance in tier 1 above; never double-counted.
+        (retired === void 0 || c.trkorr.toUpperCase() !== retired.toUpperCase()) && this.#isAttributedTo(c, me) && // Already had its chance in tier 1 above; never double-counted.
         !this.createdThisSession(c.trkorr)
       )
     );
@@ -106961,6 +107037,10 @@ var SessionTransport = class _SessionTransport {
   #isOwnDescription(description) {
     const trimmed = description.trim();
     return this.#description !== void 0 ? trimmed === this.#description.trim() : /^abapsmith session \d{4}-\d{2}-\d{2}$/.test(trimmed);
+  }
+  /** Tier-2 adoption test: a modifiable workbench request owned by `me` carrying abapsmith's own description. */
+  #isAttributedTo(c, me) {
+    return c.kind === "workbench" && c.status === "modifiable" && c.owner.toUpperCase() === me.toUpperCase() && this.#isOwnDescription(c.description);
   }
   /**
    * Is `trkorr` a request we can write into right now? Returns `undefined` when
@@ -112936,6 +113016,15 @@ async function reportCreatePutRejection(conn, session, t, preflight2, err) {
     correctChangedClaim(err.hint, true)
   );
 }
+var CreateSelfLockRetry = class {
+  constructor(cause) {
+    this.cause = cause;
+  }
+  cause;
+};
+function isSelfLock(e, user) {
+  return isAbapError(e) && e.code === "LOCKED" && typeof e.details.blockingUser === "string" && e.details.blockingUser.toLowerCase() === user.toLowerCase();
+}
 async function reportCreateOrphan(conn, t, e) {
   const original = isAbapError(e) ? e : translateAdtError(e, { operation: "lock", uri: lockUri(t), name: t.name, type: t.type });
   let verification;
@@ -113152,12 +113241,20 @@ async function writeObject(conn, target, opts) {
     });
   };
   if (created) await emitBeforeImage(void 0);
-  await conn.withStatefulSession(async (session) => {
-    if (created) await createNewObject(conn, t, preflight2, opts.source, opts.fixedPointArithmetic ?? true);
+  const createOutsideSession = created && capabilitiesFor(t.type)?.create?.statelessPost === true;
+  if (createOutsideSession) {
+    await createNewObject(conn, t, preflight2, opts.source, opts.fixedPointArithmetic ?? true);
+  }
+  let createLockRetried = false;
+  const runLockPutUnlock = (skipCreate) => conn.withStatefulSession(async (session) => {
+    if (created && !createOutsideSession && !skipCreate) {
+      await createNewObject(conn, t, preflight2, opts.source, opts.fixedPointArithmetic ?? true);
+    }
     let lock;
     try {
       lock = await session.lock(lockUri(t));
     } catch (e) {
+      if (created && !skipCreate && isSelfLock(e, conn.cfg.user)) throw new CreateSelfLockRetry(e);
       throw created ? await reportCreateOrphan(conn, t, e) : e;
     }
     if (!created) {
@@ -113230,6 +113327,13 @@ async function writeObject(conn, target, opts) {
     }
     await session.unlock(lockUri(t));
   });
+  try {
+    await runLockPutUnlock(false);
+  } catch (e) {
+    if (!(e instanceof CreateSelfLockRetry)) throw e;
+    createLockRetried = true;
+    await runLockPutUnlock(true);
+  }
   let changed;
   let etag;
   let finalNormalisedSource = normalisedSource;
@@ -113258,7 +113362,8 @@ async function writeObject(conn, target, opts) {
     ...preflight2?.kind === "transport" ? { corrNrSent: preflight2.corrNr } : {},
     ...preflight2?.kind === "transport" && preflight2.overrodeCorrNr !== void 0 ? { corrNrOverrode: preflight2.overrodeCorrNr } : {},
     ...(desiredProcessingType ?? t.processingType) !== void 0 ? { processingType: desiredProcessingType ?? t.processingType } : {},
-    ...processingTypeChangeWanted ? { processingTypeChanged: true } : {}
+    ...processingTypeChangeWanted ? { processingTypeChanged: true } : {},
+    ...createLockRetried ? { createLockRetried: true } : {}
   };
 }
 var PACKAGE_SOFTWARE_COMPONENT_HINT = "Use HOME (or another real software component) for a transportable package. LOCAL only works for a $-named local package \u2014 abapsmith's default Z*/Y* names are not eligible, and SAP refuses the assignment with TR/462.";
@@ -119697,33 +119802,37 @@ function createSystemContext(spec, opts) {
     }
   });
   const journal = isDefault && base.journal !== void 0 ? base.journal : new Journal(journalConfigFromEnv(spec.env, cfg.sid), cfg.sid);
-  const safety = new SafetyGate({
-    readOnly: cfg.readOnly,
-    allowPackages: cfg.allowPackages,
-    allowNamePrefixes: cfg.allowNamePrefixes,
-    allowTransports: cfg.allowTransports,
-    allowTransportRelease: cfg.allowTransportRelease,
-    allowTransportDelete: cfg.allowTransportDelete,
-    allowCascadeDelete: cfg.allowCascadeDelete,
-    allowServicePublish: cfg.allowServicePublish,
-    allowEnhancements: cfg.allowEnhancements,
-    enhanceTargets: cfg.enhanceTargets,
-    enhanceTargetPackages: cfg.enhanceTargetPackages,
-    originSystems: cfg.originSystems,
-    // This system's own SID, so the origin gate (SafetyGate.isLocalOrigin)
-    // recognises this system's own content as local without needing it
-    // repeated via ABAP_ORIGIN_SYSTEMS.
-    sid: cfg.sid,
-    // Operator additions to the frozen data-preview deny-list.
-    dataPreviewDenyTables: cfg.dataPreviewDenyTables,
-    // Tier-2 dump reads; registration-time counterpart is
-    // `capabilities.canReadDumpVariables` below (both read
-    // `cfg.allowDumpVariables`, deliberately not `readOnly`).
-    allowDumpVariables: cfg.allowDumpVariables,
-    // Not a capability — records WHICH MECHANISM decided every field above,
-    // so a refusal names the actual input rather than guessing legacy flags.
-    abapMode: cfg.abapMode
-  });
+  let transportRef;
+  const safety = new SafetyGate(
+    {
+      readOnly: cfg.readOnly,
+      allowPackages: cfg.allowPackages,
+      allowNamePrefixes: cfg.allowNamePrefixes,
+      allowTransports: cfg.allowTransports,
+      allowTransportRelease: cfg.allowTransportRelease,
+      allowTransportDelete: cfg.allowTransportDelete,
+      allowCascadeDelete: cfg.allowCascadeDelete,
+      allowServicePublish: cfg.allowServicePublish,
+      allowEnhancements: cfg.allowEnhancements,
+      enhanceTargets: cfg.enhanceTargets,
+      enhanceTargetPackages: cfg.enhanceTargetPackages,
+      originSystems: cfg.originSystems,
+      // This system's own SID, so the origin gate (SafetyGate.isLocalOrigin)
+      // recognises this system's own content as local without needing it
+      // repeated via ABAP_ORIGIN_SYSTEMS.
+      sid: cfg.sid,
+      // Operator additions to the frozen data-preview deny-list.
+      dataPreviewDenyTables: cfg.dataPreviewDenyTables,
+      // Tier-2 dump reads; registration-time counterpart is
+      // `capabilities.canReadDumpVariables` below (both read
+      // `cfg.allowDumpVariables`, deliberately not `readOnly`).
+      allowDumpVariables: cfg.allowDumpVariables,
+      // Not a capability — records WHICH MECHANISM decided every field above,
+      // so a refusal names the actual input rather than guessing legacy flags.
+      abapMode: cfg.abapMode
+    },
+    { sessionCreatedRequests: () => transportRef?.sessionCreatedRequests() ?? [] }
+  );
   const capabilities = resolveStaticCapabilities(cfg);
   const transport = new SessionTransport({
     allowTransports: cfg.allowTransports,
@@ -119738,6 +119847,7 @@ function createSystemContext(spec, opts) {
       { corr: { kind: "unresolved" } }
     )
   });
+  transportRef = transport;
   const debugDeps = createLiveDebugToolDeps({
     cfg,
     pool,
@@ -122763,14 +122873,26 @@ function parseObjectSearchXml(body) {
     return result;
   });
 }
-async function searchObjectsTolerant(conn, query, maxResults) {
+async function searchObjectsTolerant(conn, query, maxResults, objectType2) {
+  if (objectType2?.includes("/")) {
+    const { body } = await conn.get("/sap/bc/adt/repository/informationsystem/search", {
+      headers: { Accept: "application/xml" },
+      qs: { operation: "quickSearch", query, maxResults: String(maxResults), objectType: objectType2 }
+    });
+    return parseObjectSearchXml(body);
+  }
   try {
-    return await conn.adt.searchObject(query, void 0, maxResults);
+    return await conn.adt.searchObject(query, objectType2, maxResults);
   } catch (e) {
     if (!(e instanceof TypeError)) throw e;
     const { body } = await conn.get("/sap/bc/adt/repository/informationsystem/search", {
       headers: { Accept: "application/xml" },
-      qs: { operation: "quickSearch", query, maxResults: String(maxResults) }
+      qs: {
+        operation: "quickSearch",
+        query,
+        maxResults: String(maxResults),
+        ...objectType2 !== void 0 ? { objectType: objectType2 } : {}
+      }
     });
     return parseObjectSearchXml(body);
   }
@@ -128112,6 +128234,11 @@ ${renderInactive(activation.inactive)}`);
   if (written.processingTypeChanged) {
     notes.push(
       `Processing type set to ${written.processingType} via the ADT function-module descriptor (PUT under the same lock as the source). The descriptor PUT leaves an inactive version, which activation picks up.`
+    );
+  }
+  if (written.createLockRetried) {
+    notes.push(
+      `The create left the server's own enqueue on ${written.target.name} (blocking user = the connected user), so the lock was retried once in a fresh session; it succeeded and the content was written under that lock (#205).`
     );
   }
   if (input.method !== void 0 && resolvedMethodVersion !== void 0) {
@@ -140787,6 +140914,7 @@ async function buildCallGraph(conn, target, type, direction, depth, max, maxChar
 
 // src/tools/search.ts
 init_search_descriptions();
+init_timeouts();
 init_compact();
 init_types();
 init_truncate();
@@ -140932,6 +141060,9 @@ function assertKnownType(type) {
     'A "<GROUP>/<SUBTYPE>" code whose group is one of those values is accepted too (e.g. "ENHS/XB"), as is a plain object-type word such as "class". Omit `type` to search every type.'
   );
 }
+function isUnspecificQuery(query) {
+  return /^[*%\s]*$/.test(query.trim());
+}
 var searchInputSchema = {
   query: external_exports.string().optional().describe(
     "Name pattern (mode=objects), target object (mode=where_used/call_graph), or literal/regex text (mode=source). Optional with inactive=true (then a name pattern filter, wildcards `*`)."
@@ -141069,13 +141200,40 @@ ${capLine}` : table;
     maxChars
   });
 }
-var TYPED_FETCH_MULTIPLIER = 10;
+var TYPED_FETCH_MARGIN_MIN = 10;
 var TYPED_FETCH_CAP = 1e3;
 async function searchObjects(conn, query, type, max, maxChars) {
+  if (isUnspecificQuery(query) && !type) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `query "${query}" matches every object in the system, and mode=objects has no package scope to bound it \u2014 refused rather than run into the request timeout.`,
+      { query, reason: "unspecific" },
+      'Add `type` (e.g. "CLAS/OC" or "FUGR/F") to list objects of one type, or narrow the pattern to a name prefix such as "Z*" or "ZCL_MY*".'
+    );
+  }
   const spec = type ? specForType(type) ?? specForKeyword(type) : void 0;
   const wanted = type ? spec?.type ?? type.toUpperCase().trim() : void 0;
-  const fetchMax = type ? Math.min(TYPED_FETCH_CAP, max * TYPED_FETCH_MULTIPLIER) : max;
-  const rawResults = await searchObjectsTolerant(conn, query, fetchMax);
+  const fetchMax = type ? Math.min(TYPED_FETCH_CAP, max + Math.max(TYPED_FETCH_MARGIN_MIN, Math.ceil(max / 2))) : max;
+  const typeScoped = wanted !== void 0 && isUnspecificQuery(query) && wanted.includes("/");
+  const objectType2 = wanted === void 0 ? void 0 : typeScoped ? wanted : wanted.split("/")[0];
+  let rawResults;
+  try {
+    rawResults = await conn.withRequestTimeout(
+      familyTimeoutMs(conn.cfg, "search"),
+      () => searchObjectsTolerant(conn, query, fetchMax, objectType2)
+    );
+  } catch (e) {
+    if (isTransportTimeout(e)) {
+      throw transportTimeoutError({
+        family: "search",
+        operation: "quick search",
+        name: query,
+        timeoutMs: familyTimeoutMs(conn.cfg, "search"),
+        cause: e
+      });
+    }
+    throw e;
+  }
   const { refs: results, repairedGroups, suspectGroups } = repairSearchDescriptions(rawResults);
   const filtered = wanted ? results.filter((r) => {
     const rowType = (r["adtcore:type"] ?? "").toUpperCase();
@@ -141097,9 +141255,14 @@ async function searchObjects(conn, query, type, max, maxChars) {
       `DESCRIPTIONS MAY BE MIS-PAIRED: type group(s) ${suspectGroups.join(", ")} span several sub-types and show the same shape as the server-side description-pairing defect, which is only wire-confirmed for TABL and PROG. At least one such group (FUGR) was tested and arrives correct, so unverified groups are left exactly as the server sent them rather than repaired. Their descriptions may belong to another row in the same group \u2014 confirm with abap_read.`
     );
   }
+  if (typeScoped) {
+    notes.push(
+      `TYPE-SCOPED LISTING: "${query}" with type ${wanted} was sent as a type-scoped quick search (the server's object-type parameter set to ${wanted}). The server answers it in well under a second but omits description (and for some types package) on these rows \u2014 abap_read gives them.`
+    );
+  }
   if (droppedByFilter > 0) {
     notes.push(
-      `UNDER-REPORTED: the fetch window was deliberately widened to ${fetchMax} row(s) of mixed type for "${query}" \u2014 your max=${max} bounds only what is shown, not what is fetched, because the server's own type filter is not trusted and type is filtered here instead. The server returned ${results.length} hit(s) of mixed type; ${droppedByFilter} were dropped here because their type is not ${wanted}. ${filtered.length} row(s) matched. ` + (windowFull ? `More ${wanted} objects may exist beyond this window \u2014 raise max (<=200) or narrow the query pattern.` : `The window was not full, so this is every hit the server has for "${query}" \u2014 no other ${wanted} object matches this pattern.`)
+      `UNDER-REPORTED: the server was asked for object type ${objectType2} with a window of ${fetchMax} row(s) (max + a margin) for "${query}" \u2014 your max=${max} bounds only what is shown, not what is fetched. The server's own type filter is not trusted for sub-types, so type is filtered here too. The server returned ${results.length} hit(s); ${droppedByFilter} were dropped here because their type is not ${wanted}. ${filtered.length} row(s) matched. ` + (windowFull ? `More ${wanted} objects may exist beyond this window \u2014 raise max (<=200) or narrow the query pattern.` : `The window was not full, so this is every hit the server has for "${query}" \u2014 no other ${wanted} object matches this pattern.`)
     );
   }
   if (droppedByCap > 0) {

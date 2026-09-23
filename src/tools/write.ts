@@ -2703,6 +2703,13 @@ export async function abapWrite(
         "which activation picks up.",
     );
   }
+  if (written.createLockRetried) {
+    notes.push(
+      `The create left the server's own enqueue on ${written.target.name} (blocking user = the ` +
+        "connected user), so the lock was retried once in a fresh session; it succeeded and the " +
+        "content was written under that lock (#205).",
+    );
+  }
   if (input.method !== undefined && resolvedMethodVersion !== undefined) {
     notes.push(
       `method="${input.method}" was resolved against the ${resolvedMethodVersion.toUpperCase()} ` +

@@ -39,9 +39,10 @@ function searchConn(handlers: {
   ) => Promise<{ body: string; status: number; headers: Record<string, unknown> }>;
 }): AbapConnection {
   return {
-    cfg: { sid: "A4H" },
+    cfg: { sid: "A4H", searchTimeoutMs: 60_000 },
     adt: { searchObject: handlers.searchObject ?? (async () => []) },
     get: handlers.get ?? (async () => { throw new Error("unexpected get call"); }),
+    withRequestTimeout: async (_ms: number, fn: () => Promise<unknown>) => fn(),
   } as unknown as AbapConnection;
 }
 
@@ -167,11 +168,16 @@ describe("searchObjectsTolerant", () => {
 });
 
 describe("abap_search end to end: type-filtered `*` no longer throws", () => {
-  it('type: "DEVC", max: 10 — the fetch window is widened to max*10, the library TypeError is swallowed, $TMP is among the results', async () => {
+  // #206: "*" is unspecific and DEVC resolves to sub-type "DEVC/K", so this
+  // is now a type-scoped listing — the raw GET is used directly with the
+  // full sub-type as objectType, and the vendor searchObject is never
+  // consulted at all (searchObjectsTolerant branches on the "/" before
+  // trying the library). fetchMax = 10 + max(10, ceil(10/2)=5) = 20.
+  it('type: "DEVC", max: 10 — "*" + "DEVC/K" is a type-scoped raw GET; vendor searchObject not called, $TMP is among the results (#206)', async () => {
     const getCalls: GetCall[] = [];
     const conn = searchConn({
       searchObject: async () => {
-        throw new TypeError('result["adtcore:name"].match is not a function');
+        throw new Error("vendor searchObject must not be called for a type-scoped GET");
       },
       get: async (url, opts) => {
         getCalls.push({ url, opts });
@@ -182,7 +188,7 @@ describe("abap_search end to end: type-filtered `*` no longer throws", () => {
     expect(res.text).not.toContain("is not a function");
     expect(namesIn(res.text)).toContain("$TMP");
     expect(getCalls).toHaveLength(1);
-    expect(getCalls[0]!.opts.qs).toMatchObject({ maxResults: "100" });
+    expect(getCalls[0]!.opts.qs).toMatchObject({ objectType: "DEVC/K", maxResults: "20" });
   });
 
   it('type: "DDLS", max: 10 against 30 DDLS/DF + 70 TABL/DT rows — exactly 10 DDLS names shown, and the display cap is disclosed', async () => {

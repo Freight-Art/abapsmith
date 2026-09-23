@@ -395,6 +395,11 @@ export interface WriteResult {
   processingType?: string;
   /** True only when a descriptor PUT actually changed the processing type. */
   processingTypeChanged?: boolean;
+  /**
+   * The create left the server's own enqueue on the object; the LOCK was
+   * retried once in a fresh session and succeeded (#205).
+   */
+  createLockRetried?: true;
 }
 
 /**
@@ -2619,6 +2624,26 @@ async function reportCreatePutRejection(
 }
 
 /**
+ * Private marker thrown out of the LOCK catch in step 4 (#205) when the
+ * blocking user is ourselves right after our own create. Never escapes
+ * `writeObject` — caught there to drive the one-time retry in a fresh
+ * session.
+ */
+class CreateSelfLockRetry {
+  constructor(readonly cause: unknown) {}
+}
+
+/** True when `e` is a LOCKED error reporting the connected user as the blocker. */
+function isSelfLock(e: unknown, user: string): boolean {
+  return (
+    isAbapError(e) &&
+    e.code === "LOCKED" &&
+    typeof e.details.blockingUser === "string" &&
+    e.details.blockingUser.toLowerCase() === user.toLowerCase()
+  );
+}
+
+/**
  * The LOCK (or, for a sub-include, the includes-collection POST) right
  * after `createNewObject`'s POST can itself fail — live-captured as a
  * non-ADT HTML 400 from the gateway. The create already landed; retrying
@@ -3139,203 +3164,233 @@ export async function writeObject(
 
   if (created) await emitBeforeImage(undefined);
 
+  // #205: MSAG/N (and any other type marked `create.statelessPost`) keeps
+  // the create's own enqueue for the rest of a stateful session, so the
+  // LOCK below would be refused by our own user if the create ran inside
+  // the same session. Send it stateless instead, before the session opens.
+  const createOutsideSession = created && capabilitiesFor(t.type)?.create?.statelessPost === true;
+  if (createOutsideSession) {
+    await createNewObject(conn, t, preflight, opts.source, opts.fixedPointArithmetic ?? true);
+  }
+
+  // A generic one-time retry (#205): a self-caused LOCK failure right after
+  // a create (the create's own enqueue, refused by our own user) throws
+  // `CreateSelfLockRetry` from the catch below instead of reporting an
+  // orphan. `withStatefulSession`'s own finally drops the ABAP session when
+  // a lock conflict's blocking user is the connected user (`selfConflicts`,
+  // connection.ts ~2360), so the retry below starts with a fresh
+  // sap-contextid and skips the create, which already landed.
+  let createLockRetried = false;
+
   // ---- 4. create? → lock → recheck → PUT → unlock, one session ----------
-  await conn.withStatefulSession(async (session) => {
-    // `corrNr` goes on the CREATE too, not just the PUT: without it SAP files
-    // the new object under a request of its own choosing and the PUT then
-    // collides with it (see `createNewObject`). Same gate-judged `preflight`
-    // value both times.
-    if (created) await createNewObject(conn, t, preflight, opts.source, opts.fixedPointArithmetic ?? true);
+  const runLockPutUnlock = (skipCreate: boolean): Promise<void> =>
+    conn.withStatefulSession(async (session) => {
+      // `corrNr` goes on the CREATE too, not just the PUT: without it SAP files
+      // the new object under a request of its own choosing and the PUT then
+      // collides with it (see `createNewObject`). Same gate-judged `preflight`
+      // value both times.
+      if (created && !createOutsideSession && !skipCreate) {
+        await createNewObject(conn, t, preflight, opts.source, opts.fixedPointArithmetic ?? true);
+      }
 
-    // `lockUri(t)`, not `t.uri`: for an include write the enqueue and the PUT
-    // address different URIs, and `lockUri` is the one place that decides
-    // which. Every unlock/forget below asks the same function so the lock
-    // ledger can't end up holding a key nothing releases — see `lockUri`.
-    //
-    // If `created`, the create POST above already landed — a LOCK
-    // failure here must not read like nothing happened. See reportCreateOrphan.
-    let lock: LockInfo;
-    try {
-      lock = await session.lock(lockUri(t));
-    } catch (e) {
-      throw created ? await reportCreateOrphan(conn, t, e) : e;
-    }
-
-    // ---- 4a. Post-lock recheck, then the update path's before-image ------
-    // The enqueue is the first point nothing else can move the bytes under
-    // us; everything read before it (GET, transport round trips, journal
-    // writes) was read across an open window. Re-read and refuse if the bytes
-    // moved — unconditional, not gated on `expectEtag`. A plain
-    // readCurrentSource + canonicalEtag suffices: there is no `If-Match` on
-    // this protocol, the etag is our own content hash.
-    //
-    // Also detects a session that expired between LOCK and PUT — expiry
-    // releases enqueues silently. Live-captured 2026-08-02 measurement and
-    // the SESSION_DEAD-vs-ETAG_CONFLICT classification rule: see
-    // the git history. translateAdtError (session.ts:538)
-    // classifies SESSION_DEAD before this comparison runs; deleteObject's
-    // twin re-read repeats the same classification explicitly.
-    //
-    // CREATE is exempt: no pre-read baseline exists; test fakes leave
-    // GET …/source/main unrouted on the create path to prove this request
-    // never happens there.
-    if (!created) {
-      let fresh: string | undefined;
+      // `lockUri(t)`, not `t.uri`: for an include write the enqueue and the PUT
+      // address different URIs, and `lockUri` is the one place that decides
+      // which. Every unlock/forget below asks the same function so the lock
+      // ledger can't end up holding a key nothing releases — see `lockUri`.
+      //
+      // If `created`, the create POST above already landed — a LOCK
+      // failure here must not read like nothing happened. See reportCreateOrphan.
+      let lock: LockInfo;
       try {
-        fresh = await readCurrentSource(conn, t);
+        lock = await session.lock(lockUri(t));
       } catch (e) {
-        // ---- 4a-i. A dead session is told nothing, not even UNLOCK --------
-        // Symmetric with deleteObject's SESSION_DEAD branch. Once the
-        // contextid is gone the enqueue went with it and the handle can't
-        // even be used to ask — sending UNLOCK would be harmless but proves
-        // nothing (live testing: UNLOCK returns 200 even for a meaningless
-        // handle). Rule: treat "session died" as "all its locks are gone",
-        // not "locks to be cleaned up later". Keyed on the SESSION_DEAD
-        // classification specifically, never on "the unlock failed" — any
-        // other failure still takes the full retry-and-escalate route in
-        // `releaseLock` (test/session.test.ts). Full 2026-08-02 live-capture
-        // evidence: see the git history.
-        if (isAbapError(e) && e.code === "SESSION_DEAD") session.forgetLock(lockUri(t));
-        throw e;
+        if (created && !skipCreate && isSelfLock(e, conn.cfg.user)) throw new CreateSelfLockRetry(e);
+        throw created ? await reportCreateOrphan(conn, t, e) : e;
       }
-      const actualEtag = fresh === undefined ? null : canonicalEtag(fresh);
-      const actualEtagRaw = fresh === undefined ? null : contentHash(fresh);
-      if (actualEtag !== (previousEtag ?? null)) {
-        // Explicit unlock here (not left to the finally): "nothing was
-        // written" includes "the lock was released".
+
+      // ---- 4a. Post-lock recheck, then the update path's before-image ------
+      // The enqueue is the first point nothing else can move the bytes under
+      // us; everything read before it (GET, transport round trips, journal
+      // writes) was read across an open window. Re-read and refuse if the bytes
+      // moved — unconditional, not gated on `expectEtag`. A plain
+      // readCurrentSource + canonicalEtag suffices: there is no `If-Match` on
+      // this protocol, the etag is our own content hash.
+      //
+      // Also detects a session that expired between LOCK and PUT — expiry
+      // releases enqueues silently. Live-captured 2026-08-02 measurement and
+      // the SESSION_DEAD-vs-ETAG_CONFLICT classification rule: see
+      // the git history. translateAdtError (session.ts:538)
+      // classifies SESSION_DEAD before this comparison runs; deleteObject's
+      // twin re-read repeats the same classification explicitly.
+      //
+      // CREATE is exempt: no pre-read baseline exists; test fakes leave
+      // GET …/source/main unrouted on the create path to prove this request
+      // never happens there.
+      if (!created) {
+        let fresh: string | undefined;
+        try {
+          fresh = await readCurrentSource(conn, t);
+        } catch (e) {
+          // ---- 4a-i. A dead session is told nothing, not even UNLOCK --------
+          // Symmetric with deleteObject's SESSION_DEAD branch. Once the
+          // contextid is gone the enqueue went with it and the handle can't
+          // even be used to ask — sending UNLOCK would be harmless but proves
+          // nothing (live testing: UNLOCK returns 200 even for a meaningless
+          // handle). Rule: treat "session died" as "all its locks are gone",
+          // not "locks to be cleaned up later". Keyed on the SESSION_DEAD
+          // classification specifically, never on "the unlock failed" — any
+          // other failure still takes the full retry-and-escalate route in
+          // `releaseLock` (test/session.test.ts). Full 2026-08-02 live-capture
+          // evidence: see the git history.
+          if (isAbapError(e) && e.code === "SESSION_DEAD") session.forgetLock(lockUri(t));
+          throw e;
+        }
+        const actualEtag = fresh === undefined ? null : canonicalEtag(fresh);
+        const actualEtagRaw = fresh === undefined ? null : contentHash(fresh);
+        if (actualEtag !== (previousEtag ?? null)) {
+          // Explicit unlock here (not left to the finally): "nothing was
+          // written" includes "the lock was released".
+          await session.unlock(lockUri(t));
+          throw postLockEtagConflict(t, previousEtag ?? null, actualEtag, {
+            /** The un-canonicalised hash, i.e. what `abap_read` would hand out. */
+            actualEtagRaw,
+          });
+        }
+        // The bytes the undo record must restore, captured under the enqueue.
+        previousSource = fresh;
+        await emitBeforeImage(fresh);
+      }
+
+      transport = transportFromLock(lock);
+      const corr = corrForMutation(preflight, transport);
+      if (corr === undefined) {
+        // No usable number for a transportable object. Historically this was the
+        // only outcome ("the transport path is unverified"); it now also covers a
+        // pre-flight that said "local" while the lock disagrees. Either way the
+        // one thing that must NOT happen is a PUT without a `corrNr` — that would
+        // return 200 and have SAP fabricate a request behind our back. Release
+        // the lock and report exactly what the server said.
         await session.unlock(lockUri(t));
-        throw postLockEtagConflict(t, previousEtag ?? null, actualEtag, {
-          /** The un-canonicalised hash, i.e. what `abap_read` would hand out. */
-          actualEtagRaw,
-        });
+
+        // The transport verdict genuinely cannot be known before the lock — it IS
+        // the lock response — so the create above has already happened. Undo
+        // it, or this refusal leaves an empty object behind on the server for
+        // every attempt.
+        const rollback: RollbackOutcome = created
+          ? await rollbackCreate(conn, session, t)
+          : { rolledBack: false };
+
+        throw transportRefusal(
+          t,
+          transport,
+          "written",
+          opts.transport !== undefined,
+          {
+            created,
+            rolledBack: rollback.rolledBack,
+            ...(rollback.rollbackError ? { rollbackError: rollback.rollbackError } : {}),
+          },
+          rollbackSuffix(t, created, rollback),
+        );
       }
-      // The bytes the undo record must restore, captured under the enqueue.
-      previousSource = fresh;
-      await emitBeforeImage(fresh);
-    }
 
-    transport = transportFromLock(lock);
-    const corr = corrForMutation(preflight, transport);
-    if (corr === undefined) {
-      // No usable number for a transportable object. Historically this was the
-      // only outcome ("the transport path is unverified"); it now also covers a
-      // pre-flight that said "local" while the lock disagrees. Either way the
-      // one thing that must NOT happen is a PUT without a `corrNr` — that would
-      // return 200 and have SAP fabricate a request behind our back. Release
-      // the lock and report exactly what the server said.
+      // The gate judged one TRKORR; the server disagrees. Refuse, name both
+      // numbers, and roll back anything this call created — see
+      // `transportDivergence`.
+      const divergentCorrNr = divergentLockCorrNr(corr, transport);
+      if (divergentCorrNr !== undefined && corr.kind === "transport") {
+        await session.unlock(lockUri(t));
+        const rollback: RollbackOutcome = created
+          ? await rollbackCreate(conn, session, t)
+          : { rolledBack: false };
+        throw transportDivergence(t, corr.corrNr, divergentCorrNr, created, rollback);
+      }
+
+      // The lock reports the request the object is already in; `corr` is the
+      // one this PUT puts it in — what the caller must be told.
+      if (corr.kind === "transport") {
+        // Spelled out rather than spread: `TransportInfo`'s arms are literal
+        // shapes, so "transportable" is constructed as one; the two
+        // descriptive fields carry across only when the lock reported them.
+        transport = {
+          status: "transport",
+          required: true,
+          corrNr: corr.corrNr,
+          ...(transport.corrUser === undefined ? {} : { corrUser: transport.corrUser }),
+          ...(transport.corrText === undefined ? {} : { corrText: transport.corrText }),
+        };
+      }
+
+      // ---- 4a-ii. The include may not EXIST yet, and PUT will not create it ---
+      // CCDEF/CCIMP/CCMAC materialise as empty stubs on a brand-new class; CCAU
+      // does not exist until something creates it, and a PUT against it 404s
+      // (live finding 2026-08-18, A4H — exact error and stub sizes: see
+      // the git history). Remedy: POST to the `…/includes`
+      // collection first, same as Eclipse ADT / `createTestInclude`, under this
+      // call's lock and `corrNr` (avoids the create/write transport split
+      // `createNewObject` also avoids). Keyed on `previousSource === undefined`
+      // (the under-lock read from step 4a) so a concurrent create in the open
+      // window is detected as "it is there now", not duplicated.
+      if (subInclude(t) && previousSource === undefined) {
+        await createClassInclude(conn, t, lock.handle, corr);
+      }
+
+      try {
+        normalisedSource = await putContent(conn, t, opts.source, lock.handle, corr);
+      } catch (e) {
+        // A dead session request (missing or released out from under us)
+        // retires it from the session cache so the next write resolves
+        // afresh. No retry here.
+        noteTransportDead(opts.transport, corr, e);
+        // Guard kept rather than assumed (putContent always translates
+        // before rethrowing, but an unexpected raw error should still
+        // propagate as itself). Only reached for `created` — an existing
+        // object's rejected PUT never created anything to roll back.
+        throw created && e instanceof AbapError
+          ? await reportCreatePutRejection(conn, session, t, preflight, e)
+          : e;
+      }
+
+      // The source PUT stays first — a failing source write must never change
+      // the descriptor. Done before unlock, same lock/corr as the source.
+      if (desiredProcessingType !== undefined && processingTypeChangeWanted) {
+        await setFunctionModuleProcessingType(conn, t, desiredProcessingType, lock.handle, corr);
+      }
+
+      // ---- 4b. Post-write confirmation ----------------------------------------
+      // For the properties shape, `putContent`'s response is the server's
+      // ACCEPTANCE of the request, not proof of what it now holds — a live
+      // MSAG/N finding showed a 200 that echoes the submitted document proves
+      // nothing about persistence. So on UPDATE (where a genuine before/after
+      // comparison is possible via a real GET), re-read through the same lock
+      // before releasing it. A throw here (404, session death) propagates
+      // rather than being swallowed into a false success — CREATE's
+      // `etagSource` stays `undefined`, unproven either way, since there's no
+      // live evidence for that path yet.
+      if (!created && writeShapeOf(t.type) === "properties") {
+        postWriteSource = await readCurrentSource(conn, t);
+      }
+
+      // Explicit, and before anything else: the caller will likely activate
+      // next, and activation while the lock is held is a 403.
+      //
+      // UNLOCK answers 200 even for a garbage handle (live lock-handle-
+      // validation testing), so its status proves nothing by itself — but the
+      // handle sent here is the one THIS session got from LOCK for THIS
+      // object, so the release is as real as our own lock was. UNTESTED:
+      // whether UNLOCK with a bogus handle, on a session genuinely holding the
+      // real lock, releases it — this line never hits that case (see
+      // `forgetLock`'s hazard note in session.ts).
       await session.unlock(lockUri(t));
+    });
 
-      // The transport verdict genuinely cannot be known before the lock — it IS
-      // the lock response — so the create above has already happened. Undo
-      // it, or this refusal leaves an empty object behind on the server for
-      // every attempt.
-      const rollback: RollbackOutcome = created
-        ? await rollbackCreate(conn, session, t)
-        : { rolledBack: false };
-
-      throw transportRefusal(
-        t,
-        transport,
-        "written",
-        opts.transport !== undefined,
-        {
-          created,
-          rolledBack: rollback.rolledBack,
-          ...(rollback.rollbackError ? { rollbackError: rollback.rollbackError } : {}),
-        },
-        rollbackSuffix(t, created, rollback),
-      );
-    }
-
-    // The gate judged one TRKORR; the server disagrees. Refuse, name both
-    // numbers, and roll back anything this call created — see
-    // `transportDivergence`.
-    const divergentCorrNr = divergentLockCorrNr(corr, transport);
-    if (divergentCorrNr !== undefined && corr.kind === "transport") {
-      await session.unlock(lockUri(t));
-      const rollback: RollbackOutcome = created
-        ? await rollbackCreate(conn, session, t)
-        : { rolledBack: false };
-      throw transportDivergence(t, corr.corrNr, divergentCorrNr, created, rollback);
-    }
-
-    // The lock reports the request the object is already in; `corr` is the
-    // one this PUT puts it in — what the caller must be told.
-    if (corr.kind === "transport") {
-      // Spelled out rather than spread: `TransportInfo`'s arms are literal
-      // shapes, so "transportable" is constructed as one; the two
-      // descriptive fields carry across only when the lock reported them.
-      transport = {
-        status: "transport",
-        required: true,
-        corrNr: corr.corrNr,
-        ...(transport.corrUser === undefined ? {} : { corrUser: transport.corrUser }),
-        ...(transport.corrText === undefined ? {} : { corrText: transport.corrText }),
-      };
-    }
-
-    // ---- 4a-ii. The include may not EXIST yet, and PUT will not create it ---
-    // CCDEF/CCIMP/CCMAC materialise as empty stubs on a brand-new class; CCAU
-    // does not exist until something creates it, and a PUT against it 404s
-    // (live finding 2026-08-18, A4H — exact error and stub sizes: see
-    // the git history). Remedy: POST to the `…/includes`
-    // collection first, same as Eclipse ADT / `createTestInclude`, under this
-    // call's lock and `corrNr` (avoids the create/write transport split
-    // `createNewObject` also avoids). Keyed on `previousSource === undefined`
-    // (the under-lock read from step 4a) so a concurrent create in the open
-    // window is detected as "it is there now", not duplicated.
-    if (subInclude(t) && previousSource === undefined) {
-      await createClassInclude(conn, t, lock.handle, corr);
-    }
-
-    try {
-      normalisedSource = await putContent(conn, t, opts.source, lock.handle, corr);
-    } catch (e) {
-      // A dead session request (missing or released out from under us)
-      // retires it from the session cache so the next write resolves
-      // afresh. No retry here.
-      noteTransportDead(opts.transport, corr, e);
-      // Guard kept rather than assumed (putContent always translates
-      // before rethrowing, but an unexpected raw error should still
-      // propagate as itself). Only reached for `created` — an existing
-      // object's rejected PUT never created anything to roll back.
-      throw created && e instanceof AbapError
-        ? await reportCreatePutRejection(conn, session, t, preflight, e)
-        : e;
-    }
-
-    // The source PUT stays first — a failing source write must never change
-    // the descriptor. Done before unlock, same lock/corr as the source.
-    if (desiredProcessingType !== undefined && processingTypeChangeWanted) {
-      await setFunctionModuleProcessingType(conn, t, desiredProcessingType, lock.handle, corr);
-    }
-
-    // ---- 4b. Post-write confirmation ----------------------------------------
-    // For the properties shape, `putContent`'s response is the server's
-    // ACCEPTANCE of the request, not proof of what it now holds — a live
-    // MSAG/N finding showed a 200 that echoes the submitted document proves
-    // nothing about persistence. So on UPDATE (where a genuine before/after
-    // comparison is possible via a real GET), re-read through the same lock
-    // before releasing it. A throw here (404, session death) propagates
-    // rather than being swallowed into a false success — CREATE's
-    // `etagSource` stays `undefined`, unproven either way, since there's no
-    // live evidence for that path yet.
-    if (!created && writeShapeOf(t.type) === "properties") {
-      postWriteSource = await readCurrentSource(conn, t);
-    }
-
-    // Explicit, and before anything else: the caller will likely activate
-    // next, and activation while the lock is held is a 403.
-    //
-    // UNLOCK answers 200 even for a garbage handle (live lock-handle-
-    // validation testing), so its status proves nothing by itself — but the
-    // handle sent here is the one THIS session got from LOCK for THIS
-    // object, so the release is as real as our own lock was. UNTESTED:
-    // whether UNLOCK with a bogus handle, on a session genuinely holding the
-    // real lock, releases it — this line never hits that case (see
-    // `forgetLock`'s hazard note in session.ts).
-    await session.unlock(lockUri(t));
-  });
+  try {
+    await runLockPutUnlock(false);
+  } catch (e) {
+    if (!(e instanceof CreateSelfLockRetry)) throw e;
+    createLockRetried = true;
+    await runLockPutUnlock(true);
+  }
 
   // `postWriteSource` is set only when step 4b ran a genuine post-write GET
   // (properties-shape UPDATE). When it did, `changed`/`etag`/
@@ -3385,6 +3440,7 @@ export async function writeObject(
       ? { processingType: desiredProcessingType ?? t.processingType }
       : {}),
     ...(processingTypeChangeWanted ? { processingTypeChanged: true } : {}),
+    ...(createLockRetried ? { createLockRetried: true } : {}),
   };
 }
 

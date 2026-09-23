@@ -20,6 +20,7 @@ import { buildCallGraph } from "../adt/call-graph.js";
 import { repairSearchDescriptions } from "../adt/search-descriptions.js";
 import { searchObjectsTolerant } from "../adt/object-search.js";
 import { listInactiveObjectsOfPackage, type PackageInactiveEntry } from "../adt/inactive-objects.js";
+import { familyTimeoutMs, isTransportTimeout, transportTimeoutError } from "../adt/timeouts.js";
 import { buildResponse, textTable, type BuiltResponse } from "../compact.js";
 import { specForKeyword, specForType, specFromUri, TYPES } from "../adt/types.js";
 import { truncateForDisplay } from "../truncate.js";
@@ -66,10 +67,11 @@ const KNOWN_TYPES: string[] = [...new Set(TYPES.flatMap((t) => [t.kind, t.type])
 /** The group half of every known type code: "CLAS/OC" -> "CLAS". */
 export const KNOWN_TYPE_GROUPS = new Set(TYPES.map((t) => t.type.split("/")[0]!));
 
-// The request now always goes out untyped, so nothing server-side rejects a
-// type that does not exist; without this it would render as an ordinary empty
-// result. A sub-type the registry has never heard of is still real as long as
-// its group is known — quickSearch returns ENHS/XB rows nobody listed here.
+// A typed request now goes out with objectType set (group or sub-type), but
+// the server does not reject an unknown type either — it just answers empty.
+// Without this check that would render as an ordinary empty result. A
+// sub-type the registry has never heard of is still real as long as its
+// group is known — quickSearch returns ENHS/XB rows nobody listed here.
 function assertKnownType(type: string): void {
   const value = type.trim();
   if (!value) return;
@@ -84,6 +86,11 @@ function assertKnownType(type: string): void {
       '(e.g. "ENHS/XB"), as is a plain object-type word such as "class". ' +
       "Omit `type` to search every type.",
   );
+}
+
+/** True when `query` names no real pattern — empty, or only wildcards/whitespace. */
+function isUnspecificQuery(query: string): boolean {
+  return /^[*%\s]*$/.test(query.trim());
 }
 
 export const searchInputSchema = {
@@ -322,10 +329,12 @@ export async function abapSearchInactive(
   });
 }
 
-// quickSearch's objectType is not trusted server-side (captures
-// 818/819): the sub-type half is ignored and typed rows drop description/
-// packageName. So every request goes out untyped and is filtered here instead.
-const TYPED_FETCH_MULTIPLIER = 10;
+// quickSearch's own type filter is fast (issue #206 live measurements) but
+// is not trusted for sub-types (captures 818/819 show it can still leak
+// sibling sub-types), so a typed request is sent with objectType set (the
+// sub-type when the query is unspecific, else the group) and the result is
+// filtered here again anyway.
+const TYPED_FETCH_MARGIN_MIN = 10;
 const TYPED_FETCH_CAP = 1000;
 
 async function searchObjects(
@@ -335,14 +344,44 @@ async function searchObjects(
   max: number,
   maxChars: number,
 ): Promise<BuiltResponse> {
+  if (isUnspecificQuery(query) && !type) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `query "${query}" matches every object in the system, and mode=objects has no package scope ` +
+        `to bound it — refused rather than run into the request timeout.`,
+      { query, reason: "unspecific" },
+      'Add `type` (e.g. "CLAS/OC" or "FUGR/F") to list objects of one type, or narrow the pattern ' +
+        'to a name prefix such as "Z*" or "ZCL_MY*".',
+    );
+  }
   const spec = type ? (specForType(type) ?? specForKeyword(type)) : undefined;
   const wanted = type ? (spec?.type ?? type.toUpperCase().trim()) : undefined;
-  // Widened so a typed search still gets useful coverage now that the server
-  // no longer narrows the fetch — captures 827/828 confirm a window this
-  // size is honoured (1000 and 5000 rows). `max` itself still only bounds
-  // what is DISPLAYED (see the cap below), never what is fetched.
-  const fetchMax = type ? Math.min(TYPED_FETCH_CAP, max * TYPED_FETCH_MULTIPLIER) : max;
-  const rawResults = await searchObjectsTolerant(conn, query, fetchMax);
+  // A margin above `max`, not a multiplier: the server's own type filter now
+  // does most of the narrowing, so the fetch window only needs headroom for
+  // the client-side re-filter, not 10x coverage. `max` itself still only
+  // bounds what is DISPLAYED (see the cap below), never what is fetched.
+  const fetchMax = type
+    ? Math.min(TYPED_FETCH_CAP, max + Math.max(TYPED_FETCH_MARGIN_MIN, Math.ceil(max / 2)))
+    : max;
+  const typeScoped = wanted !== undefined && isUnspecificQuery(query) && wanted.includes("/");
+  const objectType = wanted === undefined ? undefined : typeScoped ? wanted : wanted.split("/")[0];
+  let rawResults;
+  try {
+    rawResults = await conn.withRequestTimeout(familyTimeoutMs(conn.cfg, "search"), () =>
+      searchObjectsTolerant(conn, query, fetchMax, objectType),
+    );
+  } catch (e) {
+    if (isTransportTimeout(e)) {
+      throw transportTimeoutError({
+        family: "search",
+        operation: "quick search",
+        name: query,
+        timeoutMs: familyTimeoutMs(conn.cfg, "search"),
+        cause: e,
+      });
+    }
+    throw e;
+  }
 
   // Repaired BEFORE the type filter: the permutation is defined over the
   // whole type group as the server returned it, so filtering to one
@@ -388,12 +427,19 @@ async function searchObjects(
         `repaired. Their descriptions may belong to another row in the same group — confirm with abap_read.`,
     );
   }
+  if (typeScoped) {
+    notes.push(
+      `TYPE-SCOPED LISTING: "${query}" with type ${wanted} was sent as a type-scoped quick search ` +
+        `(the server's object-type parameter set to ${wanted}). The server answers it in well under a second but omits description ` +
+        `(and for some types package) on these rows — abap_read gives them.`,
+    );
+  }
   if (droppedByFilter > 0) {
     notes.push(
-      `UNDER-REPORTED: the fetch window was deliberately widened to ${fetchMax} row(s) of mixed type ` +
-        `for "${query}" — your max=${max} bounds only what is shown, not what is fetched, because the ` +
-        `server's own type filter is not trusted and type is filtered here instead. ` +
-        `The server returned ${results.length} hit(s) of mixed type; ` +
+      `UNDER-REPORTED: the server was asked for object type ${objectType} with a window of ${fetchMax} ` +
+        `row(s) (max + a margin) for "${query}" — your max=${max} bounds only what is shown, not what ` +
+        `is fetched. The server's own type filter is not trusted for sub-types, so type is filtered ` +
+        `here too. The server returned ${results.length} hit(s); ` +
         `${droppedByFilter} were dropped here because their type is not ${wanted}. ` +
         `${filtered.length} row(s) matched. ` +
         (windowFull
