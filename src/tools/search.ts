@@ -294,13 +294,13 @@ async function searchObjects(
   if (typeScoped) {
     notes.push(
       `TYPE-SCOPED LISTING: "${query}" with type ${wanted} was sent as a type-scoped quick search ` +
-        `(objectType=${wanted}). The server answers it in well under a second but omits description ` +
+        `(the server's object-type parameter set to ${wanted}). The server answers it in well under a second but omits description ` +
         `(and for some types package) on these rows — abap_read gives them.`,
     );
   }
   if (droppedByFilter > 0) {
     notes.push(
-      `UNDER-REPORTED: the server was asked for objectType ${objectType} with a window of ${fetchMax} ` +
+      `UNDER-REPORTED: the server was asked for object type ${objectType} with a window of ${fetchMax} ` +
         `row(s) (max + a margin) for "${query}" — your max=${max} bounds only what is shown, not what ` +
         `is fetched. The server's own type filter is not trusted for sub-types, so type is filtered ` +
         `here too. The server returned ${results.length} hit(s); ` +
