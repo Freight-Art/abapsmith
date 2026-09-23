@@ -1,12 +1,18 @@
 {
-  "captured": "2026-09-22 A4H (SAP_BASIS 754), user ABAPSMITH, all GETs, bodies verbatim (issue #182)",
+  "captured": "2026-09-22 A4H (SAP_BASIS 754), user ABAPSMITH, all GETs, bodies verbatim (issue #182); 2026-09-23 A4H (SAP_BASIS 754), user ABAPSMITH, all GETs, bodies verbatim (issue #199, files zcl_as_text199-* / zas_fg199-* / zas_r199-*)",
   "files": {
-    "zas_txt182-descriptor.xml": "GET /sap/bc/adt/textelements/programs/zas_txt182, Accept application/vnd.sap.adt.textelements.v1+xml \u2014 $TMP report ZAS_TXT182 (PARAMETERS p_x TYPE c) after its text pool was written and activated",
-    "zas_txt182-symbols.txt": "GET /sap/bc/adt/textelements/programs/zas_txt182/source/symbols, Accept application/vnd.sap.adt.textelements.symbols.v1 \u2014 one symbol, CRLF line ends as the server sent them",
-    "zas_txt182-selections.txt": "GET .../zas_txt182/source/selections, Accept application/vnd.sap.adt.textelements.selections.v1 \u2014 the server pads the parameter name to 8 characters; before activation the active version read `P_X     =?...` (untexted marker)",
-    "rsusr000-symbols.txt": "GET .../rsusr000/source/symbols \u2014 11 symbols, LF line ends, blank line between entries, each preceded by its @MaxLength line",
-    "rsparam-selections.txt": "GET .../rsparam/source/selections \u2014 one selection text, 8-character name, no padding",
-    "rsparam-headings.txt": "GET .../rsparam/source/headings, Accept application/vnd.sap.adt.textelements.headings.v1 \u2014 empty list header and column headers"
+    "zas_txt182-descriptor.xml": "GET /sap/bc/adt/textelements/programs/zas_txt182, Accept application/vnd.sap.adt.textelements.v1+xml — $TMP report ZAS_TXT182 (PARAMETERS p_x TYPE c) after its text pool was written and activated",
+    "zas_txt182-symbols.txt": "GET /sap/bc/adt/textelements/programs/zas_txt182/source/symbols, Accept application/vnd.sap.adt.textelements.symbols.v1 — one symbol, CRLF line ends as the server sent them",
+    "zas_txt182-selections.txt": "GET .../zas_txt182/source/selections, Accept application/vnd.sap.adt.textelements.selections.v1 — the server pads the parameter name to 8 characters; before activation the active version read `P_X     =?...` (untexted marker)",
+    "rsusr000-symbols.txt": "GET .../rsusr000/source/symbols — 11 symbols, LF line ends, blank line between entries, each preceded by its @MaxLength line",
+    "rsparam-selections.txt": "GET .../rsparam/source/selections — one selection text, 8-character name, no padding",
+    "rsparam-headings.txt": "GET .../rsparam/source/headings, Accept application/vnd.sap.adt.textelements.headings.v1 — empty list header and column headers",
+    "zcl_as_text199-descriptor.xml": "GET /sap/bc/adt/textelements/classes/zcl_as_text199, Accept application/vnd.sap.adt.textelements.v1+xml — $TMP class ZCL_AS_TEXT199 after its text pool was written and activated; adtcore:type CLAS/OCX, ONE rept:subobject (symbols): a class text pool has no selections and no headings",
+    "zcl_as_text199-symbols.txt": "GET .../classes/zcl_as_text199/source/symbols, Accept application/vnd.sap.adt.textelements.symbols.v1 — one symbol written by abap_write text_pool, CRLF as sent",
+    "zas_fg199-descriptor.xml": "GET /sap/bc/adt/textelements/functiongroups/zas_fg199, Accept application/vnd.sap.adt.textelements.v1+xml — $TMP function group ZAS_FG199; adtcore:type FUGR/PX, subobjects symbols, selections, headings (same as a program)",
+    "zas_fg199-symbols.txt": "GET .../functiongroups/zas_fg199/source/symbols — one symbol (text-002 of its function module), CRLF as sent",
+    "zas_fg199-headings.txt": "GET .../functiongroups/zas_fg199/source/headings, Accept application/vnd.sap.adt.textelements.headings.v1 — list header and column header 2 set, 1/3/4 empty, CRLF as sent",
+    "zas_r199-headings.txt": "GET .../programs/zas_r199/source/headings — list header and column headers 1-2 set, 3-4 empty, CRLF as sent; abap_run of the report showed the list header line and both column lines"
   },
-  "write": "PUT of symbols/selections needs a lock on /sap/bc/adt/textelements/programs/{name} (a lock on the program URI answers 'Resource REPT \u2026 is not locked'), Content-Type application/vnd.sap.adt.textelements.<symbols|selections>.v1, ?lockHandle=. Texts land INACTIVE; activating the program URI alone leaves them inactive \u2014 activate /sap/bc/adt/textelements/programs/{name} (adtcore:type PROG/PX) to publish them."
+  "write": "PUT of symbols/selections needs a lock on /sap/bc/adt/textelements/programs/{name} (a lock on the program URI answers 'Resource REPT … is not locked'), Content-Type application/vnd.sap.adt.textelements.<symbols|selections>.v1, ?lockHandle=. Texts land INACTIVE; activating the program URI alone leaves them inactive — activate /sap/bc/adt/textelements/programs/{name} (adtcore:type PROG/PX) to publish them. Same for /sap/bc/adt/textelements/classes/{name} (activate as CLAS/OCX; symbols only) and /sap/bc/adt/textelements/functiongroups/{name} (activate as FUGR/PX; symbols, selections, headings). The headings PUT uses Content-Type application/vnd.sap.adt.textelements.headings.v1 and replaces all five lines. No language selector: sap-language/language query, Accept-Language/sap-language headers and ABAP_LANGUAGE=EN vs DE logons all returned the master-language texts (issue #199)."
 }
