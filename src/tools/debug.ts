@@ -17,11 +17,15 @@
  *   - translates `DebugSession`/`render.ts` output into the standard
  *     `buildResponse` envelope.
  *
- * Read-only debugger, with one exception: `action:"frame"` exposes
+ * Read-only debugger, with two exceptions: `action:"frame"` exposes
  * `setStackPosition`, live-verified to move only the server-side READ cursor
- * — zero effect on what the debuggee executes next. `setVariableValue` stays
- * unexposed; `"frame"` must never become a foothold for it. See
- * the git history for the full original header.
+ * — zero effect on what the debuggee executes next; and `action:"set_value"`
+ * (#198) exposes `setVariableValue` to change a simple/string variable at a
+ * suspended stop (edit/admin mode only) — gated, type-checked locally before
+ * the wire call, and logged on the run so stop/death output can show what
+ * was changed. `"frame"` must never become a foothold for `setVariableValue`
+ * — that lives only in `handleSetValue`. See the git history for the full
+ * original header.
  */
 import { z } from "zod";
 import type { AbapConnection } from "../adt/connection.js";
@@ -476,6 +480,15 @@ interface DebugGateTarget {
   phase: EvaluateOptions["phase"];
 }
 
+/** #198 — one `set_value` application, logged for MODIFIED VALUES on stop/death. */
+export interface ModifiedValue {
+  path: string;
+  oldValue: string;
+  newValue: string;
+  program?: string;
+  line?: number;
+}
+
 interface CurrentRun {
   session: DebugSession;
   /**
@@ -526,6 +539,8 @@ interface CurrentRun {
    */
   armedExceptionClasses: readonly string[];
   exceptionBreakpointFired: boolean;
+  /** #198 — every `set_value` applied on this run, for MODIFIED VALUES on stop/death. */
+  modifiedValues: ModifiedValue[];
   /** Never rejects — already normalized via .then(ok, err) attached synchronously at creation time. */
   triggerSettled: Promise<DebugTriggerOutcome>;
   /**
@@ -659,6 +674,26 @@ function assertSessionWrite(
   run: CurrentRun,
 ): AuthorizedTarget<"execute", SafetyTarget> {
   return assertDebugWrite(gate, run.gateTarget.target, run.gateTarget.phase);
+}
+
+/**
+ * #198 — refuse `set_value` up front, BEFORE resolving a run or touching the
+ * wire, when write mode itself is off (read-only, productive, unproven role).
+ * `gate.evaluate("execute", undefined, ...)` with no object always denies
+ * ("no object supplied for mutating operation", code SAFETY_DENIED) — that
+ * specific denial is expected here (set_value has no ABAP object to judge)
+ * and is NOT a real refusal, so it is swallowed. Any OTHER denial (read-only
+ * mode, productive lock, etc.) is real, and `gate.assert` is called so the
+ * caller gets the canonical thrown error (e.g. READ_ONLY) instead of a
+ * misleading pass.
+ */
+export function assertDebugWritesEnabled(gate: SafetyGate): void {
+  const decision = gate.evaluate("execute", undefined, { phase: "preflight" });
+  if (decision.allowed) return;
+  if (decision.code === "SAFETY_DENIED" && decision.rule === "no object supplied for mutating operation") {
+    return;
+  }
+  gate.assert("execute", undefined, { phase: "preflight" });
 }
 
 /**
@@ -1051,12 +1086,14 @@ const messageBreakpointSchema = z.object({
 
 export const debugInputSchema = {
   action: z
-    .enum(["start", "step", "stack", "frame", "breakpoints", "watch", "keepalive", "stop", "status"])
+    .enum(["start", "step", "stack", "frame", "breakpoints", "watch", "set_value", "keepalive", "stop", "status"])
     .describe(
       "start needs breakpoints+run. step needs stateId+step. stack needs stateId. frame " +
         "needs stateId+frame. breakpoints needs stateId (op add/remove) or nothing (op list, " +
         "default). watch needs stateId+variable (op add, default when variable given) or " +
-        "stateId+id (op remove) or stateId (op list). keepalive/stop/status need nothing.",
+        "stateId+id (op remove) or stateId (op list). set_value needs stateId+variable+value " +
+        "and changes a simple variable at a stop (edit/admin mode only). " +
+        "keepalive/stop/status need nothing.",
     ),
   breakpoints: z
     .array(
@@ -1132,9 +1169,14 @@ export const debugInputSchema = {
     .string()
     .optional()
     .describe(
-      'action="watch" only — variable path to watch, same syntax abap_debug_value accepts. ' +
-        'Presence selects op="add".',
+      'action="watch" — variable path to watch, same syntax abap_debug_value accepts. ' +
+        'Presence selects op="add". action="set_value" — the variable path to change, same ' +
+        "syntax as abap_debug_value's path.",
     ),
+  value: z
+    .string()
+    .optional()
+    .describe('action="set_value" only — the new value as text; empty string allowed.'),
   confirm: z
     .string()
     .optional()
@@ -1357,6 +1399,16 @@ function explainOpaqueDeathDetail(detail: string): string {
   );
 }
 
+/** #198 — one line per `set_value` applied on this run, for the MODIFIED VALUES section on stop/death. */
+function renderModifiedValues(run: CurrentRun): string {
+  return run.modifiedValues
+    .map((m) => {
+      const at = m.program !== undefined && m.line !== undefined ? ` (at ${m.program}:${m.line})` : "";
+      return `${m.path}: ${m.oldValue} -> ${m.newValue}${at}`;
+    })
+    .join("\n");
+}
+
 /** Compose the response for a session that has died (debuggee finished, whether via signal A or signal B). Always a SUCCESSFUL response — the debuggee finishing is a normal outcome, not a tool failure. */
 async function composeDeathOutput(
   run: CurrentRun,
@@ -1436,7 +1488,10 @@ async function composeDeathOutput(
       terminationKind: snapshot.terminationResult?.kind,
       triggerOutcome,
     },
-    sections: [outputSection],
+    sections:
+      run.modifiedValues.length > 0
+        ? [outputSection, { title: "MODIFIED VALUES", content: renderModifiedValues(run) }]
+        : [outputSection],
     notes,
     maxChars: clampMaxChars(maxChars),
   });
@@ -2088,6 +2143,7 @@ async function handleStart(
     guidance: new GuidanceLedger(),
     armedExceptionClasses,
     exceptionBreakpointFired: false,
+    modifiedValues: [],
     lane: targetLane,
   };
   debugLanes[targetLane] = run;
@@ -2370,8 +2426,9 @@ async function handleStack(input: DebugInput, maxChars: number): Promise<BuiltRe
  * and has ZERO effect on execution — the server unconditionally resets the
  * cursor to the live top frame on any real step. Not gated behind
  * `assertSessionWrite` for that reason — observes an existing stop, like
- * `stack`/`status`. Must never accept a value to write (`setVariableValue`
- * stays unexposed).
+ * `stack`/`status`. Must never accept a value to write — `setVariableValue`
+ * is exposed separately, as `action:"set_value"` (`handleSetValue`), never
+ * through `frame`.
  */
 async function handleFrame(input: DebugInput, maxChars: number): Promise<BuiltResponse> {
   const run = resolveLaneRun(input.stateId);
@@ -2801,6 +2858,211 @@ async function handleWatch(input: DebugInput, maxChars: number, gate: SafetyGate
   });
 }
 
+/**
+ * #198 — the 64-bit signed range for `INT8`. `BigInt` throughout this check
+ * (a `Number` can't represent every int64 exactly).
+ */
+const INT8_MIN = -9223372036854775808n;
+const INT8_MAX = 9223372036854775807n;
+
+/**
+ * #198 — local type check for `set_value`, run BEFORE any wire call. Returns
+ * an error message on failure, `undefined` when `value` fits `variable`'s
+ * ABAP technical type. SAP converts silently (live on A4H: "TOOLONG" into
+ * C(1) stored "T", "12a" into N(4) stored "0012", date "20261332" accepted),
+ * so this is the only check that catches such values.
+ */
+export function validateDebugValue(variable: DebugVariable, value: string): string | undefined {
+  const name = variable.name || variable.id;
+  switch (variable.technicalType) {
+    case "C":
+      return value.length <= variable.length
+        ? undefined
+        : `${name} is C(${variable.length}) — value is ${value.length} character(s).`;
+    case "N":
+      if (!/^\d*$/.test(value)) return `${name} is N(${variable.length}) — digits only.`;
+      return value.length <= variable.length
+        ? undefined
+        : `${name} is N(${variable.length}) — value is ${value.length} digit(s).`;
+    case "D": {
+      if (value === "" || value === "00000000") return undefined;
+      if (!/^\d{8}$/.test(value)) return `${name} is D — expected 8 digits (YYYYMMDD).`;
+      const month = Number(value.slice(4, 6));
+      const day = Number(value.slice(6, 8));
+      if (month < 1 || month > 12) return `${name} is D — month "${value.slice(4, 6)}" is not 01-12.`;
+      const daysInMonth = new Date(Date.UTC(Number(value.slice(0, 4)), month, 0)).getUTCDate();
+      if (day < 1 || day > daysInMonth) return `${name} is D — ${value} is not a calendar date.`;
+      return undefined;
+    }
+    case "T": {
+      if (value === "") return undefined;
+      if (!/^\d{6}$/.test(value)) return `${name} is T — expected 6 digits (HHMMSS).`;
+      const hh = Number(value.slice(0, 2));
+      const mm = Number(value.slice(2, 4));
+      const ss = Number(value.slice(4, 6));
+      if (hh > 23) return `${name} is T — hour "${value.slice(0, 2)}" is not 00-23.`;
+      if (mm > 59) return `${name} is T — minute "${value.slice(2, 4)}" is not 00-59.`;
+      if (ss > 59) return `${name} is T — second "${value.slice(4, 6)}" is not 00-59.`;
+      return undefined;
+    }
+    case "I": {
+      if (!/^[+-]?\d+$/.test(value)) return `${name} is I — expected an integer.`;
+      const n = Number(value);
+      return n >= -2147483648 && n <= 2147483647
+        ? undefined
+        : `${name} is I — ${value} is outside the 32-bit signed range.`;
+    }
+    case "INT8": {
+      if (!/^[+-]?\d+$/.test(value)) return `${name} is INT8 — expected an integer.`;
+      const n = BigInt(value);
+      return n >= INT8_MIN && n <= INT8_MAX
+        ? undefined
+        : `${name} is INT8 — ${value} is outside the 64-bit signed range.`;
+    }
+    case "P":
+      return /^[+-]?\d+(\.\d+)?$/.test(value)
+        ? undefined
+        : `${name} is P (packed) — expected a decimal number, e.g. 1.23.`;
+    case "F":
+      return value !== "" && Number.isFinite(Number(value))
+        ? undefined
+        : `${name} is F — expected a finite number.`;
+    case "X":
+      if (!/^[0-9a-fA-F]*$/.test(value) || value.length % 2 !== 0) {
+        return `${name} is X(${variable.length}) — expected an even-length hex string.`;
+      }
+      return value.length <= variable.length * 2
+        ? undefined
+        : `${name} is X(${variable.length}) — value exceeds ${variable.length * 2} hex characters.`;
+    case "CString":
+      return undefined;
+    case "XString":
+      return /^[0-9a-fA-F]*$/.test(value) && value.length % 2 === 0
+        ? undefined
+        : `${name} is XString — expected an even-length hex string.`;
+    default:
+      // Unrecognised technical type — not this module's job to invent a rule
+      // SAP hasn't documented; let the server's own conversion decide.
+      return undefined;
+  }
+}
+
+/**
+ * #198 — `action:"set_value"`: change one simple/string variable at a
+ * suspended stop. Order matters (see the issue writeup): write-mode check,
+ * then run/status, then input shape, then path syntax, then the variable's
+ * own writability and type, and ONLY THEN the wire call — every earlier
+ * check is local and free, so a refusal never costs a round trip.
+ */
+async function handleSetValue(input: DebugInput, maxChars: number, gate: SafetyGate): Promise<BuiltResponse> {
+  assertDebugWritesEnabled(gate);
+
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
+    throw new AbapError(
+      "DEBUG_NOT_STOPPED",
+      'No debug session is stopped. Start one with abap_debug({action:"start", ...}) and wait ' +
+        'for status "suspended".',
+    );
+  }
+  assertSessionWrite(gate, run);
+  const status = run.session.snapshot.status;
+  if (status !== "suspended") {
+    throw new AbapError(
+      "DEBUG_NOT_STOPPED",
+      `Session status is "${status}", not "suspended" — set_value only works while the ` +
+        "debuggee is stopped at a breakpoint.",
+      { status },
+    );
+  }
+  if (!input.stateId) {
+    throw new AbapError("BAD_INPUT", 'abap_debug({action:"set_value"}) requires "stateId".');
+  }
+  if (!input.variable) {
+    throw new AbapError("BAD_INPUT", 'abap_debug({action:"set_value"}) requires "variable".');
+  }
+  if (input.value === undefined) {
+    throw new AbapError("BAD_INPUT", 'abap_debug({action:"set_value"}) requires "value".');
+  }
+  const wireId = wireStateId(run, input.stateId);
+
+  const validation = validatePath(input.variable);
+  if (!validation.ok) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Malformed path at "${validation.segment}": ${validation.message}`,
+      { path: input.variable, segment: validation.segment },
+    );
+  }
+  const canonicalPath = formatPath(validation.path);
+
+  const rootVars = await run.session.getVariables(input.stateId, [canonicalPath]);
+  const align = alignRequestedVariables([canonicalPath], rootVars);
+  const variable = align.resolved[0];
+  if (!variable) {
+    throw new AbapError("NOT_FOUND", `Variable ${canonicalPath} is not visible at this stop.`, {
+      path: canonicalPath,
+    });
+  }
+
+  if (variable.readOnly) {
+    throw new AbapError(
+      "DEBUG_VALUE_NOT_WRITABLE",
+      `${canonicalPath} is a constant or read-only parameter and cannot be changed.`,
+      { path: canonicalPath },
+    );
+  }
+  if (variable.metaType !== "simple" && variable.metaType !== "string") {
+    const hint =
+      variable.metaType === "structure"
+        ? `set a component, e.g. ${canonicalPath}-COMP.`
+        : variable.metaType === "table"
+          ? `set a cell, e.g. ${canonicalPath}[1]-COMP.`
+          : "references and generic types cannot be set.";
+    throw new AbapError(
+      "DEBUG_VALUE_NOT_WRITABLE",
+      `${canonicalPath} is a ${variable.metaType} and cannot be set directly — ${hint}`,
+      { path: canonicalPath, metaType: variable.metaType },
+    );
+  }
+
+  const typeError = validateDebugValue(variable, input.value);
+  if (typeError) {
+    throw new AbapError("BAD_INPUT", typeError, { path: canonicalPath, value: input.value });
+  }
+
+  const applied = await run.session.setVariableValue(input.stateId, canonicalPath, input.value);
+  // Trailing blanks are insignificant for non-string ABAP types (A4H returns I/P as "5 ").
+  const shown = (v: string): string => (variable.metaType === "string" ? v : v.trimEnd());
+  const oldValue = shown(variable.value);
+  const newValue = shown(applied);
+  const lastStack = run.lastStack;
+  const visibleFrames = lastStack?.frames.filter((f) => !f.systemProgram) ?? [];
+  const top = visibleFrames[0] ?? lastStack?.frames[0];
+  run.modifiedValues.push({
+    path: canonicalPath,
+    oldValue,
+    newValue,
+    program: top?.programName,
+    line: top?.line,
+  });
+
+  const notes: string[] = [
+    "This change affects only the current run — it is not persisted and does not carry over to a later start.",
+  ];
+  if (applied.trim() !== input.value.trim()) {
+    notes.push(`SAP converted the value on assignment: sent "${input.value}", stored "${applied}".`);
+  }
+
+  return buildResponse({
+    header: { action: "set_value", status, stateId: wireId, path: canonicalPath },
+    body: `old: ${renderWatchValue(oldValue)}\nnew: ${renderWatchValue(newValue)}`,
+    bodyLabel: "VALUE",
+    notes,
+    maxChars: clampMaxChars(maxChars),
+  });
+}
+
 /** Result of a `clearLeakedSessions` pass: `found` = sessions `listActiveDebugSessions()` showed that no tracked lane (`debugLanes`) accounted for; `notes` describes what happened to each. */
 interface LeakedSessionClearResult {
   found: number;
@@ -3047,7 +3309,13 @@ async function handleStop(
     }
     return buildResponse({
       header: { action: "stop", status: finalSnapshot.status, deathReason: finalSnapshot.deathReason },
-      sections: [{ title: "PROGRAM OUTPUT", content: renderTriggerOutcome(settled, STOP_WAIT_MS) }],
+      sections:
+        run.modifiedValues.length > 0
+          ? [
+              { title: "PROGRAM OUTPUT", content: renderTriggerOutcome(settled, STOP_WAIT_MS) },
+              { title: "MODIFIED VALUES", content: renderModifiedValues(run) },
+            ]
+          : [{ title: "PROGRAM OUTPUT", content: renderTriggerOutcome(settled, STOP_WAIT_MS) }],
       notes,
       maxChars: clampMaxChars(maxChars),
     });
@@ -3140,6 +3408,8 @@ export async function abapDebug(
       return handleBreakpoints(conn, input, maxChars, deps, gate);
     case "watch":
       return handleWatch(input, maxChars, gate);
+    case "set_value":
+      return handleSetValue(input, maxChars, gate);
     case "keepalive":
       return handleKeepalive(maxChars, gate);
     case "stop":

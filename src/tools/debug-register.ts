@@ -17,6 +17,7 @@ import {
   abapDebug,
   abapDebugValue,
   abapDebugVars,
+  assertDebugWritesEnabled,
   debugInputSchema,
   debugValueInputSchema,
   debugVarsInputSchema,
@@ -51,6 +52,8 @@ import { currentSystemAlias } from "../systems/current.js";
  * against A4H, 2026-09-15: `breakpoints`/`watch` were completely
  * non-functional through the MCP entry point. Exempt list, not gated list:
  * new actions default to GATED.
+ *  - `set_value` (#198): like `watch`, gated in `debug.ts` against the
+ *    session's start object; read mode is refused here before connecting.
  */
 const DEBUG_UNGATED_ACTIONS: ReadonlySet<string> = new Set([
   "stack",
@@ -60,6 +63,7 @@ const DEBUG_UNGATED_ACTIONS: ReadonlySet<string> = new Set([
   "stop",
   "breakpoints",
   "watch",
+  "set_value",
 ]);
 
 /** Extracts `stateId: <id>` from a rendered debug response header, if present (absent when the session just died). */
@@ -139,7 +143,8 @@ export function registerDebugTools(mcp: McpServer, deps: DebugRegistrationDeps):
     {
       description:
         "ABAP debugger driver: arm breakpoints, run a program, step, inspect the stack. One " +
-        "session at a time; variables read-only, frames observe-only.",
+        "session at a time; frames observe-only. set_value changes a simple variable at a stop " +
+        "(edit/admin mode).",
       inputSchema: debugInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
     },
@@ -164,6 +169,8 @@ export function registerDebugTools(mcp: McpServer, deps: DebugRegistrationDeps):
             phase: "preflight",
           });
         }
+        // #198 — read mode refuses set_value before any connection.
+        if (a.action === "set_value") assertDebugWritesEnabled(deps.safety);
         await deps.ensureConnected();
         const primary = deps.pool.primary();
         const res = await abapDebug(primary, args as DebugInput, deps.cfg.maxResponseChars, deps.debugDeps, deps.safety);
