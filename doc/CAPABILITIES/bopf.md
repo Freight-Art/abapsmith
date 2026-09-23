@@ -29,8 +29,14 @@ the XML tree is never round-tripped.
   patchable this way. `add_*` now refuses to create an element whose kind and
   name already exist on the node, naming the existing one, instead of
   creating a duplicate.
-- **Irreversible.** Every BOPF write is journalled irreversible, and undo
-  refuses irreversible entries unconditionally — not even with `force`.
+- **Update is undoable; create and delete are not.** An `abap_bopf_edit
+  update` entry (`beforeKind: "bopf-model"`) records the previous model
+  XML, and `abap_journal mode=undo` PUTs it back and re-activates — BOPF's
+  PUT re-mints node GUIDs, so the restored model matches the before-image
+  at model level, not byte-for-byte. `create_bo` and `abap_bopf_delete`
+  stay `undoable: false` unconditionally, not even with `force`: both use
+  non-atomic APIs, so their entries say so at write time rather than
+  letting a caller find out by trying.
 - **A representative node is a side effect of `add_association`, never a
   direct write.** A live discovery run proved that a client-written
   parentless node is hard-rejected by the server: the exact response was

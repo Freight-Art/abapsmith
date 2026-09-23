@@ -58,7 +58,7 @@ import {
   type CheckOutcome,
 } from "../src/adt/activate.js";
 import { isDisplayTruncated } from "../src/truncate.js";
-import { Journal } from "../src/journal.js";
+import { Journal, journalRef } from "../src/journal.js";
 import { abapActivate, activateInputSchema } from "../src/tools/activate.js";
 import { ACTIVATION_ONLY_TYPES, REGISTRY } from "../src/adt/capabilities.js";
 import { isEnhancementType, SafetyGate } from "../src/safety.js";
@@ -1933,7 +1933,7 @@ describe("abapActivate — journalling", () => {
     }
   };
 
-  it("a single activation writes exactly one settled, irreversible `activate` entry", async () => {
+  it("a single activation writes exactly one settled `activate` entry, blocked with no preceding write (issue #200)", async () => {
     await withJournal(async (journal) => {
       const { conn } = await connect([
         LOGON_ROUTE,
@@ -1959,10 +1959,13 @@ describe("abapActivate — journalling", () => {
       expect(e.object.type).toBe(PROG_TARGET.type);
       expect(e.outcome).toBe("succeeded");
       expect(e.tool).toBe("abap_activate");
-      // History, not undo. `undoBlocker()` already refuses `"activate"` by
-      // name; the flag puts these entries on the same footing as
-      // `transport-release` everywhere entries are DISPLAYED.
-      expect(e.irreversible).toBe(true);
+      // No blanket flag anymore (issue #200): undo authority for an
+      // `activate` entry delegates to the preceding write on the SAME
+      // object (src/undoability.ts rule 3). This journal has no earlier
+      // write entry for PROG_TARGET, so the activation is blocked.
+      expect(e.irreversible).toBeUndefined();
+      expect(e.undoable).toBe(false);
+      expect(e.undoBlocker).toContain("No earlier write entry");
       // Existence is positively established (assertActivatable + a real
       // metadata GET), but no before-image is captured because activation
       // changes no source. `"unknown"` rather than the derived `"failed"`,
@@ -1971,6 +1974,51 @@ describe("abapActivate — journalling", () => {
       expect(e.beforeCapture).toBe("unknown");
       expect(e.activation?.attempted).toBe(true);
       expect(e.activation?.activated).toBe(true);
+    });
+  });
+
+  it("is undoable when a preceding write entry for the SAME object is already on disk (issue #200)", async () => {
+    await withJournal(async (journal) => {
+      // Not re-deriving writeTimeUndoability's rules (test/undoability.test.ts
+      // and test/journal.test.ts already cover those directly) — this proves
+      // the WIRING: a real preceding write on disk before a real abapActivate
+      // call makes the resulting activate entry undoable.
+      const write = await journal.begin({
+        operation: "update",
+        object: journalRef({
+          name: PROG_TARGET.name,
+          type: PROG_TARGET.type,
+          uri: PROG_TARGET.sourceUri,
+          packageName: PROG_TARGET.packageName,
+        }),
+        existedBefore: true,
+        beforeSource: "REPORT zmcp_probe_rep.\n",
+        tool: "abap_write",
+      });
+      await journal.finish(write!.id, { outcome: "succeeded", afterSource: "REPORT zmcp_probe_rep.\n*new." });
+
+      const { conn } = await connect([
+        LOGON_ROUTE,
+        { match: onProgMeta, reply: resp(200, OBJECT_META(PROG_TARGET.name, PROG_TARGET.type), XML) },
+        { match: onActivation, reply: resp(200, "", { "content-length": "0" }) },
+      ]);
+      const gate = new SafetyGate({ readOnly: false, allowPackages: ["$TMP"] });
+
+      await abapActivate(
+        conn,
+        { object: PROG_TARGET.name, type: PROG_TARGET.type },
+        100_000,
+        gate,
+        undefined,
+        journal,
+      );
+
+      const entries = await journal.list({});
+      expect(entries).toHaveLength(2);
+      const activate = entries.find((x) => x.operation === "activate")!;
+      expect(activate.irreversible).toBeUndefined();
+      expect(activate.undoable).toBe(true);
+      expect(activate.undoBlocker).toBe("");
     });
   });
 
@@ -2118,7 +2166,10 @@ describe("abapActivate — journalling", () => {
       for (const e of all) {
         expect(e.operation).toBe("activate");
         expect(e.outcome).toBe("succeeded");
-        expect(e.irreversible).toBe(true);
+        // Neither object has a preceding write in this journal (issue #200).
+        expect(e.irreversible).toBeUndefined();
+        expect(e.undoable).toBe(false);
+        expect(e.undoBlocker).toContain("No earlier write entry");
       }
 
       // THE decisive argument for per-object entries over one entry with N
@@ -2181,7 +2232,10 @@ describe("abapActivate — journalling", () => {
 
       const all = await journal.list({});
       expect(all).toHaveLength(2);
-      expect(all.every((x) => x.irreversible)).toBe(true);
+      // Neither PROG nor TABL has a preceding write in this journal (issue #200).
+      expect(all.every((x) => x.irreversible === undefined)).toBe(true);
+      expect(all.every((x) => x.undoable === false)).toBe(true);
+      expect(all.every((x) => x.undoBlocker.includes("No earlier write entry"))).toBe(true);
 
       const prog = all.find((x) => x.object.name === PROG_TARGET.name)!;
       expect(prog.outcome).toBe("succeeded");

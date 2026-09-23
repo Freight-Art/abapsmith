@@ -147,13 +147,17 @@ describe("abap_journal: tool description names its parameters and common calls",
       "History and undo for writes abapsmith made. Parameters: mode (list|show|undo|reconcile, " +
         "default list), entry, object, detail, limit, session, force, activate, outcome, reason.",
     );
-    expect(description).toContain("mode=list (recent writes with entry ids)");
     expect(description).toContain(
-      "mode=show entry=<id> (one entry with its before-image; detail=full for the complete images)",
+      "mode=list (recent writes with entry ids, each row's `undoable` column and truncated " +
+        "`undo_blocker` say up front whether an undo is expected to work)",
     );
     expect(description).toContain(
-      "mode=undo entry=<id> activate=true (revert it — refuses on drift, delete-gate, or an " +
-        "enhancement object; see abapsmith-recover-a-bad-write)",
+      "mode=show entry=<id> (one entry with its before-image, and the full undo_blocker " +
+        "reason if any; detail=full for the complete images)",
+    );
+    expect(description).toContain(
+      "mode=undo entry=<id> activate=true (revert it — refuses on drift or a delete-gate; see " +
+        "abapsmith-recover-a-bad-write)",
     );
     expect(description).toContain(
       "mode=reconcile entry=<id> outcome=<succeeded|failed> reason=<text> (close a stranded " +

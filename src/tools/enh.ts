@@ -50,7 +50,7 @@ import type { SessionTransport } from "../adt/session-transport.js";
 import type { Config } from "../config.js";
 import { normalizeCorrNr, type SafetyCorr, type SafetyGate } from "../safety.js";
 import { explainDeniedCapabilities, type ModeGovernedCapability } from "../mode.js";
-import type { Journal, JournalFinishPatch } from "../journal.js";
+import type { BeforeImageCapture, Journal, JournalFinishPatch } from "../journal.js";
 import { journalRef, systemKey, withJournalledMutation } from "../journal.js";
 import { AbapError } from "../adt/errors.js";
 import { buildResponse } from "../compact.js";
@@ -94,7 +94,13 @@ import {
   type HookAnchor,
   type CreateHookResult,
 } from "../adt/enhancement-hook.js";
-import { buildEnhancementUri, ENHOXHH_COLLECTION } from "../adt/enhancement.js";
+import {
+  buildEnhancementUri,
+  ENHOXHH_COLLECTION,
+  readBadiImplementation,
+  readEnhancementSpot,
+} from "../adt/enhancement.js";
+import { parseBadiImplementation } from "../adt/enhancement-xml.js";
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -403,8 +409,8 @@ function buildEnhDeleteResponse(del: EnhancementDeleteResult, maxChars: number):
       affects: `${del.affects.name} (${del.affects.packageName})`,
     },
     notes: [
-      "Irreversible: abapsmith has no undo for an enhancement delete (see undoBlocker in src/adt/undo.ts). " +
-        "The journal entry for this delete is recorded but marked irreversible.",
+      "Irreversible: a deleted enhancement object cannot be recreated from its captured XML. The " +
+        "journal entry for this delete is recorded, with that reason as its undoBlocker.",
     ],
     maxChars,
   }).text;
@@ -501,9 +507,14 @@ async function runEnhSetActiveOperation(deps: EnhToolDeps, input: EnhInput): Pro
           existedBefore: true,
           beforeCapture: "captured" as const,
           beforeSource: img.xml,
+          beforeKind: "enh-impl-active" as const,
+          // The flipped implementation's name: the caller's own `implName` if it gave
+          // one, else the sole entry in the before-image XML (set_impl_active refuses
+          // an ambiguous "which one" earlier when there is more than one, so at this
+          // point there is exactly one to pick). No result to fall back to here:
+          // begin() runs before setBadiImplementationActive, via onBeforeImage.
+          implName: implName ?? parseBadiImplementation(img.xml).implementations[0]?.name,
           ...(img.corrNr !== undefined ? { corrNr: img.corrNr } : {}),
-          // undoBlocker() refuses EVERY enhancement type unconditionally, regardless of reversibility.
-          irreversible: true,
           // Needed for systemMismatchBlocker's strong SID+origin+client comparison (src/adt/undo.ts);
           // without it, the SID-only fallback can't tell two boxes sharing a SID apart.
           systemKey: systemKey(conn.cfg),
@@ -720,6 +731,33 @@ function buildEnhCreateResponse(
 }
 
 /**
+ * Runs a create's pre-flight existence read (issue #200): a create must not silently overwrite
+ * an existing object, and a confirmed-absent read is what lets undo delete the object it created
+ * without also deleting something the caller never made. NOT_FOUND (the read functions in
+ * src/adt/enhancement.ts throw an `AbapError`, never a raw not-found shape, so `e.code` is checked
+ * directly rather than `isNotFoundError`, which expects the untranslated error) means the create
+ * may proceed with `beforeCapture: "confirmed-absent"`. Found means the create must not run at
+ * all: throws `CHECK_FAILED` before any mutation. Any other error: the create still proceeds (as
+ * before #200), just with `beforeCapture: "failed"` — no positive evidence either way.
+ */
+async function checkAbsentBeforeCreate(
+  read: () => Promise<unknown>,
+  ctx: { name: string; type: string },
+): Promise<BeforeImageCapture> {
+  try {
+    await read();
+  } catch (e) {
+    if (e instanceof AbapError && e.code === "NOT_FOUND") return "confirmed-absent";
+    return "failed";
+  }
+  throw new AbapError(
+    "CHECK_FAILED",
+    `${ctx.type} ${ctx.name} already exists — create cannot run over it.`,
+    { name: ctx.name, type: ctx.type },
+  );
+}
+
+/**
  * Dispatches one of the six create operations. Each `enhancement-bridge.ts` function performs its
  * own unconditional final `gate.assertIntent` call — mirroring the same intent fields here lets the
  * zero-network preflight below refuse on the same grounds, without duplicating that authoritative check.
@@ -746,16 +784,13 @@ export async function runEnhCreateOperation(
       if (activate) deps.safety.assertIntent(intent, { op: "activate", corr: preflightCorr, phase: "preflight" });
       await deps.ensureConnected();
       const { run, transcript, activation, corr } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
-        // This dispatcher used to reference deps.journal nowhere at all. No GET
-        // precedes this classrun create, so beforeCapture is left unset — Journal.begin() derives
-        // the conservative "unknown" default, not create_hook's stronger "confirmed-absent" below
-        // (this call's only evidence is a classrun print, not a checked POST status). irreversible:
-        // true throughout this file: undoBlocker() (src/adt/undo.ts) refuses undo for EVERY
-        // enhancement type unconditionally. See the git history for detail.
+        // A GET precedes this classrun create (checkAbsentBeforeCreate) to establish
+        // beforeCapture before the mutation — "confirmed-absent" on NOT_FOUND, undoable via
+        // delete; "failed" on any other read error, same as before #200.
         const { result, settle } = await withJournalledMutation(
           deps.journal,
           {
-            begin: () => ({
+            begin: (beforeCapture: BeforeImageCapture) => ({
               operation: "create" as const,
               object: {
                 ...journalRef({
@@ -768,13 +803,17 @@ export async function runEnhCreateOperation(
                 affects,
               },
               existedBefore: false,
-              irreversible: true,
+              beforeCapture,
               systemKey: systemKey(conn.cfg),
               tool: "abap_enh",
             }),
           },
           async (onBeforeImage) => {
-            await onBeforeImage(undefined);
+            const beforeCapture = await checkAbsentBeforeCreate(() => readEnhancementSpot(conn, spotName), {
+              name: spotName,
+              type: "ENHS/XS",
+            });
+            await onBeforeImage(beforeCapture);
             return createEnhancementSpot(conn, deps.safety, {
               spotName,
               description,
@@ -831,6 +870,9 @@ export async function runEnhCreateOperation(
               existedBefore: true,
               beforeCapture: "failed" as const,
               irreversible: true,
+              undoBlocker:
+                "abap_enh has no undo for add_badi_def: the spot's previous definition list is not " +
+                "recorded. Remove the BAdI definition in SE18.",
               systemKey: systemKey(conn.cfg),
               tool: "abap_enh",
             }),
@@ -901,6 +943,9 @@ export async function runEnhCreateOperation(
               existedBefore: true,
               beforeCapture: "failed" as const,
               irreversible: true,
+              undoBlocker:
+                "abap_enh has no undo for add_filter_def: the spot's previous filter definition list " +
+                "is not recorded. Remove the filter definition in SE18/SE19.",
               systemKey: systemKey(conn.cfg),
               tool: "abap_enh",
             }),
@@ -963,27 +1008,31 @@ export async function runEnhCreateOperation(
         implClass: implClassCheck,
         corr,
       } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
-        // A genuinely new ENHO/XH object (operation:"create", existedBefore:false) —
-        // same reasoning as create_spot above (no GET precedes this create, beforeCapture left
-        // unset). undoBlocker()'s delete-of-create wording here is the SHARPEST of the three
-        // enhancement refusals (src/adt/undo.ts): undoing this create would delete a possibly-active implementation.
+        // A genuinely new ENHO/XH object (operation:"create", existedBefore:false) — same
+        // pre-create existence read as create_spot above (checkAbsentBeforeCreate):
+        // "confirmed-absent" on NOT_FOUND makes this undoable (undo deletes the implementation
+        // it created); any other read outcome leaves it "failed", same as before #200.
         const { result, settle } = await withJournalledMutation(
           deps.journal,
           {
-            begin: () => ({
+            begin: (beforeCapture: BeforeImageCapture) => ({
               operation: "create" as const,
               object: {
                 ...journalRef({ name: enhName, type: "ENHO/XH", uri: implUri(enhName), packageName, description }),
                 affects,
               },
               existedBefore: false,
-              irreversible: true,
+              beforeCapture,
               systemKey: systemKey(conn.cfg),
               tool: "abap_enh",
             }),
           },
           async (onBeforeImage) => {
-            await onBeforeImage(undefined);
+            const beforeCapture = await checkAbsentBeforeCreate(() => readBadiImplementation(conn, enhName), {
+              name: enhName,
+              type: "ENHO/XH",
+            });
+            await onBeforeImage(beforeCapture);
             return createBadiImplementation(conn, deps.safety, {
               enhName,
               spotName,
@@ -1088,6 +1137,9 @@ export async function runEnhCreateOperation(
               existedBefore: true,
               beforeCapture: "failed" as const,
               irreversible: true,
+              undoBlocker:
+                "abap_enh has no undo for set_filter_values: the implementation's previous filter values " +
+                "are not recorded. Set them back with abap_enh set_filter_values, or in SE19.",
               systemKey: systemKey(conn.cfg),
               tool: "abap_enh",
             }),
@@ -1097,6 +1149,9 @@ export async function runEnhCreateOperation(
             const joint = await withJournalledMutation(
               deps.journal,
               {
+                // No `irreversible` here: an `operation: "activate"` entry's undo delegates to
+                // the preceding write for the same object (writeTimeUndoability, src/undoability.ts),
+                // which for the spot is history-only anyway — this flag would be inert either way.
                 begin: () => ({
                   operation: "activate" as const,
                   object: {
@@ -1105,7 +1160,6 @@ export async function runEnhCreateOperation(
                   },
                   existedBefore: true,
                   beforeCapture: "failed" as const,
-                  irreversible: true,
                   systemKey: systemKey(conn.cfg),
                   tool: "abap_enh",
                 }),
@@ -1330,8 +1384,8 @@ export async function runEnhHookOperation(
     // plain conn.post (postHookImplementation) whose resp.status!==201 check + throw-on-non-2xx
     // transport gives the same "only returns normally on the create path" evidence
     // createBusinessObject's confirmed-absent relies on (bopf.ts). No recovered/not-recovered
-    // fallback here — a throw propagates directly. irreversible:true (undoBlocker() refuses
-    // ENHO/XHH unconditionally). hookUri is computed up front via the same deterministic formula
+    // fallback here — a throw propagates directly. Undoable (undo deletes the object): no
+    // `irreversible` flag. hookUri is computed up front via the same deterministic formula
     // createHookImplementation builds internally, so the journal entry's identity is known before
     // the mutating call.
     const { result: hookResult, settle } = await withJournalledMutation(
@@ -1345,7 +1399,6 @@ export async function runEnhHookOperation(
           },
           existedBefore: false,
           beforeCapture: "confirmed-absent" as const,
-          irreversible: true,
           systemKey: systemKey(conn.cfg),
           tool: "abap_enh",
         }),
@@ -1371,9 +1424,11 @@ export async function runEnhHookOperation(
     // create_hook's activation is OPTIONAL (spec.activate, default false) — unlike the
     // other five enhancement mutations, which always activate. Record `attempted: false`
     // when activation was never requested, rather than a misleading `activated: false`.
+    // `createdFresh` (#200) is a no-op while beforeCapture above is already "confirmed-absent".
     await settle({
       outcome: "succeeded",
       activation: hookResult.activation ? { attempted: true, activated: hookResult.activation.activated } : { attempted: false },
+      ...(hookResult.location !== undefined ? { createdFresh: { status: 201, location: hookResult.location } } : {}),
     });
     return hookResult;
   });
@@ -1444,8 +1499,8 @@ async function runEnhDeleteOperation(deps: EnhToolDeps, input: EnhInput): Promis
 
   const gateKey = enhGateKey(input.name);
   const del = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
-    // Journalled through the same helper as write_description. irreversible:true for the same
-    // reason: undoBlocker() refuses EVERY enhancement type unconditionally and unforceably.
+    // Journalled through the same helper as write_description. irreversible:true: the XML this
+    // captures is the object's OWN document, not evidence for recreating it — a delete has no undo.
     const { result: del, settle } = await withJournalledMutation(
       deps.journal,
       {
@@ -1457,6 +1512,7 @@ async function runEnhDeleteOperation(deps: EnhToolDeps, input: EnhInput): Promis
           beforeSource: img.xml,
           ...(img.corrNr !== undefined ? { corrNr: img.corrNr } : {}),
           irreversible: true,
+          undoBlocker: "A deleted enhancement object cannot be recreated from its XML; recreate it with abap_enh.",
           systemKey: systemKey(conn.cfg),
           tool: "abap_enh",
         }),
@@ -1601,9 +1657,10 @@ export function registerEnhancementTools(mcp: McpServer, deps: EnhToolDeps): voi
           // Journalled through the same helper as `abap_write` (src/journal.ts): the entry lands
           // on disk before the lock/PUT, and is patched `failed` if the write throws.
           //
-          // irreversible:true, deliberately: undoBlocker() (src/adt/undo.ts) refuses EVERY
-          // enhancement type unconditionally. The record still has value (only trace of the prior
-          // description) — it just must not promise a rollback it cannot perform.
+          // irreversible:true, deliberately: `writeTimeUndoability` (src/undoability.ts) implements
+          // no undo for an enhancement update — only a confirmed-absent create, a captured
+          // set_impl_active flip, or a delegated activate do. The record still has value (only
+          // trace of the prior description) — it just must not promise a rollback it cannot perform.
           const { result: write, settle } = await withJournalledMutation(
             deps.journal,
             {
@@ -1619,6 +1676,9 @@ export function registerEnhancementTools(mcp: McpServer, deps: EnhToolDeps): voi
                 beforeSource: img.xml,
                 ...(img.corrNr !== undefined ? { corrNr: img.corrNr } : {}),
                 irreversible: true,
+                undoBlocker:
+                  "abap_enh has no undo for write_description. The previous XML is kept as this entry's " +
+                  "before-image; set the description back with abap_enh write_description.",
                 systemKey: systemKey(conn.cfg),
                 tool: "abap_enh",
               }),

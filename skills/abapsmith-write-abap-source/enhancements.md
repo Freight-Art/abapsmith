@@ -11,6 +11,7 @@ positional `ENHANCEMENT <n>.` header is accepted.
 
 Safest shape: `abap_read` the object first, keep its `ENHANCEMENT <n>.` /
 `ENDENHANCEMENT.` header and footer lines byte-for-byte, and edit only what's
-between them. Enhancement objects can never be undone via `abap_journal
-mode=undo`, even with `force: true`, so there is no safety net for a
-mis-shaped rewrite the way there is for other object types.
+between them. A rewrite of an enhancement object can never be undone via
+`abap_journal mode=undo`, even with `force: true` (only `create_*` and
+`set_impl_active` have an undo), so there is no safety net for a mis-shaped
+rewrite the way there is for other object types.

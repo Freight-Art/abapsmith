@@ -107141,6 +107141,175 @@ import { randomBytes as randomBytes5 } from "node:crypto";
 import { promises as fs3 } from "node:fs";
 import * as path5 from "node:path";
 init_state_dir();
+
+// src/undoability.ts
+init_types();
+var TRANSPORT_RELEASE_UNDO_BLOCKER = "a released transport cannot be recalled; create a corrective transport instead";
+var SERVICE_PUBLISH_UNDO_BLOCKER = `publishing a service binding changes the system's runtime surface (an ICF node under /sap/opu/odata*), not the object's source, so there is no before-image to write back; call abap_service op="unpublish" confirm=<binding> instead \u2014 a deliberate, separately confirmed act, not an automatic undo`;
+var SERVICE_UNPUBLISH_UNDO_BLOCKER = `unpublishing a service binding changes the system's runtime surface, not the object's source, so there is no before-image to restore; call abap_service op="publish" confirm=<binding> instead \u2014 a deliberate, separately confirmed act, not an automatic undo`;
+var TRANSPORT_GENERIC_UNDO_BLOCKER = "transport requests are not undone automatically; use abap_transport to reverse this manually";
+var IRREVERSIBLE_UNDO_BLOCKER = "This entry is marked irreversible \u2014 recorded for history only. No mechanism can undo it, not even with force=true.";
+function captureExplanation(capture) {
+  switch (capture) {
+    case "failed":
+      return "The before-image probe did not yield usable evidence \u2014 it may never have completed (timeout, 401, 403, 500 \u2026), or it may have answered without confirming absence \u2014 so `existedBefore: false` is a GUESS, not an observation of an absent object.";
+    case "unknown":
+      return "The entry does not record how `existedBefore` was established \u2014 it predates provenance recording, or the recorded value was not one abapsmith understands. Either way nothing here proves the object was absent.";
+    case "captured":
+      return "The entry claims BOTH that the previous source was captured and that the object did not exist. Those cannot both be true, so the entry contradicts itself and none of it can be trusted to authorise a delete.";
+    case "confirmed-absent":
+      return "The absence was positively confirmed.";
+  }
+}
+function packageRecreateBlockerText(name) {
+  return `Undoing this entry would RE-CREATE package ${name}, and abapsmith does not re-create packages from a journal entry. The before-image is the package's metadata document (a package has no source), and abapsmith restores a before-image by writing it through the ordinary write path, which would PUT that XML at a URI that has no source document. That is refused rather than attempted. Nothing was changed. Re-create the package deliberately with abap_write type="DEVC/K" (abap_journal mode=show entry=<id> prints the recorded metadata), then move its contents back. This refusal cannot be overridden with force=true.`;
+}
+function deleteEvidenceBlockerText(name, capture) {
+  return `Undoing this entry would DELETE ${name} from the server, and the journal does not have positive evidence that ${name} was absent before abapsmith wrote it. The recorded provenance is beforeCapture="${capture}"; only "confirmed-absent" is positive evidence. ${captureExplanation(capture)} ${name} may well have existed, in which case this undo would destroy source that abapsmith never recorded and therefore cannot put back. This refusal cannot be overridden \u2014 force=true overrides DRIFT, it does not manufacture evidence that was never captured. If you have read ${name} (abap_read) and you do want it gone, delete it deliberately with abap_write mode=delete, which records a real before-image first.`;
+}
+function classIncludeBlockerText(name, include, action) {
+  const verb = action === "delete" ? "DELETE" : "RE-CREATE";
+  return `Undoing this entry would ${verb} the ${include} include of class ${name}, and ADT has no operation that deletes or re-creates one include of a class on its own \u2014 deleteObject sends DELETE {classUri}, which would destroy ${name}'s main source and all of its other includes too, not just this one. That is refused rather than attempted. Nothing was changed. To empty a class include, write a single comment line to it (e.g. \`*"* no local test classes\`) \u2014 abapsmith does not send an empty document, and there is no ADT verb that deletes an include on its own. Do that with abap_write include="${include}". This refusal cannot be overridden with force=true.`;
+}
+function classIncludeFromSourceUri(uri) {
+  if (uri === void 0) return void 0;
+  const inc = specFromUri(uri)?.include;
+  return inc !== void 0 && inc !== "main" ? inc : void 0;
+}
+function plannedActionOf(entry) {
+  if (entry.operation === "delete") return "recreate";
+  if (!entry.existedBefore) return "delete";
+  return "restore";
+}
+var ENHANCEMENT_TYPES = /* @__PURE__ */ new Set(["ENHO/XH", "ENHO/XHH", "ENHS/XS"]);
+var TEXT_POOL_RESOURCE_TYPES = /* @__PURE__ */ new Set(["PROG/PX", "CLAS/OCX", "FUGR/PX"]);
+function precedingWriteEntry(entries, activate) {
+  const type = activate.object.type.toUpperCase();
+  const name = activate.object.name.toUpperCase();
+  let activateIndex = entries.findIndex((e) => e.id === activate.id);
+  if (activateIndex < 0) activateIndex = entries.length;
+  let best;
+  let bestIndex = -1;
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    if (e.id === activate.id) continue;
+    if (e.object.type.toUpperCase() !== type) continue;
+    if (e.object.name.toUpperCase() !== name) continue;
+    if (activate.systemKey !== void 0 && e.systemKey !== void 0 && e.systemKey !== activate.systemKey) {
+      continue;
+    }
+    if (e.operation !== "create" && e.operation !== "update" && e.operation !== "delete") continue;
+    if (e.outcome !== "succeeded") continue;
+    const earlier = e.ts < activate.ts || e.ts === activate.ts && i < activateIndex;
+    if (!earlier) continue;
+    const better = !best || e.ts > best.ts || e.ts === best.ts && i > bestIndex;
+    if (better) {
+      best = e;
+      bestIndex = i;
+    }
+  }
+  return best;
+}
+function writeTimeUndoability(entry, ctx) {
+  if (ctx.callerBlocker) {
+    return { undoable: false, undoBlocker: ctx.callerBlocker };
+  }
+  if (entry.operation === "transport-release") {
+    return { undoable: false, undoBlocker: TRANSPORT_RELEASE_UNDO_BLOCKER };
+  }
+  if (entry.operation === "service-publish") {
+    return { undoable: false, undoBlocker: SERVICE_PUBLISH_UNDO_BLOCKER };
+  }
+  if (entry.operation === "service-unpublish") {
+    return { undoable: false, undoBlocker: SERVICE_UNPUBLISH_UNDO_BLOCKER };
+  }
+  if (entry.operation.startsWith("transport-")) {
+    return { undoable: false, undoBlocker: TRANSPORT_GENERIC_UNDO_BLOCKER };
+  }
+  if (entry.operation === "activate") {
+    const pw = ctx.precedingWrite;
+    if (!pw) {
+      return {
+        undoable: false,
+        undoBlocker: `No earlier write entry for ${entry.object.type} ${entry.object.name} in this journal, so there is no before-image to go back to. An activation on its own cannot be undone.`
+      };
+    }
+    if (pw.undoneBy) {
+      return {
+        undoable: false,
+        undoBlocker: `Undoing this activation means undoing write entry ${pw.id}, which was already undone by ${pw.undoneBy}.`
+      };
+    }
+    const pwUndoability = pw.undoable === false ? { undoable: false, undoBlocker: pw.undoBlocker ?? "" } : writeTimeUndoability(pw, {});
+    if (!pwUndoability.undoable) {
+      return {
+        undoable: false,
+        undoBlocker: `Undoing this activation means undoing write entry ${pw.id}, which is not undoable: ` + pwUndoability.undoBlocker
+      };
+    }
+    return { undoable: true, undoBlocker: "" };
+  }
+  if (entry.irreversible) {
+    return { undoable: false, undoBlocker: IRREVERSIBLE_UNDO_BLOCKER };
+  }
+  const type = entry.object.type;
+  const name = entry.object.name;
+  if (ENHANCEMENT_TYPES.has(type)) {
+    if (entry.operation === "create") {
+      if (!entry.existedBefore && entry.beforeCapture === "confirmed-absent") {
+        return { undoable: true, undoBlocker: "" };
+      }
+      return { undoable: false, undoBlocker: deleteEvidenceBlockerText(name, entry.beforeCapture) };
+    }
+    if (entry.operation === "update" && entry.beforeKind === "enh-impl-active" && entry.beforeCapture === "captured") {
+      return { undoable: true, undoBlocker: "" };
+    }
+    return {
+      undoable: false,
+      undoBlocker: `Undo of an enhancement ${entry.operation} is not supported. Only create_spot, create_impl and create_hook (undo deletes the object) and set_impl_active (undo sets the previous state back) have an undo. Reverse this with abap_enh or SE18/SE19.`
+    };
+  }
+  if (type === "BOBF") {
+    if (entry.operation === "update" && entry.beforeKind === "bopf-model" && entry.beforeCapture === "captured") {
+      return { undoable: true, undoBlocker: "" };
+    }
+    return {
+      undoable: false,
+      undoBlocker: `BOPF ${entry.operation} has no undo: only abap_bopf_edit updates record the previous model.`
+    };
+  }
+  if (TEXT_POOL_RESOURCE_TYPES.has(type)) {
+    if (entry.beforeKind === "text-pool" && entry.beforeCapture === "captured") {
+      return { undoable: true, undoBlocker: "" };
+    }
+    return {
+      undoable: false,
+      undoBlocker: "This text pool write has no recorded previous text pool, so there is nothing to restore."
+    };
+  }
+  if (entry.operation === "delete" && type === "DEVC/K") {
+    return { undoable: false, undoBlocker: packageRecreateBlockerText(name) };
+  }
+  const include = classIncludeFromSourceUri(entry.object.sourceUri);
+  if (include && type === "CLAS/OC") {
+    const action = plannedActionOf(entry);
+    if (action === "delete" || action === "recreate") {
+      return { undoable: false, undoBlocker: classIncludeBlockerText(name, include, action) };
+    }
+  }
+  if (entry.operation !== "delete" && !entry.existedBefore && entry.beforeCapture !== "confirmed-absent") {
+    return { undoable: false, undoBlocker: deleteEvidenceBlockerText(name, entry.beforeCapture) };
+  }
+  if ((entry.existedBefore || entry.operation === "delete") && (entry.beforeCapture !== "captured" || !entry.before?.blob)) {
+    return {
+      undoable: false,
+      undoBlocker: `No before-image was captured for ${name} (beforeCapture="${entry.beforeCapture}"), so there is nothing to restore.`
+    };
+  }
+  return { undoable: true, undoBlocker: "" };
+}
+
+// src/journal.ts
 init_system_key();
 function journalRef(t) {
   return {
@@ -107622,7 +107791,8 @@ var Journal = class _Journal {
       ...sessionId ? { sessionId, sessionIdSource } : {},
       ...input.corrNr ? { corrNr: input.corrNr } : {},
       ...input.trSource ? { trSource: input.trSource } : {},
-      ...input.irreversible ? { irreversible: input.irreversible } : {}
+      ...input.irreversible ? { irreversible: input.irreversible } : {},
+      ...input.implName ? { implName: input.implName } : {}
     };
     this.inFlight.add(id);
     try {
@@ -107675,6 +107845,21 @@ var Journal = class _Journal {
         }
         entry.parts = parts;
       }
+      let precedingWrite;
+      if (input.operation === "activate") {
+        try {
+          const all = Array.from((await this.readAll()).values());
+          precedingWrite = precedingWriteEntry(all, entry);
+        } catch {
+          precedingWrite = void 0;
+        }
+      }
+      const { undoable, undoBlocker: undoBlocker2 } = writeTimeUndoability(entry, {
+        callerBlocker: input.undoBlocker,
+        precedingWrite
+      });
+      entry.undoable = undoable;
+      entry.undoBlocker = undoBlocker2;
       await this.append(entry);
     } catch (e) {
       throw new AbapError(
@@ -107741,6 +107926,16 @@ var Journal = class _Journal {
     if (patch.error !== void 0) record2.error = patch.error;
     if (patch.activation !== void 0) record2.activation = patch.activation;
     if (patch.corrNr !== void 0) record2.corrNr = patch.corrNr;
+    if (patch.createdFresh && patch.outcome === "succeeded" && existing.operation === "create" && !existing.existedBefore && existing.beforeCapture !== "confirmed-absent" && existing.beforeCapture !== "captured" && patch.createdFresh.status === 201 && patch.createdFresh.location.trim() !== "") {
+      record2.beforeCapture = "confirmed-absent";
+      record2.createEvidence = `HTTP 201 Created, Location ${patch.createdFresh.location}`;
+      if (existing.undoable === false && existing.undoBlocker === deleteEvidenceBlockerText(existing.object.name, existing.beforeCapture)) {
+        const upgraded = { ...existing, beforeCapture: "confirmed-absent" };
+        const { undoable, undoBlocker: undoBlocker2 } = writeTimeUndoability(upgraded, {});
+        record2.undoable = undoable;
+        record2.undoBlocker = undoBlocker2;
+      }
+    }
     try {
       if (patch.afterSource !== void 0) {
         await this.ensureDirs();
@@ -113274,14 +113469,15 @@ async function writeObject(conn, target, opts) {
     });
   };
   if (created) await emitBeforeImage(void 0);
+  let createdFresh;
   const createOutsideSession = created && capabilitiesFor(t.type)?.create?.statelessPost === true;
   if (createOutsideSession) {
-    await createNewObject(conn, t, preflight2, opts.source, opts.fixedPointArithmetic ?? true);
+    createdFresh = await createNewObject(conn, t, preflight2, opts.source, opts.fixedPointArithmetic ?? true);
   }
   let createLockRetried = false;
   const runLockPutUnlock = (skipCreate) => conn.withStatefulSession(async (session) => {
     if (created && !createOutsideSession && !skipCreate) {
-      await createNewObject(conn, t, preflight2, opts.source, opts.fixedPointArithmetic ?? true);
+      createdFresh = await createNewObject(conn, t, preflight2, opts.source, opts.fixedPointArithmetic ?? true);
     }
     let lock;
     try {
@@ -113396,7 +113592,8 @@ async function writeObject(conn, target, opts) {
     ...preflight2?.kind === "transport" && preflight2.overrodeCorrNr !== void 0 ? { corrNrOverrode: preflight2.overrodeCorrNr } : {},
     ...(desiredProcessingType ?? t.processingType) !== void 0 ? { processingType: desiredProcessingType ?? t.processingType } : {},
     ...processingTypeChangeWanted ? { processingTypeChanged: true } : {},
-    ...createLockRetried ? { createLockRetried: true } : {}
+    ...createLockRetried ? { createLockRetried: true } : {},
+    ...createdFresh !== void 0 ? { createdFresh } : {}
   };
 }
 var PACKAGE_SOFTWARE_COMPONENT_HINT = "Use HOME (or another real software component) for a transportable package. LOCAL only works for a $-named local package \u2014 abapsmith's default Z*/Y* names are not eligible, and SAP refuses the assignment with TR/462.";
@@ -113471,11 +113668,10 @@ async function createNewObject(conn, t, corr, payload, fixedPointArithmetic = tr
   }
   if (t.type === "PROG/P") {
     await createProgram(conn, t, corr, fixedPointArithmetic);
-    return;
+    return void 0;
   }
   if (cap?.create?.vendor === false) {
-    await createByXml(conn, t, corr, payload);
-    return;
+    return await createByXml(conn, t, corr, payload);
   }
   const parent = cap?.create?.parent === "container" ? containerParent(t) : {
     parentName: t.packageName,
@@ -113499,6 +113695,7 @@ async function createNewObject(conn, t, corr, payload, fixedPointArithmetic = tr
       type: t.type
     });
   }
+  return void 0;
 }
 function containerParent(t) {
   if (!t.containerName) {
@@ -113522,6 +113719,17 @@ function buildSkeletonXml(conn, t, skeleton) {
   const root = skeleton.rootName;
   const rootAttrs = skeleton.rootAttributes ? `${skeleton.rootAttributes} ` : "";
   return `<${root} ${skeleton.namespace} xmlns:adtcore="http://www.sap.com/adt/core" ` + rootAttrs + `adtcore:description="${escapeXmlAttr4(t.description)}" adtcore:name="${escapeXmlAttr4(t.name)}" adtcore:type="${escapeXmlAttr4(t.type)}" adtcore:language="EN" adtcore:masterLanguage="EN" adtcore:responsible="${escapeXmlAttr4(conn.cfg.user)}"><adtcore:packageRef adtcore:name="${escapeXmlAttr4(t.packageName)}"/></${root}>`;
+}
+function firstHeader2(headers, name) {
+  const lower = name.toLowerCase();
+  for (const k of Object.keys(headers)) {
+    if (k.toLowerCase() === lower) {
+      const v = headers[k];
+      if (Array.isArray(v)) return v.length ? String(v[0]) : void 0;
+      return v === void 0 || v === null ? void 0 : String(v);
+    }
+  }
+  return void 0;
 }
 async function createByXml(conn, t, corr, payload) {
   const skeleton = capabilitiesFor(t.type)?.create?.skeleton;
@@ -113554,11 +113762,13 @@ async function createByXml(conn, t, corr, payload) {
     );
   }
   try {
-    await conn.post(collection, {
+    const resp = await conn.post(collection, {
       body,
       headers: { "Content-Type": contentTypeHeader },
       ...corr?.kind === "transport" ? { qs: { corrNr: corr.corrNr } } : {}
     });
+    const location = firstHeader2(resp.headers, "location");
+    return location !== void 0 ? { status: resp.status, location } : void 0;
   } catch (e) {
     throw translateAdtError(e, {
       operation: "create",
@@ -126581,6 +126791,83 @@ function textPoolUri(name, type = "PROG/P") {
 function textPoolResourceType(type) {
   return TEXT_POOL_SPECS[type].resourceType;
 }
+function textPoolImage(pool, type) {
+  const symbols = canonicalStringRecord(pool?.symbols ?? {});
+  if (!TEXT_POOL_SPECS[type].selections) {
+    return JSON.stringify({ symbols });
+  }
+  const selectionTexts = canonicalStringRecord(pool?.selectionTexts ?? {});
+  const headings = pool?.headings ?? {};
+  return JSON.stringify({
+    symbols,
+    selectionTexts,
+    headings: {
+      listHeader: headings.listHeader ?? "",
+      columnHeaders: headings.columnHeaders ?? []
+    }
+  });
+}
+function canonicalStringRecord(rec) {
+  const entries = Object.entries(rec).map(([k, v]) => [k.toUpperCase(), v]);
+  entries.sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+  return Object.fromEntries(entries);
+}
+function parseStringRecord(value, field, type) {
+  if (value === void 0) return {};
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new AbapError("BAD_INPUT", `Text pool image "${field}" must be an object.`, { type });
+  }
+  const out = {};
+  for (const [k, v] of Object.entries(value)) {
+    if (typeof v !== "string") {
+      throw new AbapError("BAD_INPUT", `Text pool image "${field}.${k}" must be a string.`, { type });
+    }
+    out[k] = v;
+  }
+  return out;
+}
+function parseTextPoolImage(text5, type) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text5);
+  } catch (e) {
+    throw new AbapError("BAD_INPUT", `Text pool image is not valid JSON: ${e.message}`, { type });
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new AbapError("BAD_INPUT", "Text pool image must be a JSON object.", { type });
+  }
+  const obj = parsed;
+  const symbols = parseStringRecord(obj.symbols, "symbols", type);
+  if (!TEXT_POOL_SPECS[type].selections) {
+    return { symbols, selectionTexts: {}, headings: {} };
+  }
+  const selectionTexts = parseStringRecord(obj.selectionTexts, "selectionTexts", type);
+  const headingsRaw = obj.headings;
+  if (typeof headingsRaw !== "object" || headingsRaw === null || Array.isArray(headingsRaw)) {
+    throw new AbapError("BAD_INPUT", 'Text pool image "headings" must be an object.', { type });
+  }
+  const h = headingsRaw;
+  if (h.listHeader !== void 0 && typeof h.listHeader !== "string") {
+    throw new AbapError("BAD_INPUT", 'Text pool image "headings.listHeader" must be a string.', { type });
+  }
+  const columnHeadersRaw = h.columnHeaders;
+  if (columnHeadersRaw !== void 0 && (!Array.isArray(columnHeadersRaw) || !columnHeadersRaw.every((c) => typeof c === "string"))) {
+    throw new AbapError(
+      "BAD_INPUT",
+      // lint-hint-params-ignore: key of the stored journal before-image, not a tool parameter
+      'Text pool image "headings.columnHeaders" must be an array of strings.',
+      { type }
+    );
+  }
+  return {
+    symbols,
+    selectionTexts,
+    headings: {
+      listHeader: typeof h.listHeader === "string" ? h.listHeader : "",
+      columnHeaders: columnHeadersRaw ?? []
+    }
+  };
+}
 function buildSymbolsBody(symbols) {
   const entries = Object.entries(symbols).map(([rawKey, text5]) => {
     const key = rawKey.toUpperCase();
@@ -126804,7 +127091,7 @@ async function readTextPool(conn, name, type = "PROG/P") {
 }
 
 // src/tools/write-text-pool.ts
-var TEXT_POOL_JOURNAL_NOTE = "The text pool write is journalled as an irreversible update entry on the object's textelements resource (PROG/PX, CLAS/OCX or FUGR/PX; history only): abap_journal mode=undo cannot restore the previous texts.";
+var TEXT_POOL_JOURNAL_NOTE = "The text pool write is journalled as an update entry on the object's textelements resource (PROG/PX, CLAS/OCX or FUGR/PX), with the complete previous pool captured as the before-image: abap_journal mode=undo restores it.";
 function toTextPoolInput(tp) {
   const headings = tp.headings ? {
     ...tp.headings.list_header !== void 0 ? { listHeader: tp.headings.list_header } : {},
@@ -126822,7 +127109,7 @@ async function writeTextPoolJournalled(conn, journal, authorized, pool, opts) {
   const { result, settle } = await withJournalledMutation(
     journal,
     {
-      begin: () => ({
+      begin: (image) => ({
         operation: "update",
         object: journalRef({
           name: authorized.target.name,
@@ -126832,21 +127119,40 @@ async function writeTextPoolJournalled(conn, journal, authorized, pool, opts) {
           description: `text pool of ${authorized.target.name}`
         }),
         existedBefore: true,
-        beforeCapture: "unknown",
         systemKey: systemKey(conn.cfg),
         tool: "abap_write",
-        irreversible: true,
-        ...opts.corrNr ? { corrNr: opts.corrNr } : {}
+        ...opts.corrNr ? { corrNr: opts.corrNr } : {},
+        ...image.readError !== void 0 ? {
+          beforeCapture: "failed",
+          undoBlocker: `The previous text pool could not be read (${image.readError}), so there is nothing to restore.`
+        } : {
+          beforeKind: "text-pool",
+          beforeCapture: "captured",
+          beforeSource: textPoolImage(image.pool, type)
+        }
       })
     },
     async (onBeforeImage) => {
-      await onBeforeImage(void 0);
+      let poolImage;
+      try {
+        poolImage = { pool: await readTextPool(conn, authorized.target.name, type) };
+      } catch (e) {
+        poolImage = { pool: void 0, readError: e.message ?? String(e) };
+      }
+      await onBeforeImage(poolImage);
       return await writeTextPool(conn, authorized, pool, opts);
     }
   );
+  let afterSource;
+  try {
+    const after = await readTextPool(conn, authorized.target.name, type);
+    afterSource = textPoolImage(after, type);
+  } catch {
+  }
   await settle({
     outcome: "succeeded",
-    activation: result.activation ? { attempted: true, activated: result.activation.activated } : { attempted: false }
+    activation: result.activation ? { attempted: true, activated: result.activation.activated } : { attempted: false },
+    ...afterSource !== void 0 ? { afterSource } : {}
   });
   return result;
 }
@@ -128474,7 +128780,9 @@ ${rendered}` : ""),
         ...written.normalisedSource ? { afterSource: written.normalisedSource } : {},
         // `attempted` is the local truth, not a constant: a syntax-check transport
         // failure also lands here with activation never reached.
-        activation: { attempted, ...attempted ? { activated: false } : {} }
+        activation: { attempted, ...attempted ? { activated: false } : {} },
+        // #200: this settle and the one below are alternatives, so both carry it.
+        ...written.createdFresh ? { createdFresh: written.createdFresh } : {}
       });
     } catch (je) {
       journalError = String(je);
@@ -128534,7 +128842,9 @@ ${rendered}` : ""),
     activation: {
       attempted,
       ...activation ? { activated: activation.activated } : {}
-    }
+    },
+    // #200: the create POST's 201 + Location; settle() ignores it when absence was already confirmed.
+    ...written.createdFresh ? { createdFresh: written.createdFresh } : {}
   });
   let finalEtag = written.etag;
   let postActivationReadError;
@@ -131052,7 +131362,6 @@ async function journalActivations(journal, conn, items2, run, onThrow) {
           beforeCapture: "unknown",
           systemKey: systemKey(conn.cfg),
           ...item.corrNr !== void 0 ? { corrNr: item.corrNr } : {},
-          irreversible: true,
           // Also recorded for `abap_do action=activate`, which is a facade
           // that reshapes its args into `ActivateInput` and calls this
           // function — the tool that actually ran, not the caller's dialect.
@@ -131819,12 +132128,13 @@ function registerActivateTools(mcp, deps) {
       inputSchema: activateInputSchema,
       /**
        * `destructiveHint: true` — a judgement call (MCP doesn't formally
-       * define the hint as "irreversible"). Evidence: `undoBlocker`
-       * (src/adt/undo.ts) refuses every `activate` entry outright, and
-       * activating REPLACES the active version with no earlier state to
-       * return to. `abap_write` gets `destructiveHint: true` despite being
-       * MORE reversible (journalled, undo-able) — leaving this at `false`
-       * would invert that signal. See archive for full citations.
+       * define the hint as "irreversible"). Evidence: activating REPLACES
+       * the active version, and undo of the `activate` entry itself only
+       * succeeds by delegating to the preceding write for the same object
+       * (`writeTimeUndoability`, src/undoability.ts) — refused outright when
+       * there is none. `abap_write` gets `destructiveHint: true` despite
+       * being MORE reversible (journalled, undo-able) — leaving this at
+       * `false` would invert that signal. See archive for full citations.
        */
       annotations: { readOnlyHint: false, destructiveHint: true }
     },
@@ -132121,6 +132431,3941 @@ init_errors();
 
 // src/adt/undo.ts
 init_compact();
+
+// src/adt/undo-special.ts
+init_errors();
+init_session();
+init_mode();
+init_types();
+
+// src/adt/bopf.ts
+init_session();
+init_types();
+
+// src/adt/relock.ts
+init_session();
+init_errors();
+function defaultRetryable2(e) {
+  if (isAbapError(e) && (e.code === "SAFETY_DENIED" || e.code === "BAD_INPUT" || e.code === "LOCKED")) {
+    return false;
+  }
+  return true;
+}
+function annotateExhausted(e, uri, attempts) {
+  const base = isAbapError(e) ? e : translateAdtError(e, { operation: "write", uri });
+  return new AbapError(
+    base.code,
+    base.message,
+    { ...base.details, attempts, uri },
+    base.hint
+  );
+}
+async function withRelockRetry(o) {
+  const maxAttempts = o.maxAttempts ?? 2;
+  const isRetryable = o.retryable ?? defaultRetryable2;
+  let lastError;
+  for (let attemptNo = 1; attemptNo <= maxAttempts; attemptNo++) {
+    const lock = o.lockAccept ? await o.session.lock(o.uri, { accept: o.lockAccept }) : await o.session.lock(o.uri);
+    try {
+      const fresh = await o.reread(lock);
+      const payload = await o.rebuild(fresh, attemptNo);
+      return await o.attempt(lock, payload);
+    } catch (e) {
+      lastError = e;
+      if (!isRetryable(e)) throw e;
+      if (isAbapError(e) && e.code === "SESSION_DEAD") {
+        o.session.forgetLock(o.uri);
+        throw e;
+      }
+      const attemptsRemain = attemptNo < maxAttempts;
+      try {
+        await o.session.unlock(o.uri);
+      } catch {
+      }
+      o.session.forgetLock(o.uri);
+      if (!attemptsRemain) break;
+    }
+  }
+  throw annotateExhausted(lastError, o.uri, maxAttempts);
+}
+
+// src/adt/bopf.ts
+init_timeouts();
+init_errors();
+
+// src/adt/bopf-xml.ts
+init_fxp();
+init_errors();
+import { randomBytes as randomBytes7 } from "node:crypto";
+
+// src/adt/bopf-types.ts
+var GUID_ENCODING = {
+  node: "base64",
+  determination: "base64",
+  validation: "base64",
+  association: "hex32",
+  query: "hex32",
+  action: "hex32",
+  alternativeKey: "hex32"
+};
+var NODE_ATTR_ORDER = [
+  "name",
+  "nodeID",
+  "parent",
+  "parentNodeID",
+  "xmlName",
+  "doEmbeddingName",
+  "objectModelGenerated",
+  "authorizationCheck",
+  "isExtensible",
+  "isDependentObjectNode",
+  "textNode",
+  "createEnabled",
+  "updateEnabled",
+  "deleteEnabled",
+  "rootNode",
+  "objectModelObsolete"
+];
+var ASSOCIATION_ATTR_ORDER = [
+  "name",
+  "nodeID",
+  "implementationType",
+  "objectModelGenerated",
+  "xmlName",
+  "doEmbeddingName",
+  "multiplicity"
+];
+var ACTION_ATTR_ORDER = [
+  "name",
+  "nodeID",
+  "xmlName",
+  "exportingParameterCategoryType",
+  "objectModelGenerated",
+  "category",
+  "isExtensible",
+  "exportParameterLink",
+  "instanceMultiplicity"
+];
+var DETERMINATION_ATTR_ORDER = ["name", "nodeID", "xmlName", "objectModelGenerated", "category"];
+var VALIDATION_ATTR_ORDER = [
+  "name",
+  "nodeID",
+  "xmlName",
+  "objectModelGenerated",
+  "category",
+  "checkBeforeSave",
+  "createNode",
+  "updateNode",
+  "deleteNode"
+];
+var QUERY_ATTR_ORDER = ["name", "nodeID", "objectModelGenerated", "xmlName", "category"];
+var ALTERNATIVE_KEY_ATTR_ORDER = [
+  "name",
+  "nodeID",
+  "xmlName",
+  "objectModelGenerated",
+  "uniqueness",
+  "checkAfterModify",
+  "checkBeforeSave",
+  "noCheck"
+];
+var DETERMINATION_TRIGGER_ATTR_ORDER = [
+  "node",
+  "association",
+  "create",
+  "update",
+  "delete",
+  "load",
+  "determine"
+];
+var VALIDATION_TRIGGER_ATTR_ORDER = [
+  "node",
+  "association",
+  "create",
+  "update",
+  "delete",
+  "check",
+  "action"
+];
+var RELATION_ATTR_ORDER = ["node", "determination", "relationType"];
+var KEY_ELEMENT_ATTR_ORDER = ["name"];
+var NODE_CHILD_ORDER = [
+  "persistentStructureRef",
+  "transientStructureRef",
+  "combinedStructureRef",
+  "combinedTableRef",
+  "persistentTableRef",
+  "defaultingClassRef",
+  "dataAccessClassRef",
+  "authorizationClassRef",
+  "properties",
+  "alternativeKeys",
+  "associations",
+  "queries",
+  "actions",
+  "determinations",
+  "validations"
+];
+var ASSOCIATION_CHILD_ORDER = ["targetNodeRef", "implementationClassRef", "parameterStructureRef"];
+var ACTION_CHILD_ORDER = ["implementationClassRef", "parameterStructureRef"];
+var DETERMINATION_CHILD_ORDER = ["implementationClassRef", "triggers", "relations"];
+var VALIDATION_CHILD_ORDER = ["implementationClassRef", "triggers"];
+var QUERY_CHILD_ORDER = ["dataTypeRef", "implementationClassRef", "resultTypeRef", "resultTableTypeRef"];
+var ALTERNATIVE_KEY_CHILD_ORDER = ["dataTypeRef", "dataTableTypeRef", "keyElements"];
+
+// src/adt/bopf-xml.ts
+function fail4(message2, details = {}) {
+  throw new AbapError(
+    "BAD_INPUT",
+    `BOPF XML: ${message2}`,
+    details,
+    "The scanner refuses to guess at malformed or unsupported input \u2014 fix the source document rather than relying on a silent fallback."
+  );
+}
+var WS = /\s/;
+var NAME_RE = /[A-Za-z_][-.\w]*(?::[A-Za-z_][-.\w]*)?/y;
+function matchNameAt(s, pos) {
+  NAME_RE.lastIndex = pos;
+  const m = NAME_RE.exec(s);
+  return m ? m[0] : void 0;
+}
+function skipWs(s, pos) {
+  let p = pos;
+  while (p < s.length && WS.test(s.charAt(p))) p++;
+  return p;
+}
+var PREDEFINED_ENTITIES = [
+  ["&amp;", "&"],
+  ["&lt;", "<"],
+  ["&gt;", ">"],
+  ["&apos;", "'"],
+  ["&quot;", '"']
+];
+function decodeEntityAt(xml4, ampIndex) {
+  for (const [entity, char] of PREDEFINED_ENTITIES) {
+    if (xml4.startsWith(entity, ampIndex)) return { char, next: ampIndex + entity.length };
+  }
+  fail4(
+    "unsupported entity reference \u2014 only the five predefined XML entities (&amp; &lt; &gt; &apos; &quot;) are accepted",
+    { at: ampIndex }
+  );
+}
+function scanModel(xmlText2) {
+  if (!xmlText2.startsWith("<?xml")) fail4("document does not start with an XML declaration (`<?xml ... ?>`)");
+  const declEnd = xmlText2.indexOf("?>", 5);
+  if (declEnd === -1) fail4("unterminated XML declaration");
+  const n = xmlText2.length;
+  const tokens = [];
+  const stack = [];
+  let i = declEnd + 2;
+  while (i < n) {
+    const c = xmlText2.charAt(i);
+    if (c !== "<") {
+      if (!WS.test(c)) {
+        fail4(
+          stack.length === 0 ? "unexpected content outside the root element" : "text content is not supported inside BOPF elements (every element here is attribute-only or container-only)",
+          { at: i }
+        );
+      }
+      i++;
+      continue;
+    }
+    if (xmlText2.startsWith("<!--", i)) fail4("XML comments are not supported", { at: i });
+    if (xmlText2.startsWith("<![CDATA[", i)) fail4("CDATA sections are not supported", { at: i });
+    if (xmlText2.startsWith("<!DOCTYPE", i)) fail4("a DOCTYPE declaration is not supported", { at: i });
+    if (xmlText2.startsWith("<!", i)) fail4("unrecognized '<!' construct", { at: i });
+    if (xmlText2.startsWith("<?", i)) fail4("a processing instruction after the XML declaration is not supported", { at: i });
+    if (xmlText2.startsWith("</", i)) {
+      const name2 = matchNameAt(xmlText2, i + 2);
+      if (name2 === void 0) fail4("malformed closing tag", { at: i });
+      let j2 = skipWs(xmlText2, i + 2 + name2.length);
+      if (xmlText2.charAt(j2) !== ">") fail4("malformed closing tag: expected '>'", { at: j2 });
+      const closeEnd = j2 + 1;
+      const top = stack.pop();
+      if (!top) fail4("unexpected closing tag with no matching open element", { at: i, name: name2 });
+      if (top.name !== name2) {
+        fail4(`mismatched closing tag: expected </${top.name}>, found </${name2}>`, { at: i });
+      }
+      tokens.push({
+        kind: "container",
+        name: top.name,
+        depth: top.depth,
+        attrStart: top.attrStart,
+        openStart: top.openStart,
+        openEnd: top.openEnd,
+        closeEnd,
+        attrs: top.attrs
+      });
+      i = closeEnd;
+      continue;
+    }
+    const name = matchNameAt(xmlText2, i + 1);
+    if (name === void 0) fail4("malformed tag: expected an element name", { at: i });
+    let j = i + 1 + name.length;
+    const attrStart = j;
+    const attrs = /* @__PURE__ */ new Map();
+    let selfClosing = false;
+    for (; ; ) {
+      j = skipWs(xmlText2, j);
+      if (xmlText2.charAt(j) === "/" && xmlText2.charAt(j + 1) === ">") {
+        selfClosing = true;
+        j += 2;
+        break;
+      }
+      if (xmlText2.charAt(j) === ">") {
+        j += 1;
+        break;
+      }
+      const attrName = matchNameAt(xmlText2, j);
+      if (attrName === void 0) fail4(`unexpected character inside <${name}>`, { at: j });
+      j += attrName.length;
+      j = skipWs(xmlText2, j);
+      if (xmlText2.charAt(j) !== "=") fail4(`expected '=' after attribute "${attrName}"`, { at: j });
+      j = skipWs(xmlText2, j + 1);
+      const quote = xmlText2.charAt(j);
+      if (quote !== '"' && quote !== "'") fail4(`expected a quote to start the value of "${attrName}"`, { at: j });
+      j++;
+      let value = "";
+      for (; ; ) {
+        if (j >= n) fail4(`unterminated attribute value for "${attrName}"`, { at: j });
+        const vc = xmlText2.charAt(j);
+        if (vc === quote) {
+          j++;
+          break;
+        }
+        if (vc === "<") fail4(`raw '<' is not allowed inside the value of "${attrName}"`, { at: j });
+        if (vc === "&") {
+          const decoded = decodeEntityAt(xmlText2, j);
+          value += decoded.char;
+          j = decoded.next;
+          continue;
+        }
+        value += vc;
+        j++;
+      }
+      if (attrs.has(attrName)) fail4(`duplicate attribute "${attrName}"`, { at: j });
+      attrs.set(attrName, value);
+    }
+    if (selfClosing) {
+      tokens.push({
+        kind: "empty",
+        name,
+        depth: stack.length,
+        attrStart,
+        openStart: i,
+        openEnd: j,
+        closeEnd: j,
+        attrs
+      });
+    } else {
+      stack.push({ name, depth: stack.length, attrStart, openStart: i, openEnd: j, attrs });
+    }
+    i = j;
+  }
+  if (stack.length > 0) fail4(`unclosed element(s): ${stack.map((s) => s.name).join(", ")}`);
+  const roots = tokens.filter((t) => t.depth === 0);
+  if (roots.length !== 1) fail4(`document must have exactly one root element (found ${roots.length})`);
+  tokens.sort((a, b) => a.openStart - b.openStart);
+  return tokens;
+}
+var ELEMENT_TAG = {
+  node: "bo:nodes",
+  association: "bo:associations",
+  action: "bo:actions",
+  determination: "bo:determinations",
+  validation: "bo:validations",
+  query: "bo:queries",
+  alternativeKey: "bo:alternativeKeys"
+};
+function bareName(qualifiedName) {
+  const idx2 = qualifiedName.indexOf(":");
+  return idx2 === -1 ? qualifiedName : qualifiedName.slice(idx2 + 1);
+}
+function findNodeToken(tokens, name, nodeId) {
+  return tokens.find(
+    (t) => t.name === "bo:nodes" && t.attrs.get("bo:name") === name && (nodeId === void 0 || t.attrs.get("bo:nodeID") === nodeId)
+  );
+}
+function isChildSelector(sel) {
+  return "child" in sel;
+}
+function childTokensOfKind(tokens, nodeTok, kind) {
+  const tag = ELEMENT_TAG[kind];
+  return tokens.filter(
+    (t) => t.name === tag && t.depth === nodeTok.depth + 1 && t.openStart > nodeTok.openStart && t.openStart < nodeTok.closeEnd
+  );
+}
+function locateToken(tokens, sel) {
+  const nodeTok = findNodeToken(tokens, sel.node, sel.nodeId);
+  if (!nodeTok) return void 0;
+  if (!isChildSelector(sel)) return nodeTok;
+  return childTokensOfKind(tokens, nodeTok, sel.child).find(
+    (t) => t.attrs.get("bo:name") === sel.name && (sel.memberId === void 0 || t.attrs.get("bo:nodeID") === sel.memberId)
+  );
+}
+function locate(tokens, sel) {
+  const t = locateToken(tokens, sel);
+  return t ? { start: t.openStart, end: t.closeEnd } : void 0;
+}
+function listChildNames(tokens, sel, kind) {
+  const nodeTok = findNodeToken(tokens, sel.node, sel.nodeId);
+  if (!nodeTok) return [];
+  return childTokensOfKind(tokens, nodeTok, kind).map((t) => t.attrs.get("bo:name") ?? "");
+}
+function nodeParentName(parentAttr) {
+  if (parentAttr === void 0) return void 0;
+  const m = /@bo:name='([^']*)'\]\s*$/.exec(parentAttr);
+  return m ? m[1] : void 0;
+}
+function buildNodePaths(tokens) {
+  const parentOf = /* @__PURE__ */ new Map();
+  for (const t of tokens) {
+    if (t.name !== "bo:nodes") continue;
+    const name = t.attrs.get("bo:name");
+    if (name === void 0) continue;
+    parentOf.set(name, nodeParentName(t.attrs.get("bo:parent")));
+  }
+  const paths = /* @__PURE__ */ new Map();
+  function pathOf(name, seen) {
+    const cached2 = paths.get(name);
+    if (cached2 !== void 0) return cached2;
+    if (seen.has(name) || !parentOf.has(name)) return `nodes:${name}`;
+    const parent = parentOf.get(name);
+    const path9 = parent === void 0 ? `nodes:${name}` : `${pathOf(parent, /* @__PURE__ */ new Set([...seen, name]))}/nodes:${name}`;
+    paths.set(name, path9);
+    return path9;
+  }
+  for (const name of parentOf.keys()) pathOf(name, /* @__PURE__ */ new Set());
+  return paths;
+}
+function collectNodeIdsByKey(tokens) {
+  const paths = buildNodePaths(tokens);
+  const keyed = /* @__PURE__ */ new Map();
+  const add = (key, id) => {
+    const list3 = keyed.get(key);
+    if (list3) list3.push(id);
+    else keyed.set(key, [id]);
+  };
+  for (const t of tokens) {
+    const id = t.attrs.get("bo:nodeID");
+    if (id === void 0) continue;
+    if (t.name === "bo:nodes") {
+      const name = t.attrs.get("bo:name");
+      if (name === void 0) continue;
+      add(paths.get(name) ?? `nodes:${name}`, id);
+      continue;
+    }
+    const enclosing = tokens.find(
+      (nt) => nt.name === "bo:nodes" && nt.depth === t.depth - 1 && nt.openStart < t.openStart && t.openStart < nt.closeEnd
+    );
+    const nodeName = enclosing?.attrs.get("bo:name");
+    if (nodeName === void 0) continue;
+    const nodePath = paths.get(nodeName) ?? `nodes:${nodeName}`;
+    add(`${nodePath}/${bareName(t.name)}/${t.attrs.get("bo:name") ?? ""}`, id);
+  }
+  return keyed;
+}
+function remapOpenTag(tag, remap) {
+  let result = tag;
+  for (const [oldId, newId2] of remap) {
+    result = result.split(`"${oldId}"`).join(`"${newId2}"`);
+    result = result.split(`'${oldId}'`).join(`'${newId2}'`);
+  }
+  return result;
+}
+function remapNodeIds(beforeXml, currentXml) {
+  const beforeTokens = scanModel(beforeXml);
+  const currentTokens = scanModel(currentXml);
+  const beforeKeys = collectNodeIdsByKey(beforeTokens);
+  const currentKeys = collectNodeIdsByKey(currentTokens);
+  const remap = /* @__PURE__ */ new Map();
+  for (const [key, beforeIds] of beforeKeys) {
+    if (beforeIds.length !== 1) continue;
+    const currentIds = currentKeys.get(key);
+    if (!currentIds || currentIds.length !== 1) continue;
+    const oldId = beforeIds[0];
+    const newId2 = currentIds[0];
+    if (oldId !== newId2) remap.set(oldId, newId2);
+  }
+  if (remap.size === 0) return beforeXml;
+  let out = "";
+  let pos = 0;
+  for (const t of beforeTokens) {
+    out += beforeXml.slice(pos, t.openStart);
+    out += remapOpenTag(beforeXml.slice(t.openStart, t.openEnd), remap);
+    pos = t.openEnd;
+  }
+  out += beforeXml.slice(pos);
+  return out;
+}
+var COMPARABLE_BLANK_ATTRS = [
+  "bo:nodeID",
+  "bo:parentNodeID",
+  "adtcore:changedAt",
+  "adtcore:changedBy",
+  "adtcore:version",
+  "adtcore:createdAt"
+];
+function blankComparableAttrs(tag) {
+  let result = tag;
+  for (const name of COMPARABLE_BLANK_ATTRS) {
+    result = result.replace(new RegExp(`(${name}=)"[^"]*"`, "g"), `$1""`);
+    result = result.replace(new RegExp(`(${name}=)'[^']*'`, "g"), `$1''`);
+  }
+  return result;
+}
+function bopfModelComparable(xml4) {
+  const tokens = scanModel(xml4);
+  let out = "";
+  let pos = 0;
+  for (const t of tokens) {
+    out += xml4.slice(pos, t.openStart);
+    out += blankComparableAttrs(xml4.slice(t.openStart, t.openEnd));
+    pos = t.openEnd;
+  }
+  out += xml4.slice(pos);
+  return out.replace(/\s+$/, "");
+}
+var PLURAL_BARE = {
+  association: "associations",
+  action: "actions",
+  determination: "determinations",
+  validation: "validations",
+  query: "queries",
+  alternativeKey: "alternativeKeys"
+};
+function insertionPoint(tokens, nodeTok, kind) {
+  if (nodeTok.kind !== "container") {
+    fail4("cannot compute an insertion point inside a self-closing element \u2014 open it first", { node: nodeTok.name });
+  }
+  const targetBare = PLURAL_BARE[kind];
+  const targetIdx = NODE_CHILD_ORDER.indexOf(targetBare);
+  let insertAt = nodeTok.openEnd;
+  for (const t of tokens) {
+    if (t.depth !== nodeTok.depth + 1) continue;
+    if (t.openStart <= nodeTok.openStart || t.openStart >= nodeTok.closeEnd) continue;
+    const idx2 = NODE_CHILD_ORDER.indexOf(bareName(t.name));
+    if (idx2 === -1) continue;
+    if (idx2 <= targetIdx) insertAt = t.closeEnd;
+    else break;
+  }
+  return insertAt;
+}
+function splice(xml4, at, text5) {
+  if (at < 0 || at > xml4.length) fail4("splice offset out of range", { at, length: xml4.length });
+  return xml4.slice(0, at) + text5 + xml4.slice(at);
+}
+function spliceOut(xml4, range) {
+  if (range.start < 0 || range.end > xml4.length || range.start > range.end) {
+    fail4("splice-out range out of bounds", { range, length: xml4.length });
+  }
+  return xml4.slice(0, range.start) + xml4.slice(range.end);
+}
+function promoteToContainer(xml4, token) {
+  if (token.kind === "container") return xml4;
+  const tagText = xml4.slice(token.openStart, token.openEnd);
+  if (!tagText.endsWith("/>")) fail4("expected a self-closing tag ending in '/>'", { at: token.openStart });
+  const opened = tagText.slice(0, -2) + ">";
+  return xml4.slice(0, token.openStart) + opened + `</${token.name}>` + xml4.slice(token.openEnd);
+}
+function patchOpenTagAttrs(xml4, token, attrs) {
+  let openTag = xml4.slice(token.openStart, token.openEnd);
+  for (const [name, value] of attrs) {
+    const attrRe = new RegExp(`\\s+bo:${name}="[^"]*"`);
+    if (value === null) {
+      openTag = openTag.replace(attrRe, "");
+      continue;
+    }
+    const rendered = ` bo:${name}="${typeof value === "boolean" ? String(value) : escapeAttrValue(value, `bo:${name}`)}"`;
+    if (attrRe.test(openTag)) {
+      openTag = openTag.replace(attrRe, rendered);
+    } else {
+      const closesSelf = openTag.endsWith("/>");
+      const insertAt = closesSelf ? openTag.length - 2 : openTag.length - 1;
+      openTag = openTag.slice(0, insertAt) + rendered + openTag.slice(insertAt);
+    }
+  }
+  return xml4.slice(0, token.openStart) + openTag + xml4.slice(token.openEnd);
+}
+function spliceInsertChild(xml4, tokens, nodeName, kind, fragment, opts) {
+  const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
+  if (!nodeTok) fail4(`node "${nodeName}" not found`, { node: nodeName });
+  if (nodeTok.kind === "empty") {
+    const opened = promoteToContainer(xml4, nodeTok);
+    const insertAt = nodeTok.openEnd - 1;
+    return splice(opened, insertAt, fragment);
+  }
+  const at = insertionPoint(tokens, nodeTok, kind);
+  return splice(xml4, at, fragment);
+}
+var NODE_REF_KINDS = [
+  "persistentStructureRef",
+  "transientStructureRef",
+  "combinedStructureRef",
+  "combinedTableRef",
+  "persistentTableRef",
+  "defaultingClassRef",
+  "dataAccessClassRef",
+  "authorizationClassRef"
+];
+function spliceSetElementRef(xml4, tokens, ownerToken, refTag, ref2, childOrder) {
+  const existing = tokens.find(
+    (t) => t.name === refTag && t.depth === ownerToken.depth + 1 && t.openStart > ownerToken.openStart && t.openStart < ownerToken.closeEnd
+  );
+  if (ref2 === null) {
+    return existing ? xml4.slice(0, existing.openStart) + xml4.slice(existing.closeEnd) : xml4;
+  }
+  const fragment = renderRef(refTag, ref2);
+  if (existing) {
+    return xml4.slice(0, existing.openStart) + fragment + xml4.slice(existing.closeEnd);
+  }
+  if (ownerToken.kind === "empty") {
+    const opened = promoteToContainer(xml4, ownerToken);
+    const insertAt2 = ownerToken.openEnd - 1;
+    return splice(opened, insertAt2, fragment);
+  }
+  const targetIdx = childOrder.indexOf(bareName(refTag));
+  let insertAt = ownerToken.openEnd;
+  for (const t of tokens) {
+    if (t.depth !== ownerToken.depth + 1) continue;
+    if (t.openStart <= ownerToken.openStart || t.openStart >= ownerToken.closeEnd) continue;
+    const idx2 = childOrder.indexOf(bareName(t.name));
+    if (idx2 === -1) continue;
+    if (idx2 <= targetIdx) insertAt = t.closeEnd;
+    else break;
+  }
+  return splice(xml4, insertAt, fragment);
+}
+function spliceSetNodeRef(xml4, tokens, nodeName, refKind, ref2, opts) {
+  const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
+  if (!nodeTok) fail4(`node "${nodeName}" not found`, { node: nodeName });
+  return spliceSetElementRef(xml4, tokens, nodeTok, `bo:${refKind}`, ref2, NODE_CHILD_ORDER);
+}
+function escapeAttrValue(v, context) {
+  if (v === "undefined" || v === "null") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `BOPF XML: refusing to write the literal string "${v}" as ${context ?? "an attribute value"} \u2014 this is almost always a caller-side bug (a JavaScript undefined/null value that was stringified before being sent) rather than an intentional value.`,
+      { value: v, context },
+      'Omit the field entirely instead of sending the string "undefined"/"null" \u2014 BOPF attributes are unsettable, so an absent attribute already means "not set".'
+    );
+  }
+  return v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+}
+function renderAttrText(order, attrs, prefix) {
+  const parts = [];
+  for (const key of order) {
+    const v = attrs[key];
+    if (v === void 0) continue;
+    const s = typeof v === "boolean" ? String(v) : v;
+    parts.push(`${prefix}:${key}="${escapeAttrValue(s, `${prefix}:${key}`)}"`);
+  }
+  return parts.join(" ");
+}
+var ATTR_ORDER = {
+  node: NODE_ATTR_ORDER,
+  association: ASSOCIATION_ATTR_ORDER,
+  action: ACTION_ATTR_ORDER,
+  determination: DETERMINATION_ATTR_ORDER,
+  validation: VALIDATION_ATTR_ORDER,
+  query: QUERY_ATTR_ORDER,
+  alternativeKey: ALTERNATIVE_KEY_ATTR_ORDER
+};
+function renderElement(kind, attrs, childrenXml) {
+  const tag = ELEMENT_TAG[kind];
+  const attrText = renderAttrText(ATTR_ORDER[kind], attrs, "bo");
+  const open = `<${tag}${attrText ? " " + attrText : ""}`;
+  if (!childrenXml) return `${open}/>`;
+  return `${open}>${childrenXml}</${tag}>`;
+}
+function renderRef(tag, ref2) {
+  const parts = [];
+  if (ref2.uri !== void 0) parts.push(`adtcore:uri="${escapeAttrValue(ref2.uri, `${tag}/@adtcore:uri`)}"`);
+  parts.push(`adtcore:type="${escapeAttrValue(ref2.type, `${tag}/@adtcore:type`)}"`);
+  parts.push(`adtcore:name="${escapeAttrValue(ref2.name, `${tag}/@adtcore:name`)}"`);
+  return `<${tag} ${parts.join(" ")}/>`;
+}
+function renderLeaf(tag, order, attrs) {
+  const t = renderAttrText(order, attrs, "bo");
+  return `<${tag}${t ? " " + t : ""}/>`;
+}
+function renderKeyElement(name) {
+  return renderLeaf("bo:keyElements", KEY_ELEMENT_ATTR_ORDER, { name });
+}
+function renderDeterminationTrigger(t) {
+  return renderLeaf("bo:triggers", DETERMINATION_TRIGGER_ATTR_ORDER, t);
+}
+function renderValidationTrigger(t) {
+  return renderLeaf("bo:triggers", VALIDATION_TRIGGER_ATTR_ORDER, t);
+}
+function renderRelation(r) {
+  return renderLeaf("bo:relations", RELATION_ATTR_ORDER, r);
+}
+function mintGuid(kind) {
+  const bytes = randomBytes7(16);
+  return GUID_ENCODING[kind] === "base64" ? bytes.toString("base64") : bytes.toString("hex").toUpperCase();
+}
+function renderAssociationElement(f) {
+  const children = (f.targetNodeRef ? renderRef("bo:targetNodeRef", f.targetNodeRef) : "") + (f.implementationClassRef ? renderRef("bo:implementationClassRef", f.implementationClassRef) : "") + (f.parameterStructureRef ? renderRef("bo:parameterStructureRef", f.parameterStructureRef) : "");
+  return renderElement(
+    "association",
+    {
+      name: f.name,
+      nodeID: f.nodeId,
+      implementationType: f.implementationType,
+      objectModelGenerated: f.objectModelGenerated,
+      xmlName: f.xmlName,
+      doEmbeddingName: f.doEmbeddingName,
+      multiplicity: f.multiplicity
+    },
+    children
+  );
+}
+function renderActionElement(f) {
+  const children = (f.implementationClassRef ? renderRef("bo:implementationClassRef", f.implementationClassRef) : "") + (f.parameterStructureRef ? renderRef("bo:parameterStructureRef", f.parameterStructureRef) : "");
+  return renderElement(
+    "action",
+    {
+      name: f.name,
+      nodeID: f.nodeId,
+      xmlName: f.xmlName,
+      exportingParameterCategoryType: f.exportingParameterCategoryType,
+      objectModelGenerated: f.objectModelGenerated,
+      category: f.category,
+      isExtensible: f.isExtensible,
+      exportParameterLink: f.exportParameterLink,
+      instanceMultiplicity: f.instanceMultiplicity
+    },
+    children
+  );
+}
+function renderDeterminationElement(f) {
+  const children = (f.implementationClassRef ? renderRef("bo:implementationClassRef", f.implementationClassRef) : "") + (f.triggers ?? []).join("") + (f.relations ?? []).join("");
+  return renderElement(
+    "determination",
+    {
+      name: f.name,
+      nodeID: f.nodeId,
+      xmlName: f.xmlName,
+      objectModelGenerated: f.objectModelGenerated,
+      category: f.category
+    },
+    children
+  );
+}
+function renderValidationElement(f) {
+  const children = (f.implementationClassRef ? renderRef("bo:implementationClassRef", f.implementationClassRef) : "") + (f.triggers ?? []).join("");
+  return renderElement(
+    "validation",
+    {
+      name: f.name,
+      nodeID: f.nodeId,
+      xmlName: f.xmlName,
+      objectModelGenerated: f.objectModelGenerated,
+      category: f.category,
+      checkBeforeSave: f.checkBeforeSave,
+      createNode: f.createNode,
+      updateNode: f.updateNode,
+      deleteNode: f.deleteNode
+    },
+    children
+  );
+}
+function renderQueryElement(f) {
+  const children = (f.dataTypeRef ? renderRef("bo:dataTypeRef", f.dataTypeRef) : "") + (f.implementationClassRef ? renderRef("bo:implementationClassRef", f.implementationClassRef) : "");
+  return renderElement(
+    "query",
+    {
+      name: f.name,
+      nodeID: f.nodeId,
+      objectModelGenerated: f.objectModelGenerated,
+      xmlName: f.xmlName,
+      category: f.category
+    },
+    children
+  );
+}
+function renderAlternativeKeyElement(f) {
+  const children = (f.dataTypeRef ? renderRef("bo:dataTypeRef", f.dataTypeRef) : "") + (f.dataTableTypeRef ? renderRef("bo:dataTableTypeRef", f.dataTableTypeRef) : "") + (f.keyElements ?? []).map(renderKeyElement).join("");
+  return renderElement(
+    "alternativeKey",
+    {
+      name: f.name,
+      nodeID: f.nodeId,
+      xmlName: f.xmlName,
+      objectModelGenerated: f.objectModelGenerated,
+      uniqueness: f.uniqueness,
+      checkAfterModify: f.checkAfterModify,
+      checkBeforeSave: f.checkBeforeSave,
+      noCheck: f.noCheck
+    },
+    children
+  );
+}
+function renderNodeElement(f) {
+  const refs = (f.persistentStructureRef ? renderRef("bo:persistentStructureRef", f.persistentStructureRef) : "") + (f.transientStructureRef ? renderRef("bo:transientStructureRef", f.transientStructureRef) : "") + (f.combinedStructureRef ? renderRef("bo:combinedStructureRef", f.combinedStructureRef) : "") + (f.combinedTableRef ? renderRef("bo:combinedTableRef", f.combinedTableRef) : "") + (f.persistentTableRef ? renderRef("bo:persistentTableRef", f.persistentTableRef) : "") + (f.defaultingClassRef ? renderRef("bo:defaultingClassRef", f.defaultingClassRef) : "") + (f.dataAccessClassRef ? renderRef("bo:dataAccessClassRef", f.dataAccessClassRef) : "") + (f.authorizationClassRef ? renderRef("bo:authorizationClassRef", f.authorizationClassRef) : "");
+  const groups = (f.properties ?? []).join("") + (f.alternativeKeys ?? []).join("") + (f.associations ?? []).join("") + (f.queries ?? []).join("") + (f.actions ?? []).join("") + (f.determinations ?? []).join("") + (f.validations ?? []).join("");
+  return renderElement(
+    "node",
+    {
+      name: f.name,
+      nodeID: f.nodeId,
+      parent: f.parent,
+      parentNodeID: f.parentNodeId,
+      xmlName: f.xmlName,
+      doEmbeddingName: f.doEmbeddingName,
+      objectModelGenerated: f.objectModelGenerated,
+      authorizationCheck: f.authorizationCheck,
+      isExtensible: f.isExtensible,
+      isDependentObjectNode: f.isDependentObjectNode,
+      textNode: f.textNode,
+      createEnabled: f.createEnabled,
+      updateEnabled: f.updateEnabled,
+      deleteEnabled: f.deleteEnabled,
+      rootNode: f.rootNode,
+      objectModelObsolete: f.objectModelObsolete
+    },
+    refs + groups
+  );
+}
+var xmlParser3 = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  removeNSPrefix: true,
+  parseAttributeValue: false,
+  parseTagValue: false,
+  trimValues: true
+});
+function xnode2(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
+}
+function xmany2(value) {
+  if (Array.isArray(value)) return value.filter((v) => !!xnode2(v)).map((v) => v);
+  const one = xnode2(value);
+  return one ? [one] : [];
+}
+function xattr2(n, name) {
+  if (!n) return void 0;
+  const v = n[`@_${name}`];
+  if (typeof v === "string") return v;
+  if (typeof v === "number") return String(v);
+  return void 0;
+}
+function xbool2(n, name) {
+  const v = xattr2(n, name);
+  return v === void 0 ? void 0 : v === "true";
+}
+function xref2(n) {
+  if (!n) return void 0;
+  const type = xattr2(n, "type");
+  const name = xattr2(n, "name");
+  if (type === void 0 || name === void 0) return void 0;
+  const uri = xattr2(n, "uri");
+  return uri === void 0 ? { type, name } : { uri, type, name };
+}
+function parsePropertyXml(n) {
+  return {
+    name: xattr2(n, "name") ?? "",
+    enabled: xbool2(n, "enabled"),
+    readonly: xbool2(n, "readonly"),
+    mandatory: xbool2(n, "mandatory"),
+    enabledFinal: xbool2(n, "enabledFinal"),
+    readonlyFinal: xbool2(n, "readonlyFinal"),
+    mandatoryFinal: xbool2(n, "mandatoryFinal"),
+    transientAttribute: xbool2(n, "transientAttribute"),
+    xmlName: xattr2(n, "xmlName")
+  };
+}
+function parseAlternativeKeyXml(n) {
+  return {
+    name: xattr2(n, "name") ?? "",
+    nodeId: xattr2(n, "nodeID"),
+    xmlName: xattr2(n, "xmlName"),
+    uniqueness: xattr2(n, "uniqueness"),
+    checkAfterModify: xbool2(n, "checkAfterModify"),
+    checkBeforeSave: xbool2(n, "checkBeforeSave"),
+    noCheck: xbool2(n, "noCheck"),
+    objectModelGenerated: xbool2(n, "objectModelGenerated"),
+    dataTypeRef: xref2(xnode2(n.dataTypeRef)),
+    dataTableTypeRef: xref2(xnode2(n.dataTableTypeRef)),
+    keyElements: xmany2(n.keyElements).map((k) => xattr2(k, "name")).filter((v) => v !== void 0)
+  };
+}
+function parseAssociationXml(n) {
+  return {
+    name: xattr2(n, "name") ?? "",
+    nodeId: xattr2(n, "nodeID"),
+    xmlName: xattr2(n, "xmlName"),
+    multiplicity: xattr2(n, "multiplicity"),
+    implementationType: xattr2(n, "implementationType"),
+    objectModelGenerated: xbool2(n, "objectModelGenerated"),
+    doEmbeddingName: xattr2(n, "doEmbeddingName"),
+    targetNodeRef: xref2(xnode2(n.targetNodeRef)),
+    implementationClassRef: xref2(xnode2(n.implementationClassRef)),
+    parameterStructureRef: xref2(xnode2(n.parameterStructureRef))
+  };
+}
+function parseQueryXml(n) {
+  return {
+    name: xattr2(n, "name") ?? "",
+    nodeId: xattr2(n, "nodeID"),
+    xmlName: xattr2(n, "xmlName"),
+    category: xattr2(n, "category"),
+    objectModelGenerated: xbool2(n, "objectModelGenerated"),
+    dataTypeRef: xref2(xnode2(n.dataTypeRef)),
+    implementationClassRef: xref2(xnode2(n.implementationClassRef))
+  };
+}
+function parseActionXml(n) {
+  return {
+    name: xattr2(n, "name") ?? "",
+    nodeId: xattr2(n, "nodeID"),
+    xmlName: xattr2(n, "xmlName"),
+    category: xattr2(n, "category"),
+    instanceMultiplicity: xattr2(n, "instanceMultiplicity"),
+    exportingMultiplicity: xattr2(n, "exportingMultiplicity"),
+    exportingParameterCategoryType: xattr2(n, "exportingParameterCategoryType"),
+    exportParameterLink: xbool2(n, "exportParameterLink"),
+    isExtensible: xbool2(n, "isExtensible"),
+    objectModelGenerated: xbool2(n, "objectModelGenerated"),
+    implementationClassRef: xref2(xnode2(n.implementationClassRef)),
+    parameterStructureRef: xref2(xnode2(n.parameterStructureRef))
+  };
+}
+function parseDeterminationTriggerXml(n) {
+  return {
+    node: xattr2(n, "node"),
+    association: xattr2(n, "association"),
+    create: xbool2(n, "create"),
+    update: xbool2(n, "update"),
+    delete: xbool2(n, "delete"),
+    load: xbool2(n, "load"),
+    determine: xbool2(n, "determine")
+  };
+}
+function parseValidationTriggerXml(n) {
+  return {
+    node: xattr2(n, "node"),
+    association: xattr2(n, "association"),
+    create: xbool2(n, "create"),
+    update: xbool2(n, "update"),
+    delete: xbool2(n, "delete"),
+    check: xbool2(n, "check"),
+    action: xattr2(n, "action")
+  };
+}
+function parseRelationXml(n) {
+  return {
+    node: xattr2(n, "node"),
+    determination: xattr2(n, "determination"),
+    relationType: xattr2(n, "relationType")
+  };
+}
+function parseDeterminationXml(n) {
+  return {
+    name: xattr2(n, "name") ?? "",
+    nodeId: xattr2(n, "nodeID"),
+    xmlName: xattr2(n, "xmlName"),
+    category: xattr2(n, "category"),
+    objectModelGenerated: xbool2(n, "objectModelGenerated"),
+    implementationClassRef: xref2(xnode2(n.implementationClassRef)),
+    triggers: xmany2(n.triggers).map(parseDeterminationTriggerXml),
+    relations: xmany2(n.relations).map(parseRelationXml)
+  };
+}
+function parseValidationXml(n) {
+  return {
+    name: xattr2(n, "name") ?? "",
+    nodeId: xattr2(n, "nodeID"),
+    xmlName: xattr2(n, "xmlName"),
+    category: xattr2(n, "category"),
+    checkBeforeSave: xbool2(n, "checkBeforeSave"),
+    createNode: xbool2(n, "createNode"),
+    updateNode: xbool2(n, "updateNode"),
+    deleteNode: xbool2(n, "deleteNode"),
+    objectModelGenerated: xbool2(n, "objectModelGenerated"),
+    implementationClassRef: xref2(xnode2(n.implementationClassRef)),
+    triggers: xmany2(n.triggers).map(parseValidationTriggerXml)
+  };
+}
+function parseNodeXml(n) {
+  return {
+    name: xattr2(n, "name") ?? "",
+    nodeId: xattr2(n, "nodeID"),
+    parentNodeId: xattr2(n, "parentNodeID"),
+    parent: xattr2(n, "parent"),
+    xmlName: xattr2(n, "xmlName"),
+    doEmbeddingName: xattr2(n, "doEmbeddingName"),
+    rootNode: xbool2(n, "rootNode") ?? false,
+    textNode: xbool2(n, "textNode") ?? false,
+    isDependentObjectNode: xbool2(n, "isDependentObjectNode") ?? false,
+    createEnabled: xbool2(n, "createEnabled") ?? false,
+    updateEnabled: xbool2(n, "updateEnabled") ?? false,
+    deleteEnabled: xbool2(n, "deleteEnabled") ?? false,
+    authorizationCheck: xbool2(n, "authorizationCheck") ?? false,
+    isExtensible: xbool2(n, "isExtensible") ?? false,
+    objectModelGenerated: xbool2(n, "objectModelGenerated") ?? false,
+    objectModelObsolete: xbool2(n, "objectModelObsolete") ?? false,
+    persistentStructureRef: xref2(xnode2(n.persistentStructureRef)),
+    transientStructureRef: xref2(xnode2(n.transientStructureRef)),
+    combinedStructureRef: xref2(xnode2(n.combinedStructureRef)),
+    combinedTableRef: xref2(xnode2(n.combinedTableRef)),
+    persistentTableRef: xref2(xnode2(n.persistentTableRef)),
+    defaultingClassRef: xref2(xnode2(n.defaultingClassRef)),
+    dataAccessClassRef: xref2(xnode2(n.dataAccessClassRef)),
+    authorizationClassRef: xref2(xnode2(n.authorizationClassRef)),
+    properties: xmany2(n.properties).map(parsePropertyXml),
+    alternativeKeys: xmany2(n.alternativeKeys).map(parseAlternativeKeyXml),
+    associations: xmany2(n.associations).map(parseAssociationXml),
+    queries: xmany2(n.queries).map(parseQueryXml),
+    actions: xmany2(n.actions).map(parseActionXml),
+    determinations: xmany2(n.determinations).map(parseDeterminationXml),
+    validations: xmany2(n.validations).map(parseValidationXml)
+  };
+}
+function parseModel(xmlText2) {
+  let parsed;
+  try {
+    parsed = xmlParser3.parse(xmlText2) ?? {};
+  } catch (e) {
+    fail4(`could not parse BOPF model XML: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  const root = xnode2(parsed.businessObject);
+  if (!root) fail4("not a BOPF business object document (no <bo:businessObject> root element)");
+  return {
+    name: xattr2(root, "name") ?? "",
+    type: xattr2(root, "type") ?? "",
+    description: xattr2(root, "description"),
+    version: xattr2(root, "version"),
+    masterLanguage: xattr2(root, "masterLanguage"),
+    masterSystem: xattr2(root, "masterSystem"),
+    responsible: xattr2(root, "responsible"),
+    language: xattr2(root, "language"),
+    objectCategory: xattr2(root, "objectCategory"),
+    isExtensible: xbool2(root, "isExtensible"),
+    objectModelGenerated: xbool2(root, "objectModelGenerated"),
+    thirdGenBO: xbool2(root, "thirdGenBO"),
+    smartValidation: xbool2(root, "smartValidation"),
+    rapBO: xbool2(root, "rapBO"),
+    packageRef: xref2(xnode2(root.packageRef)),
+    constantsInterfaceRef: xref2(xnode2(root.constantsInterfaceRef)),
+    nodes: xmany2(root.nodes).map(parseNodeXml)
+  };
+}
+
+// src/adt/bopf-node-kinds.ts
+function splitTargetNodeRef(name) {
+  if (!name) return {};
+  const tilde = name.lastIndexOf("~");
+  if (tilde < 0) return { node: name };
+  return { bo: name.slice(0, tilde), node: name.slice(tilde + 1) };
+}
+function isCrossBoTarget(model, name) {
+  const { bo } = splitTargetNodeRef(name);
+  return bo !== void 0 && bo.toLowerCase() !== model.name.toLowerCase();
+}
+function classifyAssociation(model, assoc) {
+  const targetName = assoc.targetNodeRef?.name;
+  const { bo: targetBo, node: targetNode } = splitTargetNodeRef(targetName);
+  const type = (assoc.implementationType ?? "").toLowerCase();
+  const crossBo = isCrossBoTarget(model, targetName);
+  const bo = crossBo ? targetBo : void 0;
+  if (type === "docomposition") return { kind: "do-composition", targetBo: bo, targetNode };
+  if (type === "composition") return { kind: "composition", targetBo: bo, targetNode };
+  if (crossBo) return { kind: "cross-bo", targetBo, targetNode };
+  return { kind: "association", targetNode };
+}
+function classifyNodes(model) {
+  const embeddings = /* @__PURE__ */ new Map();
+  for (const parent of model.nodes) {
+    for (const assoc of parent.associations) {
+      const kind = classifyAssociation(model, assoc);
+      if (kind.kind !== "do-composition" || !kind.targetNode) continue;
+      const targetRef = splitTargetNodeRef(assoc.targetNodeRef?.name);
+      const dependentObject = targetRef.bo && targetRef.bo.toLowerCase() !== model.name.toLowerCase() ? targetRef.bo : void 0;
+      embeddings.set(kind.targetNode.toLowerCase(), { assoc, parent, dependentObject });
+    }
+  }
+  const result = /* @__PURE__ */ new Map();
+  for (const node2 of model.nodes) {
+    const key = node2.name.toLowerCase();
+    if (node2.rootNode === true) {
+      result.set(key, { kind: "root" });
+      continue;
+    }
+    const embedding = embeddings.get(key);
+    if (embedding) {
+      result.set(key, {
+        kind: "delegated",
+        embeddingAssociation: embedding.assoc.name,
+        embeddingParent: embedding.parent.name,
+        ...embedding.assoc.doEmbeddingName ? { doEmbeddingName: embedding.assoc.doEmbeddingName } : {},
+        ...embedding.dependentObject ? { dependentObject: embedding.dependentObject } : {}
+      });
+      continue;
+    }
+    if (!node2.parent && !node2.persistentStructureRef) {
+      result.set(key, { kind: "representative" });
+      continue;
+    }
+    result.set(key, { kind: "standard" });
+  }
+  return result;
+}
+function describeNodeKind(k) {
+  switch (k.kind) {
+    case "root":
+      return "root";
+    case "standard":
+      return "";
+    case "representative":
+      return "representative";
+    case "delegated": {
+      const base = `delegated via ${k.embeddingParent}.${k.embeddingAssociation}`;
+      return k.dependentObject ? `${base} -> ${k.dependentObject}` : base;
+    }
+  }
+}
+function describeAssociationKind(k) {
+  switch (k.kind) {
+    case "association":
+      return "";
+    case "composition":
+      return "composition";
+    case "do-composition":
+      return "do-composition";
+    case "cross-bo":
+      if (!k.targetBo) return "";
+      return k.targetNode ? `-> ${k.targetBo}~${k.targetNode}` : `-> ${k.targetBo}`;
+  }
+}
+function classifyNode(model, node2) {
+  return classifyNodes(model).get(node2.name.toLowerCase()) ?? { kind: "standard" };
+}
+
+// src/adt/class-interfaces.ts
+var import_utilities4 = __toESM(require_utilities(), 1);
+var TYPE_HIERARCHY_URL = "/sap/bc/adt/abapsource/typehierarchy";
+var CLASS_DEFINITION_LINE = /^\s*class\s+(\S+)\s+definition\b/i;
+var CLASS_IMPLEMENTATION_LINE = /^\s*class\s+\S+\s+implementation\b/im;
+function escapeRegExp4(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function definitionNamePosition(source, className) {
+  const lines = source.split(/\r?\n/);
+  const want = className.toLowerCase();
+  for (let i = 0; i < lines.length; i++) {
+    const line2 = lines[i];
+    const m = CLASS_DEFINITION_LINE.exec(line2);
+    if (m && m[1].toLowerCase() === want) {
+      return { line: i + 1, column: line2.indexOf(m[1]) };
+    }
+  }
+  return void 0;
+}
+function stripComments(text5) {
+  return text5.split(/\r?\n/).map((line2) => line2.startsWith("*") ? "" : line2.replace(/".*$/, "")).join("\n");
+}
+function interfacesFromDefinition(source) {
+  const implMatch = CLASS_IMPLEMENTATION_LINE.exec(source);
+  const definitionPart = stripComments(implMatch ? source.slice(0, implMatch.index) : source);
+  const interfaces = [];
+  const seen = /* @__PURE__ */ new Set();
+  const stmtRe = /\binterfaces\b\s*:?\s*([^.]*)\./gi;
+  let m;
+  while ((m = stmtRe.exec(definitionPart)) !== null) {
+    for (const part of m[1].split(",")) {
+      const token = part.trim().split(/\s+/)[0];
+      if (!token) continue;
+      const upper = token.toUpperCase();
+      if (!seen.has(upper)) {
+        seen.add(upper);
+        interfaces.push(upper);
+      }
+    }
+  }
+  return {
+    interfaces,
+    inheriting: /\binheriting\s+from\b/i.test(definitionPart)
+  };
+}
+async function fetchImplementedInterfaces(conn, className, source) {
+  const pos = definitionNamePosition(source, className);
+  if (!pos) return void 0;
+  let body;
+  try {
+    ({ body } = await conn.post(TYPE_HIERARCHY_URL, {
+      headers: { "Content-Type": "text/plain", Accept: "application/*" },
+      qs: {
+        uri: `/sap/bc/adt/oo/classes/${encodeURIComponent(className.toLowerCase())}/source/main#start=${pos.line},${pos.column}`,
+        type: "superTypes"
+      },
+      body: source
+    }));
+  } catch {
+    return void 0;
+  }
+  if (!body.trim()) return void 0;
+  const parsed = (0, import_utilities4.fullParse)(body);
+  const info = (0, import_utilities4.xmlNode)(parsed, "hierarchy:info");
+  if (!info) return void 0;
+  const entries = (0, import_utilities4.xmlArray)(parsed, "hierarchy:info", "entries", "entry");
+  const interfaces = [];
+  for (const e of entries) {
+    const attrs = (0, import_utilities4.xmlNodeAttr)(e);
+    if (attrs["adtcore:type"] === "INTF/OI" && typeof attrs["adtcore:name"] === "string") {
+      interfaces.push(attrs["adtcore:name"].toUpperCase());
+    }
+  }
+  return interfaces;
+}
+async function checkClassImplements(conn, className, source, iface) {
+  const want = iface.toUpperCase();
+  const hierarchy = await fetchImplementedInterfaces(conn, className, source);
+  if (hierarchy !== void 0) {
+    const implemented = hierarchy.includes(want);
+    return {
+      implemented,
+      via: "hierarchy",
+      detail: implemented ? `${iface} listed in the ADT type hierarchy` : `${iface} not in the ADT type hierarchy (own and inherited interfaces)`
+    };
+  }
+  const { interfaces, inheriting } = interfacesFromDefinition(source);
+  if (interfaces.includes(want)) {
+    return {
+      implemented: true,
+      via: "source",
+      detail: `${iface} declared in the definition part`
+    };
+  }
+  if (inheriting) {
+    return {
+      implemented: void 0,
+      via: "source",
+      detail: `${iface} not declared in the definition part, the class inherits from a superclass, and the ADT type hierarchy was unavailable`
+    };
+  }
+  return {
+    implemented: false,
+    via: "source",
+    detail: `${iface} not declared in the definition part (ADT type hierarchy unavailable)`
+  };
+}
+function hasMethodImplementation(source, method) {
+  const re = new RegExp("\\bmethod\\s+(?:[\\w/]+~)?" + escapeRegExp4(method) + "\\b", "i");
+  return re.test(stripComments(source));
+}
+function hasImplementationPart(source) {
+  return CLASS_IMPLEMENTATION_LINE.test(stripComments(source));
+}
+
+// src/adt/bopf.ts
+init_package_ref();
+var BOPF_COLLECTION = "/sap/bc/adt/bopf/businessobjects";
+var BOPF_ACCEPT_V4 = "application/vnd.sap.ap.adt.bopf.businessobjects.v4+xml";
+var BOPF_LOCK_ACCEPT = "application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.lock.Result";
+var BOPF_TYPE = "BOBF";
+function bopfUri(name) {
+  return `${BOPF_COLLECTION}/${encodeURIComponent(name.toLowerCase())}`;
+}
+function assertAuthorizedMatches(authorized, target, context) {
+  const authName = authorized.target.name.trim().toUpperCase();
+  const actualName = target.name.trim().toUpperCase();
+  if (authName !== actualName) {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      `Internal wiring error in ${context}: the AuthorizedTarget names "${authorized.target.name}", but the object about to be mutated is "${target.name}". An AuthorizedTarget minted for one object must never be threaded into a call that mutates a different one.`,
+      { authorizedName: authorized.target.name, actualName: target.name, context },
+      "This indicates a bug in the caller \u2014 the AuthorizedTarget passed to this function does not match the object it is about to mutate. Mint a fresh AuthorizedTarget for the actual target."
+    );
+  }
+  if (target.packageName !== void 0 && authorized.target.packageName !== void 0 && authorized.target.packageName.trim().toUpperCase() !== target.packageName.trim().toUpperCase()) {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      `Internal wiring error in ${context}: the AuthorizedTarget was minted for package "${authorized.target.packageName}", but the object is about to be written to package "${target.packageName}".`,
+      { authorizedPackage: authorized.target.packageName, actualPackage: target.packageName, context },
+      "This indicates a bug in the caller \u2014 re-authorize against the actual target package before mutating."
+    );
+  }
+}
+async function readModel(conn, bo) {
+  const uri = bopfUri(bo);
+  try {
+    const resp = await conn.get(uri, { headers: { Accept: BOPF_ACCEPT_V4 } });
+    const etag = firstHeader3(resp.headers, "etag");
+    return { xml: resp.body, model: parseModel(resp.body), ...etag ? { etag } : {} };
+  } catch (e) {
+    if (isAbapError(e)) throw e;
+    throw translateAdtError(e, { operation: "read", uri, name: bo, type: BOPF_TYPE });
+  }
+}
+function firstHeader3(headers, name) {
+  const lower = name.toLowerCase();
+  for (const k of Object.keys(headers)) {
+    if (k.toLowerCase() === lower) {
+      const v = headers[k];
+      if (Array.isArray(v)) return v.length ? String(v[0]) : void 0;
+      return v === void 0 || v === null ? void 0 : String(v);
+    }
+  }
+  return void 0;
+}
+async function createBusinessObject(conn, transport, input, authorized, opts = {}) {
+  assertAuthorizedMatches(authorized, { name: input.name, packageName: input.packageName }, "createBusinessObject");
+  const uri = bopfUri(input.name);
+  if (transport === void 0) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `Cannot create BOPF business object ${input.name}: no transport manager is wired into this call.`,
+      { name: input.name, packageName: input.packageName },
+      "BOPF create refuses fail-open on transport-ness. Whether the non-atomic-create hazard applies identically on transportable packages is unresolved, so this module never lets a transportable create through to find out. Wire a SessionTransport through, or create the object in a local ($TMP-style) package."
+    );
+  }
+  let corr;
+  if (opts.gate === void 0) {
+    const resolution = await transport.resolve(
+      conn,
+      { uri, devclass: input.packageName, name: input.name, type: BOPF_TYPE },
+      "I"
+    );
+    const denial = toAbapError(resolution);
+    if (denial) throw denial;
+    if (resolution.outcome === "transport") {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `Cannot create BOPF business object ${input.name}: package ${input.packageName} is transportable, but no safety gate was handed to createBusinessObject to judge the transport request.`,
+        { name: input.name, packageName: input.packageName, corrNr: resolution.corrNr },
+        "Fail closed: without a gate this call cannot judge a resolved corr_nr. Pass a SafetyGate through opts.gate, or create the object in a local ($TMP-style) package."
+      );
+    }
+    corr = { kind: "local" };
+  } else {
+    const preflight2 = await preflightCorr(
+      conn,
+      { uri, type: BOPF_TYPE, name: input.name, packageName: input.packageName },
+      { transport, gate: opts.gate, corrNr: opts.corrNr },
+      "I",
+      "write"
+    );
+    corr = preflight2?.kind === "transport" ? { kind: "transport", corrNr: preflight2.corrNr, source: preflight2.source } : { kind: "local" };
+  }
+  const body = buildCreateBody(input);
+  try {
+    await conn.withRequestTimeout(
+      conn.cfg.bopfTimeoutMs,
+      () => conn.post(BOPF_COLLECTION, {
+        headers: { "Content-Type": BOPF_ACCEPT_V4, Accept: BOPF_ACCEPT_V4 },
+        ...corr.kind === "transport" ? { qs: { corrNr: corr.corrNr } } : {},
+        body
+      })
+    );
+  } catch (e) {
+    if (isTransportTimeout(e)) {
+      throw withCreateCorr(
+        transportTimeoutError({
+          family: "bopf",
+          operation: "create_bo",
+          name: input.name,
+          type: BOPF_TYPE,
+          uri,
+          timeoutMs: conn.cfg.bopfTimeoutMs,
+          cause: e
+        }),
+        corr
+      );
+    }
+    try {
+      const recovered = await readModel(conn, input.name);
+      const rootNodeCheck2 = checkRootNodeName(input, recovered.model);
+      const partialCleanup2 = await cleanupUnusablePartialCreate(conn, input.name, rootNodeCheck2, corr, recovered.model);
+      return {
+        ...recovered,
+        recovered: true,
+        rootNodeCheck: rootNodeCheck2,
+        corr,
+        ...partialCleanup2 ? { partialCleanup: partialCleanup2 } : {}
+      };
+    } catch {
+      if (isAbapError(e)) throw withCreateCorr(e, corr);
+      throw withCreateCorr(translateAdtError(e, { operation: "write", uri, name: input.name, type: BOPF_TYPE }), corr);
+    }
+  }
+  const read = await readModel(conn, input.name);
+  const rootNodeCheck = checkRootNodeName(input, read.model);
+  const partialCleanup = await cleanupUnusablePartialCreate(conn, input.name, rootNodeCheck, corr, read.model);
+  return { ...read, rootNodeCheck, corr, ...partialCleanup ? { partialCleanup } : {} };
+}
+var CREATE_CORR_DETAIL = "createCorr";
+function withCreateCorr(e, corr) {
+  e.details[CREATE_CORR_DETAIL] = corr;
+  return e;
+}
+function corrFromCreateError(e) {
+  if (!isAbapError(e)) return void 0;
+  const corr = e.details[CREATE_CORR_DETAIL];
+  return corr !== void 0 && typeof corr === "object" && corr !== null && "kind" in corr ? corr : void 0;
+}
+async function cleanupUnusablePartialCreate(conn, name, rootNodeCheck, corr, model) {
+  const unusable = rootNodeCheck.actual === void 0 || rootNodeCheck.actual === "";
+  if (!unusable || corr.kind !== "transport") return void 0;
+  const iface = model ? collectDdicCascadeCandidates(model).generated.find((c) => c.kind === "constants-interface") : void 0;
+  const targets = [{ uri: bopfUri(name), lockAccept: BOPF_LOCK_ACCEPT, readAccept: BOPF_ACCEPT_V4 }];
+  if (iface) targets.push({ uri: iface.uri, readAccept: "*/*" });
+  const [bo, ifaceResult] = await deleteResidue(conn, targets, corr);
+  if (!bo) return { deleted: false, reason: "delete of the partial object was not attempted" };
+  if (!iface || !ifaceResult) return bo;
+  return { ...bo, constantsInterface: { name: iface.name, ...ifaceResult } };
+}
+async function deleteResidue(conn, targets, corr) {
+  const results = [];
+  const sent = [];
+  try {
+    await conn.withStatefulSession(async (session) => {
+      for (const t of targets) {
+        const lock = await session.lock(t.uri, t.lockAccept ? { accept: t.lockAccept } : void 0);
+        try {
+          await conn.del(t.uri, { qs: { lockHandle: lock.handle, corrNr: corr.corrNr } });
+        } finally {
+          try {
+            await session.unlock(t.uri);
+          } catch {
+          }
+        }
+        sent.push(t);
+      }
+    });
+  } catch (e) {
+    for (const _ of sent) results.push({ deleted: true });
+    results.push({ deleted: false, reason: `delete of the partial object failed: ${describeUnknownError(e)}` });
+  }
+  for (const [i, t] of sent.entries()) {
+    try {
+      await conn.get(t.uri, { headers: { Accept: t.readAccept } });
+      results[i] = { deleted: false, reason: "a read-back after the delete still finds the object" };
+    } catch (e) {
+      results[i] = isNotFoundLike(e) ? { deleted: true } : { deleted: false, reason: `a read-back after the delete could not be settled: ${describeUnknownError(e)}` };
+    }
+  }
+  return results;
+}
+function xmlEscape(s, context) {
+  if (s === "undefined" || s === "null") {
+    throw new AbapError(
+      "BAD_INPUT",
+      `BOPF create body: refusing to write the literal string "${s}" as ${context ?? "an attribute value"} \u2014 this is almost always a caller-side bug (a JavaScript undefined/null value stringified before being sent) rather than an intentional value.`,
+      { value: s, context },
+      'Omit the field instead of sending the string "undefined"/"null".'
+    );
+  }
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function effectiveRootNodeName(input) {
+  return input.rootNodeName?.trim() || "ROOT";
+}
+function checkRootNodeName(input, model) {
+  const requested = effectiveRootNodeName(input);
+  const actual = model.nodes.find((n) => n.rootNode)?.name.trim();
+  return {
+    requested,
+    actual,
+    matches: actual !== void 0 && actual !== "" && actual.toUpperCase() === requested.toUpperCase()
+  };
+}
+function buildCreateBody(input) {
+  const desc = input.description ? ` adtcore:description="${xmlEscape(input.description, "adtcore:description")}"` : "";
+  const rootName = effectiveRootNodeName(input);
+  const nodeId = mintGuid("node");
+  return `<?xml version="1.0" encoding="UTF-8"?><bo:businessObject xmlns:bo="http://www.sap.com/bopf/bo/BusinessObject" xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${xmlEscape(input.name.toUpperCase(), "adtcore:name")}" adtcore:type="${BOPF_TYPE}"${desc}><adtcore:packageRef adtcore:name="${xmlEscape(input.packageName.toUpperCase(), "adtcore:packageRef/@adtcore:name")}"/><bo:nodes bo:name="${xmlEscape(rootName, "bo:nodes/@bo:name")}" bo:nodeID="${nodeId}" bo:xmlName="${xmlEscape(rootName, "bo:nodes/@bo:xmlName")}" bo:objectModelGenerated="false" bo:authorizationCheck="false" bo:isExtensible="false" bo:isDependentObjectNode="false" bo:textNode="false" bo:createEnabled="true" bo:updateEnabled="true" bo:deleteEnabled="true" bo:rootNode="true" bo:objectModelObsolete="false"/></bo:businessObject>`;
+}
+async function discloseFailedPut(conn, bo, base) {
+  let note;
+  try {
+    await readModel(conn, bo);
+    note = "a re-read after the failed PUT still succeeds \u2014 inspect the current model before assuming nothing changed.";
+  } catch (probeErr) {
+    note = `a re-read after the failed PUT also failed: ${describeUnknownError(probeErr)}`;
+  }
+  const disclosure = `A failed PUT is not proof the model is unchanged \u2014 ${note}`;
+  const disclosed = new AbapError(
+    base.code,
+    base.message,
+    { ...base.details, postFailureProbe: note },
+    base.hint ? `${base.hint} ${disclosure}` : disclosure
+  );
+  disclosed.stack = base.stack;
+  disclosed.cause = base.cause;
+  return disclosed;
+}
+async function putModel(conn, session, bo, mutate, authorized, opts = {}) {
+  assertAuthorizedMatches(authorized, { name: bo }, "putModel");
+  const uri = bopfUri(bo);
+  const preflight2 = opts.transport !== void 0 && opts.gate !== void 0 && opts.packageName !== void 0 ? await preflightCorr(
+    conn,
+    { uri, type: BOPF_TYPE, name: bo, packageName: opts.packageName },
+    { transport: opts.transport, gate: opts.gate, corrNr: opts.corrNr },
+    "U",
+    "write"
+  ) : void 0;
+  const xml4 = await withRelockRetry({
+    session,
+    uri,
+    lockAccept: BOPF_LOCK_ACCEPT,
+    // UNSUPPORTED/TRANSPORT_ERROR (the two refusals below) are never fixed
+    // by a fresh lock — exclude them from retry same as the three the
+    // default already excludes.
+    retryable: (e) => !(isAbapError(e) && (e.code === "SAFETY_DENIED" || e.code === "BAD_INPUT" || e.code === "LOCKED" || e.code === "UNSUPPORTED" || e.code === "TRANSPORT_ERROR")),
+    reread: async (lock) => {
+      void lock;
+      const resp = await conn.get(uri, { headers: { Accept: BOPF_ACCEPT_V4 } });
+      return resp.body;
+    },
+    rebuild: async (fresh) => await mutate(fresh),
+    attempt: async (lock, payload) => {
+      const info = transportFromLock(lock);
+      const corr2 = corrForMutation(preflight2, info);
+      if (corr2 === void 0) {
+        try {
+          await session.unlock(uri);
+        } catch {
+        }
+        throw new AbapError(
+          "UNSUPPORTED",
+          `Cannot write BOPF business object ${bo}: the lock reports transport request ${info.corrNr ?? "(unnamed)"}, but no transport was resolved for this write.`,
+          { name: bo, corrNr: info.corrNr, corrUser: info.corrUser },
+          "Pass corr_nr, or rely on ABAP_ALLOW_TRANSPORTS to resolve one, so this write's transport request can be judged by the safety gate before it reaches the wire."
+        );
+      }
+      const divergent = divergentLockCorrNr(corr2, info);
+      if (divergent !== void 0) {
+        try {
+          await session.unlock(uri);
+        } catch {
+        }
+        throw new AbapError(
+          "TRANSPORT_ERROR",
+          `Cannot write BOPF business object ${bo}: the lock names transport request ${divergent}, but this write was authorised for ${corr2.kind === "transport" ? corr2.corrNr : "(local)"}. Nothing was written.`,
+          { name: bo, gatedCorrNr: corr2.kind === "transport" ? corr2.corrNr : void 0, serverCorrNr: divergent }
+        );
+      }
+      try {
+        await conn.put(uri, {
+          headers: { "Content-Type": BOPF_ACCEPT_V4, Accept: BOPF_ACCEPT_V4 },
+          qs: corr2.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr2.corrNr } : { lockHandle: lock.handle },
+          body: payload
+        });
+      } catch (e) {
+        const base = isAbapError(e) ? e : translateAdtError(e, { operation: "write", uri, name: bo, type: BOPF_TYPE });
+        const mayHaveLanded = base.code === "SESSION_DEAD" || !isAbapError(e) && adtExceptionInfo(e) === void 0;
+        throw mayHaveLanded ? await discloseFailedPut(conn, bo, base) : base;
+      }
+      return payload;
+    }
+  });
+  void xml4;
+  const corr = preflight2?.kind === "transport" ? { kind: "transport", corrNr: preflight2.corrNr, source: preflight2.source } : { kind: "local" };
+  return { ...await readModel(conn, bo), corr };
+}
+async function activateBusinessObject(conn, bo) {
+  const uri = bopfUri(bo);
+  const seed = { name: bo, uri, type: BOPF_TYPE };
+  let bodyVerdict;
+  let preaudit;
+  try {
+    bodyVerdict = await conn.withRequestTimeout(conn.cfg.bopfTimeoutMs, async () => {
+      let result = await conn.adt.activate(bo, uri, void 0, true);
+      const phase2 = await activateWithPreauditSet(conn, [seed], result);
+      if (phase2) {
+        result = phase2.result;
+        preaudit = phase2.preaudit;
+      }
+      const messages = mapActivationMessages(result);
+      const inactive = mapInactiveObjects(result);
+      const hasFailure = messages.some((m) => isFailureSeverity(m.severity));
+      return {
+        activated: result.success !== false && !hasFailure && inactive.length === 0,
+        messages: [...messages, ...inactive.map((i) => ({ inactiveDependent: i }))]
+      };
+    });
+  } catch (e) {
+    if (isAbapError(e)) throw e;
+    if (isTransportTimeout(e)) {
+      throw transportTimeoutError({
+        family: "bopf",
+        operation: "activate",
+        name: bo,
+        type: BOPF_TYPE,
+        uri: bopfUri(bo),
+        timeoutMs: conn.cfg.bopfTimeoutMs,
+        cause: e
+      });
+    }
+    throw translateAdtError(e, { operation: "write", uri, name: bo, type: BOPF_TYPE });
+  }
+  let version2;
+  let corroborated;
+  try {
+    const fresh = await readModel(conn, bo);
+    version2 = fresh.model.version;
+    corroborated = version2 === "active";
+  } catch {
+    corroborated = preaudit === void 0;
+  }
+  const activated = bodyVerdict.activated && corroborated;
+  if (preaudit && !activated) await releaseActivationEnqueues(conn);
+  return {
+    activated,
+    messages: bodyVerdict.messages,
+    ...version2 ? { version: version2 } : {},
+    ...preaudit ? { preaudit } : {}
+  };
+}
+function ddicSparedReason(refSite) {
+  return `referenced via ${refSite} \u2014 the model does not record whether this BO generated it, so it is not deleted`;
+}
+async function discloseDeleteFailureProbe(conn, bo, base) {
+  let note;
+  try {
+    await conn.get(bopfUri(bo), { headers: { Accept: BOPF_ACCEPT_V4 } });
+    note = "a re-read right after the failed DELETE still finds the object \u2014 the delete did not land.";
+  } catch (probeErr) {
+    note = isNotFoundLike(probeErr) ? "a re-read right after the failed DELETE no longer finds the object \u2014 the delete may have landed despite the failure; re-read before retrying." : `a re-read right after the failed DELETE could not be settled: ${describeUnknownError(probeErr)}`;
+  }
+  const disclosed = new AbapError(
+    base.code,
+    base.message,
+    { ...base.details, postFailureProbe: note },
+    base.hint ? `${base.hint} ${note}` : note
+  );
+  disclosed.stack = base.stack;
+  disclosed.cause = base.cause;
+  return disclosed;
+}
+async function deleteBusinessObject(conn, session, bo, authorized, gate, opts = {}) {
+  assertAuthorizedMatches(authorized, { name: bo }, "deleteBusinessObject");
+  const cascadePersistentRequested = (opts.cascadePersistent?.length ?? 0) > 0;
+  if ((opts.cascadeDdic || cascadePersistentRequested) && !gate.config.allowCascadeDelete) {
+    throw new AbapError(
+      "SAFETY_DENIED",
+      `Cannot delete BOPF business object ${bo} with cascade_ddic: cascading DDIC deletes require the admin-mode cascade-delete ceiling (ABAP_MODE=admin), which this server does not currently grant. The business object itself was NOT deleted either \u2014 a caller who asked for a cascading delete and silently got a non-cascading one instead would be misled about what actually happened.`,
+      { name: bo },
+      "SafetyConfig.allowCascadeDelete"
+    );
+  }
+  const uri = bopfUri(bo);
+  let candidates = [];
+  let spared = [];
+  let ddicEnumerated = false;
+  if (opts.cascadeDdic) {
+    let model;
+    try {
+      model = (await readModel(conn, bo)).model;
+    } catch {
+    }
+    if (model) {
+      const split = collectDdicCascadeCandidates(model);
+      candidates = split.generated;
+      spared = split.referenced;
+      ddicEnumerated = true;
+    }
+  }
+  const preflight2 = opts.transport !== void 0 && opts.packageName !== void 0 ? await preflightCorr(
+    conn,
+    { uri, type: BOPF_TYPE, name: bo, packageName: opts.packageName },
+    { transport: opts.transport, gate, corrNr: opts.corrNr },
+    "U",
+    "delete"
+  ) : void 0;
+  const lock = await session.lock(uri, { accept: BOPF_LOCK_ACCEPT });
+  const info = transportFromLock(lock);
+  const corr = corrForMutation(preflight2, info);
+  if (corr === void 0) {
+    try {
+      await session.unlock(uri);
+    } catch {
+    }
+    throw new AbapError(
+      "UNSUPPORTED",
+      `Cannot delete BOPF business object ${bo}: the lock reports transport request ${info.corrNr ?? "(unnamed)"}, but no transport was resolved for this delete.`,
+      { name: bo, corrNr: info.corrNr, corrUser: info.corrUser },
+      "Pass corr_nr, or rely on ABAP_ALLOW_TRANSPORTS to resolve one, so this delete's transport request can be judged by the safety gate before it reaches the wire."
+    );
+  }
+  const divergentBo = divergentLockCorrNr(corr, info);
+  if (divergentBo !== void 0) {
+    try {
+      await session.unlock(uri);
+    } catch {
+    }
+    throw corrNrNotHonoured(
+      { name: bo, type: BOPF_TYPE, uri, packageName: opts.packageName ?? "", label: "BOPF business object" },
+      corr.kind === "transport" ? corr.corrNr : "",
+      divergentBo,
+      "lock"
+    );
+  }
+  let boDeleted = false;
+  try {
+    await conn.del(uri, {
+      qs: corr.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr.corrNr } : { lockHandle: lock.handle }
+    });
+    boDeleted = true;
+  } catch (e) {
+    try {
+      await session.unlock(uri);
+    } catch {
+    }
+    const base = isAbapError(e) ? e : translateAdtError(e, { operation: "delete", uri, name: bo, type: BOPF_TYPE });
+    throw await discloseDeleteFailureProbe(conn, bo, base);
+  }
+  try {
+    await session.unlock(uri);
+  } catch {
+  }
+  const ddic = [];
+  const ordered = [
+    ...candidates.filter((c) => c.kind === "table"),
+    ...candidates.filter((c) => c.kind === "structure"),
+    ...candidates.filter((c) => c.kind === "constants-interface")
+  ];
+  for (let i = 0; i < ordered.length; i += 5) {
+    const batch = ordered.slice(i, i + 5);
+    for (const cand of batch) {
+      let candAuthorized;
+      try {
+        candAuthorized = gate.authorize(
+          "delete",
+          { name: cand.name, packageName: authorized.target.packageName, type: cand.type },
+          { phase: "final" }
+        );
+      } catch (e) {
+        ddic.push({
+          name: cand.name,
+          kind: cand.kind,
+          uri: cand.uri,
+          existed: false,
+          deleted: false,
+          reason: `safety gate denied: ${describeUnknownError(e)}`
+        });
+        continue;
+      }
+      ddic.push(await deleteDdicCandidate(conn, session, cand, candAuthorized, corr));
+    }
+  }
+  const ddicSpared = spared.map((cand) => ({
+    name: cand.name,
+    kind: cand.kind,
+    uri: cand.uri,
+    reason: ddicSparedReason(cand.refSite)
+  }));
+  const ddicRequested = [];
+  const requested = opts.cascadePersistent ?? [];
+  const orderedRequested = [
+    ...requested.filter((t) => t.candidate.kind === "table"),
+    ...requested.filter((t) => t.candidate.kind === "structure")
+  ];
+  for (let i = 0; i < orderedRequested.length; i += 5) {
+    const batch = orderedRequested.slice(i, i + 5);
+    for (const target of batch) {
+      const cand = target.candidate;
+      if (!target.present) {
+        ddicRequested.push({
+          name: cand.name,
+          kind: cand.kind,
+          uri: cand.uri,
+          existed: false,
+          deleted: false,
+          reason: "the object was already absent when its package was probed just before this delete"
+        });
+        continue;
+      }
+      let candAuthorized;
+      try {
+        candAuthorized = gate.authorize(
+          "delete",
+          { name: cand.name, packageName: target.packageName, type: cand.type },
+          { phase: "final" }
+        );
+      } catch (e) {
+        ddicRequested.push({
+          name: cand.name,
+          kind: cand.kind,
+          uri: cand.uri,
+          // target.present is already true here — the probe above proved it.
+          existed: true,
+          deleted: false,
+          reason: `safety gate denied: ${describeUnknownError(e)}`
+        });
+        continue;
+      }
+      ddicRequested.push(await deleteDdicCandidate(conn, session, cand, candAuthorized, corr));
+    }
+  }
+  return { boDeleted, ddic, ddicRequested, ddicSpared, ddicEnumerated, corr };
+}
+function collectDdicCascadeCandidates(model) {
+  const generated = [];
+  const referenced = [];
+  for (const node2 of model.nodes) {
+    pushCandidate(referenced, node2.persistentTableRef, "table", "tables", "persistentTableRef");
+    pushCandidate(generated, node2.combinedTableRef, "table", "tabletypes", "combinedTableRef");
+    pushCandidate(referenced, node2.persistentStructureRef, "structure", "structures", "persistentStructureRef");
+    pushCandidate(generated, node2.combinedStructureRef, "structure", "structures", "combinedStructureRef");
+  }
+  pushCandidate(generated, model.constantsInterfaceRef, "constants-interface", void 0, "constantsInterfaceRef");
+  return { generated, referenced };
+}
+function pushCandidate(out, ref2, kind, guessKind, refSite) {
+  if (!ref2 || !ref2.name) return;
+  const uri = ref2.uri ?? ddicGuessUri(ref2, guessKind);
+  if (!uri) return;
+  if (out.some((c) => c.uri === uri)) return;
+  out.push({ name: ref2.name, kind, uri, type: ref2.type, refSite });
+}
+function ddicGuessUri(ref2, guessKind) {
+  if (!ref2.name || !guessKind) return void 0;
+  return `/sap/bc/adt/ddic/${guessKind}/${ref2.name.toLowerCase()}`;
+}
+function ddicRefOccurrencesForName(model, upperName) {
+  const seen = /* @__PURE__ */ new Set();
+  const occurrences = [];
+  const mark = (ref2, slot, node2) => {
+    if (!ref2?.name || ref2.name.trim().toUpperCase() !== upperName) return;
+    const key = `${node2 ?? ""}\0${slot}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    occurrences.push(node2 !== void 0 ? { slot, node: node2 } : { slot });
+  };
+  for (const node2 of model.nodes) {
+    mark(node2.persistentTableRef, "persistentTableRef", node2.name);
+    mark(node2.combinedTableRef, "combinedTableRef", node2.name);
+    mark(node2.persistentStructureRef, "persistentStructureRef", node2.name);
+    mark(node2.combinedStructureRef, "combinedStructureRef", node2.name);
+  }
+  mark(model.constantsInterfaceRef, "constantsInterfaceRef");
+  return occurrences;
+}
+function describeDdicRefOccurrence(o) {
+  return o.node !== void 0 ? `${o.slot} on node ${o.node}` : o.slot;
+}
+function resolvePersistentCascadeRequest(bo, model, names) {
+  const wanted = /* @__PURE__ */ new Set();
+  for (const n of names) {
+    const norm = n.trim().toUpperCase();
+    if (norm) wanted.add(norm);
+  }
+  const { referenced } = collectDdicCascadeCandidates(model);
+  const byName = new Map(referenced.map((c) => [c.name.toUpperCase(), c]));
+  const resolved = [];
+  for (const norm of wanted) {
+    const cand = byName.get(norm);
+    if (!cand) {
+      const available = referenced.length ? `objects currently referenced: ${referenced.map((c) => c.name).join(", ")}` : "this business object's model carries no persistentTableRef/persistentStructureRef at all";
+      throw new AbapError(
+        "BAD_INPUT",
+        `Cannot cascade_persistent delete "${norm}" on BOPF business object ${bo}: it is not one of the persistentTableRef/persistentStructureRef objects this BO's model references \u2014 ${available}.`,
+        { bo, name: norm }
+      );
+    }
+    const sites = ddicRefOccurrencesForName(model, norm);
+    if (sites.length > 1) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Cannot cascade_persistent delete "${norm}" on BOPF business object ${bo}: it is referenced from more than one site in this BO's model (${sites.map(describeDdicRefOccurrence).join(", ")}) \u2014 deleting it would break the other reference.`,
+        { bo, name: norm, sites }
+      );
+    }
+    resolved.push(cand);
+  }
+  return [...resolved.filter((c) => c.kind === "table"), ...resolved.filter((c) => c.kind === "structure")];
+}
+async function deleteDdicCandidate(conn, session, cand, authorized, corr) {
+  assertAuthorizedMatches(authorized, { name: cand.name }, "deleteDdicCandidate");
+  let existed;
+  try {
+    await conn.get(cand.uri, { headers: { Accept: "*/*" } });
+    existed = true;
+  } catch (e) {
+    existed = false;
+    if (!isNotFoundLike(e)) {
+      return {
+        name: cand.name,
+        kind: cand.kind,
+        uri: cand.uri,
+        existed: false,
+        deleted: false,
+        reason: `existence probe failed: ${describeUnknownError(e)}`
+      };
+    }
+  }
+  if (!existed) {
+    return { name: cand.name, kind: cand.kind, uri: cand.uri, existed: false, deleted: false };
+  }
+  let lock;
+  try {
+    lock = await session.lock(cand.uri);
+  } catch (e) {
+    return {
+      name: cand.name,
+      kind: cand.kind,
+      uri: cand.uri,
+      existed: true,
+      deleted: false,
+      reason: `lock failed: ${describeUnknownError(e)}`
+    };
+  }
+  const candTransport = transportFromLock(lock);
+  if (candTransport.required && corr.kind !== "transport") {
+    try {
+      await session.unlock(cand.uri);
+    } catch {
+    }
+    return {
+      name: cand.name,
+      kind: cand.kind,
+      uri: cand.uri,
+      existed: true,
+      deleted: false,
+      reason: `pinned to transport ${candTransport.corrNr ?? "(unnamed)"} while the business object delete was local; not deleted`
+    };
+  }
+  try {
+    await conn.del(cand.uri, {
+      qs: candTransport.required && corr.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr.corrNr } : { lockHandle: lock.handle }
+    });
+  } catch (e) {
+    const deleteFailure = `delete failed: ${describeUnknownError(e)}`;
+    try {
+      await conn.get(cand.uri, { headers: { Accept: "*/*" } });
+      return {
+        name: cand.name,
+        kind: cand.kind,
+        uri: cand.uri,
+        existed: true,
+        deleted: false,
+        reason: `${deleteFailure}; a read-back of the same URI still finds the object`
+      };
+    } catch (probeErr) {
+      if (isNotFoundLike(probeErr)) {
+        return {
+          name: cand.name,
+          kind: cand.kind,
+          uri: cand.uri,
+          existed: true,
+          deleted: true,
+          reason: `${deleteFailure}, but a read-back of the same URI confirms the object is gone`
+        };
+      }
+      return {
+        name: cand.name,
+        kind: cand.kind,
+        uri: cand.uri,
+        existed: true,
+        deleted: "unverified",
+        reason: `${deleteFailure}; the read-back to confirm it also failed: ${describeUnknownError(probeErr)}`
+      };
+    }
+  } finally {
+    try {
+      await session.unlock(cand.uri);
+    } catch {
+    }
+  }
+  try {
+    await conn.get(cand.uri, { headers: { Accept: "*/*" } });
+    return {
+      name: cand.name,
+      kind: cand.kind,
+      uri: cand.uri,
+      existed: true,
+      deleted: "unverified",
+      reason: "DELETE returned success but a read-back of the same URI still finds the object; this is not proof the delete failed (it can be a stale read)"
+    };
+  } catch (e) {
+    if (isNotFoundLike(e)) {
+      return { name: cand.name, kind: cand.kind, uri: cand.uri, existed: true, deleted: true };
+    }
+    return {
+      name: cand.name,
+      kind: cand.kind,
+      uri: cand.uri,
+      existed: true,
+      deleted: "unverified",
+      reason: `DELETE returned success but the read-back to confirm it failed: ${describeUnknownError(e)}`
+    };
+  }
+}
+async function probeRequestedPersistentTargets(conn, bo, boPackage, candidates) {
+  const out = [];
+  for (const cand of candidates) {
+    let body;
+    try {
+      const resp = await conn.get(cand.uri, { headers: { Accept: "application/*" } });
+      body = resp.body ?? "";
+    } catch (e) {
+      if (isNotFoundLike(e)) {
+        out.push({ candidate: cand, present: false });
+        continue;
+      }
+      throw new AbapError(
+        "BAD_INPUT",
+        `Cannot cascade_persistent delete "${cand.name}" on BOPF business object ${bo}: probing it before the delete failed: ${describeUnknownError(e)}. Nothing was deleted.`,
+        { bo, name: cand.name, uri: cand.uri }
+      );
+    }
+    const packageName = parsePackageRef(body);
+    if (!packageName) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Cannot cascade_persistent delete "${cand.name}" on BOPF business object ${bo}: abapsmith could not confirm which package "${cand.name}" belongs to \u2014 its ADT document carried no single, unambiguous <adtcore:packageRef>. Nothing was deleted.`,
+        { bo, name: cand.name, uri: cand.uri }
+      );
+    }
+    if (!boPackage || !boPackage.trim()) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Cannot cascade_persistent delete "${cand.name}" on BOPF business object ${bo}: this BO's own package could not be determined, so it cannot be compared against the package of the object being deleted. Nothing was deleted.`,
+        { bo, name: cand.name }
+      );
+    }
+    if (packageName.trim().toUpperCase() !== boPackage.trim().toUpperCase()) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Cannot cascade_persistent delete "${cand.name}" on BOPF business object ${bo}: it lives in package ${packageName}, not ${boPackage} \u2014 a DDIC object living in another package is never deleted this way. Nothing was deleted.`,
+        { bo, name: cand.name, objectPackage: packageName, boPackage }
+      );
+    }
+    out.push({ candidate: cand, present: true, packageName, beforeSource: body });
+  }
+  return out;
+}
+function isNotFoundLike(e) {
+  const err = e;
+  const status = Number(err?.status ?? err?.err ?? 0);
+  return status === 404 || /ResourceNotFound/i.test(String(err?.type ?? ""));
+}
+async function searchBusinessObjects(conn, input) {
+  if (!input.objectType || !input.objectType.trim()) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "BOPF search requires object_type \u2014 the server answers 400 ExceptionParameterNotFound without it.",
+      { query: input.query },
+      'Pass an object_type, e.g. "BOBF".'
+    );
+  }
+  const qs = { objectType: input.objectType };
+  if (input.query !== void 0) qs.query = input.query;
+  if (input.maxResults !== void 0) qs.maxResults = String(input.maxResults);
+  let body;
+  try {
+    const resp = await conn.get(`${BOPF_COLLECTION}/$search`, { headers: { Accept: "application/xml" }, qs });
+    body = resp.body;
+  } catch (e) {
+    if (isAbapError(e)) throw e;
+    throw translateAdtError(e, { operation: "read", uri: `${BOPF_COLLECTION}/$search` });
+  }
+  return parseSearchResults(body);
+}
+function parseSearchResults(xml4) {
+  const out = [];
+  const re = /<[\w:]*[Oo]bjectReference\b[^>]*\/?>/g;
+  let m;
+  while (m = re.exec(xml4)) {
+    const tag = m[0];
+    const uri = attr3(tag, "uri");
+    const type = attr3(tag, "type");
+    const name = attr3(tag, "name");
+    if (name && type) {
+      out.push({ ...uri ? { uri } : {}, type, name });
+    }
+  }
+  return out;
+}
+function attr3(tag, name) {
+  const re = new RegExp(`[\\w:]*:${name}="([^"]*)"`);
+  const m = re.exec(tag);
+  if (m && m[1] !== void 0) return xmlUnescape(m[1]);
+  const re2 = new RegExp(`\\b${name}="([^"]*)"`);
+  const m2 = re2.exec(tag);
+  return m2 && m2[1] !== void 0 ? xmlUnescape(m2[1]) : void 0;
+}
+function xmlUnescape(s) {
+  return s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+}
+var DEFAULT_CHECK_REFS_MAX_SITES = 25;
+async function checkReferences(conn, model, options) {
+  const sites = collectRefSites(model);
+  const maxSites = options?.maxSites ?? DEFAULT_CHECK_REFS_MAX_SITES;
+  const capped = sites.length > maxSites ? sites.slice(0, maxSites) : sites;
+  const findings = [];
+  for (const site of capped) {
+    findings.push(await evaluateSite(conn, model, site));
+  }
+  return findings;
+}
+var IMPL_INTERFACE_BY_OWNER = {
+  determination: "/BOBF/IF_FRW_DETERMINATION",
+  validation: "/BOBF/IF_FRW_VALIDATION",
+  action: "/BOBF/IF_FRW_ACTION",
+  query: "/BOBF/IF_FRW_QUERY"
+};
+var DDIC_ELEMENTS = /* @__PURE__ */ new Set([
+  "persistentStructureRef",
+  "combinedStructureRef",
+  "combinedTableRef",
+  "persistentTableRef",
+  "parameterStructureRef",
+  "dataTypeRef",
+  "dataTableTypeRef"
+]);
+function collectRefSites(model) {
+  const sites = [];
+  const push = (node2, owner, member, element, ref2, requiredInterface) => {
+    if (!ref2) return;
+    sites.push({
+      owner,
+      node: node2,
+      ...member !== void 0 ? { member } : {},
+      element,
+      kind: DDIC_ELEMENTS.has(element) ? "ddic" : "class",
+      ref: ref2,
+      ...requiredInterface ? { requiredInterface } : {}
+    });
+  };
+  for (const node2 of model.nodes) {
+    push(node2.name, "node", void 0, "persistentStructureRef", node2.persistentStructureRef);
+    push(node2.name, "node", void 0, "combinedStructureRef", node2.combinedStructureRef);
+    push(node2.name, "node", void 0, "combinedTableRef", node2.combinedTableRef);
+    push(node2.name, "node", void 0, "persistentTableRef", node2.persistentTableRef);
+    push(node2.name, "node", void 0, "defaultingClassRef", node2.defaultingClassRef);
+    push(node2.name, "node", void 0, "dataAccessClassRef", node2.dataAccessClassRef);
+    push(node2.name, "node", void 0, "authorizationClassRef", node2.authorizationClassRef);
+    for (const a of node2.associations) {
+      push(node2.name, "association", a.name, "targetNodeRef", a.targetNodeRef);
+      push(node2.name, "association", a.name, "parameterStructureRef", a.parameterStructureRef);
+      push(node2.name, "association", a.name, "implementationClassRef", a.implementationClassRef);
+    }
+    for (const act of node2.actions) {
+      push(node2.name, "action", act.name, "parameterStructureRef", act.parameterStructureRef);
+      push(node2.name, "action", act.name, "implementationClassRef", act.implementationClassRef, IMP_ACTION);
+    }
+    for (const det of node2.determinations) {
+      push(node2.name, "determination", det.name, "implementationClassRef", det.implementationClassRef, IMP_DETERMINATION);
+    }
+    for (const val of node2.validations) {
+      push(node2.name, "validation", val.name, "implementationClassRef", val.implementationClassRef, IMP_VALIDATION);
+    }
+    for (const q of node2.queries) {
+      push(node2.name, "query", q.name, "dataTypeRef", q.dataTypeRef);
+      push(node2.name, "query", q.name, "implementationClassRef", q.implementationClassRef, IMP_QUERY);
+    }
+    for (const ak of node2.alternativeKeys) {
+      push(node2.name, "alternativeKey", ak.name, "dataTypeRef", ak.dataTypeRef);
+      push(node2.name, "alternativeKey", ak.name, "dataTableTypeRef", ak.dataTableTypeRef);
+    }
+  }
+  return sites;
+}
+var IMP_DETERMINATION = IMPL_INTERFACE_BY_OWNER.determination;
+var IMP_VALIDATION = IMPL_INTERFACE_BY_OWNER.validation;
+var IMP_ACTION = IMPL_INTERFACE_BY_OWNER.action;
+var IMP_QUERY = IMPL_INTERFACE_BY_OWNER.query;
+async function evaluateSite(conn, model, site) {
+  try {
+    if (site.element === "targetNodeRef") {
+      return evaluateTargetNodeRef(model, site);
+    }
+    if (site.kind === "ddic") {
+      return await evaluateDdicRef(conn, site);
+    }
+    return await evaluateClassRef(conn, site);
+  } catch (e) {
+    return { site, verdict: "unchecked", detail: describeUnknownError(e) };
+  }
+}
+function evaluateTargetNodeRef(model, site) {
+  const name = site.ref.name;
+  if (!name) return { site, verdict: "unchecked", detail: "targetNodeRef has no name" };
+  if (isCrossBoTarget(model, name)) {
+    const { bo, node: node2 } = splitTargetNodeRef(name);
+    return {
+      site,
+      verdict: "unchecked",
+      detail: `targetNodeRef points at ${node2 ?? "?"} on ${bo ?? "another business object"}, which this read does not fetch`
+    };
+  }
+  const prefix = `${model.name}~`;
+  const bareName2 = name.startsWith(prefix) ? name.slice(prefix.length) : name;
+  const found = model.nodes.some((n) => n.name === bareName2 || n.name === name);
+  return { site, verdict: found ? "present" : "missing" };
+}
+async function evaluateDdicRef(conn, site) {
+  const { ref: ref2, element } = site;
+  const isPendingKind = element === "combinedStructureRef" || element === "combinedTableRef" || element === "persistentTableRef";
+  const uri = ref2.uri ?? (ref2.name ? `/sap/bc/adt/ddic/tables/${ref2.name.toLowerCase()}` : void 0);
+  if (!uri) {
+    if (!ref2.name) return { site, verdict: "unchecked", detail: "ref has neither uri nor name" };
+  }
+  if (!uri) return { site, verdict: "unchecked", detail: "could not construct a probe uri" };
+  try {
+    await conn.get(uri, { headers: { Accept: "*/*" } });
+    return { site, verdict: "present" };
+  } catch (e) {
+    if (isNotFoundLike(e)) {
+      return { site, verdict: isPendingKind ? "pending" : "missing" };
+    }
+    return { site, verdict: "unchecked", detail: describeUnknownError(e) };
+  }
+}
+async function evaluateClassRef(conn, site) {
+  const className = site.ref.name;
+  if (!className) return { site, verdict: "unchecked", detail: "ref has no name" };
+  const spec = specForType("CLAS/OC");
+  const uri = buildUri(spec, className);
+  const target = {
+    spec,
+    type: spec.type,
+    name: className,
+    uri,
+    sourceUri: `${uri}/source/main`,
+    packageName: "",
+    description: "",
+    exists: true,
+    packageSource: "requested"
+  };
+  let source;
+  try {
+    source = await readCurrentSource(conn, target);
+  } catch (e) {
+    if (isAbapError(e) && e.code === "UNSUPPORTED") {
+      return { site, verdict: "missing", detail: e.message };
+    }
+    return { site, verdict: "unchecked", detail: describeUnknownError(e) };
+  }
+  if (source === void 0) {
+    return { site, verdict: "unchecked", detail: "readCurrentSource returned no source for a target marked exists" };
+  }
+  const verdict = hasImplementationPart(source) ? "present" : "declaration-only";
+  if (verdict === "declaration-only") {
+    return { site, verdict, detail: "class exists but has no IMPLEMENTATION section" };
+  }
+  if (site.requiredInterface) {
+    const check2 = await checkClassImplements(conn, className, source, site.requiredInterface);
+    if (check2.implemented === true) return { site, verdict: "present" };
+    if (check2.implemented === false) return { site, verdict: "wrong-interface", detail: check2.detail };
+    return { site, verdict: "unchecked", detail: check2.detail };
+  }
+  return { site, verdict: "present" };
+}
+
+// src/adt/enhancement-write.ts
+init_errors();
+init_session();
+init_mode();
+var ENHANCEMENT_WRITE_TYPES = ["ENHO/XH", "ENHO/XHH", "ENHS/XS"];
+function isEnhancementWriteType(type) {
+  return ENHANCEMENT_WRITE_TYPES.includes(type ?? "");
+}
+var ENHANCEMENT_SPECS = {
+  "ENHO/XH": {
+    type: "ENHO/XH",
+    collection: ENHOXH_COLLECTION,
+    bareCollection: "enhoxh",
+    accept: () => ENHOXH_ACCEPT,
+    // Undefined deliberately — one live success, no citation file yet. See
+    // module header's "PUT verification matrix".
+    putVerifiedBy: void 0,
+    read: readBadiImplementation
+  },
+  "ENHO/XHH": {
+    type: "ENHO/XHH",
+    collection: ENHOXHH_COLLECTION,
+    bareCollection: "enhoxhh",
+    accept: (conn) => enhoxhhMediaType(conn.discovery),
+    // Backed by the fixture below plus a live end-to-end
+    // writeAndActivateEnhancementDescription run after the LOCK Accept-header
+    // fix (see withRelockRetry below) — before that fix every attempt died
+    // at LOCK with a 406.
+    putVerifiedBy: "test/fixtures/enhancement/138-put-wholedoc-success.meta.json",
+    read: readSourceCodePlugin
+  },
+  "ENHS/XS": {
+    type: "ENHS/XS",
+    collection: ENHSXS_COLLECTION,
+    bareCollection: "enhsxs",
+    accept: () => ENHSXS_ACCEPT,
+    // Undefined deliberately — one live success, no citation file yet. See
+    // module header's "PUT verification matrix".
+    putVerifiedBy: void 0,
+    read: readEnhancementSpot
+  }
+};
+function specFor(type) {
+  return ENHANCEMENT_SPECS[type];
+}
+function firstHeader4(headers, name) {
+  const lower = name.toLowerCase();
+  for (const k of Object.keys(headers)) {
+    if (k.toLowerCase() === lower) {
+      const v = headers[k];
+      if (Array.isArray(v)) return v.length ? String(v[0]) : void 0;
+      return v === void 0 || v === null ? void 0 : String(v);
+    }
+  }
+  return void 0;
+}
+var NON_RETRYABLE_CODES = /* @__PURE__ */ new Set([
+  "SAFETY_DENIED",
+  "BAD_INPUT",
+  "LOCKED",
+  "TRANSPORT_ERROR",
+  "ETAG_CONFLICT",
+  // Belt-and-suspenders: should never fire (assertDescriptionWillBePresent
+  // catches this pre-lock), but retrying an identical payload would just
+  // reproduce the same refusal.
+  "ENHANCEMENT_DESCRIPTION_REQUIRED"
+]);
+function enhancementRetryable(e) {
+  if (isAbapError(e) && NON_RETRYABLE_CODES.has(e.code)) return false;
+  return true;
+}
+function assertDescriptionWillBePresent(nextDescription, ctx, hint) {
+  if (nextDescription !== void 0 && nextDescription !== "") return;
+  throw new AbapError(
+    "ENHANCEMENT_DESCRIPTION_REQUIRED",
+    `${ctx.type} ${ctx.name}: this write would leave the root adtcore:description missing or empty. SAP's enhancement PUT handler rejects that unconditionally (HTTP 400 ExceptionInvalidData, SWB_TOOL19 / scr_prop_no_decr, "The description is missing") \u2014 even a write that has nothing to do with the description, like set_impl_active, is refused if the object has none. Nothing was locked or written.`,
+    { name: ctx.name, type: ctx.type, uri: ctx.uri },
+    hint
+  );
+}
+function assertDescriptionLength(description, ctx) {
+  if (description === void 0 || description.length <= 60) return;
+  throw new AbapError(
+    "BAD_INPUT",
+    `${ctx.type} ${ctx.name}: description is ${description.length} characters, longer than SAP's 60-character limit for adtcore:description (t100 SWB_TOOL/18, "Description too long"). Nothing was locked or written.`,
+    { name: ctx.name, type: ctx.type, uri: ctx.uri, length: description.length }
+  );
+}
+function hintAdjustmentStatusIfLikelyCause(e, adjustmentStatus, target) {
+  if (isAbapError(e) && e.code === "ADT_ERROR" && adjustmentStatus !== void 0 && adjustmentStatus !== "adjusted") {
+    const observed = adjustmentStatus === "" ? "empty" : JSON.stringify(adjustmentStatus);
+    const priorHint = e.hint ? `${e.hint} ` : "";
+    throw new AbapError(
+      e.code,
+      e.message,
+      e.details,
+      `${priorHint}UNCONFIRMED HYPOTHESIS (not confirmed by experiment \u2014 see the doc comment on hintAdjustmentStatusIfLikelyCause in src/adt/enhancement-write.ts): ${target.name}'s own adjustmentStatus is ${observed}, not "adjusted". A live failure of this exact operation (deactivating a BAdI implementation) decoded, via T100 reassembly, to "Enhancement <name> must still be adjusted" \u2014 this MAY be the same precondition, but that link is not confirmed. If so, ${target.name} likely needs an upgrade adjustment (SPAU/SPDD) performed outside this tool before this write can succeed; this tool will not set adjustmentStatus itself to force the write through, since doing so would falsely claim an adjustment that was never actually performed.`
+    );
+  }
+  throw e;
+}
+async function putEnhancementDocument(conn, authorized, uri, opts, ctx) {
+  void authorized;
+  if (!hasEnhancementRootDescription(opts.body)) {
+    throw new AbapError(
+      "ENHANCEMENT_DESCRIPTION_REQUIRED",
+      `${ctx.type} ${ctx.name}: refusing to PUT \u2014 the outgoing document's root adtcore:description is missing or empty. SAP's enhancement PUT handler rejects this (HTTP 400 ExceptionInvalidData, SWB_TOOL19 / scr_prop_no_decr, "The description is missing") even when the write has nothing to do with the description. This should have been caught pre-lock; seeing this error instead means that guard was bypassed somehow \u2014 please report it.`,
+      { name: ctx.name, type: ctx.type, uri },
+      `Call abap_enh operation:"write_description" (name:"${ctx.name}", type:"${ctx.type}") to give this object a real description, then retry.`
+    );
+  }
+  return conn.put(uri, opts);
+}
+async function writeEnhancementDescription(conn, gate, target, opts) {
+  if (typeof target.description !== "string") {
+    throw new AbapError(
+      "BAD_INPUT",
+      "description must be a string; use undefined/omit the call to leave it alone. An empty string is a well-formed request but is refused separately, below (ENHANCEMENT_DESCRIPTION_REQUIRED) \u2014 SAP's own PUT handler does not accept an empty root description, so this operation cannot clear one.",
+      { name: target.name, type: target.type }
+    );
+  }
+  const spec = specFor(target.type);
+  if (!spec) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `${target.type} is not a type this module writes. Supported: ${ENHANCEMENT_WRITE_TYPES.join(", ")}.`,
+      { type: target.type, name: target.name }
+    );
+  }
+  conn.discovery.assertEnhancementCapable(spec.bareCollection, "PUT");
+  const uri = buildEnhancementUri(spec.collection, target.name);
+  const affects = opts.affects;
+  assertDescriptionLength(target.description, { name: target.name, type: target.type, uri });
+  const current = await spec.read(conn, target.name);
+  const packageName = current.data.packageRef?.name ?? "";
+  const masterSystem = current.data.masterSystem;
+  const writeTarget = {
+    type: target.type,
+    name: target.name,
+    uri,
+    packageName,
+    description: target.description,
+    masterSystem
+  };
+  const refusalTarget = {
+    name: writeTarget.name,
+    type: writeTarget.type,
+    uri: writeTarget.uri,
+    packageName: writeTarget.packageName,
+    spec: { label: writeTarget.type }
+  };
+  const intent = enhancementIntentFor(
+    { name: target.name, type: target.type, packageName, masterSystem },
+    affects
+  );
+  const authorized = gate.authorizeIntent("write", intent, writeTarget, { corr: { kind: "unresolved" } });
+  const previousEtag = canonicalEtag(current.xml);
+  if ((current.data.description ?? "") === target.description) {
+    return {
+      target: writeTarget,
+      affects,
+      changed: false,
+      etag: previousEtag,
+      previousEtag,
+      transport: { status: "not-determined", required: false, reason: "the description was already identical, so this call took no lock and ran no transport pre-check." },
+      previousXml: current.xml,
+      putVerified: spec.putVerifiedBy !== void 0
+    };
+  }
+  assertDescriptionWillBePresent(
+    target.description,
+    { name: target.name, type: target.type, uri },
+    "Provide a non-empty description. SAP's enhancement PUT handler does not accept an empty root adtcore:description on this write either \u2014 there is no live-safe way to clear a description through this operation."
+  );
+  if (opts.expectEtag !== void 0 && opts.expectEtag !== previousEtag) {
+    throw new AbapError(
+      "ETAG_CONFLICT",
+      `${target.type} ${target.name} changed since you read it.`,
+      { name: target.name, type: target.type, uri, operation: "write", expectedEtag: opts.expectEtag, actualEtag: previousEtag },
+      "Re-read the object, re-apply your change, and write again with the fresh etag. Nothing was locked and nothing was written."
+    );
+  }
+  const preflightTarget = { uri, name: target.name, type: target.type, packageName };
+  const transportOpts = opts.transport === void 0 ? { corrNr: opts.corrNr, affects } : { transport: opts.transport, gate: opts.gate, corrNr: opts.corrNr, affects };
+  const preflight2 = await preflightCorr(conn, preflightTarget, transportOpts, "U", "write");
+  if (opts.onBeforeImage) {
+    await opts.onBeforeImage({
+      xml: current.xml,
+      target: writeTarget,
+      affects,
+      corrNr: preflight2?.kind === "transport" ? preflight2.corrNr : void 0
+    });
+  }
+  let finalXml = "";
+  let finalEtag = "";
+  let finalTransport = { status: "not-determined", required: false, reason: "the lock response had not been read yet (this value is never returned)." };
+  await conn.withStatefulSession(async (session) => {
+    const outcome = await withRelockRetry({
+      session,
+      uri,
+      // NOT `lockAccept: spec.accept` — sending the document's own media type
+      // as LOCK's Accept header gets a live 406 every time, every type.
+      // Omitting it uses the session's own default Accept, which LOCK
+      // accepts (confirmed live).
+      retryable: enhancementRetryable,
+      reread: async (lock) => {
+        void lock;
+        let body;
+        try {
+          const resp = await conn.get(uri, { headers: { Accept: spec.accept(conn) } });
+          body = resp.body;
+        } catch (e) {
+          if (isAbapError(e)) throw e;
+          throw translateAdtError(e, { operation: "write", uri, name: target.name, type: target.type });
+        }
+        const freshEtag = canonicalEtag(body);
+        if (freshEtag !== previousEtag) {
+          try {
+            await session.unlock(uri);
+          } catch {
+          }
+          throw postLockEtagConflict(refusalTarget, previousEtag, freshEtag);
+        }
+        return body;
+      },
+      rebuild: async (fresh) => patchEnhancementRootAttribute(fresh, "description", target.description),
+      attempt: async (lock, payload) => {
+        const lockTransport = transportFromLock(lock);
+        const corr = corrForMutation(preflight2, lockTransport);
+        if (corr === void 0) {
+          try {
+            await session.unlock(uri);
+          } catch {
+          }
+          throw transportRefusal(refusalTarget, lockTransport, "written", opts.transport !== void 0);
+        }
+        if (corr.kind === "transport" && lockTransport.required && lockTransport.corrNr !== void 0 && lockTransport.corrNr !== "" && lockTransport.corrNr.toUpperCase() !== corr.corrNr.toUpperCase()) {
+          try {
+            await session.unlock(uri);
+          } catch {
+          }
+          throw transportDivergence(refusalTarget, corr.corrNr, lockTransport.corrNr, false, { rolledBack: false });
+        }
+        let resp;
+        try {
+          resp = await putEnhancementDocument(
+            conn,
+            authorized,
+            uri,
+            {
+              headers: { "Content-Type": spec.accept(conn), Accept: spec.accept(conn) },
+              qs: corr.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr.corrNr } : { lockHandle: lock.handle },
+              body: payload
+            },
+            { name: target.name, type: target.type }
+          );
+        } catch (e) {
+          if (isAbapError(e)) throw e;
+          throw translateAdtError(e, { operation: "write", uri, name: target.name, type: target.type });
+        }
+        const putEtag = firstHeader4(resp.headers, "etag");
+        const tinfo = corr.kind === "transport" ? {
+          status: "transport",
+          required: true,
+          corrNr: corr.corrNr,
+          ...lockTransport.corrUser === void 0 ? {} : { corrUser: lockTransport.corrUser },
+          ...lockTransport.corrText === void 0 ? {} : { corrText: lockTransport.corrText }
+        } : lockTransport;
+        return { xml: payload, etag: putEtag, transport: tinfo };
+      }
+    });
+    await session.unlock(uri);
+    finalXml = outcome.xml;
+    finalEtag = outcome.etag ?? canonicalEtag(outcome.xml);
+    finalTransport = outcome.transport;
+  });
+  return {
+    target: writeTarget,
+    affects,
+    changed: true,
+    etag: finalEtag,
+    previousEtag,
+    transport: finalTransport,
+    previousXml: current.xml,
+    xml: finalXml,
+    putVerified: spec.putVerifiedBy !== void 0
+  };
+}
+function resolveBadiImplementationEntry(badiData, implName, containerName, uri) {
+  const entries = badiData.implementations;
+  const knownEntries = entries.map((i) => i.name);
+  if (implName !== void 0) {
+    const entry = entries.find((i) => i.name === implName);
+    if (!entry) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `${containerName} has no <enho:badiImplementation enho:name="${implName}"> entry in its own document \u2014 nothing to activate or deactivate.`,
+        { name: containerName, implName, type: "ENHO/XH", uri, knownEntries }
+      );
+    }
+    return entry;
+  }
+  if (entries.length === 1) return entries[0];
+  if (entries.length === 0) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `${containerName} has no <enho:badiImplementation> entries in its own document \u2014 nothing to activate or deactivate.`,
+      { name: containerName, type: "ENHO/XH", uri, knownEntries }
+    );
+  }
+  throw new AbapError(
+    "BAD_INPUT",
+    `${containerName} has ${entries.length} <enho:badiImplementation> entries (${knownEntries.join(", ")}) \u2014 spec.implName is required to say which one to activate or deactivate; omitting it is only safe when there is exactly one.`,
+    { name: containerName, type: "ENHO/XH", uri, knownEntries }
+  );
+}
+async function setBadiImplementationActive(conn, gate, target, opts) {
+  const spec = specFor("ENHO/XH");
+  conn.discovery.assertEnhancementCapable(spec.bareCollection, "PUT");
+  const uri = buildEnhancementUri(spec.collection, target.name);
+  const affects = opts.affects;
+  assertDescriptionLength(target.description, { name: target.name, type: "ENHO/XH", uri });
+  const current = await spec.read(conn, target.name);
+  const badiData = current.data;
+  const packageName = badiData.packageRef?.name ?? "";
+  const masterSystem = badiData.masterSystem;
+  const adjustmentStatus = badiData.adjustmentStatus;
+  const entry = resolveBadiImplementationEntry(badiData, target.implName, target.name, uri);
+  const activationTarget = {
+    type: "ENHO/XH",
+    name: target.name,
+    implName: entry.name,
+    uri,
+    packageName,
+    active: target.active,
+    masterSystem
+  };
+  const writeTarget = {
+    type: "ENHO/XH",
+    name: target.name,
+    uri,
+    packageName,
+    description: badiData.description ?? "",
+    masterSystem
+  };
+  const refusalTarget = {
+    name: activationTarget.name,
+    type: activationTarget.type,
+    uri: activationTarget.uri,
+    packageName: activationTarget.packageName,
+    spec: { label: activationTarget.type }
+  };
+  const intent = enhancementIntentFor(
+    { name: target.name, type: "ENHO/XH", packageName, masterSystem },
+    affects
+  );
+  const authorized = gate.authorizeIntent("write", intent, writeTarget, { corr: { kind: "unresolved" } });
+  const previousEtag = canonicalEtag(current.xml);
+  const existingDescription = badiData.description;
+  let nextDescription = existingDescription;
+  if (target.description !== void 0) {
+    if (existingDescription !== void 0 && existingDescription !== "" && existingDescription !== target.description) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `${target.name} already has a description ("${existingDescription}") \u2014 spec.description ("${target.description}") differs and would silently overwrite it. spec.description on set_impl_active is only accepted when the object currently has none.`,
+        { name: target.name, type: "ENHO/XH", uri, existingDescription, suppliedDescription: target.description }
+      );
+    }
+    nextDescription = target.description;
+  }
+  const injectingDescription = target.description !== void 0 && (existingDescription === void 0 || existingDescription === "");
+  if (entry.isActive === target.active && !injectingDescription) {
+    return {
+      target: activationTarget,
+      affects,
+      changed: false,
+      etag: previousEtag,
+      previousEtag,
+      transport: {
+        status: "not-determined",
+        required: false,
+        reason: "isActive already matched the requested value, so this call took no lock and ran no transport pre-check."
+      },
+      previousXml: current.xml,
+      putVerified: spec.putVerifiedBy !== void 0
+    };
+  }
+  assertDescriptionWillBePresent(
+    nextDescription,
+    { name: target.name, type: "ENHO/XH", uri },
+    `${target.name} has no description of its own, and set_impl_active does not invent one. Call abap_enh operation:"write_description" (name:"${target.name}", type:"ENHO/XH") first, then retry \u2014 or pass spec.description in this same call (only accepted when the object currently has none, as it does now).`
+  );
+  if (opts.expectEtag !== void 0 && opts.expectEtag !== previousEtag) {
+    throw new AbapError(
+      "ETAG_CONFLICT",
+      `ENHO/XH ${target.name} changed since you read it.`,
+      { name: target.name, type: "ENHO/XH", uri, operation: "write", expectedEtag: opts.expectEtag, actualEtag: previousEtag },
+      "Re-read the object, re-apply your change, and write again with the fresh etag. Nothing was locked and nothing was written."
+    );
+  }
+  const preflightTarget = { uri, name: target.name, type: "ENHO/XH", packageName };
+  const transportOpts = opts.transport === void 0 ? { corrNr: opts.corrNr, affects } : { transport: opts.transport, gate: opts.gate, corrNr: opts.corrNr, affects };
+  const preflight2 = await preflightCorr(conn, preflightTarget, transportOpts, "U", "write");
+  if (opts.onBeforeImage) {
+    await opts.onBeforeImage({
+      xml: current.xml,
+      target: writeTarget,
+      affects,
+      corrNr: preflight2?.kind === "transport" ? preflight2.corrNr : void 0
+    });
+  }
+  let finalXml = "";
+  let finalEtag = "";
+  let finalTransport = {
+    status: "not-determined",
+    required: false,
+    reason: "the lock response had not been read yet (this value is never returned)."
+  };
+  try {
+    await conn.withStatefulSession(async (session) => {
+      const outcome = await withRelockRetry({
+        session,
+        uri,
+        // See writeEnhancementDescription's identical comment: no `lockAccept`
+        // override — the document's own media type gets a live 406 on LOCK.
+        retryable: enhancementRetryable,
+        reread: async (lock) => {
+          void lock;
+          let body;
+          try {
+            const resp = await conn.get(uri, { headers: { Accept: spec.accept(conn) } });
+            body = resp.body;
+          } catch (e) {
+            if (isAbapError(e)) throw e;
+            throw translateAdtError(e, { operation: "write", uri, name: target.name, type: "ENHO/XH" });
+          }
+          const freshEtag = canonicalEtag(body);
+          if (freshEtag !== previousEtag) {
+            try {
+              await session.unlock(uri);
+            } catch {
+            }
+            throw postLockEtagConflict(refusalTarget, previousEtag, freshEtag);
+          }
+          return body;
+        },
+        rebuild: async (fresh) => {
+          const flipped = patchBadiImplementationActive(fresh, entry.name, target.active);
+          return injectingDescription ? patchEnhancementRootAttribute(flipped, "description", nextDescription) : flipped;
+        },
+        attempt: async (lock, payload) => {
+          const lockTransport = transportFromLock(lock);
+          const corr = corrForMutation(preflight2, lockTransport);
+          if (corr === void 0) {
+            try {
+              await session.unlock(uri);
+            } catch {
+            }
+            throw transportRefusal(refusalTarget, lockTransport, "written", opts.transport !== void 0);
+          }
+          if (corr.kind === "transport" && lockTransport.required && lockTransport.corrNr !== void 0 && lockTransport.corrNr !== "" && lockTransport.corrNr.toUpperCase() !== corr.corrNr.toUpperCase()) {
+            try {
+              await session.unlock(uri);
+            } catch {
+            }
+            throw transportDivergence(refusalTarget, corr.corrNr, lockTransport.corrNr, false, { rolledBack: false });
+          }
+          let resp;
+          try {
+            resp = await putEnhancementDocument(
+              conn,
+              authorized,
+              uri,
+              {
+                headers: { "Content-Type": spec.accept(conn), Accept: spec.accept(conn) },
+                qs: corr.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr.corrNr } : { lockHandle: lock.handle },
+                body: payload
+              },
+              { name: target.name, type: "ENHO/XH" }
+            );
+          } catch (e) {
+            if (isAbapError(e)) throw e;
+            throw translateAdtError(e, { operation: "write", uri, name: target.name, type: "ENHO/XH" });
+          }
+          const putEtag = firstHeader4(resp.headers, "etag");
+          const tinfo = corr.kind === "transport" ? {
+            status: "transport",
+            required: true,
+            corrNr: corr.corrNr,
+            ...lockTransport.corrUser === void 0 ? {} : { corrUser: lockTransport.corrUser },
+            ...lockTransport.corrText === void 0 ? {} : { corrText: lockTransport.corrText }
+          } : lockTransport;
+          return { xml: payload, etag: putEtag, transport: tinfo };
+        }
+      });
+      await session.unlock(uri);
+      finalXml = outcome.xml;
+      finalEtag = outcome.etag ?? canonicalEtag(outcome.xml);
+      finalTransport = outcome.transport;
+    });
+  } catch (e) {
+    hintAdjustmentStatusIfLikelyCause(e, adjustmentStatus, { name: target.name });
+  }
+  return {
+    target: activationTarget,
+    affects,
+    changed: true,
+    etag: finalEtag,
+    previousEtag,
+    transport: finalTransport,
+    previousXml: current.xml,
+    xml: finalXml,
+    putVerified: spec.putVerifiedBy !== void 0
+  };
+}
+async function deleteEnhancementDocument(conn, authorized, uri, opts) {
+  void authorized;
+  return conn.del(uri, opts);
+}
+async function deleteEnhancementObject(conn, gate, target, opts) {
+  const spec = specFor(target.type);
+  if (!spec) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      `${target.type} is not a type this module deletes. Supported: ${ENHANCEMENT_WRITE_TYPES.join(", ")}.`,
+      { type: target.type, name: target.name }
+    );
+  }
+  if (opts.allowEnhancementDelete !== true) {
+    const why = explainDeniedCapability("allowEnhancementDelete", opts.abapMode);
+    throw new AbapError(
+      "ENHANCEMENT_DISABLED",
+      `Deleting an existing enhancement object is disabled. ${why.cause}`,
+      {
+        type: target.type,
+        name: target.name,
+        allowEnhancementDelete: opts.allowEnhancementDelete,
+        // Named so a reader of the structured payload can tell which layer
+        // decided without parsing the sentence above.
+        decidedBy: why.decidedBy,
+        ...opts.abapMode !== void 0 ? { abapMode: opts.abapMode } : {}
+      },
+      why.remediation
+    );
+  }
+  conn.discovery.assertEnhancementCapable(spec.bareCollection, "DELETE");
+  const uri = buildEnhancementUri(spec.collection, target.name);
+  const affects = opts.affects;
+  const current = await spec.read(conn, target.name);
+  const packageName = current.data.packageRef?.name ?? "";
+  const masterSystem = current.data.masterSystem;
+  const deleteTarget = { type: target.type, name: target.name, uri, packageName, masterSystem };
+  const refusalTarget = {
+    name: deleteTarget.name,
+    type: deleteTarget.type,
+    uri: deleteTarget.uri,
+    packageName: deleteTarget.packageName,
+    spec: { label: deleteTarget.type }
+  };
+  if (target.type === "ENHO/XH") {
+    const badiData = current.data;
+    const unsafe = badiData.implementations.filter((impl) => impl.isActive !== false);
+    if (unsafe.length > 0) {
+      throw new AbapError(
+        "ENHANCEMENT_ACTIVE_IMPLEMENTATION",
+        `${target.name} has ${unsafe.length} BAdI implementation entr${unsafe.length === 1 ? "y" : "ies"} that ${unsafe.length === 1 ? "is" : "are"} active or not confirmably inactive (${unsafe.map((i) => `${i.name}: isActive=${i.isActive === void 0 ? "unknown" : String(i.isActive)}`).join(", ")}) \u2014 deleting this object would silently switch off live business logic with no error and no log (H8). This refusal has NO override: not ABAP_ALLOW_ENHANCEMENT_DELETE, not any other flag.`,
+        {
+          type: target.type,
+          name: target.name,
+          implementations: badiData.implementations.map((i) => ({ name: i.name, isActive: i.isActive }))
+        },
+        `Deactivate every implementation entry first \u2014 abap_enh operation:"set_impl_active" (name: "${target.name}", the object being deleted \u2014 NOT an entry's own name; spec.implName: one of the names listed in this refusal's own details.implementations above; spec.active: false) flips enho:isActive via the same PUT mechanism write_description uses (putVerified:false for ENHO/XH, same as every other write against this type) \u2014 repeat once per entry listed above, then re-read the object to confirm isActive=false on all entries before deleting again; this refusal does not lift automatically. If the object has no adtcore:description at all, that set_impl_active call will itself refuse first with ENHANCEMENT_DESCRIPTION_REQUIRED \u2014 SAP rejects every enhoxh/enhoxhh/enhsxs PUT without one, even one only flipping isActive; call operation:"write_description" once beforehand, or add spec.description to the same set_impl_active call (accepted only when the object currently has none), then retry.`
+      );
+    }
+  }
+  const intent = enhancementIntentFor(
+    { name: target.name, type: target.type, packageName, masterSystem },
+    affects
+  );
+  const authorized = gate.authorizeIntent("delete", intent, deleteTarget, { corr: { kind: "unresolved" } });
+  const previousEtag = canonicalEtag(current.xml);
+  if (opts.expectEtag !== void 0 && opts.expectEtag !== previousEtag) {
+    throw new AbapError(
+      "ETAG_CONFLICT",
+      `${target.type} ${target.name} changed since you read it.`,
+      { name: target.name, type: target.type, uri, operation: "delete", expectedEtag: opts.expectEtag, actualEtag: previousEtag },
+      "Re-read the object, confirm it is still the one you meant to delete, and delete again with the fresh etag. Nothing was locked and nothing was deleted."
+    );
+  }
+  const preflightTarget = { uri, name: target.name, type: target.type, packageName };
+  const transportOpts = opts.transport === void 0 ? { corrNr: opts.corrNr, affects } : { transport: opts.transport, gate: opts.gate, corrNr: opts.corrNr, affects };
+  const preflight2 = await preflightCorr(conn, preflightTarget, transportOpts, "U", "delete");
+  if (opts.onBeforeImage) {
+    await opts.onBeforeImage({
+      xml: current.xml,
+      target: deleteTarget,
+      affects,
+      corrNr: preflight2?.kind === "transport" ? preflight2.corrNr : void 0
+    });
+  }
+  let finalTransport = { status: "not-determined", required: false, reason: "the lock response had not been read yet (this value is never returned)." };
+  await conn.withStatefulSession(async (session) => {
+    const outcome = await withRelockRetry({
+      session,
+      uri,
+      // See writeEnhancementDescription's identical comment: no `lockAccept`
+      // override — the document's own media type gets a live 406 on LOCK.
+      retryable: enhancementRetryable,
+      reread: async (lock) => {
+        void lock;
+        let body;
+        try {
+          const resp = await conn.get(uri, { headers: { Accept: spec.accept(conn) } });
+          body = resp.body;
+        } catch (e) {
+          if (isAbapError(e)) throw e;
+          throw translateAdtError(e, { operation: "delete", uri, name: target.name, type: target.type });
+        }
+        const freshEtag = canonicalEtag(body);
+        if (freshEtag !== previousEtag) {
+          try {
+            await session.unlock(uri);
+          } catch {
+          }
+          throw postLockEtagConflict(refusalTarget, previousEtag, freshEtag);
+        }
+        return body;
+      },
+      // No payload to build for a DELETE — `withRelockRetry` still requires the
+      // slot, so this is the identity function; `attempt` below never reads it.
+      rebuild: async (fresh) => fresh,
+      attempt: async (lock, payload) => {
+        void payload;
+        const lockTransport = transportFromLock(lock);
+        const corr = corrForMutation(preflight2, lockTransport);
+        if (corr === void 0) {
+          try {
+            await session.unlock(uri);
+          } catch {
+          }
+          throw transportRefusal(refusalTarget, lockTransport, "deleted", opts.transport !== void 0);
+        }
+        if (corr.kind === "transport" && lockTransport.required && lockTransport.corrNr !== void 0 && lockTransport.corrNr !== "" && lockTransport.corrNr.toUpperCase() !== corr.corrNr.toUpperCase()) {
+          try {
+            await session.unlock(uri);
+          } catch {
+          }
+          throw transportDivergence(refusalTarget, corr.corrNr, lockTransport.corrNr, false, { rolledBack: false });
+        }
+        try {
+          await deleteEnhancementDocument(conn, authorized, uri, {
+            qs: corr.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr.corrNr } : { lockHandle: lock.handle }
+          });
+        } catch (e) {
+          if (isAbapError(e)) throw e;
+          throw translateAdtError(e, { operation: "delete", uri, name: target.name, type: target.type });
+        }
+        const tinfo = corr.kind === "transport" ? {
+          status: "transport",
+          required: true,
+          corrNr: corr.corrNr,
+          ...lockTransport.corrUser === void 0 ? {} : { corrUser: lockTransport.corrUser },
+          ...lockTransport.corrText === void 0 ? {} : { corrText: lockTransport.corrText }
+        } : lockTransport;
+        return { transport: tinfo };
+      }
+    });
+    session.forgetLock(uri);
+    finalTransport = outcome.transport;
+  });
+  return {
+    target: deleteTarget,
+    affects,
+    deleted: true,
+    previousEtag,
+    previousXml: current.xml,
+    transport: finalTransport
+  };
+}
+
+// src/adt/element-info.ts
+init_fxp();
+init_errors();
+init_session();
+init_truncate();
+var ELEMENT_INFO_URL = "/sap/bc/adt/abapsource/codecompletion/elementinfo";
+var NAVIGATION_TARGET_URL = "/sap/bc/adt/navigation/target";
+var USAGE_REFERENCES_URL = "/sap/bc/adt/repository/informationsystem/usageReferences";
+var ELEMENT_INFO_MEDIA_TYPE = "application/*";
+var CONTENT_TYPE_TEXT_PLAIN = "text/plain";
+var elementInfoXml = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  removeNSPrefix: true,
+  parseAttributeValue: false,
+  parseTagValue: false,
+  trimValues: false,
+  isArray: (_name, jpath, _isLeaf, isAttribute) => !isAttribute && typeof jpath === "string" && (jpath.endsWith("properties.entry") || jpath.endsWith("elementInfo.documentation") || jpath.endsWith("elementInfo.elementInfo"))
+});
+var usageReferencesXml = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  removeNSPrefix: true,
+  parseAttributeValue: false,
+  parseTagValue: false,
+  trimValues: false,
+  isArray: (_name, jpath, _isLeaf, isAttribute) => !isAttribute && typeof jpath === "string" && jpath.endsWith("referencedObjects.referencedObject")
+});
+function asRecord2(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
+}
+function asArray5(value) {
+  if (Array.isArray(value)) return value;
+  return value === void 0 || value === null ? [] : [value];
+}
+function attr4(node2, name) {
+  const value = node2?.[`@_${name}`];
+  return typeof value === "string" ? value : void 0;
+}
+function elementText2(value) {
+  if (typeof value === "string") return value;
+  if (value === void 0 || value === null) return void 0;
+  const rec = asRecord2(value);
+  if (rec === void 0) return void 0;
+  const text5 = rec["#text"];
+  return typeof text5 === "string" ? text5 : "";
+}
+function parseXmlDocument(body, what, ctx, parser3 = elementInfoXml) {
+  let parsed;
+  try {
+    parsed = parser3.parse(body);
+  } catch (e) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `The ${what} response could not be parsed as XML.`,
+      { operation: ctx.operation, uri: ctx.uri, what, detail: e instanceof Error ? e.message : String(e) },
+      "The server answered with something other than the expected document."
+    );
+  }
+  const rec = asRecord2(parsed);
+  if (rec === void 0) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `The ${what} response was empty or not a document.`,
+      { operation: ctx.operation, uri: ctx.uri, what, length: body.length },
+      "The server answered with something other than the expected document."
+    );
+  }
+  return rec;
+}
+function parseProperties(value) {
+  const rec = asRecord2(value);
+  if (rec === void 0) return {};
+  const result = {};
+  for (const raw of asArray5(rec["entry"])) {
+    const entryNode = asRecord2(raw);
+    const key = attr4(entryNode, "key");
+    if (key === void 0) continue;
+    result[key] = elementText2(raw) ?? "";
+  }
+  return result;
+}
+function findDocumentation(node2, rel) {
+  for (const raw of asArray5(node2["documentation"])) {
+    const docNode = asRecord2(raw);
+    if (attr4(docNode, "rel") !== rel) continue;
+    return elementText2(raw) ?? "";
+  }
+  return void 0;
+}
+function parseElementInfoNode(raw) {
+  const node2 = asRecord2(raw) ?? {};
+  const type = attr4(node2, "type");
+  const name = attr4(node2, "name");
+  const shortText = findDocumentation(node2, "shorttext");
+  const abapDoc = findDocumentation(node2, "abapdoc");
+  const children = asArray5(node2["elementInfo"]).map(parseElementInfoNode);
+  return {
+    ...type !== void 0 ? { type } : {},
+    ...name !== void 0 ? { name } : {},
+    properties: parseProperties(node2["properties"]),
+    ...shortText !== void 0 ? { shortText } : {},
+    ...abapDoc !== void 0 ? { abapDoc } : {},
+    children
+  };
+}
+function elementInfoFragmentUri(sourceUri, pos) {
+  return `${sourceUri}#start=${pos.line},${pos.column}`;
+}
+var UNRESOLVED_ELEMENT_INFO = { properties: {}, children: [] };
+function hasNoElementAtAll(body, doc) {
+  if (body.trim() === "") return true;
+  return Object.keys(doc).every((key) => {
+    if (key === "?xml") return true;
+    if (key === "#text") return typeof doc[key] !== "string" || doc[key].trim() === "";
+    return false;
+  });
+}
+function parseElementInfo(xml4, ctx) {
+  const doc = parseXmlDocument(xml4, "element info", ctx);
+  const rootValue = doc["elementInfo"];
+  if (rootValue === void 0) {
+    if (hasNoElementAtAll(xml4, doc)) return UNRESOLVED_ELEMENT_INFO;
+    throw new AbapError(
+      "ADT_ERROR",
+      `The element info response has no <abapsource:elementInfo> element.`,
+      { operation: ctx.operation, uri: ctx.uri, preview: truncateText(xml4, PARSE_EXCERPT_MAX) },
+      "This ADT release may answer element info differently from what this client expects."
+    );
+  }
+  return parseElementInfoNode(rootValue);
+}
+function isUnresolved(info) {
+  return info.name === void 0;
+}
+async function fetchElementInfo(conn, sourceUri, pos, source) {
+  const ctx = { operation: "element info", uri: sourceUri };
+  let body;
+  try {
+    ({ body } = await conn.post(ELEMENT_INFO_URL, {
+      headers: { "Content-Type": CONTENT_TYPE_TEXT_PLAIN, Accept: ELEMENT_INFO_MEDIA_TYPE },
+      qs: { uri: elementInfoFragmentUri(sourceUri, pos) },
+      body: source
+    }));
+  } catch (e) {
+    throw translateAdtError(e, ctx);
+  }
+  return parseElementInfo(body, ctx);
+}
+var FRAGMENT_RE = /^(.*)#start=(\d+),(\d+)(?:;end=\d+,\d+)?$/;
+function splitFragmentUri(uri) {
+  const m = FRAGMENT_RE.exec(uri);
+  if (!m) return { uri };
+  return { uri: m[1], line: Number(m[2]), column: Number(m[3]) };
+}
+function parseNavigationTarget(xml4, ctx) {
+  const doc = parseXmlDocument(xml4, "navigation target", ctx);
+  const rootValue = doc["objectReference"];
+  if (rootValue === void 0) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `The navigation target response has no <adtcore:objectReference> element.`,
+      { operation: ctx.operation, uri: ctx.uri, preview: truncateText(xml4, PARSE_EXCERPT_MAX) },
+      "This ADT release may answer navigation targets differently from what this client expects."
+    );
+  }
+  const uri = attr4(asRecord2(rootValue), "uri");
+  return uri === void 0 ? void 0 : splitFragmentUri(uri);
+}
+var NAVIGATION_UNDECIDABLE_RE = /undecidable/i;
+function noTargetReasonFor(e, translated) {
+  const info = adtExceptionInfo(e);
+  if (info?.properties["T100KEY-ID"] === "ED" && info.properties["T100KEY-NO"] === "263") {
+    return "declaration-itself";
+  }
+  if (info?.properties["T100KEY-ID"] === "SEDI_ADT" && info.properties["T100KEY-NO"] === "2") {
+    return "undecidable";
+  }
+  if (info?.type === "ExceptionMultipleNavigationTargets") {
+    return "undecidable";
+  }
+  if (info?.type === "NavigationFailure" && NAVIGATION_UNDECIDABLE_RE.test(translated.message)) {
+    return "undecidable";
+  }
+  if (info?.type === void 0 && NAVIGATION_UNDECIDABLE_RE.test(translated.message)) {
+    return "undecidable";
+  }
+  return void 0;
+}
+async function findDefinitionTarget(conn, sourceUri, range, source) {
+  const ctx = { operation: "navigation target", uri: sourceUri };
+  const fragment = `${sourceUri}#start=${range.line},${range.startColumn};end=${range.line},${range.endColumn}`;
+  let body;
+  try {
+    ({ body } = await conn.post(NAVIGATION_TARGET_URL, {
+      headers: { "Content-Type": CONTENT_TYPE_TEXT_PLAIN, Accept: ELEMENT_INFO_MEDIA_TYPE },
+      qs: { uri: fragment, filter: "definition" },
+      body: source
+    }));
+  } catch (e) {
+    const translated = translateAdtError(e, ctx);
+    const noTargetReason = noTargetReasonFor(e, translated);
+    if (noTargetReason !== void 0) return { noTargetReason };
+    throw translated;
+  }
+  const target = parseNavigationTarget(body, ctx);
+  return target !== void 0 ? { target } : { noTargetReason: "unnamed" };
+}
+var ABAP_IDENTIFIER_CHAR = /[A-Za-z0-9_/~]/;
+function identifierAt(source, pos) {
+  if (!Number.isInteger(pos.line) || pos.line < 1) return void 0;
+  const lineText = source.split(/\r\n|\n/)[pos.line - 1];
+  if (lineText === void 0) return void 0;
+  if (!Number.isInteger(pos.column) || pos.column < 0 || pos.column >= lineText.length) return void 0;
+  if (!ABAP_IDENTIFIER_CHAR.test(lineText[pos.column])) return void 0;
+  let start = pos.column;
+  while (start > 0 && ABAP_IDENTIFIER_CHAR.test(lineText[start - 1])) start--;
+  let end = pos.column + 1;
+  while (end < lineText.length && ABAP_IDENTIFIER_CHAR.test(lineText[end])) end++;
+  return { text: lineText.slice(start, end), startColumn: start, endColumn: end };
+}
+function recordString(rec, key) {
+  const value = rec[key];
+  return typeof value === "string" ? value : void 0;
+}
+function classNameFromUri(uri) {
+  if (uri === void 0) return void 0;
+  const segments = uri.split("/").filter((s) => s.length > 0);
+  const last = segments[segments.length - 1];
+  return last ? last.toUpperCase() : void 0;
+}
+var USAGE_REFERENCES_REQUEST_BODY = `<?xml version="1.0" encoding="ASCII"?>
+  <usagereferences:usageReferenceRequest xmlns:usagereferences="http://www.sap.com/adt/ris/usageReferences">
+    <usagereferences:affectedObjects/>
+  </usagereferences:usageReferenceRequest>`;
+function parseUsageReferences(xml4, ctx) {
+  const doc = parseXmlDocument(xml4, "usage references", ctx, usageReferencesXml);
+  const rootValue = doc["usageReferenceResult"];
+  if (rootValue === void 0) {
+    throw new AbapError(
+      "ADT_ERROR",
+      `The usage references response has no <usagereferences:usageReferenceResult> element.`,
+      { operation: ctx.operation, uri: ctx.uri, preview: truncateText(xml4, PARSE_EXCERPT_MAX) },
+      "This ADT release may answer where-used differently from what this client expects."
+    );
+  }
+  const root = asRecord2(rootValue);
+  const referencedObjects = asRecord2(root?.["referencedObjects"]);
+  if (referencedObjects === void 0) return [];
+  const rows = [];
+  for (const raw of asArray5(referencedObjects["referencedObject"])) {
+    const row2 = asRecord2(raw);
+    if (row2 === void 0) continue;
+    const adtObject = asRecord2(row2["adtObject"]) ?? {};
+    const packageRefNode = asRecord2(adtObject["packageRef"]);
+    const packageRef = {};
+    const packageName = attr4(packageRefNode, "name");
+    const packageUri = attr4(packageRefNode, "uri");
+    const packageType = attr4(packageRefNode, "type");
+    if (packageName !== void 0) packageRef["adtcore:name"] = packageName;
+    if (packageUri !== void 0) packageRef["adtcore:uri"] = packageUri;
+    if (packageType !== void 0) packageRef["adtcore:type"] = packageType;
+    const rowUri = attr4(row2, "uri");
+    const parentUri = attr4(row2, "parentUri");
+    const adtName = attr4(adtObject, "name");
+    const adtType = attr4(adtObject, "type");
+    rows.push({
+      ...rowUri !== void 0 ? { uri: rowUri } : {},
+      ...parentUri !== void 0 ? { parentUri } : {},
+      ...adtName !== void 0 ? { "adtcore:name": adtName } : {},
+      ...adtType !== void 0 ? { "adtcore:type": adtType } : {},
+      packageRef,
+      objectIdentifier: elementText2(row2["objectIdentifier"]) ?? ""
+    });
+  }
+  return rows;
+}
+function implementationsFrom(refs, interfaceName, methodName) {
+  const wanted = `${interfaceName}~${methodName}`.toUpperCase();
+  const nameByUri = /* @__PURE__ */ new Map();
+  for (const ref2 of refs) {
+    const uri = recordString(ref2, "uri");
+    const name = recordString(ref2, "adtcore:name");
+    if (uri !== void 0 && name !== void 0) nameByUri.set(uri, name);
+  }
+  const results = [];
+  for (const ref2 of refs) {
+    const name = recordString(ref2, "adtcore:name");
+    if (name === void 0 || name.toUpperCase() !== wanted) continue;
+    const uri = recordString(ref2, "uri");
+    if (uri === void 0) continue;
+    const parentUri = recordString(ref2, "parentUri");
+    const className = (parentUri !== void 0 ? nameByUri.get(parentUri) : void 0) ?? classNameFromUri(parentUri);
+    if (className === void 0) continue;
+    const packageRefValue = ref2["packageRef"];
+    const packageRef = asRecord2(packageRefValue);
+    const packageName = packageRef !== void 0 ? recordString(packageRef, "adtcore:name") : void 0;
+    results.push({
+      className,
+      methodName: name,
+      uri,
+      ...packageName !== void 0 ? { packageName } : {}
+    });
+  }
+  return results;
+}
+var HIGH_FAN_IN_REFERENCES = 500;
+var SLOW_FETCH_MS = 5e3;
+async function fetchUsageReferences(conn, uri, pos, name) {
+  const ctx = { operation: "usage references", uri, ...name !== void 0 ? { name } : {} };
+  const fragment = pos !== void 0 ? `${uri}#start=${pos.line},${pos.column}` : uri;
+  const startedAt = Date.now();
+  let body;
+  try {
+    ({ body } = await conn.post(USAGE_REFERENCES_URL, {
+      headers: { "Content-Type": "application/*", Accept: "application/*" },
+      qs: { uri: fragment },
+      body: USAGE_REFERENCES_REQUEST_BODY
+    }));
+  } catch (e) {
+    throw translateAdtError(e, ctx);
+  }
+  const fetchMs = Date.now() - startedAt;
+  return { refs: parseUsageReferences(body, ctx), fetchMs };
+}
+async function findImplementations(conn, interfaceSourceUri, pos, interfaceName, methodName) {
+  const { refs, fetchMs } = await fetchUsageReferences(conn, interfaceSourceUri, pos, `${interfaceName}~${methodName}`);
+  return {
+    implementations: implementationsFrom(refs, interfaceName, methodName),
+    fetchMs,
+    totalReferences: refs.length
+  };
+}
+
+// src/adt/undo-special.ts
+var TEXT_POOL_RESOURCE_TYPES2 = /* @__PURE__ */ new Set(["PROG/PX", "CLAS/OCX", "FUGR/PX"]);
+var TEXT_POOL_OWNER_TYPE = {
+  "PROG/PX": "PROG/P",
+  "CLAS/OCX": "CLAS/OC",
+  "FUGR/PX": "FUGR/F"
+};
+var ENH_READERS = {
+  "ENHO/XH": readBadiImplementation,
+  "ENHO/XHH": readSourceCodePlugin,
+  "ENHS/XS": readEnhancementSpot
+};
+function specialUndoKind(entry) {
+  const type = entry.object.type;
+  if (isEnhancementWriteType(type)) {
+    if (entry.operation === "create" && !entry.existedBefore && entry.beforeCapture === "confirmed-absent") {
+      return "enh-delete";
+    }
+    if (entry.operation === "update" && entry.beforeKind === "enh-impl-active" && entry.beforeCapture === "captured") {
+      return "enh-impl-active";
+    }
+    return void 0;
+  }
+  if (type === BOPF_TYPE) {
+    if (entry.operation === "update" && entry.beforeKind === "bopf-model" && entry.beforeCapture === "captured") {
+      return "bopf-model";
+    }
+    return void 0;
+  }
+  if (TEXT_POOL_RESOURCE_TYPES2.has(type) && entry.beforeKind === "text-pool" && entry.beforeCapture === "captured") {
+    return "text-pool";
+  }
+  return void 0;
+}
+var isGone2 = (e) => isNotFoundError(e) || e instanceof AbapError && e.code === "NOT_FOUND";
+function blockedPlan(entry, target, action, kind, blocker) {
+  return {
+    entry,
+    target,
+    action,
+    undoable: false,
+    blocker,
+    drift: { drifted: false, reason: blocker },
+    currentlyExists: target.exists,
+    special: kind
+  };
+}
+function noopPlan(entry, target, kind, reason, restoreSource, currentSource) {
+  return {
+    entry,
+    target,
+    action: "noop",
+    undoable: true,
+    drift: { drifted: false, reason },
+    restoreSource,
+    currentSource,
+    currentlyExists: target.exists,
+    special: kind
+  };
+}
+function assertOp(authorized, expectedOp, entry, action) {
+  if (authorized.op !== expectedOp) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `INTERNAL INVARIANT VIOLATED: assertAllowed authorised "${authorized.op}" for an undo action ("${action}") that requires "${expectedOp}". Nothing was changed.`,
+      { entry: entry.id, object: entry.object.name, action, authorizedOp: authorized.op },
+      "This is a bug in the undo authorisation callback, not something to retry \u2014 please report it."
+    );
+  }
+  return authorized;
+}
+function enhancementTargetFromEntry(entry, exists) {
+  const spec = specForType(entry.object.type);
+  if (!spec) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `enhancement type ${entry.object.type} has no TypeSpec in src/adt/types.ts \u2014 ENHANCEMENT_WRITE_TYPES and the registry have gone out of sync.`,
+      { type: entry.object.type }
+    );
+  }
+  return {
+    spec,
+    type: entry.object.type,
+    name: entry.object.name,
+    uri: entry.object.uri,
+    sourceUri: entry.object.sourceUri ?? entry.object.uri,
+    packageName: entry.object.package,
+    description: entry.object.description ?? "",
+    exists,
+    packageSource: "requested"
+  };
+}
+function bopfTargetFromEntry(entry, exists) {
+  const spec = specForType(entry.object.type) ?? {
+    type: entry.object.type,
+    kind: entry.object.type,
+    label: "BOPF business object",
+    path: entry.object.uri,
+    mode: "source",
+    supportsSource: false,
+    keywords: []
+  };
+  return {
+    spec,
+    type: entry.object.type,
+    name: entry.object.name,
+    uri: entry.object.uri,
+    sourceUri: entry.object.sourceUri ?? entry.object.uri,
+    packageName: entry.object.package,
+    description: entry.object.description ?? "",
+    exists,
+    packageSource: "requested"
+  };
+}
+async function planSpecialUndo(conn, journal, entry, kind, action) {
+  switch (kind) {
+    case "text-pool":
+      return planTextPoolUndo(conn, journal, entry, action);
+    case "bopf-model":
+      return planBopfModelUndo(conn, journal, entry, action);
+    case "enh-delete":
+      return planEnhDeleteUndo(conn, entry, action);
+    case "enh-impl-active":
+      return planEnhImplActiveUndo(conn, journal, entry, action);
+  }
+}
+async function performSpecialUndo(conn, journal, entry, plan, opts) {
+  switch (plan.special) {
+    case "text-pool":
+      return performTextPoolUndo(conn, journal, entry, plan, opts);
+    case "bopf-model":
+      return performBopfModelUndo(conn, journal, entry, plan, opts);
+    case "enh-delete":
+      return performEnhDeleteUndo(conn, journal, entry, plan, opts);
+    case "enh-impl-active":
+      return performEnhImplActiveUndo(conn, journal, entry, plan, opts);
+    default:
+      throw new AbapError(
+        "BAD_INPUT",
+        "performSpecialUndo called with a plan that has no special kind.",
+        { entry: entry.id }
+      );
+  }
+}
+async function planTextPoolUndo(conn, journal, entry, action) {
+  const resourceType = entry.object.type;
+  const ownerType = TEXT_POOL_OWNER_TYPE[resourceType];
+  if (!ownerType) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `INTERNAL INVARIANT VIOLATED: text-pool undo reached for unrecognised resource type "${resourceType}".`,
+      { type: resourceType }
+    );
+  }
+  const target = await resolveWriteTarget(conn, {
+    name: entry.object.name,
+    type: ownerType,
+    packageName: entry.object.package
+  });
+  const before = await journal.beforeImage(entry);
+  if (before === void 0) {
+    return blockedPlan(
+      entry,
+      target,
+      action,
+      "text-pool",
+      "No before-image was recorded for this text pool write; nothing to restore."
+    );
+  }
+  let currentImage;
+  try {
+    const current = await readTextPool(conn, target.name, ownerType);
+    currentImage = textPoolImage(current, ownerType);
+  } catch (e) {
+    return blockedPlan(
+      entry,
+      target,
+      action,
+      "text-pool",
+      `Could not read the current text pool: ${e.message}`
+    );
+  }
+  const beforeFingerprint = sourceFingerprint(before);
+  const currentFingerprint = sourceFingerprint(currentImage);
+  if (currentFingerprint === beforeFingerprint) {
+    return noopPlan(entry, target, "text-pool", "the text pool already matches the before-image", before, currentImage);
+  }
+  if (entry.after === void 0) {
+    return {
+      entry,
+      target,
+      action,
+      undoable: true,
+      drift: {
+        drifted: true,
+        reason: "no after-image recorded; cannot tell whether someone changed the texts since; force=true to restore anyway",
+        actualFingerprint: currentFingerprint
+      },
+      restoreSource: before,
+      currentSource: currentImage,
+      currentlyExists: target.exists,
+      special: "text-pool"
+    };
+  }
+  if (currentFingerprint !== entry.after.fingerprint) {
+    return {
+      entry,
+      target,
+      action,
+      undoable: true,
+      drift: {
+        drifted: true,
+        reason: `the text pool was changed since this write (expected fingerprint ${entry.after.fingerprint}, found ${currentFingerprint})`,
+        expectedFingerprint: entry.after.fingerprint,
+        actualFingerprint: currentFingerprint
+      },
+      restoreSource: before,
+      currentSource: currentImage,
+      currentlyExists: target.exists,
+      special: "text-pool"
+    };
+  }
+  return {
+    entry,
+    target,
+    action,
+    undoable: true,
+    drift: { drifted: false, reason: "the text pool matches what this write left behind" },
+    restoreSource: before,
+    currentSource: currentImage,
+    currentlyExists: target.exists,
+    special: "text-pool"
+  };
+}
+async function performTextPoolUndo(conn, journal, entry, plan, opts) {
+  const ownerType = TEXT_POOL_OWNER_TYPE[entry.object.type];
+  const before = plan.restoreSource;
+  const pool = parseTextPoolImage(before, ownerType);
+  const authorized = assertOp(opts.assertAllowed(plan.action, plan.target), "write", entry, plan.action);
+  const { result, entryId, settle } = await withJournalledMutation(
+    journal,
+    {
+      begin: (xml4) => ({
+        operation: "update",
+        object: journalRef(plan.target),
+        existedBefore: true,
+        beforeCapture: "captured",
+        beforeSource: xml4,
+        beforeKind: "text-pool",
+        undoOf: entry.id,
+        systemKey: systemKey(conn.cfg),
+        tool: "abap_journal undo",
+        ...entry.corrNr !== void 0 ? { corrNr: entry.corrNr } : {}
+      })
+    },
+    async (onBeforeImage) => {
+      const currentPool = await readTextPool(conn, plan.target.name, ownerType);
+      await onBeforeImage(textPoolImage(currentPool, ownerType));
+      return writeTextPool(conn, authorized, pool, { activate: opts.activate ?? true, corrNr: entry.corrNr });
+    }
+  );
+  let afterSource;
+  try {
+    const readBack = await readTextPool(conn, plan.target.name, ownerType);
+    afterSource = textPoolImage(readBack, ownerType);
+  } catch {
+  }
+  await settle({ outcome: "succeeded", ...afterSource !== void 0 ? { afterSource } : {} });
+  if (entryId) await journal.markUndone(entry.id, entryId);
+  return { plan, undoEntryId: entryId, performed: true, activation: result.activation, forced: Boolean(opts.force) };
+}
+async function planBopfModelUndo(conn, journal, entry, action) {
+  const bo = entry.object.name;
+  const before = await journal.beforeImage(entry);
+  if (before === void 0) {
+    const target2 = bopfTargetFromEntry(entry, true);
+    return blockedPlan(
+      entry,
+      target2,
+      action,
+      "bopf-model",
+      "No before-image was recorded for this BOPF model update; nothing to restore."
+    );
+  }
+  let currentXml;
+  try {
+    const current = await readModel(conn, bo);
+    currentXml = current.xml;
+  } catch (e) {
+    const target2 = bopfTargetFromEntry(entry, false);
+    return blockedPlan(entry, target2, action, "bopf-model", `Could not read the current BOPF model: ${e.message}`);
+  }
+  const target = bopfTargetFromEntry(entry, true);
+  const beforeFingerprint = sourceFingerprint(bopfModelComparable(before));
+  const currentFingerprint = sourceFingerprint(bopfModelComparable(currentXml));
+  if (currentFingerprint === beforeFingerprint) {
+    return noopPlan(entry, target, "bopf-model", "the model already matches the before-image", before, currentXml);
+  }
+  const afterText = await journal.afterImage(entry);
+  if (afterText === void 0) {
+    return {
+      entry,
+      target,
+      action,
+      undoable: true,
+      drift: {
+        drifted: true,
+        reason: "no after-image recorded; cannot tell whether someone changed the model since; force=true to restore anyway",
+        actualFingerprint: currentFingerprint
+      },
+      restoreSource: before,
+      currentSource: currentXml,
+      currentlyExists: true,
+      special: "bopf-model"
+    };
+  }
+  const afterFingerprint = sourceFingerprint(bopfModelComparable(afterText));
+  if (currentFingerprint !== afterFingerprint) {
+    return {
+      entry,
+      target,
+      action,
+      undoable: true,
+      drift: {
+        drifted: true,
+        reason: `the model was changed since this write (node IDs and change timestamps ignored; expected fingerprint ${afterFingerprint}, found ${currentFingerprint})`,
+        expectedFingerprint: afterFingerprint,
+        actualFingerprint: currentFingerprint
+      },
+      restoreSource: before,
+      currentSource: currentXml,
+      currentlyExists: true,
+      special: "bopf-model"
+    };
+  }
+  return {
+    entry,
+    target,
+    action,
+    undoable: true,
+    drift: { drifted: false, reason: "the model matches what this write left behind" },
+    restoreSource: before,
+    currentSource: currentXml,
+    currentlyExists: true,
+    special: "bopf-model"
+  };
+}
+async function performBopfModelUndo(conn, journal, entry, plan, opts) {
+  const bo = entry.object.name;
+  const beforeXml = plan.restoreSource;
+  const packageName = entry.object.package;
+  const authorized = assertOp(opts.assertAllowed(plan.action, plan.target), "write", entry, plan.action);
+  const writeAuthorized = authorized;
+  let fired = false;
+  const { result: put, entryId, settle } = await withJournalledMutation(
+    journal,
+    {
+      begin: (xml4) => ({
+        operation: "update",
+        object: journalRef(plan.target),
+        existedBefore: true,
+        beforeCapture: "captured",
+        beforeSource: xml4,
+        beforeKind: "bopf-model",
+        undoOf: entry.id,
+        systemKey: systemKey(conn.cfg),
+        tool: "abap_journal undo",
+        ...entry.corrNr !== void 0 ? { corrNr: entry.corrNr } : {}
+      })
+    },
+    (onBeforeImage) => conn.withStatefulSession(
+      (session) => putModel(
+        conn,
+        session,
+        bo,
+        async (xml4) => {
+          if (!fired) {
+            fired = true;
+            await onBeforeImage(xml4);
+          }
+          return remapNodeIds(beforeXml, xml4);
+        },
+        writeAuthorized,
+        { transport: opts.transport, gate: opts.gate, corrNr: entry.corrNr, packageName }
+      )
+    )
+  );
+  await settle({
+    outcome: "succeeded",
+    afterSource: put.xml,
+    ...put.corr.kind === "transport" ? { corrNr: put.corr.corrNr } : {}
+  });
+  if (opts.activate ?? true) {
+    await activateBusinessObject(conn, bo);
+  }
+  if (entryId) await journal.markUndone(entry.id, entryId);
+  return { plan, undoEntryId: entryId, performed: true, forced: Boolean(opts.force) };
+}
+function usageRowLabel(row2) {
+  const type = typeof row2["adtcore:type"] === "string" ? row2["adtcore:type"] : "?";
+  const name = typeof row2["adtcore:name"] === "string" ? row2["adtcore:name"] : "?";
+  return `${type} ${name}`;
+}
+async function planEnhDeleteUndo(conn, entry, action) {
+  const type = entry.object.type;
+  const name = entry.object.name;
+  const reader = ENH_READERS[type];
+  let xml4;
+  let data;
+  try {
+    const doc = await reader(conn, name);
+    xml4 = doc.xml;
+    data = doc.data;
+  } catch (e) {
+    if (isGone2(e)) {
+      const target3 = enhancementTargetFromEntry(entry, false);
+      return noopPlan(entry, target3, "enh-delete", "the object no longer exists; nothing to undo");
+    }
+    const target2 = enhancementTargetFromEntry(entry, false);
+    return blockedPlan(
+      entry,
+      target2,
+      action,
+      "enh-delete",
+      `Could not verify whether ${name} still exists: ${e.message}`
+    );
+  }
+  const target = enhancementTargetFromEntry(entry, true);
+  if (entry.object.affects === void 0) {
+    return blockedPlan(
+      entry,
+      target,
+      action,
+      "enh-delete",
+      "This entry has no recorded affected object; refusing to delete without it."
+    );
+  }
+  try {
+    const { refs } = await fetchUsageReferences(conn, entry.object.uri, void 0, name);
+    const others = refs.filter((row2) => {
+      const rowName = typeof row2["adtcore:name"] === "string" ? row2["adtcore:name"] : void 0;
+      return rowName === void 0 || rowName.toUpperCase() !== name.toUpperCase();
+    });
+    if (others.length > 0) {
+      const names = others.slice(0, 5).map(usageRowLabel).join(", ");
+      return blockedPlan(
+        entry,
+        target,
+        action,
+        "enh-delete",
+        `${name} is referenced by: ${names}${others.length > 5 ? ", \u2026" : ""}; refusing to delete something in use.`
+      );
+    }
+  } catch (e) {
+    return blockedPlan(
+      entry,
+      target,
+      action,
+      "enh-delete",
+      `the dependency check (where-used) failed: ${e.message}; refusing rather than deleting blind`
+    );
+  }
+  if (type === "ENHO/XH") {
+    const badi = data;
+    const active = badi.implementations.filter((impl) => impl.isActive !== false);
+    if (active.length > 0) {
+      const names = active.map((impl) => impl.name).join(", ");
+      return blockedPlan(
+        entry,
+        target,
+        action,
+        "enh-delete",
+        `${name} has active BAdI implementation entr${active.length === 1 ? "y" : "ies"}: ${names}; refusing to delete an active implementation.`
+      );
+    }
+  }
+  return {
+    entry,
+    target,
+    action,
+    undoable: true,
+    drift: { drifted: false, reason: "the object still exists and has no blocking dependents" },
+    restoreSource: xml4,
+    currentSource: xml4,
+    currentlyExists: true,
+    special: "enh-delete"
+  };
+}
+async function performEnhDeleteUndo(conn, journal, entry, plan, opts) {
+  if (opts.enhancement === void 0 || opts.enhancement.allowEnhancementDelete !== true) {
+    const why = explainDeniedCapability("allowEnhancementDelete", opts.enhancement?.abapMode);
+    throw new AbapError(
+      "ENHANCEMENT_DISABLED",
+      `Deleting an existing enhancement object is disabled. ${why.cause}`,
+      { type: entry.object.type, name: entry.object.name },
+      why.remediation
+    );
+  }
+  if (opts.transport === void 0) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `Undo of ${entry.object.type} ${entry.object.name} needs a transport manager, but none was wired into this undo. Nothing was deleted.`,
+      { name: entry.object.name, type: entry.object.type },
+      "This is an internal wiring failure in abapsmith, not a mistake in the request."
+    );
+  }
+  const type = entry.object.type;
+  const name = entry.object.name;
+  const affects = entry.object.affects;
+  const transport = opts.transport;
+  const { result: del, entryId, settle } = await withJournalledMutation(
+    journal,
+    {
+      begin: (img) => ({
+        operation: "delete",
+        object: { ...journalRef(img.target), affects: img.affects },
+        existedBefore: true,
+        beforeCapture: "captured",
+        beforeSource: img.xml,
+        undoOf: entry.id,
+        systemKey: systemKey(conn.cfg),
+        tool: "abap_journal undo",
+        irreversible: true,
+        undoBlocker: "A deleted enhancement object cannot be recreated from its XML; recreate it with abap_enh.",
+        ...img.corrNr !== void 0 ? { corrNr: img.corrNr } : {}
+      })
+    },
+    (onBeforeImage) => deleteEnhancementObject(
+      conn,
+      opts.gate,
+      { type, name },
+      {
+        transport,
+        gate: opts.gate,
+        corrNr: entry.corrNr,
+        affects,
+        onBeforeImage,
+        allowEnhancementDelete: opts.enhancement.allowEnhancementDelete,
+        ...opts.enhancement.abapMode !== void 0 ? { abapMode: opts.enhancement.abapMode } : {}
+      }
+    )
+  );
+  await settle({
+    outcome: "succeeded",
+    ...del.transport.status === "transport" ? { corrNr: del.transport.corrNr } : {}
+  });
+  if (entryId) await journal.markUndone(entry.id, entryId);
+  return { plan, undoEntryId: entryId, performed: true, forced: Boolean(opts.force) };
+}
+function findImpl(entries, implName) {
+  return entries.find((impl) => impl.name === implName);
+}
+async function planEnhImplActiveUndo(conn, journal, entry, action) {
+  const name = entry.object.name;
+  let live;
+  try {
+    live = (await readBadiImplementation(conn, name)).data;
+  } catch (e) {
+    const target2 = enhancementTargetFromEntry(entry, !isGone2(e));
+    if (isGone2(e)) {
+      return blockedPlan(entry, target2, action, "enh-impl-active", "the implementation object no longer exists; cannot restore its active state");
+    }
+    return blockedPlan(entry, target2, action, "enh-impl-active", `Could not read the current implementation: ${e.message}`);
+  }
+  const target = enhancementTargetFromEntry(entry, true);
+  const before = await journal.beforeImage(entry);
+  if (before === void 0) {
+    return blockedPlan(entry, target, action, "enh-impl-active", "No before-image was recorded for this active-flag change; nothing to restore.");
+  }
+  const parsedBefore = parseBadiImplementation(before);
+  const implName = entry.implName ?? parsedBefore.implementations[0]?.name;
+  if (implName === void 0) {
+    return blockedPlan(entry, target, action, "enh-impl-active", "Cannot determine which implementation to restore (no implName recorded).");
+  }
+  const previousActive = findImpl(parsedBefore.implementations, implName)?.isActive;
+  const currentActive = findImpl(live.implementations, implName)?.isActive;
+  if (currentActive === previousActive) {
+    return noopPlan(entry, target, "enh-impl-active", "the implementation's active flag already matches the before-image", before);
+  }
+  const after = await journal.afterImage(entry);
+  if (after === void 0) {
+    return {
+      entry,
+      target,
+      action,
+      undoable: true,
+      drift: {
+        drifted: true,
+        reason: "no after-image recorded; cannot tell whether someone changed the active flag since; force=true to restore anyway"
+      },
+      restoreSource: before,
+      currentlyExists: true,
+      special: "enh-impl-active"
+    };
+  }
+  const parsedAfter = parseBadiImplementation(after);
+  const expectedActive = findImpl(parsedAfter.implementations, implName)?.isActive;
+  if (currentActive !== expectedActive) {
+    return {
+      entry,
+      target,
+      action,
+      undoable: true,
+      drift: {
+        drifted: true,
+        reason: `the active flag was changed since this write (expected ${String(expectedActive)}, found ${String(currentActive)})`
+      },
+      restoreSource: before,
+      currentlyExists: true,
+      special: "enh-impl-active"
+    };
+  }
+  return {
+    entry,
+    target,
+    action,
+    undoable: true,
+    drift: { drifted: false, reason: "the active flag matches what this write left behind" },
+    restoreSource: before,
+    currentlyExists: true,
+    special: "enh-impl-active"
+  };
+}
+async function performEnhImplActiveUndo(conn, journal, entry, plan, opts) {
+  if (opts.transport === void 0) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `Undo of ${entry.object.type} ${entry.object.name} needs a transport manager, but none was wired into this undo. Nothing was changed.`,
+      { name: entry.object.name, type: entry.object.type },
+      "This is an internal wiring failure in abapsmith, not a mistake in the request."
+    );
+  }
+  const transport = opts.transport;
+  const before = plan.restoreSource;
+  const parsedBefore = parseBadiImplementation(before);
+  const implName = entry.implName ?? parsedBefore.implementations[0]?.name;
+  if (implName === void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `INTERNAL INVARIANT VIOLATED: enh-impl-active undo performed for ${entry.object.name} with no implName resolvable.`,
+      { entry: entry.id }
+    );
+  }
+  const activeToRestore = findImpl(parsedBefore.implementations, implName)?.isActive === true;
+  const affects = entry.object.affects;
+  const { result: set2, entryId, settle } = await withJournalledMutation(
+    journal,
+    {
+      begin: (img) => ({
+        operation: "update",
+        object: { ...journalRef(img.target), affects: img.affects },
+        existedBefore: true,
+        beforeCapture: "captured",
+        beforeSource: img.xml,
+        beforeKind: "enh-impl-active",
+        implName,
+        undoOf: entry.id,
+        systemKey: systemKey(conn.cfg),
+        tool: "abap_journal undo",
+        ...img.corrNr !== void 0 ? { corrNr: img.corrNr } : {}
+      })
+    },
+    (onBeforeImage) => setBadiImplementationActive(
+      conn,
+      opts.gate,
+      { name: entry.object.name, active: activeToRestore, implName },
+      { transport, gate: opts.gate, corrNr: entry.corrNr, affects, onBeforeImage }
+    )
+  );
+  await settle({
+    activation: { attempted: false },
+    ...set2.transport.status === "transport" ? { corrNr: set2.transport.corrNr } : {},
+    afterSource: set2.xml,
+    outcome: "succeeded"
+  });
+  let activation;
+  if (set2.changed) {
+    const finalIntent = enhancementIntentFor(
+      {
+        name: set2.target.name,
+        type: "ENHO/XH",
+        packageName: set2.target.packageName,
+        ...set2.target.masterSystem !== void 0 ? { masterSystem: set2.target.masterSystem } : {}
+      },
+      affects
+    );
+    opts.gate.assertIntent(finalIntent, { op: "activate" });
+    activation = await activateObject(conn, { name: set2.target.name, uri: set2.target.uri });
+    await settle({ outcome: "succeeded", activation: { attempted: true, activated: activation.activated } });
+  }
+  if (entryId) await journal.markUndone(entry.id, entryId);
+  return { plan, undoEntryId: entryId, performed: true, ...activation !== void 0 ? { activation } : {}, forced: Boolean(opts.force) };
+}
+
+// src/adt/undo.ts
 init_errors();
 init_session();
 init_types();
@@ -132131,21 +136376,14 @@ function describeDeleteVerification(v) {
   const detail = v.status === "indeterminate" ? v.reason : `via ${v.via}`;
   return `${v.uri} (${detail})`;
 }
-var ENHANCEMENT_TYPES = /* @__PURE__ */ new Set(["ENHO/XH", "ENHO/XHH", "ENHS/XS"]);
+var ENHANCEMENT_TYPES2 = /* @__PURE__ */ new Set(["ENHO/XH", "ENHO/XHH", "ENHS/XS"]);
 function isEnhancementType2(type) {
-  return ENHANCEMENT_TYPES.has(type);
-}
-function enhancementUndoBlocked(type, op, name) {
-  if (!isEnhancementType2(type)) return void 0;
-  if (op === "delete" && type === "ENHO/XH") {
-    return `Undoing this entry would DELETE the BAdI implementation ${name} (undo-of-create). abapsmith has no local record of whether this implementation is currently active \u2014 the journal does not carry \`enho:isActive\`, and this refusal is decided without spending a request to go find out, like every other refusal here. If it IS active, something may already depend on the behaviour it adds, and deleting it would silently switch that off with no error and no log \u2014 a source restore is the wrong tool to express "deactivate" regardless. This is refused even when the implementation turns out to be inactive: see the general enhancement-undo refusal for why deleting ANY enhancement object was found to be unsafe on the live A4H session. There is no override. Remove it deliberately through the ABAP enhancement UI (SE19) with ${name}'s current activation state in view.`;
-  }
-  return `Undo of enhancement objects is refused outright \u2014 ${type} ${name} will not be touched. Three things the live A4H session found make this unsafe even in principle, not merely as a policy choice: a create attempt the server cleanly REFUSED still left a permanently undeletable phantom object behind ("ExceptionResourceDeletionFailure ... cannot be created without a package", no TADIR entry, unreadable via the ABAP API either); a delete the server reported as succeeded (ADT 200) still left TADIR and E071 rows behind indefinitely, so a 404 afterwards is never proof of removal; and on a landscape with \`tp\` misconfigured, a transportable create could not be deleted through ADT at all \u2014 the request and the package were both permanently stuck. Given that, "undo" for an enhancement \u2014 recreating one that was deleted, or deleting one that was created \u2014 is not an operation abapsmith can perform and then trust the result of. Reverse this deliberately through the ABAP enhancement UI (SE18/SE19/SE80), with the residue risk above in view.`;
+  return ENHANCEMENT_TYPES2.has(type);
 }
 function entryClassInclude(entry) {
-  return classIncludeFromSourceUri(entry.object.sourceUri);
+  return classIncludeFromSourceUri2(entry.object.sourceUri);
 }
-function classIncludeFromSourceUri(uri) {
+function classIncludeFromSourceUri2(uri) {
   if (uri === void 0) return void 0;
   const inc = specFromUri(uri)?.include;
   return inc !== void 0 && inc !== "main" ? inc : void 0;
@@ -132159,57 +136397,43 @@ function classIncludeActionBlocker(entry, action) {
 }
 function packageRecreateBlocker(entry) {
   if (entry.operation !== "delete" || !isPackageType(entry.object.type)) return void 0;
-  const name = entry.object.name;
-  return `Undoing this entry would RE-CREATE package ${name}, and abapsmith does not re-create packages from a journal entry. The before-image is the package's metadata document (a package has no source), and abapsmith restores a before-image by writing it through the ordinary write path, which would PUT that XML at a URI that has no source document. That is refused rather than attempted. Nothing was changed. Re-create the package deliberately with abap_write type="DEVC/K" (abap_journal mode=show entry=<id> prints the recorded metadata), then move its contents back. This refusal cannot be overridden with force=true.`;
+  return packageRecreateBlockerText(entry.object.name);
 }
 function undoBlocker(entry) {
   if (entry.operation === "transport-release") {
-    return "a released transport cannot be recalled; create a corrective transport instead";
+    return TRANSPORT_RELEASE_UNDO_BLOCKER;
   }
   if (entry.operation === "service-publish") {
-    return `publishing a service binding changes the system's runtime surface (an ICF node under /sap/opu/odata*), not the object's source, so there is no before-image to write back; call abap_service op="unpublish" confirm=<binding> instead \u2014 a deliberate, separately confirmed act, not an automatic undo`;
+    return SERVICE_PUBLISH_UNDO_BLOCKER;
   }
   if (entry.operation === "service-unpublish") {
-    return `unpublishing a service binding changes the system's runtime surface, not the object's source, so there is no before-image to restore; call abap_service op="publish" confirm=<binding> instead \u2014 a deliberate, separately confirmed act, not an automatic undo`;
+    return SERVICE_UNPUBLISH_UNDO_BLOCKER;
   }
   if (entry.operation.startsWith("transport-")) {
-    return "transport requests are not undone automatically; use abap_transport to reverse this manually";
-  }
-  if (entry.operation === "activate") {
-    return "This entry records an activation, not a source change. ADT has no deactivate operation, so there is nothing to reverse. Undo the WRITE entry for this object instead (abap_journal mode=list object=\u2026).";
+    return TRANSPORT_GENERIC_UNDO_BLOCKER;
   }
   if (entry.outcome === "pending") {
     return "This entry is still `pending` \u2014 the server outcome was never recorded, which usually means the process died mid-write. The before-image is intact, but abapsmith cannot tell whether the write landed. Read the object first (abap_read) and compare it with the recorded images (abap_journal mode=show), then undo with force=true if you are sure.";
   }
-  if (isEnhancementType2(entry.object.type)) {
-    return enhancementUndoBlocked(
-      entry.object.type,
-      plannedAction(entry) === "delete" ? "delete" : "write",
-      entry.object.name
-    );
-  }
   if (entry.irreversible) {
-    return "This entry is marked irreversible \u2014 recorded for history only. No mechanism can undo it, not even with force=true.";
+    return IRREVERSIBLE_UNDO_BLOCKER;
+  }
+  if (isEnhancementType2(entry.object.type)) {
+    if (entry.operation === "create") {
+      if (!entry.existedBefore && entry.beforeCapture === "confirmed-absent") return void 0;
+      return deleteEvidenceBlockerText(entry.object.name, entry.beforeCapture);
+    }
+    if (entry.operation === "update" && entry.beforeKind === "enh-impl-active" && entry.beforeCapture === "captured") {
+      return void 0;
+    }
+    return `Undo of an enhancement ${entry.operation} is not supported. Only create_spot, create_impl and create_hook (undo deletes the object) and set_impl_active (undo sets the previous state back) have an undo. Reverse this with abap_enh or SE18/SE19.`;
   }
   return void 0;
-}
-function captureExplanation(capture) {
-  switch (capture) {
-    case "failed":
-      return "The before-image probe did not yield usable evidence \u2014 it may never have completed (timeout, 401, 403, 500 \u2026), or it may have answered without confirming absence \u2014 so `existedBefore: false` is a GUESS, not an observation of an absent object.";
-    case "unknown":
-      return "The entry does not record how `existedBefore` was established \u2014 it predates provenance recording, or the recorded value was not one abapsmith understands. Either way nothing here proves the object was absent.";
-    case "captured":
-      return "The entry claims BOTH that the previous source was captured and that the object did not exist. Those cannot both be true, so the entry contradicts itself and none of it can be trusted to authorise a delete.";
-    case "confirmed-absent":
-      return "The absence was positively confirmed.";
-  }
 }
 function deleteEvidenceBlocker(entry) {
   if (entry.operation === "delete" || entry.existedBefore) return void 0;
   if (entry.beforeCapture === "confirmed-absent") return void 0;
-  const name = entry.object.name;
-  return `Undoing this entry would DELETE ${name} from the server, and the journal does not have positive evidence that ${name} was absent before abapsmith wrote it. The recorded provenance is beforeCapture="${entry.beforeCapture}"; only "confirmed-absent" is positive evidence. ${captureExplanation(entry.beforeCapture)} ${name} may well have existed, in which case this undo would destroy source that abapsmith never recorded and therefore cannot put back. This refusal cannot be overridden \u2014 force=true overrides DRIFT, it does not manufacture evidence that was never captured. If you have read ${name} (abap_read) and you do want it gone, delete it deliberately with abap_write mode=delete, which records a real before-image first.`;
+  return deleteEvidenceBlockerText(entry.object.name, entry.beforeCapture);
 }
 function liveSystem(conn, journal) {
   return {
@@ -132228,6 +136452,13 @@ function systemMismatchBlocker(entry, live) {
   if (recorded === connected) return void 0;
   return `This journal entry was recorded on SID ${entry.system || "(none)"} but abapsmith is connected to SID ${live.sid} (journal directory's system: ${live.journalSystem}). The entry predates system-key recording, so this is the WEAKER, SID-only check \u2014 it cannot even tell two hosts apart that share a SID, and it still says these are not the same system. Replaying the entry here would write one system's source onto another's object. This refusal cannot be overridden.`;
 }
+function storedUndoableBlocker(entry) {
+  if (entry.undoable === false) return entry.undoBlocker || "This entry was recorded as not undoable.";
+  return void 0;
+}
+function localUndoBlocker(entry) {
+  return undoBlocker(entry) ?? classIncludeActionBlocker(entry, plannedAction(entry)) ?? packageRecreateBlocker(entry) ?? deleteEvidenceBlocker(entry) ?? storedUndoableBlocker(entry);
+}
 var CLASS_SUB_INCLUDES2 = CLASS_INCLUDES.filter((i) => i !== "main");
 var INCLUDE_LABELS = {
   definitions: "definitions (CCDEF \u2014 local class/type definitions)",
@@ -132241,7 +136472,7 @@ function isClassEntry(entry) {
   return specForType(entry.object.type)?.kind === "CLAS";
 }
 function recordedClassIncludes(entry) {
-  const recorded = (entry.parts ?? []).filter((p) => p.beforeCapture === "captured" || p.beforeCapture === "confirmed-absent").map((p) => classIncludeFromSourceUri(p.object.sourceUri)).filter((i) => i !== void 0);
+  const recorded = (entry.parts ?? []).filter((p) => p.beforeCapture === "captured" || p.beforeCapture === "confirmed-absent").map((p) => classIncludeFromSourceUri2(p.object.sourceUri)).filter((i) => i !== void 0);
   return new Set(recorded);
 }
 function partialClassRestore(entry, action) {
@@ -132416,18 +136647,48 @@ async function releasedTransportWarning(journal, entry) {
   if (releases.length === 0) return void 0;
   return `This write was recorded against transport ${entry.corrNr}, which has ALREADY BEEN RELEASED (journal entry ${releases[0].id}). Undoing it will change the object on the server, but it CANNOT remove the original change from ${entry.corrNr} \u2014 that request has already left the system and may already be moving downstream. This is only HALF an undo: the server will show the reverted source, but the released transport still carries the original change. Create a corrective transport for the downstream systems if this needs to be reversed there too.`;
 }
+async function planActivateUndo(conn, journal, entry) {
+  const sysBlocker = systemMismatchBlocker(entry, liveSystem(conn, journal));
+  const refused = (blocker) => ({
+    entry,
+    target: isEnhancementType2(entry.object.type) ? refusedEnhancementTarget(entry) : targetFromEntry(entry),
+    action: "restore",
+    undoable: false,
+    blocker,
+    drift: { drifted: false, reason: "not evaluated \u2014 the entry is not undoable" },
+    currentlyExists: false
+  });
+  if (sysBlocker) return refused(sysBlocker);
+  const pw = precedingWriteEntry(await journal.list({}), entry);
+  if (!pw) {
+    return refused(
+      `No earlier write entry for ${entry.object.type} ${entry.object.name} in this journal, so there is no before-image to go back to. An activation on its own cannot be undone.`
+    );
+  }
+  if (pw.undoneBy) {
+    return refused(
+      `Undoing this activation means undoing write entry ${pw.id}, which was already undone by ${pw.undoneBy}.`
+    );
+  }
+  const plan = await planUndo(conn, journal, pw);
+  return { ...plan, viaActivation: { activateEntry: entry.id, writeEntry: pw.id } };
+}
 async function planUndo(conn, journal, entry) {
+  if (entry.operation === "activate") {
+    return planActivateUndo(conn, journal, entry);
+  }
   const action = plannedAction(entry);
   const restoreSource = action === "delete" ? void 0 : await journal.beforeImage(entry);
   const transportWarning = await releasedTransportWarning(journal, entry);
   const include = entryClassInclude(entry);
-  const localBlocker = systemMismatchBlocker(entry, liveSystem(conn, journal)) ?? undoBlocker(entry) ?? classIncludeActionBlocker(entry, action) ?? packageRecreateBlocker(entry) ?? deleteEvidenceBlocker(entry);
+  const localBlocker = systemMismatchBlocker(entry, liveSystem(conn, journal)) ?? undoBlocker(entry) ?? classIncludeActionBlocker(entry, action) ?? packageRecreateBlocker(entry) ?? deleteEvidenceBlocker(entry) ?? storedUndoableBlocker(entry);
   if (localBlocker) {
     return {
       entry,
-      // undoBlocker refuses every enhancement type unconditionally, so this
-      // branch is always taken for one — never targetFromEntry, which throws
-      // for these types instead.
+      // undoBlocker (and storedUndoableBlocker) can refuse an enhancement
+      // entry that is otherwise one of the two undoable shapes, so this
+      // branch can still be reached for one — never targetFromEntry, which
+      // throws for these types instead.
       target: isEnhancementType2(entry.object.type) ? refusedEnhancementTarget(entry) : targetFromEntry(entry),
       action,
       undoable: false,
@@ -132437,6 +136698,10 @@ async function planUndo(conn, journal, entry) {
       currentlyExists: false,
       ...transportWarning ? { releasedTransportWarning: transportWarning } : {}
     };
+  }
+  const kind = specialUndoKind(entry);
+  if (kind) {
+    return planSpecialUndo(conn, journal, entry, kind, action);
   }
   const bridgeCreate = isBridgeOnlyCreateType(entry.object.type);
   let target;
@@ -132670,6 +136935,39 @@ function discloseUndoActivationFailure(e, target, entry, undoEntryId) {
   disclosed.cause = e.cause;
   return disclosed;
 }
+async function performActivateUndo(conn, journal, entry, opts) {
+  const sysBlocker = systemMismatchBlocker(entry, liveSystem(conn, journal));
+  if (sysBlocker) {
+    throw new AbapError(
+      "BAD_INPUT",
+      sysBlocker,
+      { entry: entry.id, object: entry.object.name, operation: entry.operation },
+      "Nothing was changed on the server."
+    );
+  }
+  const pw = precedingWriteEntry(await journal.list({}), entry);
+  if (!pw) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `No earlier write entry for ${entry.object.type} ${entry.object.name} in this journal, so there is no before-image to go back to. An activation on its own cannot be undone.`,
+      { entry: entry.id, object: entry.object.name },
+      "Nothing was changed on the server."
+    );
+  }
+  if (pw.undoneBy) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Undoing this activation means undoing write entry ${pw.id}, which was already undone by ${pw.undoneBy}.`,
+      { entry: entry.id, writeEntry: pw.id, undoneBy: pw.undoneBy },
+      "Nothing was changed on the server."
+    );
+  }
+  const result = await performUndo(conn, journal, pw, opts);
+  if (result.performed && result.undoEntryId) {
+    await journal.markUndone(entry.id, result.undoEntryId);
+  }
+  return { ...result, viaActivation: { activateEntry: entry.id, writeEntry: pw.id } };
+}
 async function performUndo(conn, journal, entry, opts) {
   if (typeof opts?.assertAllowed !== "function") {
     throw new AbapError(
@@ -132678,6 +136976,9 @@ async function performUndo(conn, journal, entry, opts) {
       { entry: entry.id, object: entry.object.name, operation: entry.operation },
       "Pass opts.assertAllowed, e.g. { assertAllowed: (action, target) => gate.assert(action, target) }. If this call site really has no gate, pass an explicit no-op so the decision is visible in the source."
     );
+  }
+  if (entry.operation === "activate") {
+    return performActivateUndo(conn, journal, entry, opts);
   }
   const plan = await planUndo(conn, journal, entry);
   if (plan.blocker && !plan.drift.drifted && !(plan.blockerForceable && opts.force)) {
@@ -132716,6 +137017,9 @@ async function performUndo(conn, journal, entry, opts) {
   }
   if (plan.action === "noop") {
     return { plan, performed: false, forced: Boolean(opts.force) };
+  }
+  if (plan.special) {
+    return performSpecialUndo(conn, journal, entry, plan, opts);
   }
   const expectedOp = plan.action === "delete" ? "delete" : "write";
   const authorized = opts.assertAllowed(plan.action, plan.target);
@@ -132867,10 +137171,10 @@ async function performUndo(conn, journal, entry, opts) {
       }
     }
     const includeParts = (entry.parts ?? []).filter(
-      (p) => classIncludeFromSourceUri(p.object.sourceUri) !== void 0
+      (p) => classIncludeFromSourceUri2(p.object.sourceUri) !== void 0
     );
     for (const part of includeParts) {
-      const inc = classIncludeFromSourceUri(part.object.sourceUri);
+      const inc = classIncludeFromSourceUri2(part.object.sourceUri);
       if (part.beforeCapture === "confirmed-absent") {
         continue;
       }
@@ -132914,7 +137218,7 @@ async function performUndo(conn, journal, entry, opts) {
             ...activation ? { activated: activation.activated } : {}
           }
         });
-        const notAttempted = includeParts.slice(includeParts.indexOf(part) + 1).map((p) => classIncludeFromSourceUri(p.object.sourceUri)).filter((i) => i !== void 0);
+        const notAttempted = includeParts.slice(includeParts.indexOf(part) + 1).map((p) => classIncludeFromSourceUri2(p.object.sourceUri)).filter((i) => i !== void 0);
         throw new AbapError(
           "CHECK_FAILED",
           `abap_journal mode=undo of entry ${entry.id}: ${entry.object.name}'s main source WAS restored${activation ? activation.activated ? " and activated" : ", but activation did not complete" : ""}, but writing its recorded ${INCLUDE_LABELS[inc] ?? inc} back failed: ${e instanceof Error ? e.message : String(e)}. ${restoredIncludes.length ? `Already restored: ${restoredIncludes.join(", ")}. ` : "Nothing else was restored yet. "}Not attempted: ${notAttempted.length ? notAttempted.join(", ") : "none"}.`,
@@ -133000,6 +137304,12 @@ var journalInputSchema = {
 var JournalInput = external_exports.object(journalInputSchema);
 var SHOW_DIFF_MAX_CHARS = 2e3;
 var shortId = (id) => id;
+var UNDO_BLOCKER_LIST_MAX_CHARS = 160;
+function truncateBlocker(text5) {
+  if (!text5) return "";
+  if (text5.length <= UNDO_BLOCKER_LIST_MAX_CHARS) return text5;
+  return `${text5.slice(0, UNDO_BLOCKER_LIST_MAX_CHARS)}\u2026 (mode=show for the full reason)`;
+}
 function row(e) {
   const flags = [e.undoneBy ? "undone" : e.undoOf ? "is-undo" : void 0, e.reconciled ? "reconciled" : void 0].filter(Boolean).join(" ");
   return {
@@ -133011,11 +137321,15 @@ function row(e) {
     // undo only ever deletes when beforeCapture is "confirmed-absent".
     capture: e.beforeCapture,
     outcome: e.outcome,
+    // Undecided/absent means this entry predates undoability tracking (Phase 1) — not the
+    // same thing as "no" (a live check may still refuse either way).
+    undoable: e.undoable === void 0 ? "unknown (written before this version)" : e.undoable ? "yes" : "no",
+    undo_blocker: truncateBlocker(e.undoBlocker),
     actor: e.actor ?? "",
     flags
   };
 }
-var LIST_COLUMNS = ["id", "when", "op", "object", "existed", "capture", "outcome", "flags"];
+var LIST_COLUMNS = ["id", "when", "op", "object", "existed", "capture", "outcome", "undoable", "undo_blocker", "flags"];
 var LIST_COLUMNS_WITH_ACTOR = LIST_COLUMNS.flatMap((c) => c === "flags" ? ["actor", "flags"] : c);
 function includeFromSourceUri(uri) {
   if (uri === void 0) return void 0;
@@ -133039,7 +137353,7 @@ function partRow(p) {
 }
 var PART_COLUMNS = ["object", "include", "existed", "capture", "bytes"];
 var PART_COLUMNS_WITH_PACKAGE = PART_COLUMNS.flatMap((c) => c === "object" ? ["object", "package"] : c);
-function undoHint(e) {
+async function undoHint(e, journal) {
   if (e.operation === "transport-release") {
     return "RELEASED TRANSPORT \u2014 refused: a released transport cannot be recalled; create a corrective transport instead";
   }
@@ -133052,23 +137366,44 @@ function undoHint(e) {
   if (e.operation.startsWith("transport-")) {
     return "refused: transport requests are not undone automatically; use abap_transport to reverse this manually";
   }
-  if (e.operation === "activate") return "activation \u2014 nothing to reverse";
+  if (e.operation === "activate") {
+    const pw = precedingWriteEntry(await journal.list({}), e);
+    if (!pw) {
+      return "activation \u2014 undo goes to the preceding write entry for this object, but this journal has none; refused";
+    }
+    if (pw.undoneBy) {
+      return `activation \u2014 undo goes to the preceding write entry (${pw.id}), already undone by ${pw.undoneBy}`;
+    }
+    return `activation \u2014 undo replays the preceding write entry (${pw.id}: ${pw.operation} ${pw.object.type} ${pw.object.name}), not the activation itself`;
+  }
   if (e.undoneBy) return `already undone by ${e.undoneBy}`;
   if (e.irreversible) {
     return "IRREVERSIBLE \u2014 refused: recorded for history only, no mechanism can undo it";
   }
+  const blocked = localUndoBlocker(e);
   const action = plannedAction(e);
+  if (blocked) {
+    const verb = action === "delete" ? "DELETE" : action === "recreate" ? "RE-CREATE" : "restore";
+    return `undo would ${verb} this object, and WILL BE REFUSED: ${blocked}`;
+  }
+  const kind = specialUndoKind(e);
+  if (kind === "text-pool") {
+    return "undo restores the previous text pool (symbols/selections/headings) verbatim, drift-checked against the recorded after-image";
+  }
+  if (kind === "bopf-model") {
+    return "undo PUTs the previous BOPF model XML back and re-activates, drift-checked against the recorded after-image";
+  }
+  if (kind === "enh-delete") {
+    return "undo would DELETE this enhancement object \u2014 allowed only if a where-used check finds nothing referencing it, it is not an active BAdI implementation, and enhancement delete is enabled";
+  }
+  if (kind === "enh-impl-active") {
+    return "undo sets this BAdI implementation's active flag back to what it was before this change";
+  }
   if (action === "delete") {
-    const includeRefusal = classIncludeActionBlocker(e, action);
-    if (includeRefusal) return `undo would DELETE this object, and WILL BE REFUSED: ${includeRefusal}`;
-    const refusal = deleteEvidenceBlocker(e);
-    return refusal ? `undo would DELETE this object, and WILL BE REFUSED: ${refusal}` : "undo would DELETE this object (abapsmith created it, and confirmed it was absent first)";
+    return "undo would DELETE this object (abapsmith created it, and confirmed it was absent first)";
   }
   if (action === "recreate") {
-    const includeRefusal = classIncludeActionBlocker(e, action);
-    if (includeRefusal) return `undo would RE-CREATE this object, and WILL BE REFUSED: ${includeRefusal}`;
-    const refusal = packageRecreateBlocker(e);
-    return refusal ? `undo would RE-CREATE this object, and WILL BE REFUSED: ${refusal}` : "undo would RE-CREATE this object from the before-image";
+    return "undo would RE-CREATE this object from the before-image";
   }
   return "undo would restore the previous source";
 }
@@ -133140,7 +137475,7 @@ function truncateDiffText(text5) {
   return `${cut}
 [diff truncated: ${cut.length} of ${text5.length} characters shown; detail="full" returns the complete images]`;
 }
-async function abapJournal(conn, input, maxChars, journal, gate, transport) {
+async function abapJournal(conn, input, maxChars, journal, gate, transport, enhancement) {
   const mode = input.mode ?? "list";
   const j = requireJournal(journal);
   if (mode === "list") {
@@ -133367,7 +137702,7 @@ async function abapJournal(conn, input, maxChars, journal, gate, transport) {
     notes2.push(
       `Before-image provenance: beforeCapture="${entry.beforeCapture}" \u2014 ` + (entry.beforeCapture === "captured" ? entry.beforeKind === "package-metadata" ? "the captured image is the package's metadata document, not source \u2014 undo will not re-create the package." : "the previous source was read successfully." : entry.beforeCapture === "confirmed-absent" ? "the object was positively confirmed absent beforehand." : entry.beforeCapture === "failed" ? "the before-image probe never completed or came back inconclusive, so `existedBefore` is a guess." : "not recorded (the entry predates provenance tracking), so `existedBefore` is unverified.")
     );
-    notes2.push(undoHint(entry));
+    notes2.push(await undoHint(entry, j));
     const cls = classWarning(entry);
     if (cls) notes2.push(cls);
     if (entry.irreversible) {
@@ -133393,6 +137728,11 @@ async function abapJournal(conn, input, maxChars, journal, gate, transport) {
         existedBefore: entry.existedBefore,
         beforeCapture: entry.beforeCapture,
         beforeKind: entry.beforeKind,
+        // Absent (`undefined`) means this entry predates undoability tracking
+        // (Phase 1) — distinct from `false`, and shown in full here, not truncated
+        // like the `undo_blocker` list column.
+        undoable: entry.undoable,
+        undoBlocker: entry.undoBlocker,
         outcome: entry.outcome,
         reconciled: entry.reconciled?.at,
         error: entry.error,
@@ -133440,6 +137780,9 @@ async function abapJournal(conn, input, maxChars, journal, gate, transport) {
     // TRAN/T undo of a transportable package resolves a request through this —
     // see src/adt/undo.ts's UndoOptions.transport.
     transport,
+    // Absent (no config threaded through) means an enh-delete undo is
+    // refused with a clear reason before any mutation — see UndoOptions.
+    ...enhancement ? { enhancement } : {},
     // Re-authorise on the resolved object: only here is delete vs. write known.
     // gate.authorize both checks and mints the AuthorizedTarget proof that
     // writeObject/deleteObject require to run at all (Layer 2, src/mode.ts) —
@@ -133538,11 +137881,18 @@ async function undoPreflightTarget(journal, input) {
     entry = list3.find((e) => e.operation !== "activate" && !e.undoneBy);
   }
   if (!entry) return void 0;
+  let effective = entry;
+  if (entry.operation === "activate") {
+    const pw = precedingWriteEntry(await journal.list({}), entry);
+    if (!pw || pw.undoneBy) return void 0;
+    effective = pw;
+  }
   return {
-    op: plannedAction(entry) === "delete" ? "delete" : "write",
-    name: entry.object.name,
-    packageName: entry.object.package,
-    type: entry.object.type
+    op: plannedAction(effective) === "delete" ? "delete" : "write",
+    name: effective.object.name,
+    packageName: effective.object.package,
+    type: effective.object.type,
+    entry: effective
   };
 }
 var ok5 = (text5) => ({ content: [{ type: "text", text: text5 }] });
@@ -133550,7 +137900,7 @@ function registerJournalTools(mcp, deps) {
   mcp.registerTool(
     "abap_journal",
     {
-      description: "History and undo for writes abapsmith made. Parameters: mode (list|show|undo|reconcile, default list), entry, object, detail, limit, session, force, activate, outcome, reason. Common calls: mode=list (recent writes with entry ids); mode=show entry=<id> (one entry with its before-image; detail=full for the complete images); mode=undo entry=<id> activate=true (revert it \u2014 refuses on drift, delete-gate, or an enhancement object; see abapsmith-recover-a-bad-write); mode=reconcile entry=<id> outcome=<succeeded|failed> reason=<text> (close a stranded `pending` entry \u2014 journal bookkeeping only, nothing is sent to SAP).",
+      description: "History and undo for writes abapsmith made. Parameters: mode (list|show|undo|reconcile, default list), entry, object, detail, limit, session, force, activate, outcome, reason. Common calls: mode=list (recent writes with entry ids, each row's `undoable` column and truncated `undo_blocker` say up front whether an undo is expected to work); mode=show entry=<id> (one entry with its before-image, and the full undo_blocker reason if any; detail=full for the complete images); mode=undo entry=<id> activate=true (revert it \u2014 refuses on drift or a delete-gate; see abapsmith-recover-a-bad-write); mode=reconcile entry=<id> outcome=<succeeded|failed> reason=<text> (close a stranded `pending` entry \u2014 journal bookkeeping only, nothing is sent to SAP).",
       inputSchema: journalInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true }
     },
@@ -133562,21 +137912,44 @@ function registerJournalTools(mcp, deps) {
         if (isUndo) {
           const t = await undoPreflightTarget(deps.journal, a);
           undoGateKey = t?.name ? t.name.trim().toUpperCase() : void 0;
-          const blocked = t ? enhancementUndoBlocked(t.type ?? "", t.op, t.name) : void 0;
-          if (blocked) {
-            throw new AbapError(
-              "UNSUPPORTED",
-              blocked,
-              { entry: a.entry, object: t?.name ?? a.object },
-              "There is no override for this refusal. Reverse the change deliberately through the ABAP enhancement UI instead."
-            );
+          if (t) {
+            const blocked = localUndoBlocker(t.entry);
+            if (blocked) {
+              throw new AbapError(
+                "BAD_INPUT",
+                blocked,
+                { entry: a.entry, object: t.name },
+                "Nothing was changed on the server, and force=true will not change that."
+              );
+            }
+            const kind = specialUndoKind(t.entry);
+            if (kind === "enh-delete" || kind === "enh-impl-active") {
+              const affects = t.entry.object.affects;
+              if (!affects) {
+                throw new AbapError(
+                  "BAD_INPUT",
+                  `${t.entry.object.type} ${t.entry.object.name} has no recorded "affects" target \u2014 this undo cannot be authorised.`,
+                  { entry: a.entry, object: t.name },
+                  "This entry predates `affects` tracking, or was journalled incorrectly. There is no override."
+                );
+              }
+              const intent = enhancementIntentFor(
+                { name: t.entry.object.name, type: t.entry.object.type, packageName: t.entry.object.package },
+                affects
+              );
+              deps.safety.assertIntent(intent, { op: kind === "enh-delete" ? "delete" : "write", phase: "preflight" });
+            } else {
+              deps.safety.assert(t.op, { name: t.name, packageName: t.packageName, type: t.type }, { phase: "final" });
+            }
+          } else {
+            deps.safety.assert("write", { name: a.object ?? "" }, { phase: "preflight" });
           }
-          deps.safety.assert(t?.op ?? "write", t ? { name: t.name, packageName: t.packageName, type: t.type } : { name: a.object ?? "" }, {
-            phase: t ? "final" : "preflight"
-          });
         }
         if (isUndo) await deps.ensureConnected();
-        const run = (conn) => abapJournal(conn, args, deps.cfg.maxResponseChars, deps.journal, deps.safety, deps.transport);
+        const run = (conn) => abapJournal(conn, args, deps.cfg.maxResponseChars, deps.journal, deps.safety, deps.transport, {
+          allowEnhancementDelete: deps.cfg.allowEnhancementDelete === true,
+          abapMode: deps.cfg.abapMode
+        });
         const res = isUndo ? await deps.pool.withWrite("abap_journal", undoGateKey, run) : await run(deps.pool.primary());
         return ok5(res.text);
       } catch (e) {
@@ -135104,342 +139477,6 @@ function renderAuthorizationObject(obj) {
 
 // src/tools/read.ts
 init_resolve();
-
-// src/adt/element-info.ts
-init_fxp();
-init_errors();
-init_session();
-init_truncate();
-var ELEMENT_INFO_URL = "/sap/bc/adt/abapsource/codecompletion/elementinfo";
-var NAVIGATION_TARGET_URL = "/sap/bc/adt/navigation/target";
-var USAGE_REFERENCES_URL = "/sap/bc/adt/repository/informationsystem/usageReferences";
-var ELEMENT_INFO_MEDIA_TYPE = "application/*";
-var CONTENT_TYPE_TEXT_PLAIN = "text/plain";
-var elementInfoXml = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: "@_",
-  removeNSPrefix: true,
-  parseAttributeValue: false,
-  parseTagValue: false,
-  trimValues: false,
-  isArray: (_name, jpath, _isLeaf, isAttribute) => !isAttribute && typeof jpath === "string" && (jpath.endsWith("properties.entry") || jpath.endsWith("elementInfo.documentation") || jpath.endsWith("elementInfo.elementInfo"))
-});
-var usageReferencesXml = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: "@_",
-  removeNSPrefix: true,
-  parseAttributeValue: false,
-  parseTagValue: false,
-  trimValues: false,
-  isArray: (_name, jpath, _isLeaf, isAttribute) => !isAttribute && typeof jpath === "string" && jpath.endsWith("referencedObjects.referencedObject")
-});
-function asRecord2(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
-}
-function asArray5(value) {
-  if (Array.isArray(value)) return value;
-  return value === void 0 || value === null ? [] : [value];
-}
-function attr3(node2, name) {
-  const value = node2?.[`@_${name}`];
-  return typeof value === "string" ? value : void 0;
-}
-function elementText2(value) {
-  if (typeof value === "string") return value;
-  if (value === void 0 || value === null) return void 0;
-  const rec = asRecord2(value);
-  if (rec === void 0) return void 0;
-  const text5 = rec["#text"];
-  return typeof text5 === "string" ? text5 : "";
-}
-function parseXmlDocument(body, what, ctx, parser3 = elementInfoXml) {
-  let parsed;
-  try {
-    parsed = parser3.parse(body);
-  } catch (e) {
-    throw new AbapError(
-      "ADT_ERROR",
-      `The ${what} response could not be parsed as XML.`,
-      { operation: ctx.operation, uri: ctx.uri, what, detail: e instanceof Error ? e.message : String(e) },
-      "The server answered with something other than the expected document."
-    );
-  }
-  const rec = asRecord2(parsed);
-  if (rec === void 0) {
-    throw new AbapError(
-      "ADT_ERROR",
-      `The ${what} response was empty or not a document.`,
-      { operation: ctx.operation, uri: ctx.uri, what, length: body.length },
-      "The server answered with something other than the expected document."
-    );
-  }
-  return rec;
-}
-function parseProperties(value) {
-  const rec = asRecord2(value);
-  if (rec === void 0) return {};
-  const result = {};
-  for (const raw of asArray5(rec["entry"])) {
-    const entryNode = asRecord2(raw);
-    const key = attr3(entryNode, "key");
-    if (key === void 0) continue;
-    result[key] = elementText2(raw) ?? "";
-  }
-  return result;
-}
-function findDocumentation(node2, rel) {
-  for (const raw of asArray5(node2["documentation"])) {
-    const docNode = asRecord2(raw);
-    if (attr3(docNode, "rel") !== rel) continue;
-    return elementText2(raw) ?? "";
-  }
-  return void 0;
-}
-function parseElementInfoNode(raw) {
-  const node2 = asRecord2(raw) ?? {};
-  const type = attr3(node2, "type");
-  const name = attr3(node2, "name");
-  const shortText = findDocumentation(node2, "shorttext");
-  const abapDoc = findDocumentation(node2, "abapdoc");
-  const children = asArray5(node2["elementInfo"]).map(parseElementInfoNode);
-  return {
-    ...type !== void 0 ? { type } : {},
-    ...name !== void 0 ? { name } : {},
-    properties: parseProperties(node2["properties"]),
-    ...shortText !== void 0 ? { shortText } : {},
-    ...abapDoc !== void 0 ? { abapDoc } : {},
-    children
-  };
-}
-function elementInfoFragmentUri(sourceUri, pos) {
-  return `${sourceUri}#start=${pos.line},${pos.column}`;
-}
-var UNRESOLVED_ELEMENT_INFO = { properties: {}, children: [] };
-function hasNoElementAtAll(body, doc) {
-  if (body.trim() === "") return true;
-  return Object.keys(doc).every((key) => {
-    if (key === "?xml") return true;
-    if (key === "#text") return typeof doc[key] !== "string" || doc[key].trim() === "";
-    return false;
-  });
-}
-function parseElementInfo(xml4, ctx) {
-  const doc = parseXmlDocument(xml4, "element info", ctx);
-  const rootValue = doc["elementInfo"];
-  if (rootValue === void 0) {
-    if (hasNoElementAtAll(xml4, doc)) return UNRESOLVED_ELEMENT_INFO;
-    throw new AbapError(
-      "ADT_ERROR",
-      `The element info response has no <abapsource:elementInfo> element.`,
-      { operation: ctx.operation, uri: ctx.uri, preview: truncateText(xml4, PARSE_EXCERPT_MAX) },
-      "This ADT release may answer element info differently from what this client expects."
-    );
-  }
-  return parseElementInfoNode(rootValue);
-}
-function isUnresolved(info) {
-  return info.name === void 0;
-}
-async function fetchElementInfo(conn, sourceUri, pos, source) {
-  const ctx = { operation: "element info", uri: sourceUri };
-  let body;
-  try {
-    ({ body } = await conn.post(ELEMENT_INFO_URL, {
-      headers: { "Content-Type": CONTENT_TYPE_TEXT_PLAIN, Accept: ELEMENT_INFO_MEDIA_TYPE },
-      qs: { uri: elementInfoFragmentUri(sourceUri, pos) },
-      body: source
-    }));
-  } catch (e) {
-    throw translateAdtError(e, ctx);
-  }
-  return parseElementInfo(body, ctx);
-}
-var FRAGMENT_RE = /^(.*)#start=(\d+),(\d+)(?:;end=\d+,\d+)?$/;
-function splitFragmentUri(uri) {
-  const m = FRAGMENT_RE.exec(uri);
-  if (!m) return { uri };
-  return { uri: m[1], line: Number(m[2]), column: Number(m[3]) };
-}
-function parseNavigationTarget(xml4, ctx) {
-  const doc = parseXmlDocument(xml4, "navigation target", ctx);
-  const rootValue = doc["objectReference"];
-  if (rootValue === void 0) {
-    throw new AbapError(
-      "ADT_ERROR",
-      `The navigation target response has no <adtcore:objectReference> element.`,
-      { operation: ctx.operation, uri: ctx.uri, preview: truncateText(xml4, PARSE_EXCERPT_MAX) },
-      "This ADT release may answer navigation targets differently from what this client expects."
-    );
-  }
-  const uri = attr3(asRecord2(rootValue), "uri");
-  return uri === void 0 ? void 0 : splitFragmentUri(uri);
-}
-var NAVIGATION_UNDECIDABLE_RE = /undecidable/i;
-function noTargetReasonFor(e, translated) {
-  const info = adtExceptionInfo(e);
-  if (info?.properties["T100KEY-ID"] === "ED" && info.properties["T100KEY-NO"] === "263") {
-    return "declaration-itself";
-  }
-  if (info?.properties["T100KEY-ID"] === "SEDI_ADT" && info.properties["T100KEY-NO"] === "2") {
-    return "undecidable";
-  }
-  if (info?.type === "ExceptionMultipleNavigationTargets") {
-    return "undecidable";
-  }
-  if (info?.type === "NavigationFailure" && NAVIGATION_UNDECIDABLE_RE.test(translated.message)) {
-    return "undecidable";
-  }
-  if (info?.type === void 0 && NAVIGATION_UNDECIDABLE_RE.test(translated.message)) {
-    return "undecidable";
-  }
-  return void 0;
-}
-async function findDefinitionTarget(conn, sourceUri, range, source) {
-  const ctx = { operation: "navigation target", uri: sourceUri };
-  const fragment = `${sourceUri}#start=${range.line},${range.startColumn};end=${range.line},${range.endColumn}`;
-  let body;
-  try {
-    ({ body } = await conn.post(NAVIGATION_TARGET_URL, {
-      headers: { "Content-Type": CONTENT_TYPE_TEXT_PLAIN, Accept: ELEMENT_INFO_MEDIA_TYPE },
-      qs: { uri: fragment, filter: "definition" },
-      body: source
-    }));
-  } catch (e) {
-    const translated = translateAdtError(e, ctx);
-    const noTargetReason = noTargetReasonFor(e, translated);
-    if (noTargetReason !== void 0) return { noTargetReason };
-    throw translated;
-  }
-  const target = parseNavigationTarget(body, ctx);
-  return target !== void 0 ? { target } : { noTargetReason: "unnamed" };
-}
-var ABAP_IDENTIFIER_CHAR = /[A-Za-z0-9_/~]/;
-function identifierAt(source, pos) {
-  if (!Number.isInteger(pos.line) || pos.line < 1) return void 0;
-  const lineText = source.split(/\r\n|\n/)[pos.line - 1];
-  if (lineText === void 0) return void 0;
-  if (!Number.isInteger(pos.column) || pos.column < 0 || pos.column >= lineText.length) return void 0;
-  if (!ABAP_IDENTIFIER_CHAR.test(lineText[pos.column])) return void 0;
-  let start = pos.column;
-  while (start > 0 && ABAP_IDENTIFIER_CHAR.test(lineText[start - 1])) start--;
-  let end = pos.column + 1;
-  while (end < lineText.length && ABAP_IDENTIFIER_CHAR.test(lineText[end])) end++;
-  return { text: lineText.slice(start, end), startColumn: start, endColumn: end };
-}
-function recordString(rec, key) {
-  const value = rec[key];
-  return typeof value === "string" ? value : void 0;
-}
-function classNameFromUri(uri) {
-  if (uri === void 0) return void 0;
-  const segments = uri.split("/").filter((s) => s.length > 0);
-  const last = segments[segments.length - 1];
-  return last ? last.toUpperCase() : void 0;
-}
-var USAGE_REFERENCES_REQUEST_BODY = `<?xml version="1.0" encoding="ASCII"?>
-  <usagereferences:usageReferenceRequest xmlns:usagereferences="http://www.sap.com/adt/ris/usageReferences">
-    <usagereferences:affectedObjects/>
-  </usagereferences:usageReferenceRequest>`;
-function parseUsageReferences(xml4, ctx) {
-  const doc = parseXmlDocument(xml4, "usage references", ctx, usageReferencesXml);
-  const rootValue = doc["usageReferenceResult"];
-  if (rootValue === void 0) {
-    throw new AbapError(
-      "ADT_ERROR",
-      `The usage references response has no <usagereferences:usageReferenceResult> element.`,
-      { operation: ctx.operation, uri: ctx.uri, preview: truncateText(xml4, PARSE_EXCERPT_MAX) },
-      "This ADT release may answer where-used differently from what this client expects."
-    );
-  }
-  const root = asRecord2(rootValue);
-  const referencedObjects = asRecord2(root?.["referencedObjects"]);
-  if (referencedObjects === void 0) return [];
-  const rows = [];
-  for (const raw of asArray5(referencedObjects["referencedObject"])) {
-    const row2 = asRecord2(raw);
-    if (row2 === void 0) continue;
-    const adtObject = asRecord2(row2["adtObject"]) ?? {};
-    const packageRefNode = asRecord2(adtObject["packageRef"]);
-    const packageRef = {};
-    const packageName = attr3(packageRefNode, "name");
-    const packageUri = attr3(packageRefNode, "uri");
-    const packageType = attr3(packageRefNode, "type");
-    if (packageName !== void 0) packageRef["adtcore:name"] = packageName;
-    if (packageUri !== void 0) packageRef["adtcore:uri"] = packageUri;
-    if (packageType !== void 0) packageRef["adtcore:type"] = packageType;
-    const rowUri = attr3(row2, "uri");
-    const parentUri = attr3(row2, "parentUri");
-    const adtName = attr3(adtObject, "name");
-    const adtType = attr3(adtObject, "type");
-    rows.push({
-      ...rowUri !== void 0 ? { uri: rowUri } : {},
-      ...parentUri !== void 0 ? { parentUri } : {},
-      ...adtName !== void 0 ? { "adtcore:name": adtName } : {},
-      ...adtType !== void 0 ? { "adtcore:type": adtType } : {},
-      packageRef,
-      objectIdentifier: elementText2(row2["objectIdentifier"]) ?? ""
-    });
-  }
-  return rows;
-}
-function implementationsFrom(refs, interfaceName, methodName) {
-  const wanted = `${interfaceName}~${methodName}`.toUpperCase();
-  const nameByUri = /* @__PURE__ */ new Map();
-  for (const ref2 of refs) {
-    const uri = recordString(ref2, "uri");
-    const name = recordString(ref2, "adtcore:name");
-    if (uri !== void 0 && name !== void 0) nameByUri.set(uri, name);
-  }
-  const results = [];
-  for (const ref2 of refs) {
-    const name = recordString(ref2, "adtcore:name");
-    if (name === void 0 || name.toUpperCase() !== wanted) continue;
-    const uri = recordString(ref2, "uri");
-    if (uri === void 0) continue;
-    const parentUri = recordString(ref2, "parentUri");
-    const className = (parentUri !== void 0 ? nameByUri.get(parentUri) : void 0) ?? classNameFromUri(parentUri);
-    if (className === void 0) continue;
-    const packageRefValue = ref2["packageRef"];
-    const packageRef = asRecord2(packageRefValue);
-    const packageName = packageRef !== void 0 ? recordString(packageRef, "adtcore:name") : void 0;
-    results.push({
-      className,
-      methodName: name,
-      uri,
-      ...packageName !== void 0 ? { packageName } : {}
-    });
-  }
-  return results;
-}
-var HIGH_FAN_IN_REFERENCES = 500;
-var SLOW_FETCH_MS = 5e3;
-async function fetchUsageReferences(conn, uri, pos, name) {
-  const ctx = { operation: "usage references", uri, ...name !== void 0 ? { name } : {} };
-  const fragment = pos !== void 0 ? `${uri}#start=${pos.line},${pos.column}` : uri;
-  const startedAt = Date.now();
-  let body;
-  try {
-    ({ body } = await conn.post(USAGE_REFERENCES_URL, {
-      headers: { "Content-Type": "application/*", Accept: "application/*" },
-      qs: { uri: fragment },
-      body: USAGE_REFERENCES_REQUEST_BODY
-    }));
-  } catch (e) {
-    throw translateAdtError(e, ctx);
-  }
-  const fetchMs = Date.now() - startedAt;
-  return { refs: parseUsageReferences(body, ctx), fetchMs };
-}
-async function findImplementations(conn, interfaceSourceUri, pos, interfaceName, methodName) {
-  const { refs, fetchMs } = await fetchUsageReferences(conn, interfaceSourceUri, pos, `${interfaceName}~${methodName}`);
-  return {
-    implementations: implementationsFrom(refs, interfaceName, methodName),
-    fetchMs,
-    totalReferences: refs.length
-  };
-}
-
-// src/tools/read.ts
 init_types();
 init_source();
 init_compact();
@@ -135655,7 +139692,7 @@ function parseField(raw) {
 function parseFields(fieldListBody) {
   return splitTopLevel(fieldListBody, ",").map(parseField);
 }
-function escapeRegExp4(s) {
+function escapeRegExp5(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 function parseDdl2(source) {
@@ -135670,7 +139707,7 @@ function parseDdl2(source) {
   const parameters = parseParameters(code);
   const associations = rawAssociations.map((a) => ({
     ...a,
-    selected: fieldListBody !== void 0 && new RegExp(`\\b${escapeRegExp4(a.name)}\\b`).test(fieldListBody)
+    selected: fieldListBody !== void 0 && new RegExp(`\\b${escapeRegExp5(a.name)}\\b`).test(fieldListBody)
   }));
   return { kind, name, dataSources, associations, fields, parameters };
 }
@@ -136665,12 +140702,12 @@ function resolveDocuTarget(input) {
     { type: input.type }
   );
 }
-function escapeRegExp5(s) {
+function escapeRegExp6(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 function extractAbapDoc(source, member) {
   const lines = source.split(/\r\n|\r|\n/);
-  const declRe = new RegExp(`^\\s*(?:CLASS-)?METHODS\\s+${escapeRegExp5(member)}\\b`, "i");
+  const declRe = new RegExp(`^\\s*(?:CLASS-)?METHODS\\s+${escapeRegExp6(member)}\\b`, "i");
   let declIndex = -1;
   for (let i = 0; i < lines.length; i++) {
     if (declRe.test(abapCodeOf(lines[i] ?? ""))) {
@@ -137390,7 +141427,7 @@ var crossSystemInputSchema = {
 var OUTLINE_KINDS = /* @__PURE__ */ new Set(["CLAS", "INTF"]);
 var DEFAULT_OUTLINE_KINDS = /* @__PURE__ */ new Set(["CLAS", "INTF", "PROG", "FUGR"]);
 var ENHANCEMENT_KINDS = /* @__PURE__ */ new Set(["ENHO/XH", "ENHO/XHH", "ENHS"]);
-function renderRef(ref2) {
+function renderRef2(ref2) {
   if (!ref2?.name) return "(none)";
   return ref2.type ? `${ref2.type} ${ref2.name}` : ref2.name;
 }
@@ -137425,8 +141462,8 @@ function renderBadiImplementation(data) {
       `IMPLEMENTATION: ${impl.name}`,
       impl.shortText ? `  short text: ${impl.shortText}` : void 0,
       `  active: ${impl.isActive ? "yes" : "no"}  default: ${impl.isDefault ? "yes" : "no"}  customizing: ${impl.isCustomizingSupported ? "yes" : "no"}`,
-      impl.enhancementSpot ? `  enhancement spot: ${renderRef(impl.enhancementSpot)}` : void 0,
-      impl.badiDefinition ? `  BAdI definition: ${renderRef(impl.badiDefinition)}` : void 0,
+      impl.enhancementSpot ? `  enhancement spot: ${renderRef2(impl.enhancementSpot)}` : void 0,
+      impl.badiDefinition ? `  BAdI definition: ${renderRef2(impl.badiDefinition)}` : void 0,
       classLine,
       impl.filterTree ? `  filter tree:
 ${renderFilterTree(impl.filterTree, "    ")}` : void 0
@@ -137456,14 +141493,14 @@ function renderSourceCodePlugin(data) {
   const notes = [];
   if (data.switchState) {
     notes.push(
-      `Switch-BC-Set gate present (state="${data.switchState}"${data.switchReference ? `, ${renderRef(data.switchReference)}` : ""}). This field was observed on exactly one capture \u2014 whether "off" is the only possible state, or whether the reference can be absent while the switch is present, is UNVERIFIED.`
+      `Switch-BC-Set gate present (state="${data.switchState}"${data.switchReference ? `, ${renderRef2(data.switchReference)}` : ""}). This field was observed on exactly one capture \u2014 whether "off" is the only possible state, or whether the reference can be absent while the switch is present, is UNVERIFIED.`
     );
   }
   const usageRows = data.usages.length ? textTable(
     data.usages.map((u) => ({
       programId: u.programId ?? "",
       usage: u.elementUsage ?? "",
-      object: renderRef(u.objectReference)
+      object: renderRef2(u.objectReference)
     })),
     ["programId", "usage", "object"]
   ) : "(none)";
@@ -137480,7 +141517,7 @@ function renderSourceCodePlugin(data) {
     ].filter((l) => l !== void 0).join("\n")
   );
   const body = [
-    data.enhancedObject ? `enhanced object: ${renderRef(data.enhancedObject)}` : void 0,
+    data.enhancedObject ? `enhanced object: ${renderRef2(data.enhancedObject)}` : void 0,
     data.sourceUri ? `source: ${data.sourceUri}` : void 0,
     "",
     "USAGES:",
@@ -137511,7 +141548,7 @@ function renderEnhancementSpot(data) {
       `BADI DEFINITION: ${def.name}`,
       def.shorttext ? `  short text: ${def.shorttext}` : void 0,
       `  single use: ${def.singleUse ? "yes" : "no"}  fallback class: ${def.useFallbackClass ? "yes" : "no"}  filter limitation: ${def.filterLimitation ? "yes" : "no"}`,
-      def.interfaceRef ? `  interface: ${renderRef(def.interfaceRef)}` : void 0,
+      def.interfaceRef ? `  interface: ${renderRef2(def.interfaceRef)}` : void 0,
       "  filters:",
       filterRows
     ].filter((l) => l !== void 0).join("\n");
@@ -139484,7 +143521,7 @@ function many2(v) {
   if (Array.isArray(v)) return v.filter(isNode);
   return isNode(v) ? [v] : [];
 }
-function attr4(node2, name) {
+function attr5(node2, name) {
   const v = node2[`@_${name}`];
   if (typeof v !== "string") return void 0;
   const t = v.trim();
@@ -139521,7 +143558,7 @@ function verdictForMethodNode(node2) {
   }
   if (unrecognised.length > 0) return { verdict: "unknown", unrecognised };
   if (!childNames(node2).includes("alerts")) return { verdict: "passed", unrecognised: [] };
-  const severities = many2(node2.alerts).flatMap((container) => many2(container.alert)).map((a) => attr4(a, "severity"));
+  const severities = many2(node2.alerts).flatMap((container) => many2(container.alert)).map((a) => attr5(a, "severity"));
   if (severities.some((s) => s !== void 0 && SEVERITY_FAILS.has(s))) {
     return { verdict: "failed", unrecognised: [] };
   }
@@ -139535,7 +143572,7 @@ function verdictForMethodNode(node2) {
 function flattenDetails(node2, depth, out) {
   if (!isNode(node2)) return;
   for (const detail of many2(node2.detail)) {
-    const text5 = attr4(detail, "text");
+    const text5 = attr5(detail, "text");
     if (text5) out.push("  ".repeat(depth) + truncateText(text5, ECHO_LINE_MAX));
     flattenDetails(detail.details, depth + 1, out);
   }
@@ -139549,16 +143586,16 @@ function includeNameFromUri(uri) {
 function parseStack(node2) {
   if (!isNode(node2)) return [];
   return many2(node2.stackEntry).map((e) => {
-    const uri = attr4(e, "uri");
+    const uri = attr5(e, "uri");
     const at = parseStartFragment(uri);
     const includeName = includeNameFromUri(uri);
     return {
       ...uri ? { uri } : {},
       ...at ? { line: at.line, col: at.col } : {},
       ...includeName ? { includeName } : {},
-      ...attr4(e, "type") ? { type: attr4(e, "type") } : {},
-      ...attr4(e, "name") ? { name: attr4(e, "name") } : {},
-      ...attr4(e, "description") ? { description: truncateText(attr4(e, "description"), ECHO_LINE_MAX) } : {}
+      ...attr5(e, "type") ? { type: attr5(e, "type") } : {},
+      ...attr5(e, "name") ? { name: attr5(e, "name") } : {},
+      ...attr5(e, "description") ? { description: truncateText(attr5(e, "description"), ECHO_LINE_MAX) } : {}
     };
   });
 }
@@ -139569,8 +143606,8 @@ function parseAlerts(container) {
     flattenDetails(a.details, 0, details);
     const title = typeof a.title === "string" ? a.title.trim() : void 0;
     return {
-      ...attr4(a, "kind") ? { kind: attr4(a, "kind") } : {},
-      ...attr4(a, "severity") ? { severity: attr4(a, "severity") } : {},
+      ...attr5(a, "kind") ? { kind: attr5(a, "kind") } : {},
+      ...attr5(a, "severity") ? { severity: attr5(a, "severity") } : {},
       ...title ? { title: truncateText(title, MESSAGE_EXCERPT_MAX) } : {},
       details,
       stack: parseStack(a.stack)
@@ -139602,7 +143639,7 @@ function parseRunResult(xml4) {
   }
   const externalNode = many2(root.external)[0];
   const coverageNode = externalNode && isNode(externalNode.coverage) ? externalNode.coverage : void 0;
-  const coverageUriRaw = coverageNode ? attr4(coverageNode, "uri") : void 0;
+  const coverageUriRaw = coverageNode ? attr5(coverageNode, "uri") : void 0;
   const coverageUri = coverageUriRaw && coverageUriRaw.startsWith(COVERAGE_MEASUREMENT_PREFIX) ? coverageUriRaw : void 0;
   const otherAlerts = [];
   for (const a of parseAlerts(root.alerts)) otherAlerts.push({ ...a, scope: "run" });
@@ -139612,14 +143649,14 @@ function parseRunResult(xml4) {
   let failed = 0;
   let unknown3 = 0;
   for (const prog of many2(root.program)) {
-    const programName = attr4(prog, "name") ?? "(unnamed program)";
+    const programName = attr5(prog, "name") ?? "(unnamed program)";
     for (const a of parseAlerts(prog.alerts)) {
       otherAlerts.push({ ...a, scope: `program ${programName}` });
     }
     const classes = [];
     for (const tcContainer of many2(prog.testClasses)) {
       for (const tc of many2(tcContainer.testClass)) {
-        const className = attr4(tc, "name") ?? "(unnamed test class)";
+        const className = attr5(tc, "name") ?? "(unnamed test class)";
         for (const a of parseAlerts(tc.alerts)) {
           otherAlerts.push({ ...a, scope: `test class ${className}` });
         }
@@ -139632,11 +143669,11 @@ function parseRunResult(xml4) {
             else if (verdict === "failed") failed++;
             else unknown3++;
             methods.push({
-              name: attr4(tm, "name") ?? "(unnamed method)",
+              name: attr5(tm, "name") ?? "(unnamed method)",
               className,
               verdict,
-              ...attr4(tm, "executionTime") ? { executionTime: attr4(tm, "executionTime") } : {},
-              ...attr4(tm, "unit") ? { unit: attr4(tm, "unit") } : {},
+              ...attr5(tm, "executionTime") ? { executionTime: attr5(tm, "executionTime") } : {},
+              ...attr5(tm, "unit") ? { unit: attr5(tm, "unit") } : {},
               alerts: parseAlerts(tm.alerts),
               unrecognised
             });
@@ -139644,15 +143681,15 @@ function parseRunResult(xml4) {
         }
         classes.push({
           name: className,
-          ...attr4(tc, "riskLevel") ? { riskLevel: attr4(tc, "riskLevel") } : {},
-          ...attr4(tc, "durationCategory") ? { durationCategory: attr4(tc, "durationCategory") } : {},
+          ...attr5(tc, "riskLevel") ? { riskLevel: attr5(tc, "riskLevel") } : {},
+          ...attr5(tc, "durationCategory") ? { durationCategory: attr5(tc, "durationCategory") } : {},
           methods
         });
       }
     }
     programs.push({
       name: programName,
-      ...attr4(prog, "type") ? { type: attr4(prog, "type") } : {},
+      ...attr5(prog, "type") ? { type: attr5(prog, "type") } : {},
       classes
     });
   }
@@ -139752,10 +143789,10 @@ function parseCoveredObjects(xml4) {
       const ref2 = isNode(co.objectReference) ? co.objectReference : void 0;
       if (!ref2) continue;
       out.push({
-        name: attr4(ref2, "name") ?? "(unnamed object)",
-        ...attr4(ref2, "type") ? { type: attr4(ref2, "type") } : {},
-        ...attr4(ref2, "uri") ? { uri: attr4(ref2, "uri") } : {},
-        ...attr4(ref2, "packageName") ? { packageName: attr4(ref2, "packageName") } : {}
+        name: attr5(ref2, "name") ?? "(unnamed object)",
+        ...attr5(ref2, "type") ? { type: attr5(ref2, "type") } : {},
+        ...attr5(ref2, "uri") ? { uri: attr5(ref2, "uri") } : {},
+        ...attr5(ref2, "packageName") ? { packageName: attr5(ref2, "packageName") } : {}
       });
     }
   }
@@ -139779,20 +143816,20 @@ function parseCount(raw) {
 }
 function parseCoverageNode(node2) {
   const ref2 = isNode(node2.objectReference) ? node2.objectReference : void 0;
-  const name = (ref2 ? attr4(ref2, "name") : void 0) ?? "(unnamed node)";
+  const name = (ref2 ? attr5(ref2, "name") : void 0) ?? "(unnamed node)";
   const unrecognised = [];
   let statement;
   let branch;
   let procedure;
   const coveragesContainer = isNode(node2.coverages) ? node2.coverages : void 0;
   for (const cov of many2(coveragesContainer?.coverage)) {
-    const type = attr4(cov, "type");
+    const type = attr5(cov, "type");
     if (type === void 0 || !KNOWN_COVERAGE_TYPES.has(type)) {
       unrecognised.push(type ?? "coverage with no @type");
       continue;
     }
-    const totalRaw = attr4(cov, "total");
-    const executedRaw = attr4(cov, "executed");
+    const totalRaw = attr5(cov, "total");
+    const executedRaw = attr5(cov, "executed");
     const total = parseCount(totalRaw);
     if (total === void 0) {
       unrecognised.push(`${type} (unparseable total="${totalRaw ?? ""}")`);
@@ -139813,9 +143850,9 @@ function parseCoverageNode(node2) {
   for (const child4 of many2(childContainer?.node)) children.push(parseCoverageNode(child4));
   return {
     name,
-    ...ref2 && attr4(ref2, "type") ? { type: attr4(ref2, "type") } : {},
-    ...ref2 && attr4(ref2, "uri") ? { uri: attr4(ref2, "uri") } : {},
-    ...ref2 && attr4(ref2, "description") ? { description: attr4(ref2, "description") } : {},
+    ...ref2 && attr5(ref2, "type") ? { type: attr5(ref2, "type") } : {},
+    ...ref2 && attr5(ref2, "uri") ? { uri: attr5(ref2, "uri") } : {},
+    ...ref2 && attr5(ref2, "description") ? { description: attr5(ref2, "description") } : {},
     ...statement ? { statement } : {},
     ...branch ? { branch } : {},
     ...procedure ? { procedure } : {},
@@ -139978,7 +144015,7 @@ function assertLogReadArgsNoWindowConflict(args) {
     until: args["until"]
   });
 }
-function fail4(reason, rows) {
+function fail5(reason, rows) {
   throw new AbapError(
     "FLUID_PROTOCOL_ERROR",
     `log.read ${reason}`,
@@ -139996,7 +144033,7 @@ function isSummaryRow2(r) {
 }
 function mapLogRows(rows) {
   if (!Array.isArray(rows)) {
-    fail4("returned a result that is not an array", rows);
+    fail5("returned a result that is not an array", rows);
   }
   const logs = [];
   let currentLog;
@@ -140004,18 +144041,18 @@ function mapLogRows(rows) {
   for (let i = 0; i < rows.length; i++) {
     const row2 = rows[i];
     if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
-      fail4(`row ${i} is not an object`, rows);
+      fail5(`row ${i} is not an object`, rows);
     }
     const r = row2;
     if (r["kind"] !== "log" && r["kind"] !== "msg" && r["kind"] !== "summary") {
-      fail4(`row ${i} has kind "${String(r["kind"])}", expected "log", "msg" or "summary"`, rows);
+      fail5(`row ${i} has kind "${String(r["kind"])}", expected "log", "msg" or "summary"`, rows);
     }
     if (summary !== void 0) {
-      fail4(`row ${i} follows the trailing summary row`, rows);
+      fail5(`row ${i} follows the trailing summary row`, rows);
     }
     if (r["kind"] === "log") {
       if (!isLogRow(r)) {
-        fail4(`row ${i} is a log row missing or mistyping one of its required fields`, rows);
+        fail5(`row ${i} is a log row missing or mistyping one of its required fields`, rows);
       }
       const entry = {
         lognumber: r.lognumber,
@@ -140043,10 +144080,10 @@ function mapLogRows(rows) {
     }
     if (r["kind"] === "msg") {
       if (currentLog === void 0) {
-        fail4(`row ${i} is a msg row before any log row`, rows);
+        fail5(`row ${i} is a msg row before any log row`, rows);
       }
       if (!isMsgRow(r)) {
-        fail4(`row ${i} is a msg row missing or mistyping one of its required fields`, rows);
+        fail5(`row ${i} is a msg row missing or mistyping one of its required fields`, rows);
       }
       currentLog.messages.push({
         lognumber: r.lognumber,
@@ -140066,10 +144103,10 @@ function mapLogRows(rows) {
       continue;
     }
     if (!isSummaryRow2(r)) {
-      fail4(`row ${i} is a summary row missing or mistyping one of its required fields`, rows);
+      fail5(`row ${i} is a summary row missing or mistyping one of its required fields`, rows);
     }
     if (i !== rows.length - 1) {
-      fail4("returned a summary row that is not the last element", rows);
+      fail5("returned a summary row that is not the last element", rows);
     }
     summary = {
       logs_returned: r.logs_returned,
@@ -140084,7 +144121,7 @@ function mapLogRows(rows) {
     };
   }
   if (summary === void 0) {
-    fail4("did not return a summary row", rows);
+    fail5("did not return a summary row", rows);
   }
   return { logs, summary };
 }
@@ -141326,7 +145363,7 @@ function scanDispatchArgs(q) {
     max_objects: q.maxObjects
   };
 }
-function fail5(reason, result) {
+function fail6(reason, result) {
   throw new AbapError(
     "FLUID_PROTOCOL_ERROR",
     `scan.source ${reason}`,
@@ -141341,25 +145378,25 @@ function isSummaryRow3(r) {
 }
 function mapScanRows(rows) {
   if (!Array.isArray(rows)) {
-    fail5("returned a result that is not an array", rows);
+    fail6("returned a result that is not an array", rows);
   }
   const hits = [];
   let summary;
   for (let i = 0; i < rows.length; i++) {
     const row2 = rows[i];
     if (typeof row2 !== "object" || row2 === null || Array.isArray(row2)) {
-      fail5(`row ${i} is not an object`, rows);
+      fail6(`row ${i} is not an object`, rows);
     }
     const r = row2;
     if (r["kind"] !== "hit" && r["kind"] !== "summary") {
-      fail5(`row ${i} has kind "${String(r["kind"])}", expected "hit" or "summary"`, rows);
+      fail6(`row ${i} has kind "${String(r["kind"])}", expected "hit" or "summary"`, rows);
     }
     if (r["kind"] === "hit") {
       if (!isHitRow(r)) {
-        fail5(`row ${i} is a hit row missing or mistyping one of obj_type/obj_name/include/line/text`, rows);
+        fail6(`row ${i} is a hit row missing or mistyping one of obj_type/obj_name/include/line/text`, rows);
       }
       if (summary !== void 0) {
-        fail5(`row ${i} is a hit row after the summary row`, rows);
+        fail6(`row ${i} is a hit row after the summary row`, rows);
       }
       hits.push({
         objType: r.obj_type,
@@ -141371,13 +145408,13 @@ function mapScanRows(rows) {
       continue;
     }
     if (summary !== void 0) {
-      fail5("returned more than one summary row", rows);
+      fail6("returned more than one summary row", rows);
     }
     if (!isSummaryRow3(r)) {
-      fail5(`row ${i} is a summary row missing or mistyping one of its required fields`, rows);
+      fail6(`row ${i} is a summary row missing or mistyping one of its required fields`, rows);
     }
     if (i !== rows.length - 1) {
-      fail5("returned a summary row that is not the last element", rows);
+      fail6("returned a summary row that is not the last element", rows);
     }
     summary = {
       objectsTotal: r.objects_total,
@@ -141389,7 +145426,7 @@ function mapScanRows(rows) {
     };
   }
   if (summary === void 0) {
-    fail5("did not return a summary row", rows);
+    fail6("did not return a summary row", rows);
   }
   return { hits, summary };
 }
@@ -142137,7 +146174,7 @@ function child2(node2, name) {
   const v = isRec(node2) ? node2[name] : void 0;
   return isRec(v) ? v : void 0;
 }
-function attr5(node2, name) {
+function attr6(node2, name) {
   if (!isRec(node2)) return void 0;
   const v = node2[`@_${name}`];
   if (v === void 0 || v === null) return void 0;
@@ -142145,7 +146182,7 @@ function attr5(node2, name) {
   return s === "" ? void 0 : s;
 }
 function boolAttr(node2, name) {
-  const raw = attr5(node2, name);
+  const raw = attr6(node2, name);
   if (raw === void 0) return void 0;
   const v = raw.toLowerCase();
   if (v === "true") return true;
@@ -142161,11 +146198,11 @@ function localName(qualified) {
   return cut === -1 ? qualified : qualified.slice(cut + 1);
 }
 function detectVersion2(edmx, schemas) {
-  const v = attr5(edmx, "Version");
+  const v = attr6(edmx, "Version");
   if (v === "4.0") return { version: "V4", evidence: "edmx-version-attribute" };
   if (v === "1.0") return { version: "V2", evidence: "edmx-version-attribute" };
   const ds = child2(edmx, "DataServices");
-  const dsv = attr5(ds, "DataServiceVersion");
+  const dsv = attr6(ds, "DataServiceVersion");
   if (dsv?.startsWith("2")) return { version: "V2", evidence: "dataservice-version-attribute" };
   if (dsv?.startsWith("4")) return { version: "V4", evidence: "dataservice-version-attribute" };
   for (const s of schemas) {
@@ -142176,7 +146213,7 @@ function detectVersion2(edmx, schemas) {
   for (const s of schemas) {
     for (const t of list(s, "EntityType")) {
       for (const n of list(t, "NavigationProperty")) {
-        if (attr5(n, "Type") !== void 0) {
+        if (attr6(n, "Type") !== void 0) {
           return { version: "V4", evidence: "structural-navigation-type" };
         }
       }
@@ -142192,16 +146229,16 @@ function detectVersion2(edmx, schemas) {
 function indexAssociations(schemas) {
   const idx2 = /* @__PURE__ */ new Map();
   for (const s of schemas) {
-    const ns = attr5(s, "Namespace");
+    const ns = attr6(s, "Namespace");
     for (const a of list(s, "Association")) {
-      const name = attr5(a, "Name");
+      const name = attr6(a, "Name");
       if (!name) continue;
       const ends = /* @__PURE__ */ new Map();
       for (const e of list(a, "End")) {
-        const role = attr5(e, "Role");
-        const type = attr5(e, "Type");
+        const role = attr6(e, "Role");
+        const type = attr6(e, "Type");
         if (!role || !type) continue;
-        const mult = attr5(e, "Multiplicity");
+        const mult = attr6(e, "Multiplicity");
         ends.set(role, { type, ...mult === void 0 ? {} : { multiplicity: mult } });
       }
       idx2.set(name, ends);
@@ -142213,10 +146250,10 @@ function indexAssociations(schemas) {
 function v2Navigation(typeNode, assoc) {
   const out = [];
   for (const n of list(typeNode, "NavigationProperty")) {
-    const name = attr5(n, "Name");
+    const name = attr6(n, "Name");
     if (!name) continue;
-    const rel = attr5(n, "Relationship");
-    const toRole = attr5(n, "ToRole");
+    const rel = attr6(n, "Relationship");
+    const toRole = attr6(n, "ToRole");
     const end = rel !== void 0 && toRole !== void 0 ? assoc.get(rel)?.get(toRole) : void 0;
     if (!end) {
       out.push({
@@ -142235,23 +146272,23 @@ function v2Navigation(typeNode, assoc) {
   return out;
 }
 function v2Property(p) {
-  const name = attr5(p, "Name");
+  const name = attr6(p, "Name");
   if (!name) return void 0;
   return {
     name,
-    type: attr5(p, "Type") ?? "(untyped)",
+    type: attr6(p, "Type") ?? "(untyped)",
     ...opt("nullable", boolAttr(p, "Nullable")),
-    ...opt("maxLength", attr5(p, "MaxLength")),
-    ...opt("precision", attr5(p, "Precision")),
-    ...opt("scale", attr5(p, "Scale")),
-    ...opt("label", attr5(p, "label")),
+    ...opt("maxLength", attr6(p, "MaxLength")),
+    ...opt("precision", attr6(p, "Precision")),
+    ...opt("scale", attr6(p, "Scale")),
+    ...opt("label", attr6(p, "label")),
     ...opt("creatable", boolAttr(p, "creatable")),
     ...opt("updatable", boolAttr(p, "updatable")),
     ...opt("sortable", boolAttr(p, "sortable")),
     ...opt("filterable", boolAttr(p, "filterable")),
     ...opt("requiredInFilter", boolAttr(p, "required-in-filter")),
-    ...opt("unit", attr5(p, "unit")),
-    ...opt("text", attr5(p, "text"))
+    ...opt("unit", attr6(p, "unit")),
+    ...opt("text", attr6(p, "text"))
   };
 }
 function opt(key, value) {
@@ -142272,7 +146309,7 @@ function v2Capabilities(set2) {
 function v4RecordFlag(ann, property) {
   for (const rec of list(ann, "Record")) {
     for (const pv of list(rec, "PropertyValue")) {
-      if (attr5(pv, "Property") === property) return boolAttr(pv, "Bool");
+      if (attr6(pv, "Property") === property) return boolAttr(pv, "Bool");
     }
   }
   return void 0;
@@ -142285,7 +146322,7 @@ function v4Label(node2) {
 }
 function v4LabelOf(annotations) {
   for (const a of annotations) {
-    if (localName(attr5(a, "Term") ?? "") === "Label") return attr5(a, "String");
+    if (localName(attr6(a, "Term") ?? "") === "Label") return attr6(a, "String");
   }
   return void 0;
 }
@@ -142298,7 +146335,7 @@ function v4Capabilities(annotations) {
   let pageable;
   let requiresFilter;
   for (const a of annotations) {
-    const term = localName(attr5(a, "Term") ?? "");
+    const term = localName(attr6(a, "Term") ?? "");
     switch (term) {
       case "InsertRestrictions":
         creatable = v4RecordFlag(a, "Insertable") ?? creatable;
@@ -142344,7 +146381,7 @@ function indexV4ExternalAnnotations(schemas) {
   const idx2 = /* @__PURE__ */ new Map();
   for (const s of schemas) {
     for (const block2 of list(s, "Annotations")) {
-      const target = attr5(block2, "Target");
+      const target = attr6(block2, "Target");
       if (!target) continue;
       const anns = v4AnnotationsOf(block2);
       if (anns.length === 0) continue;
@@ -142360,9 +146397,9 @@ function indexV4ExternalAnnotations(schemas) {
 function v4Navigation(typeNode) {
   const out = [];
   for (const n of list(typeNode, "NavigationProperty")) {
-    const name = attr5(n, "Name");
+    const name = attr6(n, "Name");
     if (!name) continue;
-    const raw = attr5(n, "Type");
+    const raw = attr6(n, "Type");
     if (raw === void 0) {
       out.push({ name, target: "(unresolved)", unresolved: true });
       continue;
@@ -142374,27 +146411,27 @@ function v4Navigation(typeNode) {
   return out;
 }
 function v4Property(p) {
-  const name = attr5(p, "Name");
+  const name = attr6(p, "Name");
   if (!name) return void 0;
   return {
     name,
-    type: attr5(p, "Type") ?? "(untyped)",
+    type: attr6(p, "Type") ?? "(untyped)",
     ...opt("nullable", boolAttr(p, "Nullable")),
-    ...opt("maxLength", attr5(p, "MaxLength")),
-    ...opt("precision", attr5(p, "Precision")),
-    ...opt("scale", attr5(p, "Scale")),
+    ...opt("maxLength", attr6(p, "MaxLength")),
+    ...opt("precision", attr6(p, "Precision")),
+    ...opt("scale", attr6(p, "Scale")),
     ...opt("label", v4Label(p))
   };
 }
 function paramsOf(node2) {
   const out = [];
   for (const p of list(node2, "Parameter")) {
-    const name = attr5(p, "Name");
+    const name = attr6(p, "Name");
     if (!name) continue;
     out.push({
       name,
-      type: attr5(p, "Type") ?? "(untyped)",
-      ...opt("mode", attr5(p, "Mode"))
+      type: attr6(p, "Type") ?? "(untyped)",
+      ...opt("mode", attr6(p, "Mode"))
     });
   }
   return out;
@@ -142402,14 +146439,14 @@ function paramsOf(node2) {
 function v2Operations(container) {
   const out = [];
   for (const f of list(container, "FunctionImport")) {
-    const name = attr5(f, "Name");
+    const name = attr6(f, "Name");
     if (!name) continue;
-    const method = attr5(f, "HttpMethod");
+    const method = attr6(f, "HttpMethod");
     out.push({
       name,
       kind: method !== void 0 && method.toUpperCase() !== "GET" ? "action" : "function",
       ...opt("httpMethod", method),
-      ...opt("returnType", attr5(f, "ReturnType")),
+      ...opt("returnType", attr6(f, "ReturnType")),
       parameters: paramsOf(f)
     });
   }
@@ -142418,13 +146455,13 @@ function v2Operations(container) {
 function v4Operations(schemas, container) {
   const defs = /* @__PURE__ */ new Map();
   for (const s of schemas) {
-    const ns = attr5(s, "Namespace");
+    const ns = attr6(s, "Namespace");
     for (const [tag, kind] of [
       ["Action", "action"],
       ["Function", "function"]
     ]) {
       for (const node2 of list(s, tag)) {
-        const name = attr5(node2, "Name");
+        const name = attr6(node2, "Name");
         if (!name) continue;
         defs.set(name, { kind, node: node2 });
         if (ns) defs.set(`${ns}.${name}`, { kind, node: node2 });
@@ -142438,15 +146475,15 @@ function v4Operations(schemas, container) {
     ["FunctionImport", "Function"]
   ]) {
     for (const imp of list(container, tag)) {
-      const name = attr5(imp, "Name");
+      const name = attr6(imp, "Name");
       if (!name) continue;
-      const targetRef = attr5(imp, attrName);
+      const targetRef = attr6(imp, attrName);
       const def = targetRef === void 0 ? void 0 : defs.get(targetRef);
       seen.add(targetRef ?? name);
       out.push({
         name,
         kind: tag === "ActionImport" ? "action" : "function",
-        ...opt("returnType", attr5(child2(def?.node, "ReturnType"), "Type")),
+        ...opt("returnType", attr6(child2(def?.node, "ReturnType"), "Type")),
         parameters: def ? paramsOf(def.node) : []
       });
     }
@@ -142457,13 +146494,13 @@ function v4Operations(schemas, container) {
       ["Function", "function"]
     ]) {
       for (const node2 of list(s, tag)) {
-        const name = attr5(node2, "Name");
+        const name = attr6(node2, "Name");
         if (!name || seen.has(name)) continue;
         if (boolAttr(node2, "IsBound") !== true) continue;
         out.push({
           name,
           kind,
-          ...opt("returnType", attr5(child2(node2, "ReturnType"), "Type")),
+          ...opt("returnType", attr6(child2(node2, "ReturnType"), "Type")),
           parameters: paramsOf(node2)
         });
       }
@@ -142503,11 +146540,11 @@ function parseEdmx(body) {
   const entityTypes = [];
   for (const s of schemas) {
     for (const t of list(s, "EntityType")) {
-      const name = attr5(t, "Name");
+      const name = attr6(t, "Name");
       if (!name) continue;
       const keys = [];
       for (const ref2 of list(child2(t, "Key"), "PropertyRef")) {
-        const k = attr5(ref2, "Name");
+        const k = attr6(ref2, "Name");
         if (k) keys.push(k);
       }
       const properties = [];
@@ -142517,24 +146554,24 @@ function parseEdmx(body) {
       }
       entityTypes.push({
         name,
-        ...opt("label", version2 === "V2" ? attr5(t, "label") : v4Label(t)),
+        ...opt("label", version2 === "V2" ? attr6(t, "label") : v4Label(t)),
         keys,
         properties,
         navigation: version2 === "V2" ? v2Navigation(t, assoc ?? /* @__PURE__ */ new Map()) : v4Navigation(t)
       });
     }
   }
-  const containerName = attr5(container, "Name");
+  const containerName = attr6(container, "Name");
   const entitySets = [];
   for (const set2 of list(container, "EntitySet")) {
-    const name = attr5(set2, "Name");
+    const name = attr6(set2, "Name");
     if (!name) continue;
-    const entityType = attr5(set2, "EntityType") ?? "(untyped)";
+    const entityType = attr6(set2, "EntityType") ?? "(untyped)";
     if (version2 === "V2") {
       entitySets.push({
         name,
         entityType,
-        ...opt("label", attr5(set2, "label")),
+        ...opt("label", attr6(set2, "label")),
         capabilities: v2Capabilities(set2)
       });
     } else {
@@ -142542,7 +146579,7 @@ function parseEdmx(body) {
       const external = [
         ...externalAnnotations?.get(`${containerName ?? ""}/${name}`) ?? [],
         ...containerSchema ? externalAnnotations?.get(
-          `${attr5(containerSchema, "Namespace") ?? ""}.${containerName ?? ""}/${name}`
+          `${attr6(containerSchema, "Namespace") ?? ""}.${containerName ?? ""}/${name}`
         ) ?? [] : []
       ];
       const all = [...inline, ...external];
@@ -142557,7 +146594,7 @@ function parseEdmx(body) {
   return {
     version: version2,
     versionEvidence: evidence,
-    ...opt("namespace", attr5(schemas[0], "Namespace")),
+    ...opt("namespace", attr6(schemas[0], "Namespace")),
     ...opt("entityContainer", containerName),
     entitySets,
     entityTypes,
@@ -142608,7 +146645,7 @@ function list2(node2, name) {
 function child3(node2, name) {
   return list2(node2, name)[0];
 }
-function attr6(node2, name) {
+function attr7(node2, name) {
   if (!isRec2(node2)) return void 0;
   const v = node2[`@_${name}`];
   if (v === void 0 || v === null) return void 0;
@@ -142616,7 +146653,7 @@ function attr6(node2, name) {
   return s === "" ? void 0 : s;
 }
 function boolAttr2(node2, name) {
-  const raw = attr6(node2, name)?.toLowerCase();
+  const raw = attr7(node2, name)?.toLowerCase();
   if (raw === "true" || raw === "x") return true;
   if (raw === "false" || raw === "") return false;
   return void 0;
@@ -142703,25 +146740,25 @@ async function readServiceBinding(conn, bindingName) {
   let catalogueUrl;
   let catalogueRel;
   for (const l of list2(sb, "link")) {
-    const rel = attr6(l, "rel");
+    const rel = attr7(l, "rel");
     if (rel !== LINK_REL_V2 && rel !== LINK_REL_V4) continue;
-    catalogueUrl = attr6(l, "href");
+    catalogueUrl = attr7(l, "href");
     catalogueRel = rel;
     break;
   }
   return {
     name,
-    ...opt2("bindingType", attr6(binding, "type")),
-    ...opt2("bindingVersion", attr6(binding, "version")),
-    ...opt2("category", attr6(binding, "category")),
+    ...opt2("bindingType", attr7(binding, "type")),
+    ...opt2("bindingVersion", attr7(binding, "version")),
+    ...opt2("category", attr7(binding, "category")),
     ...opt2("published", boolAttr2(sb, "published")),
-    ...opt2("serviceName", attr6(services, "name")),
-    ...opt2("serviceVersion", attr6(content, "version")),
-    ...opt2("srvdName", attr6(child3(content, "serviceDefinition"), "name")),
-    ...opt2("packageName", attr6(child3(sb, "packageRef"), "name")),
+    ...opt2("serviceName", attr7(services, "name")),
+    ...opt2("serviceVersion", attr7(content, "version")),
+    ...opt2("srvdName", attr7(child3(content, "serviceDefinition"), "name")),
+    ...opt2("packageName", attr7(child3(sb, "packageRef"), "name")),
     ...opt2("catalogueUrl", catalogueUrl),
     ...opt2("catalogueRel", catalogueRel),
-    ...opt2("allowedAction", attr6(binding, "allowedAction"))
+    ...opt2("allowedAction", attr7(binding, "allowedAction"))
   };
 }
 function opt2(key, value) {
@@ -142769,15 +146806,15 @@ async function readServiceRuntimeInfo(conn, binding) {
     );
   }
   const information = child3(service, "serviceInformation");
-  const rawUrl = attr6(service, "serviceUrl") ?? attr6(information, "url");
+  const rawUrl = attr7(service, "serviceUrl") ?? attr7(information, "url");
   const collections = [];
   for (const c of list2(information, "collection")) {
-    const n = attr6(c, "name");
+    const n = attr7(c, "name");
     if (n) collections.push(n);
   }
   return {
-    ...opt2("serviceId", attr6(service, "serviceId")),
-    ...opt2("serviceVersion", attr6(service, "serviceVersion") ?? attr6(information, "version")),
+    ...opt2("serviceId", attr7(service, "serviceId")),
+    ...opt2("serviceVersion", attr7(service, "serviceVersion") ?? attr7(information, "version")),
     ...opt2("servicePath", rawUrl === void 0 ? void 0 : pathOfServiceUrl(rawUrl)),
     // V4 carries `published` on the root `serviceGroup`, never on the
     // individual `services` element (which has `created="true"` instead) —
@@ -146264,2111 +150301,6 @@ init_errors();
 init_compact();
 init_types();
 
-// src/adt/bopf.ts
-init_session();
-init_types();
-
-// src/adt/relock.ts
-init_session();
-init_errors();
-function defaultRetryable2(e) {
-  if (isAbapError(e) && (e.code === "SAFETY_DENIED" || e.code === "BAD_INPUT" || e.code === "LOCKED")) {
-    return false;
-  }
-  return true;
-}
-function annotateExhausted(e, uri, attempts) {
-  const base = isAbapError(e) ? e : translateAdtError(e, { operation: "write", uri });
-  return new AbapError(
-    base.code,
-    base.message,
-    { ...base.details, attempts, uri },
-    base.hint
-  );
-}
-async function withRelockRetry(o) {
-  const maxAttempts = o.maxAttempts ?? 2;
-  const isRetryable = o.retryable ?? defaultRetryable2;
-  let lastError;
-  for (let attemptNo = 1; attemptNo <= maxAttempts; attemptNo++) {
-    const lock = o.lockAccept ? await o.session.lock(o.uri, { accept: o.lockAccept }) : await o.session.lock(o.uri);
-    try {
-      const fresh = await o.reread(lock);
-      const payload = await o.rebuild(fresh, attemptNo);
-      return await o.attempt(lock, payload);
-    } catch (e) {
-      lastError = e;
-      if (!isRetryable(e)) throw e;
-      if (isAbapError(e) && e.code === "SESSION_DEAD") {
-        o.session.forgetLock(o.uri);
-        throw e;
-      }
-      const attemptsRemain = attemptNo < maxAttempts;
-      try {
-        await o.session.unlock(o.uri);
-      } catch {
-      }
-      o.session.forgetLock(o.uri);
-      if (!attemptsRemain) break;
-    }
-  }
-  throw annotateExhausted(lastError, o.uri, maxAttempts);
-}
-
-// src/adt/bopf.ts
-init_timeouts();
-init_errors();
-
-// src/adt/bopf-xml.ts
-init_fxp();
-init_errors();
-import { randomBytes as randomBytes7 } from "node:crypto";
-
-// src/adt/bopf-types.ts
-var GUID_ENCODING = {
-  node: "base64",
-  determination: "base64",
-  validation: "base64",
-  association: "hex32",
-  query: "hex32",
-  action: "hex32",
-  alternativeKey: "hex32"
-};
-var NODE_ATTR_ORDER = [
-  "name",
-  "nodeID",
-  "parent",
-  "parentNodeID",
-  "xmlName",
-  "doEmbeddingName",
-  "objectModelGenerated",
-  "authorizationCheck",
-  "isExtensible",
-  "isDependentObjectNode",
-  "textNode",
-  "createEnabled",
-  "updateEnabled",
-  "deleteEnabled",
-  "rootNode",
-  "objectModelObsolete"
-];
-var ASSOCIATION_ATTR_ORDER = [
-  "name",
-  "nodeID",
-  "implementationType",
-  "objectModelGenerated",
-  "xmlName",
-  "doEmbeddingName",
-  "multiplicity"
-];
-var ACTION_ATTR_ORDER = [
-  "name",
-  "nodeID",
-  "xmlName",
-  "exportingParameterCategoryType",
-  "objectModelGenerated",
-  "category",
-  "isExtensible",
-  "exportParameterLink",
-  "instanceMultiplicity"
-];
-var DETERMINATION_ATTR_ORDER = ["name", "nodeID", "xmlName", "objectModelGenerated", "category"];
-var VALIDATION_ATTR_ORDER = [
-  "name",
-  "nodeID",
-  "xmlName",
-  "objectModelGenerated",
-  "category",
-  "checkBeforeSave",
-  "createNode",
-  "updateNode",
-  "deleteNode"
-];
-var QUERY_ATTR_ORDER = ["name", "nodeID", "objectModelGenerated", "xmlName", "category"];
-var ALTERNATIVE_KEY_ATTR_ORDER = [
-  "name",
-  "nodeID",
-  "xmlName",
-  "objectModelGenerated",
-  "uniqueness",
-  "checkAfterModify",
-  "checkBeforeSave",
-  "noCheck"
-];
-var DETERMINATION_TRIGGER_ATTR_ORDER = [
-  "node",
-  "association",
-  "create",
-  "update",
-  "delete",
-  "load",
-  "determine"
-];
-var VALIDATION_TRIGGER_ATTR_ORDER = [
-  "node",
-  "association",
-  "create",
-  "update",
-  "delete",
-  "check",
-  "action"
-];
-var RELATION_ATTR_ORDER = ["node", "determination", "relationType"];
-var KEY_ELEMENT_ATTR_ORDER = ["name"];
-var NODE_CHILD_ORDER = [
-  "persistentStructureRef",
-  "transientStructureRef",
-  "combinedStructureRef",
-  "combinedTableRef",
-  "persistentTableRef",
-  "defaultingClassRef",
-  "dataAccessClassRef",
-  "authorizationClassRef",
-  "properties",
-  "alternativeKeys",
-  "associations",
-  "queries",
-  "actions",
-  "determinations",
-  "validations"
-];
-var ASSOCIATION_CHILD_ORDER = ["targetNodeRef", "implementationClassRef", "parameterStructureRef"];
-var ACTION_CHILD_ORDER = ["implementationClassRef", "parameterStructureRef"];
-var DETERMINATION_CHILD_ORDER = ["implementationClassRef", "triggers", "relations"];
-var VALIDATION_CHILD_ORDER = ["implementationClassRef", "triggers"];
-var QUERY_CHILD_ORDER = ["dataTypeRef", "implementationClassRef", "resultTypeRef", "resultTableTypeRef"];
-var ALTERNATIVE_KEY_CHILD_ORDER = ["dataTypeRef", "dataTableTypeRef", "keyElements"];
-
-// src/adt/bopf-xml.ts
-function fail6(message2, details = {}) {
-  throw new AbapError(
-    "BAD_INPUT",
-    `BOPF XML: ${message2}`,
-    details,
-    "The scanner refuses to guess at malformed or unsupported input \u2014 fix the source document rather than relying on a silent fallback."
-  );
-}
-var WS = /\s/;
-var NAME_RE = /[A-Za-z_][-.\w]*(?::[A-Za-z_][-.\w]*)?/y;
-function matchNameAt(s, pos) {
-  NAME_RE.lastIndex = pos;
-  const m = NAME_RE.exec(s);
-  return m ? m[0] : void 0;
-}
-function skipWs(s, pos) {
-  let p = pos;
-  while (p < s.length && WS.test(s.charAt(p))) p++;
-  return p;
-}
-var PREDEFINED_ENTITIES = [
-  ["&amp;", "&"],
-  ["&lt;", "<"],
-  ["&gt;", ">"],
-  ["&apos;", "'"],
-  ["&quot;", '"']
-];
-function decodeEntityAt(xml4, ampIndex) {
-  for (const [entity, char] of PREDEFINED_ENTITIES) {
-    if (xml4.startsWith(entity, ampIndex)) return { char, next: ampIndex + entity.length };
-  }
-  fail6(
-    "unsupported entity reference \u2014 only the five predefined XML entities (&amp; &lt; &gt; &apos; &quot;) are accepted",
-    { at: ampIndex }
-  );
-}
-function scanModel(xmlText2) {
-  if (!xmlText2.startsWith("<?xml")) fail6("document does not start with an XML declaration (`<?xml ... ?>`)");
-  const declEnd = xmlText2.indexOf("?>", 5);
-  if (declEnd === -1) fail6("unterminated XML declaration");
-  const n = xmlText2.length;
-  const tokens = [];
-  const stack = [];
-  let i = declEnd + 2;
-  while (i < n) {
-    const c = xmlText2.charAt(i);
-    if (c !== "<") {
-      if (!WS.test(c)) {
-        fail6(
-          stack.length === 0 ? "unexpected content outside the root element" : "text content is not supported inside BOPF elements (every element here is attribute-only or container-only)",
-          { at: i }
-        );
-      }
-      i++;
-      continue;
-    }
-    if (xmlText2.startsWith("<!--", i)) fail6("XML comments are not supported", { at: i });
-    if (xmlText2.startsWith("<![CDATA[", i)) fail6("CDATA sections are not supported", { at: i });
-    if (xmlText2.startsWith("<!DOCTYPE", i)) fail6("a DOCTYPE declaration is not supported", { at: i });
-    if (xmlText2.startsWith("<!", i)) fail6("unrecognized '<!' construct", { at: i });
-    if (xmlText2.startsWith("<?", i)) fail6("a processing instruction after the XML declaration is not supported", { at: i });
-    if (xmlText2.startsWith("</", i)) {
-      const name2 = matchNameAt(xmlText2, i + 2);
-      if (name2 === void 0) fail6("malformed closing tag", { at: i });
-      let j2 = skipWs(xmlText2, i + 2 + name2.length);
-      if (xmlText2.charAt(j2) !== ">") fail6("malformed closing tag: expected '>'", { at: j2 });
-      const closeEnd = j2 + 1;
-      const top = stack.pop();
-      if (!top) fail6("unexpected closing tag with no matching open element", { at: i, name: name2 });
-      if (top.name !== name2) {
-        fail6(`mismatched closing tag: expected </${top.name}>, found </${name2}>`, { at: i });
-      }
-      tokens.push({
-        kind: "container",
-        name: top.name,
-        depth: top.depth,
-        attrStart: top.attrStart,
-        openStart: top.openStart,
-        openEnd: top.openEnd,
-        closeEnd,
-        attrs: top.attrs
-      });
-      i = closeEnd;
-      continue;
-    }
-    const name = matchNameAt(xmlText2, i + 1);
-    if (name === void 0) fail6("malformed tag: expected an element name", { at: i });
-    let j = i + 1 + name.length;
-    const attrStart = j;
-    const attrs = /* @__PURE__ */ new Map();
-    let selfClosing = false;
-    for (; ; ) {
-      j = skipWs(xmlText2, j);
-      if (xmlText2.charAt(j) === "/" && xmlText2.charAt(j + 1) === ">") {
-        selfClosing = true;
-        j += 2;
-        break;
-      }
-      if (xmlText2.charAt(j) === ">") {
-        j += 1;
-        break;
-      }
-      const attrName = matchNameAt(xmlText2, j);
-      if (attrName === void 0) fail6(`unexpected character inside <${name}>`, { at: j });
-      j += attrName.length;
-      j = skipWs(xmlText2, j);
-      if (xmlText2.charAt(j) !== "=") fail6(`expected '=' after attribute "${attrName}"`, { at: j });
-      j = skipWs(xmlText2, j + 1);
-      const quote = xmlText2.charAt(j);
-      if (quote !== '"' && quote !== "'") fail6(`expected a quote to start the value of "${attrName}"`, { at: j });
-      j++;
-      let value = "";
-      for (; ; ) {
-        if (j >= n) fail6(`unterminated attribute value for "${attrName}"`, { at: j });
-        const vc = xmlText2.charAt(j);
-        if (vc === quote) {
-          j++;
-          break;
-        }
-        if (vc === "<") fail6(`raw '<' is not allowed inside the value of "${attrName}"`, { at: j });
-        if (vc === "&") {
-          const decoded = decodeEntityAt(xmlText2, j);
-          value += decoded.char;
-          j = decoded.next;
-          continue;
-        }
-        value += vc;
-        j++;
-      }
-      if (attrs.has(attrName)) fail6(`duplicate attribute "${attrName}"`, { at: j });
-      attrs.set(attrName, value);
-    }
-    if (selfClosing) {
-      tokens.push({
-        kind: "empty",
-        name,
-        depth: stack.length,
-        attrStart,
-        openStart: i,
-        openEnd: j,
-        closeEnd: j,
-        attrs
-      });
-    } else {
-      stack.push({ name, depth: stack.length, attrStart, openStart: i, openEnd: j, attrs });
-    }
-    i = j;
-  }
-  if (stack.length > 0) fail6(`unclosed element(s): ${stack.map((s) => s.name).join(", ")}`);
-  const roots = tokens.filter((t) => t.depth === 0);
-  if (roots.length !== 1) fail6(`document must have exactly one root element (found ${roots.length})`);
-  tokens.sort((a, b) => a.openStart - b.openStart);
-  return tokens;
-}
-var ELEMENT_TAG = {
-  node: "bo:nodes",
-  association: "bo:associations",
-  action: "bo:actions",
-  determination: "bo:determinations",
-  validation: "bo:validations",
-  query: "bo:queries",
-  alternativeKey: "bo:alternativeKeys"
-};
-function bareName(qualifiedName) {
-  const idx2 = qualifiedName.indexOf(":");
-  return idx2 === -1 ? qualifiedName : qualifiedName.slice(idx2 + 1);
-}
-function findNodeToken(tokens, name, nodeId) {
-  return tokens.find(
-    (t) => t.name === "bo:nodes" && t.attrs.get("bo:name") === name && (nodeId === void 0 || t.attrs.get("bo:nodeID") === nodeId)
-  );
-}
-function isChildSelector(sel) {
-  return "child" in sel;
-}
-function childTokensOfKind(tokens, nodeTok, kind) {
-  const tag = ELEMENT_TAG[kind];
-  return tokens.filter(
-    (t) => t.name === tag && t.depth === nodeTok.depth + 1 && t.openStart > nodeTok.openStart && t.openStart < nodeTok.closeEnd
-  );
-}
-function locateToken(tokens, sel) {
-  const nodeTok = findNodeToken(tokens, sel.node, sel.nodeId);
-  if (!nodeTok) return void 0;
-  if (!isChildSelector(sel)) return nodeTok;
-  return childTokensOfKind(tokens, nodeTok, sel.child).find(
-    (t) => t.attrs.get("bo:name") === sel.name && (sel.memberId === void 0 || t.attrs.get("bo:nodeID") === sel.memberId)
-  );
-}
-function locate(tokens, sel) {
-  const t = locateToken(tokens, sel);
-  return t ? { start: t.openStart, end: t.closeEnd } : void 0;
-}
-function listChildNames(tokens, sel, kind) {
-  const nodeTok = findNodeToken(tokens, sel.node, sel.nodeId);
-  if (!nodeTok) return [];
-  return childTokensOfKind(tokens, nodeTok, kind).map((t) => t.attrs.get("bo:name") ?? "");
-}
-var PLURAL_BARE = {
-  association: "associations",
-  action: "actions",
-  determination: "determinations",
-  validation: "validations",
-  query: "queries",
-  alternativeKey: "alternativeKeys"
-};
-function insertionPoint(tokens, nodeTok, kind) {
-  if (nodeTok.kind !== "container") {
-    fail6("cannot compute an insertion point inside a self-closing element \u2014 open it first", { node: nodeTok.name });
-  }
-  const targetBare = PLURAL_BARE[kind];
-  const targetIdx = NODE_CHILD_ORDER.indexOf(targetBare);
-  let insertAt = nodeTok.openEnd;
-  for (const t of tokens) {
-    if (t.depth !== nodeTok.depth + 1) continue;
-    if (t.openStart <= nodeTok.openStart || t.openStart >= nodeTok.closeEnd) continue;
-    const idx2 = NODE_CHILD_ORDER.indexOf(bareName(t.name));
-    if (idx2 === -1) continue;
-    if (idx2 <= targetIdx) insertAt = t.closeEnd;
-    else break;
-  }
-  return insertAt;
-}
-function splice(xml4, at, text5) {
-  if (at < 0 || at > xml4.length) fail6("splice offset out of range", { at, length: xml4.length });
-  return xml4.slice(0, at) + text5 + xml4.slice(at);
-}
-function spliceOut(xml4, range) {
-  if (range.start < 0 || range.end > xml4.length || range.start > range.end) {
-    fail6("splice-out range out of bounds", { range, length: xml4.length });
-  }
-  return xml4.slice(0, range.start) + xml4.slice(range.end);
-}
-function promoteToContainer(xml4, token) {
-  if (token.kind === "container") return xml4;
-  const tagText = xml4.slice(token.openStart, token.openEnd);
-  if (!tagText.endsWith("/>")) fail6("expected a self-closing tag ending in '/>'", { at: token.openStart });
-  const opened = tagText.slice(0, -2) + ">";
-  return xml4.slice(0, token.openStart) + opened + `</${token.name}>` + xml4.slice(token.openEnd);
-}
-function patchOpenTagAttrs(xml4, token, attrs) {
-  let openTag = xml4.slice(token.openStart, token.openEnd);
-  for (const [name, value] of attrs) {
-    const attrRe = new RegExp(`\\s+bo:${name}="[^"]*"`);
-    if (value === null) {
-      openTag = openTag.replace(attrRe, "");
-      continue;
-    }
-    const rendered = ` bo:${name}="${typeof value === "boolean" ? String(value) : escapeAttrValue(value, `bo:${name}`)}"`;
-    if (attrRe.test(openTag)) {
-      openTag = openTag.replace(attrRe, rendered);
-    } else {
-      const closesSelf = openTag.endsWith("/>");
-      const insertAt = closesSelf ? openTag.length - 2 : openTag.length - 1;
-      openTag = openTag.slice(0, insertAt) + rendered + openTag.slice(insertAt);
-    }
-  }
-  return xml4.slice(0, token.openStart) + openTag + xml4.slice(token.openEnd);
-}
-function spliceInsertChild(xml4, tokens, nodeName, kind, fragment, opts) {
-  const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
-  if (!nodeTok) fail6(`node "${nodeName}" not found`, { node: nodeName });
-  if (nodeTok.kind === "empty") {
-    const opened = promoteToContainer(xml4, nodeTok);
-    const insertAt = nodeTok.openEnd - 1;
-    return splice(opened, insertAt, fragment);
-  }
-  const at = insertionPoint(tokens, nodeTok, kind);
-  return splice(xml4, at, fragment);
-}
-var NODE_REF_KINDS = [
-  "persistentStructureRef",
-  "transientStructureRef",
-  "combinedStructureRef",
-  "combinedTableRef",
-  "persistentTableRef",
-  "defaultingClassRef",
-  "dataAccessClassRef",
-  "authorizationClassRef"
-];
-function spliceSetElementRef(xml4, tokens, ownerToken, refTag, ref2, childOrder) {
-  const existing = tokens.find(
-    (t) => t.name === refTag && t.depth === ownerToken.depth + 1 && t.openStart > ownerToken.openStart && t.openStart < ownerToken.closeEnd
-  );
-  if (ref2 === null) {
-    return existing ? xml4.slice(0, existing.openStart) + xml4.slice(existing.closeEnd) : xml4;
-  }
-  const fragment = renderRef2(refTag, ref2);
-  if (existing) {
-    return xml4.slice(0, existing.openStart) + fragment + xml4.slice(existing.closeEnd);
-  }
-  if (ownerToken.kind === "empty") {
-    const opened = promoteToContainer(xml4, ownerToken);
-    const insertAt2 = ownerToken.openEnd - 1;
-    return splice(opened, insertAt2, fragment);
-  }
-  const targetIdx = childOrder.indexOf(bareName(refTag));
-  let insertAt = ownerToken.openEnd;
-  for (const t of tokens) {
-    if (t.depth !== ownerToken.depth + 1) continue;
-    if (t.openStart <= ownerToken.openStart || t.openStart >= ownerToken.closeEnd) continue;
-    const idx2 = childOrder.indexOf(bareName(t.name));
-    if (idx2 === -1) continue;
-    if (idx2 <= targetIdx) insertAt = t.closeEnd;
-    else break;
-  }
-  return splice(xml4, insertAt, fragment);
-}
-function spliceSetNodeRef(xml4, tokens, nodeName, refKind, ref2, opts) {
-  const nodeTok = findNodeToken(tokens, nodeName, opts?.nodeId);
-  if (!nodeTok) fail6(`node "${nodeName}" not found`, { node: nodeName });
-  return spliceSetElementRef(xml4, tokens, nodeTok, `bo:${refKind}`, ref2, NODE_CHILD_ORDER);
-}
-function escapeAttrValue(v, context) {
-  if (v === "undefined" || v === "null") {
-    throw new AbapError(
-      "BAD_INPUT",
-      `BOPF XML: refusing to write the literal string "${v}" as ${context ?? "an attribute value"} \u2014 this is almost always a caller-side bug (a JavaScript undefined/null value that was stringified before being sent) rather than an intentional value.`,
-      { value: v, context },
-      'Omit the field entirely instead of sending the string "undefined"/"null" \u2014 BOPF attributes are unsettable, so an absent attribute already means "not set".'
-    );
-  }
-  return v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
-}
-function renderAttrText(order, attrs, prefix) {
-  const parts = [];
-  for (const key of order) {
-    const v = attrs[key];
-    if (v === void 0) continue;
-    const s = typeof v === "boolean" ? String(v) : v;
-    parts.push(`${prefix}:${key}="${escapeAttrValue(s, `${prefix}:${key}`)}"`);
-  }
-  return parts.join(" ");
-}
-var ATTR_ORDER = {
-  node: NODE_ATTR_ORDER,
-  association: ASSOCIATION_ATTR_ORDER,
-  action: ACTION_ATTR_ORDER,
-  determination: DETERMINATION_ATTR_ORDER,
-  validation: VALIDATION_ATTR_ORDER,
-  query: QUERY_ATTR_ORDER,
-  alternativeKey: ALTERNATIVE_KEY_ATTR_ORDER
-};
-function renderElement(kind, attrs, childrenXml) {
-  const tag = ELEMENT_TAG[kind];
-  const attrText = renderAttrText(ATTR_ORDER[kind], attrs, "bo");
-  const open = `<${tag}${attrText ? " " + attrText : ""}`;
-  if (!childrenXml) return `${open}/>`;
-  return `${open}>${childrenXml}</${tag}>`;
-}
-function renderRef2(tag, ref2) {
-  const parts = [];
-  if (ref2.uri !== void 0) parts.push(`adtcore:uri="${escapeAttrValue(ref2.uri, `${tag}/@adtcore:uri`)}"`);
-  parts.push(`adtcore:type="${escapeAttrValue(ref2.type, `${tag}/@adtcore:type`)}"`);
-  parts.push(`adtcore:name="${escapeAttrValue(ref2.name, `${tag}/@adtcore:name`)}"`);
-  return `<${tag} ${parts.join(" ")}/>`;
-}
-function renderLeaf(tag, order, attrs) {
-  const t = renderAttrText(order, attrs, "bo");
-  return `<${tag}${t ? " " + t : ""}/>`;
-}
-function renderKeyElement(name) {
-  return renderLeaf("bo:keyElements", KEY_ELEMENT_ATTR_ORDER, { name });
-}
-function renderDeterminationTrigger(t) {
-  return renderLeaf("bo:triggers", DETERMINATION_TRIGGER_ATTR_ORDER, t);
-}
-function renderValidationTrigger(t) {
-  return renderLeaf("bo:triggers", VALIDATION_TRIGGER_ATTR_ORDER, t);
-}
-function renderRelation(r) {
-  return renderLeaf("bo:relations", RELATION_ATTR_ORDER, r);
-}
-function mintGuid(kind) {
-  const bytes = randomBytes7(16);
-  return GUID_ENCODING[kind] === "base64" ? bytes.toString("base64") : bytes.toString("hex").toUpperCase();
-}
-function renderAssociationElement(f) {
-  const children = (f.targetNodeRef ? renderRef2("bo:targetNodeRef", f.targetNodeRef) : "") + (f.implementationClassRef ? renderRef2("bo:implementationClassRef", f.implementationClassRef) : "") + (f.parameterStructureRef ? renderRef2("bo:parameterStructureRef", f.parameterStructureRef) : "");
-  return renderElement(
-    "association",
-    {
-      name: f.name,
-      nodeID: f.nodeId,
-      implementationType: f.implementationType,
-      objectModelGenerated: f.objectModelGenerated,
-      xmlName: f.xmlName,
-      doEmbeddingName: f.doEmbeddingName,
-      multiplicity: f.multiplicity
-    },
-    children
-  );
-}
-function renderActionElement(f) {
-  const children = (f.implementationClassRef ? renderRef2("bo:implementationClassRef", f.implementationClassRef) : "") + (f.parameterStructureRef ? renderRef2("bo:parameterStructureRef", f.parameterStructureRef) : "");
-  return renderElement(
-    "action",
-    {
-      name: f.name,
-      nodeID: f.nodeId,
-      xmlName: f.xmlName,
-      exportingParameterCategoryType: f.exportingParameterCategoryType,
-      objectModelGenerated: f.objectModelGenerated,
-      category: f.category,
-      isExtensible: f.isExtensible,
-      exportParameterLink: f.exportParameterLink,
-      instanceMultiplicity: f.instanceMultiplicity
-    },
-    children
-  );
-}
-function renderDeterminationElement(f) {
-  const children = (f.implementationClassRef ? renderRef2("bo:implementationClassRef", f.implementationClassRef) : "") + (f.triggers ?? []).join("") + (f.relations ?? []).join("");
-  return renderElement(
-    "determination",
-    {
-      name: f.name,
-      nodeID: f.nodeId,
-      xmlName: f.xmlName,
-      objectModelGenerated: f.objectModelGenerated,
-      category: f.category
-    },
-    children
-  );
-}
-function renderValidationElement(f) {
-  const children = (f.implementationClassRef ? renderRef2("bo:implementationClassRef", f.implementationClassRef) : "") + (f.triggers ?? []).join("");
-  return renderElement(
-    "validation",
-    {
-      name: f.name,
-      nodeID: f.nodeId,
-      xmlName: f.xmlName,
-      objectModelGenerated: f.objectModelGenerated,
-      category: f.category,
-      checkBeforeSave: f.checkBeforeSave,
-      createNode: f.createNode,
-      updateNode: f.updateNode,
-      deleteNode: f.deleteNode
-    },
-    children
-  );
-}
-function renderQueryElement(f) {
-  const children = (f.dataTypeRef ? renderRef2("bo:dataTypeRef", f.dataTypeRef) : "") + (f.implementationClassRef ? renderRef2("bo:implementationClassRef", f.implementationClassRef) : "");
-  return renderElement(
-    "query",
-    {
-      name: f.name,
-      nodeID: f.nodeId,
-      objectModelGenerated: f.objectModelGenerated,
-      xmlName: f.xmlName,
-      category: f.category
-    },
-    children
-  );
-}
-function renderAlternativeKeyElement(f) {
-  const children = (f.dataTypeRef ? renderRef2("bo:dataTypeRef", f.dataTypeRef) : "") + (f.dataTableTypeRef ? renderRef2("bo:dataTableTypeRef", f.dataTableTypeRef) : "") + (f.keyElements ?? []).map(renderKeyElement).join("");
-  return renderElement(
-    "alternativeKey",
-    {
-      name: f.name,
-      nodeID: f.nodeId,
-      xmlName: f.xmlName,
-      objectModelGenerated: f.objectModelGenerated,
-      uniqueness: f.uniqueness,
-      checkAfterModify: f.checkAfterModify,
-      checkBeforeSave: f.checkBeforeSave,
-      noCheck: f.noCheck
-    },
-    children
-  );
-}
-function renderNodeElement(f) {
-  const refs = (f.persistentStructureRef ? renderRef2("bo:persistentStructureRef", f.persistentStructureRef) : "") + (f.transientStructureRef ? renderRef2("bo:transientStructureRef", f.transientStructureRef) : "") + (f.combinedStructureRef ? renderRef2("bo:combinedStructureRef", f.combinedStructureRef) : "") + (f.combinedTableRef ? renderRef2("bo:combinedTableRef", f.combinedTableRef) : "") + (f.persistentTableRef ? renderRef2("bo:persistentTableRef", f.persistentTableRef) : "") + (f.defaultingClassRef ? renderRef2("bo:defaultingClassRef", f.defaultingClassRef) : "") + (f.dataAccessClassRef ? renderRef2("bo:dataAccessClassRef", f.dataAccessClassRef) : "") + (f.authorizationClassRef ? renderRef2("bo:authorizationClassRef", f.authorizationClassRef) : "");
-  const groups = (f.properties ?? []).join("") + (f.alternativeKeys ?? []).join("") + (f.associations ?? []).join("") + (f.queries ?? []).join("") + (f.actions ?? []).join("") + (f.determinations ?? []).join("") + (f.validations ?? []).join("");
-  return renderElement(
-    "node",
-    {
-      name: f.name,
-      nodeID: f.nodeId,
-      parent: f.parent,
-      parentNodeID: f.parentNodeId,
-      xmlName: f.xmlName,
-      doEmbeddingName: f.doEmbeddingName,
-      objectModelGenerated: f.objectModelGenerated,
-      authorizationCheck: f.authorizationCheck,
-      isExtensible: f.isExtensible,
-      isDependentObjectNode: f.isDependentObjectNode,
-      textNode: f.textNode,
-      createEnabled: f.createEnabled,
-      updateEnabled: f.updateEnabled,
-      deleteEnabled: f.deleteEnabled,
-      rootNode: f.rootNode,
-      objectModelObsolete: f.objectModelObsolete
-    },
-    refs + groups
-  );
-}
-var xmlParser3 = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: "@_",
-  removeNSPrefix: true,
-  parseAttributeValue: false,
-  parseTagValue: false,
-  trimValues: true
-});
-function xnode2(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
-}
-function xmany2(value) {
-  if (Array.isArray(value)) return value.filter((v) => !!xnode2(v)).map((v) => v);
-  const one = xnode2(value);
-  return one ? [one] : [];
-}
-function xattr2(n, name) {
-  if (!n) return void 0;
-  const v = n[`@_${name}`];
-  if (typeof v === "string") return v;
-  if (typeof v === "number") return String(v);
-  return void 0;
-}
-function xbool2(n, name) {
-  const v = xattr2(n, name);
-  return v === void 0 ? void 0 : v === "true";
-}
-function xref2(n) {
-  if (!n) return void 0;
-  const type = xattr2(n, "type");
-  const name = xattr2(n, "name");
-  if (type === void 0 || name === void 0) return void 0;
-  const uri = xattr2(n, "uri");
-  return uri === void 0 ? { type, name } : { uri, type, name };
-}
-function parsePropertyXml(n) {
-  return {
-    name: xattr2(n, "name") ?? "",
-    enabled: xbool2(n, "enabled"),
-    readonly: xbool2(n, "readonly"),
-    mandatory: xbool2(n, "mandatory"),
-    enabledFinal: xbool2(n, "enabledFinal"),
-    readonlyFinal: xbool2(n, "readonlyFinal"),
-    mandatoryFinal: xbool2(n, "mandatoryFinal"),
-    transientAttribute: xbool2(n, "transientAttribute"),
-    xmlName: xattr2(n, "xmlName")
-  };
-}
-function parseAlternativeKeyXml(n) {
-  return {
-    name: xattr2(n, "name") ?? "",
-    nodeId: xattr2(n, "nodeID"),
-    xmlName: xattr2(n, "xmlName"),
-    uniqueness: xattr2(n, "uniqueness"),
-    checkAfterModify: xbool2(n, "checkAfterModify"),
-    checkBeforeSave: xbool2(n, "checkBeforeSave"),
-    noCheck: xbool2(n, "noCheck"),
-    objectModelGenerated: xbool2(n, "objectModelGenerated"),
-    dataTypeRef: xref2(xnode2(n.dataTypeRef)),
-    dataTableTypeRef: xref2(xnode2(n.dataTableTypeRef)),
-    keyElements: xmany2(n.keyElements).map((k) => xattr2(k, "name")).filter((v) => v !== void 0)
-  };
-}
-function parseAssociationXml(n) {
-  return {
-    name: xattr2(n, "name") ?? "",
-    nodeId: xattr2(n, "nodeID"),
-    xmlName: xattr2(n, "xmlName"),
-    multiplicity: xattr2(n, "multiplicity"),
-    implementationType: xattr2(n, "implementationType"),
-    objectModelGenerated: xbool2(n, "objectModelGenerated"),
-    doEmbeddingName: xattr2(n, "doEmbeddingName"),
-    targetNodeRef: xref2(xnode2(n.targetNodeRef)),
-    implementationClassRef: xref2(xnode2(n.implementationClassRef)),
-    parameterStructureRef: xref2(xnode2(n.parameterStructureRef))
-  };
-}
-function parseQueryXml(n) {
-  return {
-    name: xattr2(n, "name") ?? "",
-    nodeId: xattr2(n, "nodeID"),
-    xmlName: xattr2(n, "xmlName"),
-    category: xattr2(n, "category"),
-    objectModelGenerated: xbool2(n, "objectModelGenerated"),
-    dataTypeRef: xref2(xnode2(n.dataTypeRef)),
-    implementationClassRef: xref2(xnode2(n.implementationClassRef))
-  };
-}
-function parseActionXml(n) {
-  return {
-    name: xattr2(n, "name") ?? "",
-    nodeId: xattr2(n, "nodeID"),
-    xmlName: xattr2(n, "xmlName"),
-    category: xattr2(n, "category"),
-    instanceMultiplicity: xattr2(n, "instanceMultiplicity"),
-    exportingMultiplicity: xattr2(n, "exportingMultiplicity"),
-    exportingParameterCategoryType: xattr2(n, "exportingParameterCategoryType"),
-    exportParameterLink: xbool2(n, "exportParameterLink"),
-    isExtensible: xbool2(n, "isExtensible"),
-    objectModelGenerated: xbool2(n, "objectModelGenerated"),
-    implementationClassRef: xref2(xnode2(n.implementationClassRef)),
-    parameterStructureRef: xref2(xnode2(n.parameterStructureRef))
-  };
-}
-function parseDeterminationTriggerXml(n) {
-  return {
-    node: xattr2(n, "node"),
-    association: xattr2(n, "association"),
-    create: xbool2(n, "create"),
-    update: xbool2(n, "update"),
-    delete: xbool2(n, "delete"),
-    load: xbool2(n, "load"),
-    determine: xbool2(n, "determine")
-  };
-}
-function parseValidationTriggerXml(n) {
-  return {
-    node: xattr2(n, "node"),
-    association: xattr2(n, "association"),
-    create: xbool2(n, "create"),
-    update: xbool2(n, "update"),
-    delete: xbool2(n, "delete"),
-    check: xbool2(n, "check"),
-    action: xattr2(n, "action")
-  };
-}
-function parseRelationXml(n) {
-  return {
-    node: xattr2(n, "node"),
-    determination: xattr2(n, "determination"),
-    relationType: xattr2(n, "relationType")
-  };
-}
-function parseDeterminationXml(n) {
-  return {
-    name: xattr2(n, "name") ?? "",
-    nodeId: xattr2(n, "nodeID"),
-    xmlName: xattr2(n, "xmlName"),
-    category: xattr2(n, "category"),
-    objectModelGenerated: xbool2(n, "objectModelGenerated"),
-    implementationClassRef: xref2(xnode2(n.implementationClassRef)),
-    triggers: xmany2(n.triggers).map(parseDeterminationTriggerXml),
-    relations: xmany2(n.relations).map(parseRelationXml)
-  };
-}
-function parseValidationXml(n) {
-  return {
-    name: xattr2(n, "name") ?? "",
-    nodeId: xattr2(n, "nodeID"),
-    xmlName: xattr2(n, "xmlName"),
-    category: xattr2(n, "category"),
-    checkBeforeSave: xbool2(n, "checkBeforeSave"),
-    createNode: xbool2(n, "createNode"),
-    updateNode: xbool2(n, "updateNode"),
-    deleteNode: xbool2(n, "deleteNode"),
-    objectModelGenerated: xbool2(n, "objectModelGenerated"),
-    implementationClassRef: xref2(xnode2(n.implementationClassRef)),
-    triggers: xmany2(n.triggers).map(parseValidationTriggerXml)
-  };
-}
-function parseNodeXml(n) {
-  return {
-    name: xattr2(n, "name") ?? "",
-    nodeId: xattr2(n, "nodeID"),
-    parentNodeId: xattr2(n, "parentNodeID"),
-    parent: xattr2(n, "parent"),
-    xmlName: xattr2(n, "xmlName"),
-    doEmbeddingName: xattr2(n, "doEmbeddingName"),
-    rootNode: xbool2(n, "rootNode") ?? false,
-    textNode: xbool2(n, "textNode") ?? false,
-    isDependentObjectNode: xbool2(n, "isDependentObjectNode") ?? false,
-    createEnabled: xbool2(n, "createEnabled") ?? false,
-    updateEnabled: xbool2(n, "updateEnabled") ?? false,
-    deleteEnabled: xbool2(n, "deleteEnabled") ?? false,
-    authorizationCheck: xbool2(n, "authorizationCheck") ?? false,
-    isExtensible: xbool2(n, "isExtensible") ?? false,
-    objectModelGenerated: xbool2(n, "objectModelGenerated") ?? false,
-    objectModelObsolete: xbool2(n, "objectModelObsolete") ?? false,
-    persistentStructureRef: xref2(xnode2(n.persistentStructureRef)),
-    transientStructureRef: xref2(xnode2(n.transientStructureRef)),
-    combinedStructureRef: xref2(xnode2(n.combinedStructureRef)),
-    combinedTableRef: xref2(xnode2(n.combinedTableRef)),
-    persistentTableRef: xref2(xnode2(n.persistentTableRef)),
-    defaultingClassRef: xref2(xnode2(n.defaultingClassRef)),
-    dataAccessClassRef: xref2(xnode2(n.dataAccessClassRef)),
-    authorizationClassRef: xref2(xnode2(n.authorizationClassRef)),
-    properties: xmany2(n.properties).map(parsePropertyXml),
-    alternativeKeys: xmany2(n.alternativeKeys).map(parseAlternativeKeyXml),
-    associations: xmany2(n.associations).map(parseAssociationXml),
-    queries: xmany2(n.queries).map(parseQueryXml),
-    actions: xmany2(n.actions).map(parseActionXml),
-    determinations: xmany2(n.determinations).map(parseDeterminationXml),
-    validations: xmany2(n.validations).map(parseValidationXml)
-  };
-}
-function parseModel(xmlText2) {
-  let parsed;
-  try {
-    parsed = xmlParser3.parse(xmlText2) ?? {};
-  } catch (e) {
-    fail6(`could not parse BOPF model XML: ${e instanceof Error ? e.message : String(e)}`);
-  }
-  const root = xnode2(parsed.businessObject);
-  if (!root) fail6("not a BOPF business object document (no <bo:businessObject> root element)");
-  return {
-    name: xattr2(root, "name") ?? "",
-    type: xattr2(root, "type") ?? "",
-    description: xattr2(root, "description"),
-    version: xattr2(root, "version"),
-    masterLanguage: xattr2(root, "masterLanguage"),
-    masterSystem: xattr2(root, "masterSystem"),
-    responsible: xattr2(root, "responsible"),
-    language: xattr2(root, "language"),
-    objectCategory: xattr2(root, "objectCategory"),
-    isExtensible: xbool2(root, "isExtensible"),
-    objectModelGenerated: xbool2(root, "objectModelGenerated"),
-    thirdGenBO: xbool2(root, "thirdGenBO"),
-    smartValidation: xbool2(root, "smartValidation"),
-    rapBO: xbool2(root, "rapBO"),
-    packageRef: xref2(xnode2(root.packageRef)),
-    constantsInterfaceRef: xref2(xnode2(root.constantsInterfaceRef)),
-    nodes: xmany2(root.nodes).map(parseNodeXml)
-  };
-}
-
-// src/adt/bopf-node-kinds.ts
-function splitTargetNodeRef(name) {
-  if (!name) return {};
-  const tilde = name.lastIndexOf("~");
-  if (tilde < 0) return { node: name };
-  return { bo: name.slice(0, tilde), node: name.slice(tilde + 1) };
-}
-function isCrossBoTarget(model, name) {
-  const { bo } = splitTargetNodeRef(name);
-  return bo !== void 0 && bo.toLowerCase() !== model.name.toLowerCase();
-}
-function classifyAssociation(model, assoc) {
-  const targetName = assoc.targetNodeRef?.name;
-  const { bo: targetBo, node: targetNode } = splitTargetNodeRef(targetName);
-  const type = (assoc.implementationType ?? "").toLowerCase();
-  const crossBo = isCrossBoTarget(model, targetName);
-  const bo = crossBo ? targetBo : void 0;
-  if (type === "docomposition") return { kind: "do-composition", targetBo: bo, targetNode };
-  if (type === "composition") return { kind: "composition", targetBo: bo, targetNode };
-  if (crossBo) return { kind: "cross-bo", targetBo, targetNode };
-  return { kind: "association", targetNode };
-}
-function classifyNodes(model) {
-  const embeddings = /* @__PURE__ */ new Map();
-  for (const parent of model.nodes) {
-    for (const assoc of parent.associations) {
-      const kind = classifyAssociation(model, assoc);
-      if (kind.kind !== "do-composition" || !kind.targetNode) continue;
-      const targetRef = splitTargetNodeRef(assoc.targetNodeRef?.name);
-      const dependentObject = targetRef.bo && targetRef.bo.toLowerCase() !== model.name.toLowerCase() ? targetRef.bo : void 0;
-      embeddings.set(kind.targetNode.toLowerCase(), { assoc, parent, dependentObject });
-    }
-  }
-  const result = /* @__PURE__ */ new Map();
-  for (const node2 of model.nodes) {
-    const key = node2.name.toLowerCase();
-    if (node2.rootNode === true) {
-      result.set(key, { kind: "root" });
-      continue;
-    }
-    const embedding = embeddings.get(key);
-    if (embedding) {
-      result.set(key, {
-        kind: "delegated",
-        embeddingAssociation: embedding.assoc.name,
-        embeddingParent: embedding.parent.name,
-        ...embedding.assoc.doEmbeddingName ? { doEmbeddingName: embedding.assoc.doEmbeddingName } : {},
-        ...embedding.dependentObject ? { dependentObject: embedding.dependentObject } : {}
-      });
-      continue;
-    }
-    if (!node2.parent && !node2.persistentStructureRef) {
-      result.set(key, { kind: "representative" });
-      continue;
-    }
-    result.set(key, { kind: "standard" });
-  }
-  return result;
-}
-function describeNodeKind(k) {
-  switch (k.kind) {
-    case "root":
-      return "root";
-    case "standard":
-      return "";
-    case "representative":
-      return "representative";
-    case "delegated": {
-      const base = `delegated via ${k.embeddingParent}.${k.embeddingAssociation}`;
-      return k.dependentObject ? `${base} -> ${k.dependentObject}` : base;
-    }
-  }
-}
-function describeAssociationKind(k) {
-  switch (k.kind) {
-    case "association":
-      return "";
-    case "composition":
-      return "composition";
-    case "do-composition":
-      return "do-composition";
-    case "cross-bo":
-      if (!k.targetBo) return "";
-      return k.targetNode ? `-> ${k.targetBo}~${k.targetNode}` : `-> ${k.targetBo}`;
-  }
-}
-function classifyNode(model, node2) {
-  return classifyNodes(model).get(node2.name.toLowerCase()) ?? { kind: "standard" };
-}
-
-// src/adt/class-interfaces.ts
-var import_utilities4 = __toESM(require_utilities(), 1);
-var TYPE_HIERARCHY_URL = "/sap/bc/adt/abapsource/typehierarchy";
-var CLASS_DEFINITION_LINE = /^\s*class\s+(\S+)\s+definition\b/i;
-var CLASS_IMPLEMENTATION_LINE = /^\s*class\s+\S+\s+implementation\b/im;
-function escapeRegExp6(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-function definitionNamePosition(source, className) {
-  const lines = source.split(/\r?\n/);
-  const want = className.toLowerCase();
-  for (let i = 0; i < lines.length; i++) {
-    const line2 = lines[i];
-    const m = CLASS_DEFINITION_LINE.exec(line2);
-    if (m && m[1].toLowerCase() === want) {
-      return { line: i + 1, column: line2.indexOf(m[1]) };
-    }
-  }
-  return void 0;
-}
-function stripComments(text5) {
-  return text5.split(/\r?\n/).map((line2) => line2.startsWith("*") ? "" : line2.replace(/".*$/, "")).join("\n");
-}
-function interfacesFromDefinition(source) {
-  const implMatch = CLASS_IMPLEMENTATION_LINE.exec(source);
-  const definitionPart = stripComments(implMatch ? source.slice(0, implMatch.index) : source);
-  const interfaces = [];
-  const seen = /* @__PURE__ */ new Set();
-  const stmtRe = /\binterfaces\b\s*:?\s*([^.]*)\./gi;
-  let m;
-  while ((m = stmtRe.exec(definitionPart)) !== null) {
-    for (const part of m[1].split(",")) {
-      const token = part.trim().split(/\s+/)[0];
-      if (!token) continue;
-      const upper = token.toUpperCase();
-      if (!seen.has(upper)) {
-        seen.add(upper);
-        interfaces.push(upper);
-      }
-    }
-  }
-  return {
-    interfaces,
-    inheriting: /\binheriting\s+from\b/i.test(definitionPart)
-  };
-}
-async function fetchImplementedInterfaces(conn, className, source) {
-  const pos = definitionNamePosition(source, className);
-  if (!pos) return void 0;
-  let body;
-  try {
-    ({ body } = await conn.post(TYPE_HIERARCHY_URL, {
-      headers: { "Content-Type": "text/plain", Accept: "application/*" },
-      qs: {
-        uri: `/sap/bc/adt/oo/classes/${encodeURIComponent(className.toLowerCase())}/source/main#start=${pos.line},${pos.column}`,
-        type: "superTypes"
-      },
-      body: source
-    }));
-  } catch {
-    return void 0;
-  }
-  if (!body.trim()) return void 0;
-  const parsed = (0, import_utilities4.fullParse)(body);
-  const info = (0, import_utilities4.xmlNode)(parsed, "hierarchy:info");
-  if (!info) return void 0;
-  const entries = (0, import_utilities4.xmlArray)(parsed, "hierarchy:info", "entries", "entry");
-  const interfaces = [];
-  for (const e of entries) {
-    const attrs = (0, import_utilities4.xmlNodeAttr)(e);
-    if (attrs["adtcore:type"] === "INTF/OI" && typeof attrs["adtcore:name"] === "string") {
-      interfaces.push(attrs["adtcore:name"].toUpperCase());
-    }
-  }
-  return interfaces;
-}
-async function checkClassImplements(conn, className, source, iface) {
-  const want = iface.toUpperCase();
-  const hierarchy = await fetchImplementedInterfaces(conn, className, source);
-  if (hierarchy !== void 0) {
-    const implemented = hierarchy.includes(want);
-    return {
-      implemented,
-      via: "hierarchy",
-      detail: implemented ? `${iface} listed in the ADT type hierarchy` : `${iface} not in the ADT type hierarchy (own and inherited interfaces)`
-    };
-  }
-  const { interfaces, inheriting } = interfacesFromDefinition(source);
-  if (interfaces.includes(want)) {
-    return {
-      implemented: true,
-      via: "source",
-      detail: `${iface} declared in the definition part`
-    };
-  }
-  if (inheriting) {
-    return {
-      implemented: void 0,
-      via: "source",
-      detail: `${iface} not declared in the definition part, the class inherits from a superclass, and the ADT type hierarchy was unavailable`
-    };
-  }
-  return {
-    implemented: false,
-    via: "source",
-    detail: `${iface} not declared in the definition part (ADT type hierarchy unavailable)`
-  };
-}
-function hasMethodImplementation(source, method) {
-  const re = new RegExp("\\bmethod\\s+(?:[\\w/]+~)?" + escapeRegExp6(method) + "\\b", "i");
-  return re.test(stripComments(source));
-}
-function hasImplementationPart(source) {
-  return CLASS_IMPLEMENTATION_LINE.test(stripComments(source));
-}
-
-// src/adt/bopf.ts
-init_package_ref();
-var BOPF_COLLECTION = "/sap/bc/adt/bopf/businessobjects";
-var BOPF_ACCEPT_V4 = "application/vnd.sap.ap.adt.bopf.businessobjects.v4+xml";
-var BOPF_LOCK_ACCEPT = "application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.lock.Result";
-var BOPF_TYPE = "BOBF";
-function bopfUri(name) {
-  return `${BOPF_COLLECTION}/${encodeURIComponent(name.toLowerCase())}`;
-}
-function assertAuthorizedMatches(authorized, target, context) {
-  const authName = authorized.target.name.trim().toUpperCase();
-  const actualName = target.name.trim().toUpperCase();
-  if (authName !== actualName) {
-    throw new AbapError(
-      "SAFETY_DENIED",
-      `Internal wiring error in ${context}: the AuthorizedTarget names "${authorized.target.name}", but the object about to be mutated is "${target.name}". An AuthorizedTarget minted for one object must never be threaded into a call that mutates a different one.`,
-      { authorizedName: authorized.target.name, actualName: target.name, context },
-      "This indicates a bug in the caller \u2014 the AuthorizedTarget passed to this function does not match the object it is about to mutate. Mint a fresh AuthorizedTarget for the actual target."
-    );
-  }
-  if (target.packageName !== void 0 && authorized.target.packageName !== void 0 && authorized.target.packageName.trim().toUpperCase() !== target.packageName.trim().toUpperCase()) {
-    throw new AbapError(
-      "SAFETY_DENIED",
-      `Internal wiring error in ${context}: the AuthorizedTarget was minted for package "${authorized.target.packageName}", but the object is about to be written to package "${target.packageName}".`,
-      { authorizedPackage: authorized.target.packageName, actualPackage: target.packageName, context },
-      "This indicates a bug in the caller \u2014 re-authorize against the actual target package before mutating."
-    );
-  }
-}
-async function readModel(conn, bo) {
-  const uri = bopfUri(bo);
-  try {
-    const resp = await conn.get(uri, { headers: { Accept: BOPF_ACCEPT_V4 } });
-    const etag = firstHeader2(resp.headers, "etag");
-    return { xml: resp.body, model: parseModel(resp.body), ...etag ? { etag } : {} };
-  } catch (e) {
-    if (isAbapError(e)) throw e;
-    throw translateAdtError(e, { operation: "read", uri, name: bo, type: BOPF_TYPE });
-  }
-}
-function firstHeader2(headers, name) {
-  const lower = name.toLowerCase();
-  for (const k of Object.keys(headers)) {
-    if (k.toLowerCase() === lower) {
-      const v = headers[k];
-      if (Array.isArray(v)) return v.length ? String(v[0]) : void 0;
-      return v === void 0 || v === null ? void 0 : String(v);
-    }
-  }
-  return void 0;
-}
-async function createBusinessObject(conn, transport, input, authorized, opts = {}) {
-  assertAuthorizedMatches(authorized, { name: input.name, packageName: input.packageName }, "createBusinessObject");
-  const uri = bopfUri(input.name);
-  if (transport === void 0) {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `Cannot create BOPF business object ${input.name}: no transport manager is wired into this call.`,
-      { name: input.name, packageName: input.packageName },
-      "BOPF create refuses fail-open on transport-ness. Whether the non-atomic-create hazard applies identically on transportable packages is unresolved, so this module never lets a transportable create through to find out. Wire a SessionTransport through, or create the object in a local ($TMP-style) package."
-    );
-  }
-  let corr;
-  if (opts.gate === void 0) {
-    const resolution = await transport.resolve(
-      conn,
-      { uri, devclass: input.packageName, name: input.name, type: BOPF_TYPE },
-      "I"
-    );
-    const denial = toAbapError(resolution);
-    if (denial) throw denial;
-    if (resolution.outcome === "transport") {
-      throw new AbapError(
-        "UNSUPPORTED",
-        `Cannot create BOPF business object ${input.name}: package ${input.packageName} is transportable, but no safety gate was handed to createBusinessObject to judge the transport request.`,
-        { name: input.name, packageName: input.packageName, corrNr: resolution.corrNr },
-        "Fail closed: without a gate this call cannot judge a resolved corr_nr. Pass a SafetyGate through opts.gate, or create the object in a local ($TMP-style) package."
-      );
-    }
-    corr = { kind: "local" };
-  } else {
-    const preflight2 = await preflightCorr(
-      conn,
-      { uri, type: BOPF_TYPE, name: input.name, packageName: input.packageName },
-      { transport, gate: opts.gate, corrNr: opts.corrNr },
-      "I",
-      "write"
-    );
-    corr = preflight2?.kind === "transport" ? { kind: "transport", corrNr: preflight2.corrNr, source: preflight2.source } : { kind: "local" };
-  }
-  const body = buildCreateBody(input);
-  try {
-    await conn.withRequestTimeout(
-      conn.cfg.bopfTimeoutMs,
-      () => conn.post(BOPF_COLLECTION, {
-        headers: { "Content-Type": BOPF_ACCEPT_V4, Accept: BOPF_ACCEPT_V4 },
-        ...corr.kind === "transport" ? { qs: { corrNr: corr.corrNr } } : {},
-        body
-      })
-    );
-  } catch (e) {
-    if (isTransportTimeout(e)) {
-      throw withCreateCorr(
-        transportTimeoutError({
-          family: "bopf",
-          operation: "create_bo",
-          name: input.name,
-          type: BOPF_TYPE,
-          uri,
-          timeoutMs: conn.cfg.bopfTimeoutMs,
-          cause: e
-        }),
-        corr
-      );
-    }
-    try {
-      const recovered = await readModel(conn, input.name);
-      const rootNodeCheck2 = checkRootNodeName(input, recovered.model);
-      const partialCleanup2 = await cleanupUnusablePartialCreate(conn, input.name, rootNodeCheck2, corr, recovered.model);
-      return {
-        ...recovered,
-        recovered: true,
-        rootNodeCheck: rootNodeCheck2,
-        corr,
-        ...partialCleanup2 ? { partialCleanup: partialCleanup2 } : {}
-      };
-    } catch {
-      if (isAbapError(e)) throw withCreateCorr(e, corr);
-      throw withCreateCorr(translateAdtError(e, { operation: "write", uri, name: input.name, type: BOPF_TYPE }), corr);
-    }
-  }
-  const read = await readModel(conn, input.name);
-  const rootNodeCheck = checkRootNodeName(input, read.model);
-  const partialCleanup = await cleanupUnusablePartialCreate(conn, input.name, rootNodeCheck, corr, read.model);
-  return { ...read, rootNodeCheck, corr, ...partialCleanup ? { partialCleanup } : {} };
-}
-var CREATE_CORR_DETAIL = "createCorr";
-function withCreateCorr(e, corr) {
-  e.details[CREATE_CORR_DETAIL] = corr;
-  return e;
-}
-function corrFromCreateError(e) {
-  if (!isAbapError(e)) return void 0;
-  const corr = e.details[CREATE_CORR_DETAIL];
-  return corr !== void 0 && typeof corr === "object" && corr !== null && "kind" in corr ? corr : void 0;
-}
-async function cleanupUnusablePartialCreate(conn, name, rootNodeCheck, corr, model) {
-  const unusable = rootNodeCheck.actual === void 0 || rootNodeCheck.actual === "";
-  if (!unusable || corr.kind !== "transport") return void 0;
-  const iface = model ? collectDdicCascadeCandidates(model).generated.find((c) => c.kind === "constants-interface") : void 0;
-  const targets = [{ uri: bopfUri(name), lockAccept: BOPF_LOCK_ACCEPT, readAccept: BOPF_ACCEPT_V4 }];
-  if (iface) targets.push({ uri: iface.uri, readAccept: "*/*" });
-  const [bo, ifaceResult] = await deleteResidue(conn, targets, corr);
-  if (!bo) return { deleted: false, reason: "delete of the partial object was not attempted" };
-  if (!iface || !ifaceResult) return bo;
-  return { ...bo, constantsInterface: { name: iface.name, ...ifaceResult } };
-}
-async function deleteResidue(conn, targets, corr) {
-  const results = [];
-  const sent = [];
-  try {
-    await conn.withStatefulSession(async (session) => {
-      for (const t of targets) {
-        const lock = await session.lock(t.uri, t.lockAccept ? { accept: t.lockAccept } : void 0);
-        try {
-          await conn.del(t.uri, { qs: { lockHandle: lock.handle, corrNr: corr.corrNr } });
-        } finally {
-          try {
-            await session.unlock(t.uri);
-          } catch {
-          }
-        }
-        sent.push(t);
-      }
-    });
-  } catch (e) {
-    for (const _ of sent) results.push({ deleted: true });
-    results.push({ deleted: false, reason: `delete of the partial object failed: ${describeUnknownError(e)}` });
-  }
-  for (const [i, t] of sent.entries()) {
-    try {
-      await conn.get(t.uri, { headers: { Accept: t.readAccept } });
-      results[i] = { deleted: false, reason: "a read-back after the delete still finds the object" };
-    } catch (e) {
-      results[i] = isNotFoundLike(e) ? { deleted: true } : { deleted: false, reason: `a read-back after the delete could not be settled: ${describeUnknownError(e)}` };
-    }
-  }
-  return results;
-}
-function xmlEscape(s, context) {
-  if (s === "undefined" || s === "null") {
-    throw new AbapError(
-      "BAD_INPUT",
-      `BOPF create body: refusing to write the literal string "${s}" as ${context ?? "an attribute value"} \u2014 this is almost always a caller-side bug (a JavaScript undefined/null value stringified before being sent) rather than an intentional value.`,
-      { value: s, context },
-      'Omit the field instead of sending the string "undefined"/"null".'
-    );
-  }
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-function effectiveRootNodeName(input) {
-  return input.rootNodeName?.trim() || "ROOT";
-}
-function checkRootNodeName(input, model) {
-  const requested = effectiveRootNodeName(input);
-  const actual = model.nodes.find((n) => n.rootNode)?.name.trim();
-  return {
-    requested,
-    actual,
-    matches: actual !== void 0 && actual !== "" && actual.toUpperCase() === requested.toUpperCase()
-  };
-}
-function buildCreateBody(input) {
-  const desc = input.description ? ` adtcore:description="${xmlEscape(input.description, "adtcore:description")}"` : "";
-  const rootName = effectiveRootNodeName(input);
-  const nodeId = mintGuid("node");
-  return `<?xml version="1.0" encoding="UTF-8"?><bo:businessObject xmlns:bo="http://www.sap.com/bopf/bo/BusinessObject" xmlns:adtcore="http://www.sap.com/adt/core" adtcore:name="${xmlEscape(input.name.toUpperCase(), "adtcore:name")}" adtcore:type="${BOPF_TYPE}"${desc}><adtcore:packageRef adtcore:name="${xmlEscape(input.packageName.toUpperCase(), "adtcore:packageRef/@adtcore:name")}"/><bo:nodes bo:name="${xmlEscape(rootName, "bo:nodes/@bo:name")}" bo:nodeID="${nodeId}" bo:xmlName="${xmlEscape(rootName, "bo:nodes/@bo:xmlName")}" bo:objectModelGenerated="false" bo:authorizationCheck="false" bo:isExtensible="false" bo:isDependentObjectNode="false" bo:textNode="false" bo:createEnabled="true" bo:updateEnabled="true" bo:deleteEnabled="true" bo:rootNode="true" bo:objectModelObsolete="false"/></bo:businessObject>`;
-}
-async function discloseFailedPut(conn, bo, base) {
-  let note;
-  try {
-    await readModel(conn, bo);
-    note = "a re-read after the failed PUT still succeeds \u2014 inspect the current model before assuming nothing changed.";
-  } catch (probeErr) {
-    note = `a re-read after the failed PUT also failed: ${describeUnknownError(probeErr)}`;
-  }
-  const disclosure = `A failed PUT is not proof the model is unchanged \u2014 ${note}`;
-  const disclosed = new AbapError(
-    base.code,
-    base.message,
-    { ...base.details, postFailureProbe: note },
-    base.hint ? `${base.hint} ${disclosure}` : disclosure
-  );
-  disclosed.stack = base.stack;
-  disclosed.cause = base.cause;
-  return disclosed;
-}
-async function putModel(conn, session, bo, mutate, authorized, opts = {}) {
-  assertAuthorizedMatches(authorized, { name: bo }, "putModel");
-  const uri = bopfUri(bo);
-  const preflight2 = opts.transport !== void 0 && opts.gate !== void 0 && opts.packageName !== void 0 ? await preflightCorr(
-    conn,
-    { uri, type: BOPF_TYPE, name: bo, packageName: opts.packageName },
-    { transport: opts.transport, gate: opts.gate, corrNr: opts.corrNr },
-    "U",
-    "write"
-  ) : void 0;
-  const xml4 = await withRelockRetry({
-    session,
-    uri,
-    lockAccept: BOPF_LOCK_ACCEPT,
-    // UNSUPPORTED/TRANSPORT_ERROR (the two refusals below) are never fixed
-    // by a fresh lock — exclude them from retry same as the three the
-    // default already excludes.
-    retryable: (e) => !(isAbapError(e) && (e.code === "SAFETY_DENIED" || e.code === "BAD_INPUT" || e.code === "LOCKED" || e.code === "UNSUPPORTED" || e.code === "TRANSPORT_ERROR")),
-    reread: async (lock) => {
-      void lock;
-      const resp = await conn.get(uri, { headers: { Accept: BOPF_ACCEPT_V4 } });
-      return resp.body;
-    },
-    rebuild: async (fresh) => await mutate(fresh),
-    attempt: async (lock, payload) => {
-      const info = transportFromLock(lock);
-      const corr2 = corrForMutation(preflight2, info);
-      if (corr2 === void 0) {
-        try {
-          await session.unlock(uri);
-        } catch {
-        }
-        throw new AbapError(
-          "UNSUPPORTED",
-          `Cannot write BOPF business object ${bo}: the lock reports transport request ${info.corrNr ?? "(unnamed)"}, but no transport was resolved for this write.`,
-          { name: bo, corrNr: info.corrNr, corrUser: info.corrUser },
-          "Pass corr_nr, or rely on ABAP_ALLOW_TRANSPORTS to resolve one, so this write's transport request can be judged by the safety gate before it reaches the wire."
-        );
-      }
-      const divergent = divergentLockCorrNr(corr2, info);
-      if (divergent !== void 0) {
-        try {
-          await session.unlock(uri);
-        } catch {
-        }
-        throw new AbapError(
-          "TRANSPORT_ERROR",
-          `Cannot write BOPF business object ${bo}: the lock names transport request ${divergent}, but this write was authorised for ${corr2.kind === "transport" ? corr2.corrNr : "(local)"}. Nothing was written.`,
-          { name: bo, gatedCorrNr: corr2.kind === "transport" ? corr2.corrNr : void 0, serverCorrNr: divergent }
-        );
-      }
-      try {
-        await conn.put(uri, {
-          headers: { "Content-Type": BOPF_ACCEPT_V4, Accept: BOPF_ACCEPT_V4 },
-          qs: corr2.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr2.corrNr } : { lockHandle: lock.handle },
-          body: payload
-        });
-      } catch (e) {
-        const base = isAbapError(e) ? e : translateAdtError(e, { operation: "write", uri, name: bo, type: BOPF_TYPE });
-        const mayHaveLanded = base.code === "SESSION_DEAD" || !isAbapError(e) && adtExceptionInfo(e) === void 0;
-        throw mayHaveLanded ? await discloseFailedPut(conn, bo, base) : base;
-      }
-      return payload;
-    }
-  });
-  void xml4;
-  const corr = preflight2?.kind === "transport" ? { kind: "transport", corrNr: preflight2.corrNr, source: preflight2.source } : { kind: "local" };
-  return { ...await readModel(conn, bo), corr };
-}
-async function activateBusinessObject(conn, bo) {
-  const uri = bopfUri(bo);
-  const seed = { name: bo, uri, type: BOPF_TYPE };
-  let bodyVerdict;
-  let preaudit;
-  try {
-    bodyVerdict = await conn.withRequestTimeout(conn.cfg.bopfTimeoutMs, async () => {
-      let result = await conn.adt.activate(bo, uri, void 0, true);
-      const phase2 = await activateWithPreauditSet(conn, [seed], result);
-      if (phase2) {
-        result = phase2.result;
-        preaudit = phase2.preaudit;
-      }
-      const messages = mapActivationMessages(result);
-      const inactive = mapInactiveObjects(result);
-      const hasFailure = messages.some((m) => isFailureSeverity(m.severity));
-      return {
-        activated: result.success !== false && !hasFailure && inactive.length === 0,
-        messages: [...messages, ...inactive.map((i) => ({ inactiveDependent: i }))]
-      };
-    });
-  } catch (e) {
-    if (isAbapError(e)) throw e;
-    if (isTransportTimeout(e)) {
-      throw transportTimeoutError({
-        family: "bopf",
-        operation: "activate",
-        name: bo,
-        type: BOPF_TYPE,
-        uri: bopfUri(bo),
-        timeoutMs: conn.cfg.bopfTimeoutMs,
-        cause: e
-      });
-    }
-    throw translateAdtError(e, { operation: "write", uri, name: bo, type: BOPF_TYPE });
-  }
-  let version2;
-  let corroborated;
-  try {
-    const fresh = await readModel(conn, bo);
-    version2 = fresh.model.version;
-    corroborated = version2 === "active";
-  } catch {
-    corroborated = preaudit === void 0;
-  }
-  const activated = bodyVerdict.activated && corroborated;
-  if (preaudit && !activated) await releaseActivationEnqueues(conn);
-  return {
-    activated,
-    messages: bodyVerdict.messages,
-    ...version2 ? { version: version2 } : {},
-    ...preaudit ? { preaudit } : {}
-  };
-}
-function ddicSparedReason(refSite) {
-  return `referenced via ${refSite} \u2014 the model does not record whether this BO generated it, so it is not deleted`;
-}
-async function discloseDeleteFailureProbe(conn, bo, base) {
-  let note;
-  try {
-    await conn.get(bopfUri(bo), { headers: { Accept: BOPF_ACCEPT_V4 } });
-    note = "a re-read right after the failed DELETE still finds the object \u2014 the delete did not land.";
-  } catch (probeErr) {
-    note = isNotFoundLike(probeErr) ? "a re-read right after the failed DELETE no longer finds the object \u2014 the delete may have landed despite the failure; re-read before retrying." : `a re-read right after the failed DELETE could not be settled: ${describeUnknownError(probeErr)}`;
-  }
-  const disclosed = new AbapError(
-    base.code,
-    base.message,
-    { ...base.details, postFailureProbe: note },
-    base.hint ? `${base.hint} ${note}` : note
-  );
-  disclosed.stack = base.stack;
-  disclosed.cause = base.cause;
-  return disclosed;
-}
-async function deleteBusinessObject(conn, session, bo, authorized, gate, opts = {}) {
-  assertAuthorizedMatches(authorized, { name: bo }, "deleteBusinessObject");
-  const cascadePersistentRequested = (opts.cascadePersistent?.length ?? 0) > 0;
-  if ((opts.cascadeDdic || cascadePersistentRequested) && !gate.config.allowCascadeDelete) {
-    throw new AbapError(
-      "SAFETY_DENIED",
-      `Cannot delete BOPF business object ${bo} with cascade_ddic: cascading DDIC deletes require the admin-mode cascade-delete ceiling (ABAP_MODE=admin), which this server does not currently grant. The business object itself was NOT deleted either \u2014 a caller who asked for a cascading delete and silently got a non-cascading one instead would be misled about what actually happened.`,
-      { name: bo },
-      "SafetyConfig.allowCascadeDelete"
-    );
-  }
-  const uri = bopfUri(bo);
-  let candidates = [];
-  let spared = [];
-  let ddicEnumerated = false;
-  if (opts.cascadeDdic) {
-    let model;
-    try {
-      model = (await readModel(conn, bo)).model;
-    } catch {
-    }
-    if (model) {
-      const split = collectDdicCascadeCandidates(model);
-      candidates = split.generated;
-      spared = split.referenced;
-      ddicEnumerated = true;
-    }
-  }
-  const preflight2 = opts.transport !== void 0 && opts.packageName !== void 0 ? await preflightCorr(
-    conn,
-    { uri, type: BOPF_TYPE, name: bo, packageName: opts.packageName },
-    { transport: opts.transport, gate, corrNr: opts.corrNr },
-    "U",
-    "delete"
-  ) : void 0;
-  const lock = await session.lock(uri, { accept: BOPF_LOCK_ACCEPT });
-  const info = transportFromLock(lock);
-  const corr = corrForMutation(preflight2, info);
-  if (corr === void 0) {
-    try {
-      await session.unlock(uri);
-    } catch {
-    }
-    throw new AbapError(
-      "UNSUPPORTED",
-      `Cannot delete BOPF business object ${bo}: the lock reports transport request ${info.corrNr ?? "(unnamed)"}, but no transport was resolved for this delete.`,
-      { name: bo, corrNr: info.corrNr, corrUser: info.corrUser },
-      "Pass corr_nr, or rely on ABAP_ALLOW_TRANSPORTS to resolve one, so this delete's transport request can be judged by the safety gate before it reaches the wire."
-    );
-  }
-  const divergentBo = divergentLockCorrNr(corr, info);
-  if (divergentBo !== void 0) {
-    try {
-      await session.unlock(uri);
-    } catch {
-    }
-    throw corrNrNotHonoured(
-      { name: bo, type: BOPF_TYPE, uri, packageName: opts.packageName ?? "", label: "BOPF business object" },
-      corr.kind === "transport" ? corr.corrNr : "",
-      divergentBo,
-      "lock"
-    );
-  }
-  let boDeleted = false;
-  try {
-    await conn.del(uri, {
-      qs: corr.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr.corrNr } : { lockHandle: lock.handle }
-    });
-    boDeleted = true;
-  } catch (e) {
-    try {
-      await session.unlock(uri);
-    } catch {
-    }
-    const base = isAbapError(e) ? e : translateAdtError(e, { operation: "delete", uri, name: bo, type: BOPF_TYPE });
-    throw await discloseDeleteFailureProbe(conn, bo, base);
-  }
-  try {
-    await session.unlock(uri);
-  } catch {
-  }
-  const ddic = [];
-  const ordered = [
-    ...candidates.filter((c) => c.kind === "table"),
-    ...candidates.filter((c) => c.kind === "structure"),
-    ...candidates.filter((c) => c.kind === "constants-interface")
-  ];
-  for (let i = 0; i < ordered.length; i += 5) {
-    const batch = ordered.slice(i, i + 5);
-    for (const cand of batch) {
-      let candAuthorized;
-      try {
-        candAuthorized = gate.authorize(
-          "delete",
-          { name: cand.name, packageName: authorized.target.packageName, type: cand.type },
-          { phase: "final" }
-        );
-      } catch (e) {
-        ddic.push({
-          name: cand.name,
-          kind: cand.kind,
-          uri: cand.uri,
-          existed: false,
-          deleted: false,
-          reason: `safety gate denied: ${describeUnknownError(e)}`
-        });
-        continue;
-      }
-      ddic.push(await deleteDdicCandidate(conn, session, cand, candAuthorized, corr));
-    }
-  }
-  const ddicSpared = spared.map((cand) => ({
-    name: cand.name,
-    kind: cand.kind,
-    uri: cand.uri,
-    reason: ddicSparedReason(cand.refSite)
-  }));
-  const ddicRequested = [];
-  const requested = opts.cascadePersistent ?? [];
-  const orderedRequested = [
-    ...requested.filter((t) => t.candidate.kind === "table"),
-    ...requested.filter((t) => t.candidate.kind === "structure")
-  ];
-  for (let i = 0; i < orderedRequested.length; i += 5) {
-    const batch = orderedRequested.slice(i, i + 5);
-    for (const target of batch) {
-      const cand = target.candidate;
-      if (!target.present) {
-        ddicRequested.push({
-          name: cand.name,
-          kind: cand.kind,
-          uri: cand.uri,
-          existed: false,
-          deleted: false,
-          reason: "the object was already absent when its package was probed just before this delete"
-        });
-        continue;
-      }
-      let candAuthorized;
-      try {
-        candAuthorized = gate.authorize(
-          "delete",
-          { name: cand.name, packageName: target.packageName, type: cand.type },
-          { phase: "final" }
-        );
-      } catch (e) {
-        ddicRequested.push({
-          name: cand.name,
-          kind: cand.kind,
-          uri: cand.uri,
-          // target.present is already true here — the probe above proved it.
-          existed: true,
-          deleted: false,
-          reason: `safety gate denied: ${describeUnknownError(e)}`
-        });
-        continue;
-      }
-      ddicRequested.push(await deleteDdicCandidate(conn, session, cand, candAuthorized, corr));
-    }
-  }
-  return { boDeleted, ddic, ddicRequested, ddicSpared, ddicEnumerated, corr };
-}
-function collectDdicCascadeCandidates(model) {
-  const generated = [];
-  const referenced = [];
-  for (const node2 of model.nodes) {
-    pushCandidate(referenced, node2.persistentTableRef, "table", "tables", "persistentTableRef");
-    pushCandidate(generated, node2.combinedTableRef, "table", "tabletypes", "combinedTableRef");
-    pushCandidate(referenced, node2.persistentStructureRef, "structure", "structures", "persistentStructureRef");
-    pushCandidate(generated, node2.combinedStructureRef, "structure", "structures", "combinedStructureRef");
-  }
-  pushCandidate(generated, model.constantsInterfaceRef, "constants-interface", void 0, "constantsInterfaceRef");
-  return { generated, referenced };
-}
-function pushCandidate(out, ref2, kind, guessKind, refSite) {
-  if (!ref2 || !ref2.name) return;
-  const uri = ref2.uri ?? ddicGuessUri(ref2, guessKind);
-  if (!uri) return;
-  if (out.some((c) => c.uri === uri)) return;
-  out.push({ name: ref2.name, kind, uri, type: ref2.type, refSite });
-}
-function ddicGuessUri(ref2, guessKind) {
-  if (!ref2.name || !guessKind) return void 0;
-  return `/sap/bc/adt/ddic/${guessKind}/${ref2.name.toLowerCase()}`;
-}
-function ddicRefOccurrencesForName(model, upperName) {
-  const seen = /* @__PURE__ */ new Set();
-  const occurrences = [];
-  const mark = (ref2, slot, node2) => {
-    if (!ref2?.name || ref2.name.trim().toUpperCase() !== upperName) return;
-    const key = `${node2 ?? ""}\0${slot}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    occurrences.push(node2 !== void 0 ? { slot, node: node2 } : { slot });
-  };
-  for (const node2 of model.nodes) {
-    mark(node2.persistentTableRef, "persistentTableRef", node2.name);
-    mark(node2.combinedTableRef, "combinedTableRef", node2.name);
-    mark(node2.persistentStructureRef, "persistentStructureRef", node2.name);
-    mark(node2.combinedStructureRef, "combinedStructureRef", node2.name);
-  }
-  mark(model.constantsInterfaceRef, "constantsInterfaceRef");
-  return occurrences;
-}
-function describeDdicRefOccurrence(o) {
-  return o.node !== void 0 ? `${o.slot} on node ${o.node}` : o.slot;
-}
-function resolvePersistentCascadeRequest(bo, model, names) {
-  const wanted = /* @__PURE__ */ new Set();
-  for (const n of names) {
-    const norm = n.trim().toUpperCase();
-    if (norm) wanted.add(norm);
-  }
-  const { referenced } = collectDdicCascadeCandidates(model);
-  const byName = new Map(referenced.map((c) => [c.name.toUpperCase(), c]));
-  const resolved = [];
-  for (const norm of wanted) {
-    const cand = byName.get(norm);
-    if (!cand) {
-      const available = referenced.length ? `objects currently referenced: ${referenced.map((c) => c.name).join(", ")}` : "this business object's model carries no persistentTableRef/persistentStructureRef at all";
-      throw new AbapError(
-        "BAD_INPUT",
-        `Cannot cascade_persistent delete "${norm}" on BOPF business object ${bo}: it is not one of the persistentTableRef/persistentStructureRef objects this BO's model references \u2014 ${available}.`,
-        { bo, name: norm }
-      );
-    }
-    const sites = ddicRefOccurrencesForName(model, norm);
-    if (sites.length > 1) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `Cannot cascade_persistent delete "${norm}" on BOPF business object ${bo}: it is referenced from more than one site in this BO's model (${sites.map(describeDdicRefOccurrence).join(", ")}) \u2014 deleting it would break the other reference.`,
-        { bo, name: norm, sites }
-      );
-    }
-    resolved.push(cand);
-  }
-  return [...resolved.filter((c) => c.kind === "table"), ...resolved.filter((c) => c.kind === "structure")];
-}
-async function deleteDdicCandidate(conn, session, cand, authorized, corr) {
-  assertAuthorizedMatches(authorized, { name: cand.name }, "deleteDdicCandidate");
-  let existed;
-  try {
-    await conn.get(cand.uri, { headers: { Accept: "*/*" } });
-    existed = true;
-  } catch (e) {
-    existed = false;
-    if (!isNotFoundLike(e)) {
-      return {
-        name: cand.name,
-        kind: cand.kind,
-        uri: cand.uri,
-        existed: false,
-        deleted: false,
-        reason: `existence probe failed: ${describeUnknownError(e)}`
-      };
-    }
-  }
-  if (!existed) {
-    return { name: cand.name, kind: cand.kind, uri: cand.uri, existed: false, deleted: false };
-  }
-  let lock;
-  try {
-    lock = await session.lock(cand.uri);
-  } catch (e) {
-    return {
-      name: cand.name,
-      kind: cand.kind,
-      uri: cand.uri,
-      existed: true,
-      deleted: false,
-      reason: `lock failed: ${describeUnknownError(e)}`
-    };
-  }
-  const candTransport = transportFromLock(lock);
-  if (candTransport.required && corr.kind !== "transport") {
-    try {
-      await session.unlock(cand.uri);
-    } catch {
-    }
-    return {
-      name: cand.name,
-      kind: cand.kind,
-      uri: cand.uri,
-      existed: true,
-      deleted: false,
-      reason: `pinned to transport ${candTransport.corrNr ?? "(unnamed)"} while the business object delete was local; not deleted`
-    };
-  }
-  try {
-    await conn.del(cand.uri, {
-      qs: candTransport.required && corr.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr.corrNr } : { lockHandle: lock.handle }
-    });
-  } catch (e) {
-    const deleteFailure = `delete failed: ${describeUnknownError(e)}`;
-    try {
-      await conn.get(cand.uri, { headers: { Accept: "*/*" } });
-      return {
-        name: cand.name,
-        kind: cand.kind,
-        uri: cand.uri,
-        existed: true,
-        deleted: false,
-        reason: `${deleteFailure}; a read-back of the same URI still finds the object`
-      };
-    } catch (probeErr) {
-      if (isNotFoundLike(probeErr)) {
-        return {
-          name: cand.name,
-          kind: cand.kind,
-          uri: cand.uri,
-          existed: true,
-          deleted: true,
-          reason: `${deleteFailure}, but a read-back of the same URI confirms the object is gone`
-        };
-      }
-      return {
-        name: cand.name,
-        kind: cand.kind,
-        uri: cand.uri,
-        existed: true,
-        deleted: "unverified",
-        reason: `${deleteFailure}; the read-back to confirm it also failed: ${describeUnknownError(probeErr)}`
-      };
-    }
-  } finally {
-    try {
-      await session.unlock(cand.uri);
-    } catch {
-    }
-  }
-  try {
-    await conn.get(cand.uri, { headers: { Accept: "*/*" } });
-    return {
-      name: cand.name,
-      kind: cand.kind,
-      uri: cand.uri,
-      existed: true,
-      deleted: "unverified",
-      reason: "DELETE returned success but a read-back of the same URI still finds the object; this is not proof the delete failed (it can be a stale read)"
-    };
-  } catch (e) {
-    if (isNotFoundLike(e)) {
-      return { name: cand.name, kind: cand.kind, uri: cand.uri, existed: true, deleted: true };
-    }
-    return {
-      name: cand.name,
-      kind: cand.kind,
-      uri: cand.uri,
-      existed: true,
-      deleted: "unverified",
-      reason: `DELETE returned success but the read-back to confirm it failed: ${describeUnknownError(e)}`
-    };
-  }
-}
-async function probeRequestedPersistentTargets(conn, bo, boPackage, candidates) {
-  const out = [];
-  for (const cand of candidates) {
-    let body;
-    try {
-      const resp = await conn.get(cand.uri, { headers: { Accept: "application/*" } });
-      body = resp.body ?? "";
-    } catch (e) {
-      if (isNotFoundLike(e)) {
-        out.push({ candidate: cand, present: false });
-        continue;
-      }
-      throw new AbapError(
-        "BAD_INPUT",
-        `Cannot cascade_persistent delete "${cand.name}" on BOPF business object ${bo}: probing it before the delete failed: ${describeUnknownError(e)}. Nothing was deleted.`,
-        { bo, name: cand.name, uri: cand.uri }
-      );
-    }
-    const packageName = parsePackageRef(body);
-    if (!packageName) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `Cannot cascade_persistent delete "${cand.name}" on BOPF business object ${bo}: abapsmith could not confirm which package "${cand.name}" belongs to \u2014 its ADT document carried no single, unambiguous <adtcore:packageRef>. Nothing was deleted.`,
-        { bo, name: cand.name, uri: cand.uri }
-      );
-    }
-    if (!boPackage || !boPackage.trim()) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `Cannot cascade_persistent delete "${cand.name}" on BOPF business object ${bo}: this BO's own package could not be determined, so it cannot be compared against the package of the object being deleted. Nothing was deleted.`,
-        { bo, name: cand.name }
-      );
-    }
-    if (packageName.trim().toUpperCase() !== boPackage.trim().toUpperCase()) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `Cannot cascade_persistent delete "${cand.name}" on BOPF business object ${bo}: it lives in package ${packageName}, not ${boPackage} \u2014 a DDIC object living in another package is never deleted this way. Nothing was deleted.`,
-        { bo, name: cand.name, objectPackage: packageName, boPackage }
-      );
-    }
-    out.push({ candidate: cand, present: true, packageName, beforeSource: body });
-  }
-  return out;
-}
-function isNotFoundLike(e) {
-  const err = e;
-  const status = Number(err?.status ?? err?.err ?? 0);
-  return status === 404 || /ResourceNotFound/i.test(String(err?.type ?? ""));
-}
-async function searchBusinessObjects(conn, input) {
-  if (!input.objectType || !input.objectType.trim()) {
-    throw new AbapError(
-      "BAD_INPUT",
-      "BOPF search requires object_type \u2014 the server answers 400 ExceptionParameterNotFound without it.",
-      { query: input.query },
-      'Pass an object_type, e.g. "BOBF".'
-    );
-  }
-  const qs = { objectType: input.objectType };
-  if (input.query !== void 0) qs.query = input.query;
-  if (input.maxResults !== void 0) qs.maxResults = String(input.maxResults);
-  let body;
-  try {
-    const resp = await conn.get(`${BOPF_COLLECTION}/$search`, { headers: { Accept: "application/xml" }, qs });
-    body = resp.body;
-  } catch (e) {
-    if (isAbapError(e)) throw e;
-    throw translateAdtError(e, { operation: "read", uri: `${BOPF_COLLECTION}/$search` });
-  }
-  return parseSearchResults(body);
-}
-function parseSearchResults(xml4) {
-  const out = [];
-  const re = /<[\w:]*[Oo]bjectReference\b[^>]*\/?>/g;
-  let m;
-  while (m = re.exec(xml4)) {
-    const tag = m[0];
-    const uri = attr7(tag, "uri");
-    const type = attr7(tag, "type");
-    const name = attr7(tag, "name");
-    if (name && type) {
-      out.push({ ...uri ? { uri } : {}, type, name });
-    }
-  }
-  return out;
-}
-function attr7(tag, name) {
-  const re = new RegExp(`[\\w:]*:${name}="([^"]*)"`);
-  const m = re.exec(tag);
-  if (m && m[1] !== void 0) return xmlUnescape(m[1]);
-  const re2 = new RegExp(`\\b${name}="([^"]*)"`);
-  const m2 = re2.exec(tag);
-  return m2 && m2[1] !== void 0 ? xmlUnescape(m2[1]) : void 0;
-}
-function xmlUnescape(s) {
-  return s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
-}
-var DEFAULT_CHECK_REFS_MAX_SITES = 25;
-async function checkReferences(conn, model, options) {
-  const sites = collectRefSites(model);
-  const maxSites = options?.maxSites ?? DEFAULT_CHECK_REFS_MAX_SITES;
-  const capped = sites.length > maxSites ? sites.slice(0, maxSites) : sites;
-  const findings = [];
-  for (const site of capped) {
-    findings.push(await evaluateSite(conn, model, site));
-  }
-  return findings;
-}
-var IMPL_INTERFACE_BY_OWNER = {
-  determination: "/BOBF/IF_FRW_DETERMINATION",
-  validation: "/BOBF/IF_FRW_VALIDATION",
-  action: "/BOBF/IF_FRW_ACTION",
-  query: "/BOBF/IF_FRW_QUERY"
-};
-var DDIC_ELEMENTS = /* @__PURE__ */ new Set([
-  "persistentStructureRef",
-  "combinedStructureRef",
-  "combinedTableRef",
-  "persistentTableRef",
-  "parameterStructureRef",
-  "dataTypeRef",
-  "dataTableTypeRef"
-]);
-function collectRefSites(model) {
-  const sites = [];
-  const push = (node2, owner, member, element, ref2, requiredInterface) => {
-    if (!ref2) return;
-    sites.push({
-      owner,
-      node: node2,
-      ...member !== void 0 ? { member } : {},
-      element,
-      kind: DDIC_ELEMENTS.has(element) ? "ddic" : "class",
-      ref: ref2,
-      ...requiredInterface ? { requiredInterface } : {}
-    });
-  };
-  for (const node2 of model.nodes) {
-    push(node2.name, "node", void 0, "persistentStructureRef", node2.persistentStructureRef);
-    push(node2.name, "node", void 0, "combinedStructureRef", node2.combinedStructureRef);
-    push(node2.name, "node", void 0, "combinedTableRef", node2.combinedTableRef);
-    push(node2.name, "node", void 0, "persistentTableRef", node2.persistentTableRef);
-    push(node2.name, "node", void 0, "defaultingClassRef", node2.defaultingClassRef);
-    push(node2.name, "node", void 0, "dataAccessClassRef", node2.dataAccessClassRef);
-    push(node2.name, "node", void 0, "authorizationClassRef", node2.authorizationClassRef);
-    for (const a of node2.associations) {
-      push(node2.name, "association", a.name, "targetNodeRef", a.targetNodeRef);
-      push(node2.name, "association", a.name, "parameterStructureRef", a.parameterStructureRef);
-      push(node2.name, "association", a.name, "implementationClassRef", a.implementationClassRef);
-    }
-    for (const act of node2.actions) {
-      push(node2.name, "action", act.name, "parameterStructureRef", act.parameterStructureRef);
-      push(node2.name, "action", act.name, "implementationClassRef", act.implementationClassRef, IMP_ACTION);
-    }
-    for (const det of node2.determinations) {
-      push(node2.name, "determination", det.name, "implementationClassRef", det.implementationClassRef, IMP_DETERMINATION);
-    }
-    for (const val of node2.validations) {
-      push(node2.name, "validation", val.name, "implementationClassRef", val.implementationClassRef, IMP_VALIDATION);
-    }
-    for (const q of node2.queries) {
-      push(node2.name, "query", q.name, "dataTypeRef", q.dataTypeRef);
-      push(node2.name, "query", q.name, "implementationClassRef", q.implementationClassRef, IMP_QUERY);
-    }
-    for (const ak of node2.alternativeKeys) {
-      push(node2.name, "alternativeKey", ak.name, "dataTypeRef", ak.dataTypeRef);
-      push(node2.name, "alternativeKey", ak.name, "dataTableTypeRef", ak.dataTableTypeRef);
-    }
-  }
-  return sites;
-}
-var IMP_DETERMINATION = IMPL_INTERFACE_BY_OWNER.determination;
-var IMP_VALIDATION = IMPL_INTERFACE_BY_OWNER.validation;
-var IMP_ACTION = IMPL_INTERFACE_BY_OWNER.action;
-var IMP_QUERY = IMPL_INTERFACE_BY_OWNER.query;
-async function evaluateSite(conn, model, site) {
-  try {
-    if (site.element === "targetNodeRef") {
-      return evaluateTargetNodeRef(model, site);
-    }
-    if (site.kind === "ddic") {
-      return await evaluateDdicRef(conn, site);
-    }
-    return await evaluateClassRef(conn, site);
-  } catch (e) {
-    return { site, verdict: "unchecked", detail: describeUnknownError(e) };
-  }
-}
-function evaluateTargetNodeRef(model, site) {
-  const name = site.ref.name;
-  if (!name) return { site, verdict: "unchecked", detail: "targetNodeRef has no name" };
-  if (isCrossBoTarget(model, name)) {
-    const { bo, node: node2 } = splitTargetNodeRef(name);
-    return {
-      site,
-      verdict: "unchecked",
-      detail: `targetNodeRef points at ${node2 ?? "?"} on ${bo ?? "another business object"}, which this read does not fetch`
-    };
-  }
-  const prefix = `${model.name}~`;
-  const bareName2 = name.startsWith(prefix) ? name.slice(prefix.length) : name;
-  const found = model.nodes.some((n) => n.name === bareName2 || n.name === name);
-  return { site, verdict: found ? "present" : "missing" };
-}
-async function evaluateDdicRef(conn, site) {
-  const { ref: ref2, element } = site;
-  const isPendingKind = element === "combinedStructureRef" || element === "combinedTableRef" || element === "persistentTableRef";
-  const uri = ref2.uri ?? (ref2.name ? `/sap/bc/adt/ddic/tables/${ref2.name.toLowerCase()}` : void 0);
-  if (!uri) {
-    if (!ref2.name) return { site, verdict: "unchecked", detail: "ref has neither uri nor name" };
-  }
-  if (!uri) return { site, verdict: "unchecked", detail: "could not construct a probe uri" };
-  try {
-    await conn.get(uri, { headers: { Accept: "*/*" } });
-    return { site, verdict: "present" };
-  } catch (e) {
-    if (isNotFoundLike(e)) {
-      return { site, verdict: isPendingKind ? "pending" : "missing" };
-    }
-    return { site, verdict: "unchecked", detail: describeUnknownError(e) };
-  }
-}
-async function evaluateClassRef(conn, site) {
-  const className = site.ref.name;
-  if (!className) return { site, verdict: "unchecked", detail: "ref has no name" };
-  const spec = specForType("CLAS/OC");
-  const uri = buildUri(spec, className);
-  const target = {
-    spec,
-    type: spec.type,
-    name: className,
-    uri,
-    sourceUri: `${uri}/source/main`,
-    packageName: "",
-    description: "",
-    exists: true,
-    packageSource: "requested"
-  };
-  let source;
-  try {
-    source = await readCurrentSource(conn, target);
-  } catch (e) {
-    if (isAbapError(e) && e.code === "UNSUPPORTED") {
-      return { site, verdict: "missing", detail: e.message };
-    }
-    return { site, verdict: "unchecked", detail: describeUnknownError(e) };
-  }
-  if (source === void 0) {
-    return { site, verdict: "unchecked", detail: "readCurrentSource returned no source for a target marked exists" };
-  }
-  const verdict = hasImplementationPart(source) ? "present" : "declaration-only";
-  if (verdict === "declaration-only") {
-    return { site, verdict, detail: "class exists but has no IMPLEMENTATION section" };
-  }
-  if (site.requiredInterface) {
-    const check2 = await checkClassImplements(conn, className, source, site.requiredInterface);
-    if (check2.implemented === true) return { site, verdict: "present" };
-    if (check2.implemented === false) return { site, verdict: "wrong-interface", detail: check2.detail };
-    return { site, verdict: "unchecked", detail: check2.detail };
-  }
-  return { site, verdict: "present" };
-}
-
 // src/tools/bopf-spec-keys.ts
 init_errors();
 function baseShape(spec) {
@@ -150231,7 +152163,7 @@ function refuseDuplicateChild(tokens, input, sel, kind, name) {
   const suffix = CHILD_OP_SUFFIX[kind];
   throw new AbapError(
     "BAD_INPUT",
-    `${input.operation} "${name}" on ${input.bo} node "${sel.node}": a ${CHILD_KIND_LABEL[kind]} of that name already exists there. ${input.operation} is not an upsert \u2014 proceeding would create a second element named "${name}". BOPF writes are journalled but irreversible, so the duplicate could not be undone afterward. Use set_${suffix}_fields to change the existing one, or remove_${suffix} first.`,
+    `${input.operation} "${name}" on ${input.bo} node "${sel.node}": a ${CHILD_KIND_LABEL[kind]} of that name already exists there. ${input.operation} is not an upsert \u2014 proceeding would create a second element named "${name}". Use set_${suffix}_fields to change the existing one, or remove_${suffix} first.`,
     { operation: input.operation, bo: input.bo, node: sel.node, name, kind, existing }
   );
 }
@@ -150722,6 +152654,7 @@ async function runBopfEdit(deps, args) {
           existedBefore: false,
           beforeCapture: "confirmed-absent",
           irreversible: true,
+          undoBlocker: "BOPF create runs several non-atomic requests with no server-side rollback, so undo cannot reverse it. Delete the business object with abap_bopf_delete.",
           // Without `systemKey`, `systemMismatchBlocker` (adt/undo.ts) can't
           // do its strong SID+origin+client compare and falls back to
           // SID-only, which can't tell apart two boxes sharing a SID.
@@ -150980,7 +152913,7 @@ async function runBopfEdit(deps, args) {
               existedBefore: true,
               beforeCapture: "captured",
               beforeSource: xml4,
-              irreversible: true,
+              beforeKind: "bopf-model",
               systemKey: systemKey(conn.cfg),
               tool: "abap_bopf_edit"
             })
@@ -151497,6 +153430,7 @@ async function runBopfDelete(deps, args) {
             beforeCapture: "captured",
             beforeSource: currentModelRead.xml,
             irreversible: true,
+            undoBlocker: "BOPF delete cannot be reversed: recreating a business object from its model is non-atomic. Recreate it with abap_bopf_edit.",
             systemKey: systemKey(conn.cfg),
             tool: "abap_bopf_delete",
             // Only present when at least one target was requested —
@@ -158692,688 +160626,6 @@ init_safety();
 init_mode();
 init_errors();
 init_compact();
-
-// src/adt/enhancement-write.ts
-init_errors();
-init_session();
-init_mode();
-var ENHANCEMENT_WRITE_TYPES = ["ENHO/XH", "ENHO/XHH", "ENHS/XS"];
-function isEnhancementWriteType(type) {
-  return ENHANCEMENT_WRITE_TYPES.includes(type ?? "");
-}
-var ENHANCEMENT_SPECS = {
-  "ENHO/XH": {
-    type: "ENHO/XH",
-    collection: ENHOXH_COLLECTION,
-    bareCollection: "enhoxh",
-    accept: () => ENHOXH_ACCEPT,
-    // Undefined deliberately — one live success, no citation file yet. See
-    // module header's "PUT verification matrix".
-    putVerifiedBy: void 0,
-    read: readBadiImplementation
-  },
-  "ENHO/XHH": {
-    type: "ENHO/XHH",
-    collection: ENHOXHH_COLLECTION,
-    bareCollection: "enhoxhh",
-    accept: (conn) => enhoxhhMediaType(conn.discovery),
-    // Backed by the fixture below plus a live end-to-end
-    // writeAndActivateEnhancementDescription run after the LOCK Accept-header
-    // fix (see withRelockRetry below) — before that fix every attempt died
-    // at LOCK with a 406.
-    putVerifiedBy: "test/fixtures/enhancement/138-put-wholedoc-success.meta.json",
-    read: readSourceCodePlugin
-  },
-  "ENHS/XS": {
-    type: "ENHS/XS",
-    collection: ENHSXS_COLLECTION,
-    bareCollection: "enhsxs",
-    accept: () => ENHSXS_ACCEPT,
-    // Undefined deliberately — one live success, no citation file yet. See
-    // module header's "PUT verification matrix".
-    putVerifiedBy: void 0,
-    read: readEnhancementSpot
-  }
-};
-function specFor(type) {
-  return ENHANCEMENT_SPECS[type];
-}
-function firstHeader3(headers, name) {
-  const lower = name.toLowerCase();
-  for (const k of Object.keys(headers)) {
-    if (k.toLowerCase() === lower) {
-      const v = headers[k];
-      if (Array.isArray(v)) return v.length ? String(v[0]) : void 0;
-      return v === void 0 || v === null ? void 0 : String(v);
-    }
-  }
-  return void 0;
-}
-var NON_RETRYABLE_CODES = /* @__PURE__ */ new Set([
-  "SAFETY_DENIED",
-  "BAD_INPUT",
-  "LOCKED",
-  "TRANSPORT_ERROR",
-  "ETAG_CONFLICT",
-  // Belt-and-suspenders: should never fire (assertDescriptionWillBePresent
-  // catches this pre-lock), but retrying an identical payload would just
-  // reproduce the same refusal.
-  "ENHANCEMENT_DESCRIPTION_REQUIRED"
-]);
-function enhancementRetryable(e) {
-  if (isAbapError(e) && NON_RETRYABLE_CODES.has(e.code)) return false;
-  return true;
-}
-function assertDescriptionWillBePresent(nextDescription, ctx, hint) {
-  if (nextDescription !== void 0 && nextDescription !== "") return;
-  throw new AbapError(
-    "ENHANCEMENT_DESCRIPTION_REQUIRED",
-    `${ctx.type} ${ctx.name}: this write would leave the root adtcore:description missing or empty. SAP's enhancement PUT handler rejects that unconditionally (HTTP 400 ExceptionInvalidData, SWB_TOOL19 / scr_prop_no_decr, "The description is missing") \u2014 even a write that has nothing to do with the description, like set_impl_active, is refused if the object has none. Nothing was locked or written.`,
-    { name: ctx.name, type: ctx.type, uri: ctx.uri },
-    hint
-  );
-}
-function assertDescriptionLength(description, ctx) {
-  if (description === void 0 || description.length <= 60) return;
-  throw new AbapError(
-    "BAD_INPUT",
-    `${ctx.type} ${ctx.name}: description is ${description.length} characters, longer than SAP's 60-character limit for adtcore:description (t100 SWB_TOOL/18, "Description too long"). Nothing was locked or written.`,
-    { name: ctx.name, type: ctx.type, uri: ctx.uri, length: description.length }
-  );
-}
-function hintAdjustmentStatusIfLikelyCause(e, adjustmentStatus, target) {
-  if (isAbapError(e) && e.code === "ADT_ERROR" && adjustmentStatus !== void 0 && adjustmentStatus !== "adjusted") {
-    const observed = adjustmentStatus === "" ? "empty" : JSON.stringify(adjustmentStatus);
-    const priorHint = e.hint ? `${e.hint} ` : "";
-    throw new AbapError(
-      e.code,
-      e.message,
-      e.details,
-      `${priorHint}UNCONFIRMED HYPOTHESIS (not confirmed by experiment \u2014 see the doc comment on hintAdjustmentStatusIfLikelyCause in src/adt/enhancement-write.ts): ${target.name}'s own adjustmentStatus is ${observed}, not "adjusted". A live failure of this exact operation (deactivating a BAdI implementation) decoded, via T100 reassembly, to "Enhancement <name> must still be adjusted" \u2014 this MAY be the same precondition, but that link is not confirmed. If so, ${target.name} likely needs an upgrade adjustment (SPAU/SPDD) performed outside this tool before this write can succeed; this tool will not set adjustmentStatus itself to force the write through, since doing so would falsely claim an adjustment that was never actually performed.`
-    );
-  }
-  throw e;
-}
-async function putEnhancementDocument(conn, authorized, uri, opts, ctx) {
-  void authorized;
-  if (!hasEnhancementRootDescription(opts.body)) {
-    throw new AbapError(
-      "ENHANCEMENT_DESCRIPTION_REQUIRED",
-      `${ctx.type} ${ctx.name}: refusing to PUT \u2014 the outgoing document's root adtcore:description is missing or empty. SAP's enhancement PUT handler rejects this (HTTP 400 ExceptionInvalidData, SWB_TOOL19 / scr_prop_no_decr, "The description is missing") even when the write has nothing to do with the description. This should have been caught pre-lock; seeing this error instead means that guard was bypassed somehow \u2014 please report it.`,
-      { name: ctx.name, type: ctx.type, uri },
-      `Call abap_enh operation:"write_description" (name:"${ctx.name}", type:"${ctx.type}") to give this object a real description, then retry.`
-    );
-  }
-  return conn.put(uri, opts);
-}
-async function writeEnhancementDescription(conn, gate, target, opts) {
-  if (typeof target.description !== "string") {
-    throw new AbapError(
-      "BAD_INPUT",
-      "description must be a string; use undefined/omit the call to leave it alone. An empty string is a well-formed request but is refused separately, below (ENHANCEMENT_DESCRIPTION_REQUIRED) \u2014 SAP's own PUT handler does not accept an empty root description, so this operation cannot clear one.",
-      { name: target.name, type: target.type }
-    );
-  }
-  const spec = specFor(target.type);
-  if (!spec) {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `${target.type} is not a type this module writes. Supported: ${ENHANCEMENT_WRITE_TYPES.join(", ")}.`,
-      { type: target.type, name: target.name }
-    );
-  }
-  conn.discovery.assertEnhancementCapable(spec.bareCollection, "PUT");
-  const uri = buildEnhancementUri(spec.collection, target.name);
-  const affects = opts.affects;
-  assertDescriptionLength(target.description, { name: target.name, type: target.type, uri });
-  const current = await spec.read(conn, target.name);
-  const packageName = current.data.packageRef?.name ?? "";
-  const masterSystem = current.data.masterSystem;
-  const writeTarget = {
-    type: target.type,
-    name: target.name,
-    uri,
-    packageName,
-    description: target.description,
-    masterSystem
-  };
-  const refusalTarget = {
-    name: writeTarget.name,
-    type: writeTarget.type,
-    uri: writeTarget.uri,
-    packageName: writeTarget.packageName,
-    spec: { label: writeTarget.type }
-  };
-  const intent = enhancementIntentFor(
-    { name: target.name, type: target.type, packageName, masterSystem },
-    affects
-  );
-  const authorized = gate.authorizeIntent("write", intent, writeTarget, { corr: { kind: "unresolved" } });
-  const previousEtag = canonicalEtag(current.xml);
-  if ((current.data.description ?? "") === target.description) {
-    return {
-      target: writeTarget,
-      affects,
-      changed: false,
-      etag: previousEtag,
-      previousEtag,
-      transport: { status: "not-determined", required: false, reason: "the description was already identical, so this call took no lock and ran no transport pre-check." },
-      previousXml: current.xml,
-      putVerified: spec.putVerifiedBy !== void 0
-    };
-  }
-  assertDescriptionWillBePresent(
-    target.description,
-    { name: target.name, type: target.type, uri },
-    "Provide a non-empty description. SAP's enhancement PUT handler does not accept an empty root adtcore:description on this write either \u2014 there is no live-safe way to clear a description through this operation."
-  );
-  if (opts.expectEtag !== void 0 && opts.expectEtag !== previousEtag) {
-    throw new AbapError(
-      "ETAG_CONFLICT",
-      `${target.type} ${target.name} changed since you read it.`,
-      { name: target.name, type: target.type, uri, operation: "write", expectedEtag: opts.expectEtag, actualEtag: previousEtag },
-      "Re-read the object, re-apply your change, and write again with the fresh etag. Nothing was locked and nothing was written."
-    );
-  }
-  const preflightTarget = { uri, name: target.name, type: target.type, packageName };
-  const transportOpts = opts.transport === void 0 ? { corrNr: opts.corrNr, affects } : { transport: opts.transport, gate: opts.gate, corrNr: opts.corrNr, affects };
-  const preflight2 = await preflightCorr(conn, preflightTarget, transportOpts, "U", "write");
-  if (opts.onBeforeImage) {
-    await opts.onBeforeImage({
-      xml: current.xml,
-      target: writeTarget,
-      affects,
-      corrNr: preflight2?.kind === "transport" ? preflight2.corrNr : void 0
-    });
-  }
-  let finalXml = "";
-  let finalEtag = "";
-  let finalTransport = { status: "not-determined", required: false, reason: "the lock response had not been read yet (this value is never returned)." };
-  await conn.withStatefulSession(async (session) => {
-    const outcome = await withRelockRetry({
-      session,
-      uri,
-      // NOT `lockAccept: spec.accept` — sending the document's own media type
-      // as LOCK's Accept header gets a live 406 every time, every type.
-      // Omitting it uses the session's own default Accept, which LOCK
-      // accepts (confirmed live).
-      retryable: enhancementRetryable,
-      reread: async (lock) => {
-        void lock;
-        let body;
-        try {
-          const resp = await conn.get(uri, { headers: { Accept: spec.accept(conn) } });
-          body = resp.body;
-        } catch (e) {
-          if (isAbapError(e)) throw e;
-          throw translateAdtError(e, { operation: "write", uri, name: target.name, type: target.type });
-        }
-        const freshEtag = canonicalEtag(body);
-        if (freshEtag !== previousEtag) {
-          try {
-            await session.unlock(uri);
-          } catch {
-          }
-          throw postLockEtagConflict(refusalTarget, previousEtag, freshEtag);
-        }
-        return body;
-      },
-      rebuild: async (fresh) => patchEnhancementRootAttribute(fresh, "description", target.description),
-      attempt: async (lock, payload) => {
-        const lockTransport = transportFromLock(lock);
-        const corr = corrForMutation(preflight2, lockTransport);
-        if (corr === void 0) {
-          try {
-            await session.unlock(uri);
-          } catch {
-          }
-          throw transportRefusal(refusalTarget, lockTransport, "written", opts.transport !== void 0);
-        }
-        if (corr.kind === "transport" && lockTransport.required && lockTransport.corrNr !== void 0 && lockTransport.corrNr !== "" && lockTransport.corrNr.toUpperCase() !== corr.corrNr.toUpperCase()) {
-          try {
-            await session.unlock(uri);
-          } catch {
-          }
-          throw transportDivergence(refusalTarget, corr.corrNr, lockTransport.corrNr, false, { rolledBack: false });
-        }
-        let resp;
-        try {
-          resp = await putEnhancementDocument(
-            conn,
-            authorized,
-            uri,
-            {
-              headers: { "Content-Type": spec.accept(conn), Accept: spec.accept(conn) },
-              qs: corr.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr.corrNr } : { lockHandle: lock.handle },
-              body: payload
-            },
-            { name: target.name, type: target.type }
-          );
-        } catch (e) {
-          if (isAbapError(e)) throw e;
-          throw translateAdtError(e, { operation: "write", uri, name: target.name, type: target.type });
-        }
-        const putEtag = firstHeader3(resp.headers, "etag");
-        const tinfo = corr.kind === "transport" ? {
-          status: "transport",
-          required: true,
-          corrNr: corr.corrNr,
-          ...lockTransport.corrUser === void 0 ? {} : { corrUser: lockTransport.corrUser },
-          ...lockTransport.corrText === void 0 ? {} : { corrText: lockTransport.corrText }
-        } : lockTransport;
-        return { xml: payload, etag: putEtag, transport: tinfo };
-      }
-    });
-    await session.unlock(uri);
-    finalXml = outcome.xml;
-    finalEtag = outcome.etag ?? canonicalEtag(outcome.xml);
-    finalTransport = outcome.transport;
-  });
-  return {
-    target: writeTarget,
-    affects,
-    changed: true,
-    etag: finalEtag,
-    previousEtag,
-    transport: finalTransport,
-    previousXml: current.xml,
-    xml: finalXml,
-    putVerified: spec.putVerifiedBy !== void 0
-  };
-}
-function resolveBadiImplementationEntry(badiData, implName, containerName, uri) {
-  const entries = badiData.implementations;
-  const knownEntries = entries.map((i) => i.name);
-  if (implName !== void 0) {
-    const entry = entries.find((i) => i.name === implName);
-    if (!entry) {
-      throw new AbapError(
-        "NOT_FOUND",
-        `${containerName} has no <enho:badiImplementation enho:name="${implName}"> entry in its own document \u2014 nothing to activate or deactivate.`,
-        { name: containerName, implName, type: "ENHO/XH", uri, knownEntries }
-      );
-    }
-    return entry;
-  }
-  if (entries.length === 1) return entries[0];
-  if (entries.length === 0) {
-    throw new AbapError(
-      "NOT_FOUND",
-      `${containerName} has no <enho:badiImplementation> entries in its own document \u2014 nothing to activate or deactivate.`,
-      { name: containerName, type: "ENHO/XH", uri, knownEntries }
-    );
-  }
-  throw new AbapError(
-    "BAD_INPUT",
-    `${containerName} has ${entries.length} <enho:badiImplementation> entries (${knownEntries.join(", ")}) \u2014 spec.implName is required to say which one to activate or deactivate; omitting it is only safe when there is exactly one.`,
-    { name: containerName, type: "ENHO/XH", uri, knownEntries }
-  );
-}
-async function setBadiImplementationActive(conn, gate, target, opts) {
-  const spec = specFor("ENHO/XH");
-  conn.discovery.assertEnhancementCapable(spec.bareCollection, "PUT");
-  const uri = buildEnhancementUri(spec.collection, target.name);
-  const affects = opts.affects;
-  assertDescriptionLength(target.description, { name: target.name, type: "ENHO/XH", uri });
-  const current = await spec.read(conn, target.name);
-  const badiData = current.data;
-  const packageName = badiData.packageRef?.name ?? "";
-  const masterSystem = badiData.masterSystem;
-  const adjustmentStatus = badiData.adjustmentStatus;
-  const entry = resolveBadiImplementationEntry(badiData, target.implName, target.name, uri);
-  const activationTarget = {
-    type: "ENHO/XH",
-    name: target.name,
-    implName: entry.name,
-    uri,
-    packageName,
-    active: target.active,
-    masterSystem
-  };
-  const writeTarget = {
-    type: "ENHO/XH",
-    name: target.name,
-    uri,
-    packageName,
-    description: badiData.description ?? "",
-    masterSystem
-  };
-  const refusalTarget = {
-    name: activationTarget.name,
-    type: activationTarget.type,
-    uri: activationTarget.uri,
-    packageName: activationTarget.packageName,
-    spec: { label: activationTarget.type }
-  };
-  const intent = enhancementIntentFor(
-    { name: target.name, type: "ENHO/XH", packageName, masterSystem },
-    affects
-  );
-  const authorized = gate.authorizeIntent("write", intent, writeTarget, { corr: { kind: "unresolved" } });
-  const previousEtag = canonicalEtag(current.xml);
-  const existingDescription = badiData.description;
-  let nextDescription = existingDescription;
-  if (target.description !== void 0) {
-    if (existingDescription !== void 0 && existingDescription !== "" && existingDescription !== target.description) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `${target.name} already has a description ("${existingDescription}") \u2014 spec.description ("${target.description}") differs and would silently overwrite it. spec.description on set_impl_active is only accepted when the object currently has none.`,
-        { name: target.name, type: "ENHO/XH", uri, existingDescription, suppliedDescription: target.description }
-      );
-    }
-    nextDescription = target.description;
-  }
-  const injectingDescription = target.description !== void 0 && (existingDescription === void 0 || existingDescription === "");
-  if (entry.isActive === target.active && !injectingDescription) {
-    return {
-      target: activationTarget,
-      affects,
-      changed: false,
-      etag: previousEtag,
-      previousEtag,
-      transport: {
-        status: "not-determined",
-        required: false,
-        reason: "isActive already matched the requested value, so this call took no lock and ran no transport pre-check."
-      },
-      previousXml: current.xml,
-      putVerified: spec.putVerifiedBy !== void 0
-    };
-  }
-  assertDescriptionWillBePresent(
-    nextDescription,
-    { name: target.name, type: "ENHO/XH", uri },
-    `${target.name} has no description of its own, and set_impl_active does not invent one. Call abap_enh operation:"write_description" (name:"${target.name}", type:"ENHO/XH") first, then retry \u2014 or pass spec.description in this same call (only accepted when the object currently has none, as it does now).`
-  );
-  if (opts.expectEtag !== void 0 && opts.expectEtag !== previousEtag) {
-    throw new AbapError(
-      "ETAG_CONFLICT",
-      `ENHO/XH ${target.name} changed since you read it.`,
-      { name: target.name, type: "ENHO/XH", uri, operation: "write", expectedEtag: opts.expectEtag, actualEtag: previousEtag },
-      "Re-read the object, re-apply your change, and write again with the fresh etag. Nothing was locked and nothing was written."
-    );
-  }
-  const preflightTarget = { uri, name: target.name, type: "ENHO/XH", packageName };
-  const transportOpts = opts.transport === void 0 ? { corrNr: opts.corrNr, affects } : { transport: opts.transport, gate: opts.gate, corrNr: opts.corrNr, affects };
-  const preflight2 = await preflightCorr(conn, preflightTarget, transportOpts, "U", "write");
-  if (opts.onBeforeImage) {
-    await opts.onBeforeImage({
-      xml: current.xml,
-      target: writeTarget,
-      affects,
-      corrNr: preflight2?.kind === "transport" ? preflight2.corrNr : void 0
-    });
-  }
-  let finalXml = "";
-  let finalEtag = "";
-  let finalTransport = {
-    status: "not-determined",
-    required: false,
-    reason: "the lock response had not been read yet (this value is never returned)."
-  };
-  try {
-    await conn.withStatefulSession(async (session) => {
-      const outcome = await withRelockRetry({
-        session,
-        uri,
-        // See writeEnhancementDescription's identical comment: no `lockAccept`
-        // override — the document's own media type gets a live 406 on LOCK.
-        retryable: enhancementRetryable,
-        reread: async (lock) => {
-          void lock;
-          let body;
-          try {
-            const resp = await conn.get(uri, { headers: { Accept: spec.accept(conn) } });
-            body = resp.body;
-          } catch (e) {
-            if (isAbapError(e)) throw e;
-            throw translateAdtError(e, { operation: "write", uri, name: target.name, type: "ENHO/XH" });
-          }
-          const freshEtag = canonicalEtag(body);
-          if (freshEtag !== previousEtag) {
-            try {
-              await session.unlock(uri);
-            } catch {
-            }
-            throw postLockEtagConflict(refusalTarget, previousEtag, freshEtag);
-          }
-          return body;
-        },
-        rebuild: async (fresh) => {
-          const flipped = patchBadiImplementationActive(fresh, entry.name, target.active);
-          return injectingDescription ? patchEnhancementRootAttribute(flipped, "description", nextDescription) : flipped;
-        },
-        attempt: async (lock, payload) => {
-          const lockTransport = transportFromLock(lock);
-          const corr = corrForMutation(preflight2, lockTransport);
-          if (corr === void 0) {
-            try {
-              await session.unlock(uri);
-            } catch {
-            }
-            throw transportRefusal(refusalTarget, lockTransport, "written", opts.transport !== void 0);
-          }
-          if (corr.kind === "transport" && lockTransport.required && lockTransport.corrNr !== void 0 && lockTransport.corrNr !== "" && lockTransport.corrNr.toUpperCase() !== corr.corrNr.toUpperCase()) {
-            try {
-              await session.unlock(uri);
-            } catch {
-            }
-            throw transportDivergence(refusalTarget, corr.corrNr, lockTransport.corrNr, false, { rolledBack: false });
-          }
-          let resp;
-          try {
-            resp = await putEnhancementDocument(
-              conn,
-              authorized,
-              uri,
-              {
-                headers: { "Content-Type": spec.accept(conn), Accept: spec.accept(conn) },
-                qs: corr.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr.corrNr } : { lockHandle: lock.handle },
-                body: payload
-              },
-              { name: target.name, type: "ENHO/XH" }
-            );
-          } catch (e) {
-            if (isAbapError(e)) throw e;
-            throw translateAdtError(e, { operation: "write", uri, name: target.name, type: "ENHO/XH" });
-          }
-          const putEtag = firstHeader3(resp.headers, "etag");
-          const tinfo = corr.kind === "transport" ? {
-            status: "transport",
-            required: true,
-            corrNr: corr.corrNr,
-            ...lockTransport.corrUser === void 0 ? {} : { corrUser: lockTransport.corrUser },
-            ...lockTransport.corrText === void 0 ? {} : { corrText: lockTransport.corrText }
-          } : lockTransport;
-          return { xml: payload, etag: putEtag, transport: tinfo };
-        }
-      });
-      await session.unlock(uri);
-      finalXml = outcome.xml;
-      finalEtag = outcome.etag ?? canonicalEtag(outcome.xml);
-      finalTransport = outcome.transport;
-    });
-  } catch (e) {
-    hintAdjustmentStatusIfLikelyCause(e, adjustmentStatus, { name: target.name });
-  }
-  return {
-    target: activationTarget,
-    affects,
-    changed: true,
-    etag: finalEtag,
-    previousEtag,
-    transport: finalTransport,
-    previousXml: current.xml,
-    xml: finalXml,
-    putVerified: spec.putVerifiedBy !== void 0
-  };
-}
-async function deleteEnhancementDocument(conn, authorized, uri, opts) {
-  void authorized;
-  return conn.del(uri, opts);
-}
-async function deleteEnhancementObject(conn, gate, target, opts) {
-  const spec = specFor(target.type);
-  if (!spec) {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `${target.type} is not a type this module deletes. Supported: ${ENHANCEMENT_WRITE_TYPES.join(", ")}.`,
-      { type: target.type, name: target.name }
-    );
-  }
-  if (opts.allowEnhancementDelete !== true) {
-    const why = explainDeniedCapability("allowEnhancementDelete", opts.abapMode);
-    throw new AbapError(
-      "ENHANCEMENT_DISABLED",
-      `Deleting an existing enhancement object is disabled. ${why.cause}`,
-      {
-        type: target.type,
-        name: target.name,
-        allowEnhancementDelete: opts.allowEnhancementDelete,
-        // Named so a reader of the structured payload can tell which layer
-        // decided without parsing the sentence above.
-        decidedBy: why.decidedBy,
-        ...opts.abapMode !== void 0 ? { abapMode: opts.abapMode } : {}
-      },
-      why.remediation
-    );
-  }
-  conn.discovery.assertEnhancementCapable(spec.bareCollection, "DELETE");
-  const uri = buildEnhancementUri(spec.collection, target.name);
-  const affects = opts.affects;
-  const current = await spec.read(conn, target.name);
-  const packageName = current.data.packageRef?.name ?? "";
-  const masterSystem = current.data.masterSystem;
-  const deleteTarget = { type: target.type, name: target.name, uri, packageName, masterSystem };
-  const refusalTarget = {
-    name: deleteTarget.name,
-    type: deleteTarget.type,
-    uri: deleteTarget.uri,
-    packageName: deleteTarget.packageName,
-    spec: { label: deleteTarget.type }
-  };
-  if (target.type === "ENHO/XH") {
-    const badiData = current.data;
-    const unsafe = badiData.implementations.filter((impl) => impl.isActive !== false);
-    if (unsafe.length > 0) {
-      throw new AbapError(
-        "ENHANCEMENT_ACTIVE_IMPLEMENTATION",
-        `${target.name} has ${unsafe.length} BAdI implementation entr${unsafe.length === 1 ? "y" : "ies"} that ${unsafe.length === 1 ? "is" : "are"} active or not confirmably inactive (${unsafe.map((i) => `${i.name}: isActive=${i.isActive === void 0 ? "unknown" : String(i.isActive)}`).join(", ")}) \u2014 deleting this object would silently switch off live business logic with no error and no log (H8). This refusal has NO override: not ABAP_ALLOW_ENHANCEMENT_DELETE, not any other flag.`,
-        {
-          type: target.type,
-          name: target.name,
-          implementations: badiData.implementations.map((i) => ({ name: i.name, isActive: i.isActive }))
-        },
-        `Deactivate every implementation entry first \u2014 abap_enh operation:"set_impl_active" (name: "${target.name}", the object being deleted \u2014 NOT an entry's own name; spec.implName: one of the names listed in this refusal's own details.implementations above; spec.active: false) flips enho:isActive via the same PUT mechanism write_description uses (putVerified:false for ENHO/XH, same as every other write against this type) \u2014 repeat once per entry listed above, then re-read the object to confirm isActive=false on all entries before deleting again; this refusal does not lift automatically. If the object has no adtcore:description at all, that set_impl_active call will itself refuse first with ENHANCEMENT_DESCRIPTION_REQUIRED \u2014 SAP rejects every enhoxh/enhoxhh/enhsxs PUT without one, even one only flipping isActive; call operation:"write_description" once beforehand, or add spec.description to the same set_impl_active call (accepted only when the object currently has none), then retry.`
-      );
-    }
-  }
-  const intent = enhancementIntentFor(
-    { name: target.name, type: target.type, packageName, masterSystem },
-    affects
-  );
-  const authorized = gate.authorizeIntent("delete", intent, deleteTarget, { corr: { kind: "unresolved" } });
-  const previousEtag = canonicalEtag(current.xml);
-  if (opts.expectEtag !== void 0 && opts.expectEtag !== previousEtag) {
-    throw new AbapError(
-      "ETAG_CONFLICT",
-      `${target.type} ${target.name} changed since you read it.`,
-      { name: target.name, type: target.type, uri, operation: "delete", expectedEtag: opts.expectEtag, actualEtag: previousEtag },
-      "Re-read the object, confirm it is still the one you meant to delete, and delete again with the fresh etag. Nothing was locked and nothing was deleted."
-    );
-  }
-  const preflightTarget = { uri, name: target.name, type: target.type, packageName };
-  const transportOpts = opts.transport === void 0 ? { corrNr: opts.corrNr, affects } : { transport: opts.transport, gate: opts.gate, corrNr: opts.corrNr, affects };
-  const preflight2 = await preflightCorr(conn, preflightTarget, transportOpts, "U", "delete");
-  if (opts.onBeforeImage) {
-    await opts.onBeforeImage({
-      xml: current.xml,
-      target: deleteTarget,
-      affects,
-      corrNr: preflight2?.kind === "transport" ? preflight2.corrNr : void 0
-    });
-  }
-  let finalTransport = { status: "not-determined", required: false, reason: "the lock response had not been read yet (this value is never returned)." };
-  await conn.withStatefulSession(async (session) => {
-    const outcome = await withRelockRetry({
-      session,
-      uri,
-      // See writeEnhancementDescription's identical comment: no `lockAccept`
-      // override — the document's own media type gets a live 406 on LOCK.
-      retryable: enhancementRetryable,
-      reread: async (lock) => {
-        void lock;
-        let body;
-        try {
-          const resp = await conn.get(uri, { headers: { Accept: spec.accept(conn) } });
-          body = resp.body;
-        } catch (e) {
-          if (isAbapError(e)) throw e;
-          throw translateAdtError(e, { operation: "delete", uri, name: target.name, type: target.type });
-        }
-        const freshEtag = canonicalEtag(body);
-        if (freshEtag !== previousEtag) {
-          try {
-            await session.unlock(uri);
-          } catch {
-          }
-          throw postLockEtagConflict(refusalTarget, previousEtag, freshEtag);
-        }
-        return body;
-      },
-      // No payload to build for a DELETE — `withRelockRetry` still requires the
-      // slot, so this is the identity function; `attempt` below never reads it.
-      rebuild: async (fresh) => fresh,
-      attempt: async (lock, payload) => {
-        void payload;
-        const lockTransport = transportFromLock(lock);
-        const corr = corrForMutation(preflight2, lockTransport);
-        if (corr === void 0) {
-          try {
-            await session.unlock(uri);
-          } catch {
-          }
-          throw transportRefusal(refusalTarget, lockTransport, "deleted", opts.transport !== void 0);
-        }
-        if (corr.kind === "transport" && lockTransport.required && lockTransport.corrNr !== void 0 && lockTransport.corrNr !== "" && lockTransport.corrNr.toUpperCase() !== corr.corrNr.toUpperCase()) {
-          try {
-            await session.unlock(uri);
-          } catch {
-          }
-          throw transportDivergence(refusalTarget, corr.corrNr, lockTransport.corrNr, false, { rolledBack: false });
-        }
-        try {
-          await deleteEnhancementDocument(conn, authorized, uri, {
-            qs: corr.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr.corrNr } : { lockHandle: lock.handle }
-          });
-        } catch (e) {
-          if (isAbapError(e)) throw e;
-          throw translateAdtError(e, { operation: "delete", uri, name: target.name, type: target.type });
-        }
-        const tinfo = corr.kind === "transport" ? {
-          status: "transport",
-          required: true,
-          corrNr: corr.corrNr,
-          ...lockTransport.corrUser === void 0 ? {} : { corrUser: lockTransport.corrUser },
-          ...lockTransport.corrText === void 0 ? {} : { corrText: lockTransport.corrText }
-        } : lockTransport;
-        return { transport: tinfo };
-      }
-    });
-    session.forgetLock(uri);
-    finalTransport = outcome.transport;
-  });
-  return {
-    target: deleteTarget,
-    affects,
-    deleted: true,
-    previousEtag,
-    previousXml: current.xml,
-    transport: finalTransport
-  };
-}
-
-// src/tools/enh.ts
 init_transports();
 
 // src/adt/enhancement-bridge.ts
@@ -160002,7 +161254,7 @@ async function discoverHookAnchors(conn, host) {
 function escapeXmlAttr7(value) {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
-function firstHeader4(headers, name) {
+function firstHeader5(headers, name) {
   const lower = name.toLowerCase();
   for (const k of Object.keys(headers)) {
     if (k.toLowerCase() === lower) {
@@ -160087,8 +161339,8 @@ async function createHookImplementation(conn, gate, params) {
   const lowerName = params.name.trim().toLowerCase();
   const uri = buildEnhancementUri(ENHOXHH_COLLECTION, lowerName);
   const upperName = params.name.trim().toUpperCase();
-  const etag = firstHeader4(resp.headers, "etag");
-  const location = firstHeader4(resp.headers, "location");
+  const etag = firstHeader5(resp.headers, "etag");
+  const location = firstHeader5(resp.headers, "location");
   let activation;
   if (params.activate) {
     activation = await activateObject(conn, { name: upperName, uri });
@@ -160251,7 +161503,7 @@ function buildEnhDeleteResponse(del, maxChars) {
       affects: `${del.affects.name} (${del.affects.packageName})`
     },
     notes: [
-      "Irreversible: abapsmith has no undo for an enhancement delete (see undoBlocker in src/adt/undo.ts). The journal entry for this delete is recorded but marked irreversible."
+      "Irreversible: a deleted enhancement object cannot be recreated from its captured XML. The journal entry for this delete is recorded, with that reason as its undoBlocker."
     ],
     maxChars
   }).text;
@@ -160312,9 +161564,14 @@ async function runEnhSetActiveOperation(deps, input) {
           existedBefore: true,
           beforeCapture: "captured",
           beforeSource: img.xml,
+          beforeKind: "enh-impl-active",
+          // The flipped implementation's name: the caller's own `implName` if it gave
+          // one, else the sole entry in the before-image XML (set_impl_active refuses
+          // an ambiguous "which one" earlier when there is more than one, so at this
+          // point there is exactly one to pick). No result to fall back to here:
+          // begin() runs before setBadiImplementationActive, via onBeforeImage.
+          implName: implName ?? parseBadiImplementation(img.xml).implementations[0]?.name,
           ...img.corrNr !== void 0 ? { corrNr: img.corrNr } : {},
-          // undoBlocker() refuses EVERY enhancement type unconditionally, regardless of reversibility.
-          irreversible: true,
           // Needed for systemMismatchBlocker's strong SID+origin+client comparison (src/adt/undo.ts);
           // without it, the SID-only fallback can't tell two boxes sharing a SID apart.
           systemKey: systemKey(conn.cfg),
@@ -160466,6 +161723,19 @@ function buildEnhCreateResponse(operation, objectName, run, transcript, postActi
     maxChars
   }).text;
 }
+async function checkAbsentBeforeCreate(read, ctx) {
+  try {
+    await read();
+  } catch (e) {
+    if (e instanceof AbapError && e.code === "NOT_FOUND") return "confirmed-absent";
+    return "failed";
+  }
+  throw new AbapError(
+    "CHECK_FAILED",
+    `${ctx.type} ${ctx.name} already exists \u2014 create cannot run over it.`,
+    { name: ctx.name, type: ctx.type }
+  );
+}
 async function runEnhCreateOperation(deps, operation, input) {
   const name = input.name;
   const spec = input.spec;
@@ -160486,7 +161756,7 @@ async function runEnhCreateOperation(deps, operation, input) {
         const { result, settle } = await withJournalledMutation(
           deps.journal,
           {
-            begin: () => ({
+            begin: (beforeCapture) => ({
               operation: "create",
               object: {
                 ...journalRef({
@@ -160499,13 +161769,17 @@ async function runEnhCreateOperation(deps, operation, input) {
                 affects
               },
               existedBefore: false,
-              irreversible: true,
+              beforeCapture,
               systemKey: systemKey(conn.cfg),
               tool: "abap_enh"
             })
           },
           async (onBeforeImage) => {
-            await onBeforeImage(void 0);
+            const beforeCapture = await checkAbsentBeforeCreate(() => readEnhancementSpot(conn, spotName), {
+              name: spotName,
+              type: "ENHS/XS"
+            });
+            await onBeforeImage(beforeCapture);
             return createEnhancementSpot(conn, deps.safety, {
               spotName,
               description,
@@ -160558,6 +161832,7 @@ async function runEnhCreateOperation(deps, operation, input) {
               existedBefore: true,
               beforeCapture: "failed",
               irreversible: true,
+              undoBlocker: "abap_enh has no undo for add_badi_def: the spot's previous definition list is not recorded. Remove the BAdI definition in SE18.",
               systemKey: systemKey(conn.cfg),
               tool: "abap_enh"
             })
@@ -160623,6 +161898,7 @@ async function runEnhCreateOperation(deps, operation, input) {
               existedBefore: true,
               beforeCapture: "failed",
               irreversible: true,
+              undoBlocker: "abap_enh has no undo for add_filter_def: the spot's previous filter definition list is not recorded. Remove the filter definition in SE18/SE19.",
               systemKey: systemKey(conn.cfg),
               tool: "abap_enh"
             })
@@ -160686,20 +161962,24 @@ async function runEnhCreateOperation(deps, operation, input) {
         const { result, settle } = await withJournalledMutation(
           deps.journal,
           {
-            begin: () => ({
+            begin: (beforeCapture) => ({
               operation: "create",
               object: {
                 ...journalRef({ name: enhName, type: "ENHO/XH", uri: implUri(enhName), packageName, description }),
                 affects
               },
               existedBefore: false,
-              irreversible: true,
+              beforeCapture,
               systemKey: systemKey(conn.cfg),
               tool: "abap_enh"
             })
           },
           async (onBeforeImage) => {
-            await onBeforeImage(void 0);
+            const beforeCapture = await checkAbsentBeforeCreate(() => readBadiImplementation(conn, enhName), {
+              name: enhName,
+              type: "ENHO/XH"
+            });
+            await onBeforeImage(beforeCapture);
             return createBadiImplementation(conn, deps.safety, {
               enhName,
               spotName,
@@ -160780,6 +162060,7 @@ async function runEnhCreateOperation(deps, operation, input) {
               existedBefore: true,
               beforeCapture: "failed",
               irreversible: true,
+              undoBlocker: "abap_enh has no undo for set_filter_values: the implementation's previous filter values are not recorded. Set them back with abap_enh set_filter_values, or in SE19.",
               systemKey: systemKey(conn.cfg),
               tool: "abap_enh"
             })
@@ -160789,6 +162070,9 @@ async function runEnhCreateOperation(deps, operation, input) {
             const joint = await withJournalledMutation(
               deps.journal,
               {
+                // No `irreversible` here: an `operation: "activate"` entry's undo delegates to
+                // the preceding write for the same object (writeTimeUndoability, src/undoability.ts),
+                // which for the spot is history-only anyway — this flag would be inert either way.
                 begin: () => ({
                   operation: "activate",
                   object: {
@@ -160797,7 +162081,6 @@ async function runEnhCreateOperation(deps, operation, input) {
                   },
                   existedBefore: true,
                   beforeCapture: "failed",
-                  irreversible: true,
                   systemKey: systemKey(conn.cfg),
                   tool: "abap_enh"
                 })
@@ -160992,7 +162275,6 @@ async function runEnhHookOperation(deps, operation, input) {
           },
           existedBefore: false,
           beforeCapture: "confirmed-absent",
-          irreversible: true,
           systemKey: systemKey(conn.cfg),
           tool: "abap_enh"
         })
@@ -161017,7 +162299,8 @@ async function runEnhHookOperation(deps, operation, input) {
     );
     await settle({
       outcome: "succeeded",
-      activation: hookResult.activation ? { attempted: true, activated: hookResult.activation.activated } : { attempted: false }
+      activation: hookResult.activation ? { attempted: true, activated: hookResult.activation.activated } : { attempted: false },
+      ...hookResult.location !== void 0 ? { createdFresh: { status: 201, location: hookResult.location } } : {}
     });
     return hookResult;
   });
@@ -161075,6 +162358,7 @@ async function runEnhDeleteOperation(deps, input) {
           beforeSource: img.xml,
           ...img.corrNr !== void 0 ? { corrNr: img.corrNr } : {},
           irreversible: true,
+          undoBlocker: "A deleted enhancement object cannot be recreated from its XML; recreate it with abap_enh.",
           systemKey: systemKey(conn.cfg),
           tool: "abap_enh"
         })
@@ -161198,6 +162482,7 @@ function registerEnhancementTools(mcp, deps) {
                 beforeSource: img.xml,
                 ...img.corrNr !== void 0 ? { corrNr: img.corrNr } : {},
                 irreversible: true,
+                undoBlocker: "abap_enh has no undo for write_description. The previous XML is kept as this entry's before-image; set the description back with abap_enh write_description.",
                 systemKey: systemKey(conn.cfg),
                 tool: "abap_enh"
               })

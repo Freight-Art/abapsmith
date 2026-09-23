@@ -30,13 +30,17 @@ import {
   parseHeadings,
   parseSelections,
   parseSymbols,
+  parseTextPoolImage,
   readTextPool,
+  textPoolImage,
   textPoolResourceType,
   textPoolUri,
   textPoolWriteSummary,
   writeTextPool,
+  type TextPool,
   type TextPoolWriteResult,
 } from "../src/adt/text-pool.js";
+import { TEXT_POOL_JOURNAL_NOTE } from "../src/tools/write-text-pool.js";
 import { SafetyGate } from "../src/safety.js";
 import { specForType } from "../src/adt/types.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
@@ -553,6 +557,111 @@ describe("textPoolWriteSummary", () => {
   });
 });
 
+describe("textPoolImage / parseTextPoolImage (issue #200 before/after image)", () => {
+  it("round-trips a full PROG/P pool (symbols, selection texts, headings)", () => {
+    const pool: TextPool = {
+      symbols: { "001": "Hello" },
+      selectionTexts: { P_X: "Parameter X" },
+      headings: { listHeader: "Header", columnHeaders: ["A", "B"] },
+    };
+    const image = textPoolImage(pool, "PROG/P");
+    expect(JSON.parse(image)).toEqual({
+      symbols: { "001": "Hello" },
+      selectionTexts: { P_X: "Parameter X" },
+      headings: { listHeader: "Header", columnHeaders: ["A", "B"] },
+    });
+    expect(parseTextPoolImage(image, "PROG/P")).toEqual(pool);
+  });
+
+  it("CLAS/OC images carry symbols only: selectionTexts/headings never appear, even if the pool has them", () => {
+    const pool: TextPool = {
+      symbols: { "001": "Hello" },
+      selectionTexts: { P_X: "ignored for CLAS/OC" },
+      headings: { listHeader: "ignored too" },
+    };
+    const image = textPoolImage(pool, "CLAS/OC");
+    expect(JSON.parse(image)).toEqual({ symbols: { "001": "Hello" } });
+    expect(parseTextPoolImage(image, "CLAS/OC")).toEqual({
+      symbols: { "001": "Hello" },
+      selectionTexts: {},
+      headings: {},
+    });
+  });
+
+  it("round-trips a FUGR/F pool the same way as PROG/P (selections+headings)", () => {
+    const pool: TextPool = {
+      symbols: { "001": "Hi" },
+      selectionTexts: { P_Y: "Parameter Y" },
+      headings: { listHeader: "FG header", columnHeaders: [] },
+    };
+    const image = textPoolImage(pool, "FUGR/F");
+    expect(parseTextPoolImage(image, "FUGR/F")).toEqual(pool);
+  });
+
+  it("an undefined pool canonicalises to an all-empty image, for every text-pool type", () => {
+    expect(JSON.parse(textPoolImage(undefined, "PROG/P"))).toEqual({
+      symbols: {},
+      selectionTexts: {},
+      headings: { listHeader: "", columnHeaders: [] },
+    });
+    expect(JSON.parse(textPoolImage(undefined, "CLAS/OC"))).toEqual({ symbols: {} });
+    expect(JSON.parse(textPoolImage(undefined, "FUGR/F"))).toEqual({
+      symbols: {},
+      selectionTexts: {},
+      headings: { listHeader: "", columnHeaders: [] },
+    });
+  });
+
+  it("keys are canonicalised (uppercased, then sorted), so key case/order never affects the image", () => {
+    const lower: TextPool = {
+      symbols: { b02: "second", a01: "first" },
+      selectionTexts: { p_b: "B", p_a: "A" },
+      headings: {},
+    };
+    const mixedOrder: TextPool = {
+      symbols: { A01: "first", B02: "second" },
+      selectionTexts: { P_A: "A", P_B: "B" },
+      headings: {},
+    };
+    expect(textPoolImage(lower, "PROG/P")).toBe(textPoolImage(mixedOrder, "PROG/P"));
+    expect(JSON.parse(textPoolImage(lower, "PROG/P")).symbols).toEqual({ A01: "first", B02: "second" });
+  });
+
+  it("parseTextPoolImage throws BAD_INPUT on malformed JSON", () => {
+    try {
+      parseTextPoolImage("{not json", "PROG/P");
+      expect.unreachable("should have thrown");
+    } catch (e) {
+      expect(isAbapError(e)).toBe(true);
+      expect((e as AbapError).code).toBe("BAD_INPUT");
+      expect((e as AbapError).message).toContain("not valid JSON");
+    }
+  });
+
+  it("parseTextPoolImage throws BAD_INPUT when the top level is not a JSON object", () => {
+    for (const bad of ["[]", "42", '"a string"', "null"]) {
+      expect(() => parseTextPoolImage(bad, "PROG/P")).toThrowError(/must be a JSON object/);
+    }
+  });
+
+  it("parseTextPoolImage throws BAD_INPUT when symbols is not an object of strings", () => {
+    expect(() => parseTextPoolImage('{"symbols":"nope"}', "PROG/P")).toThrowError(/"symbols" must be an object/);
+    expect(() => parseTextPoolImage('{"symbols":{"001":5}}', "PROG/P")).toThrowError(/"symbols.001" must be a string/);
+  });
+
+  it("parseTextPoolImage throws BAD_INPUT on a malformed headings object (PROG/P and FUGR/F only)", () => {
+    expect(() =>
+      parseTextPoolImage('{"symbols":{},"selectionTexts":{},"headings":"nope"}', "PROG/P"),
+    ).toThrowError(/"headings" must be an object/);
+    expect(() =>
+      parseTextPoolImage('{"symbols":{},"selectionTexts":{},"headings":{"listHeader":5}}', "PROG/P"),
+    ).toThrowError(/"headings.listHeader" must be a string/);
+    expect(() =>
+      parseTextPoolImage('{"symbols":{},"selectionTexts":{},"headings":{"columnHeaders":"nope"}}', "PROG/P"),
+    ).toThrowError(/"headings.columnHeaders" must be an array of strings/);
+  });
+});
+
 describe("readTextPool", () => {
   it("three GETs (symbols, selections, headings), merges into one TextPool (real zas_txt182/rsparam fixtures)", async () => {
     const calls: Array<{ uri: string; headers?: Record<string, string> }> = [];
@@ -625,7 +734,7 @@ describe("readTextPool", () => {
 });
 
 describe("abapWrite — text_pool without source, on an existing PROG/P (src/tools/write.ts)", () => {
-  it("writes only the text pool, returns text_pool:/text_pool_activated: header fields and a journalled-irreversible note", async () => {
+  it("writes only the text pool, returns text_pool:/text_pool_activated: header fields and the before-image journal note (issue #200)", async () => {
     const { conn } = await connected((r) => {
       if (r.url === TEXT_URI && r.method === "GET" && !r.qs._action) return resp(200, ZAS_DESCRIPTOR, OK_XML);
       if (r.url === TEXT_URI && r.qs._action === "LOCK") return resp(200, LOCK_XML(), OK_XML);
@@ -642,10 +751,15 @@ describe("abapWrite — text_pool without source, on an existing PROG/P (src/too
     const res = await abapWrite(conn, input, 20_000, DEFAULT_GATE);
     expect(res.text).toMatch(/^text_pool: symbols 1, selection_texts 0 \(EN\)$/m);
     expect(res.text).toMatch(/^text_pool_activated: yes$/m);
-    expect(res.text).toContain("journalled as an irreversible update entry");
+    expect(res.text).toContain(TEXT_POOL_JOURNAL_NOTE);
+    expect(res.text).not.toContain("irreversible");
   });
 
-  it("records an irreversible `update` journal entry on the PROG/PX textelements object (issue #178)", async () => {
+  it("records a failed-capture `update` journal entry when the before-read is unrouted: undoable false, no irreversible flag (issue #200)", async () => {
+    // This fixture only routes the descriptor GET/LOCK/UNLOCK/symbols-PUT/activation, not
+    // GET .../source/symbols|selections|headings — so writeTextPoolJournalled's before-read
+    // (and its read-back after the write) both fail with "unrouted request", exercising the
+    // read-failure path: beforeCapture "failed" + an explicit undoBlocker, write still happens.
     const dir = await mkdtemp(join(tmpdir(), "abapsmith-text-pool-journal-"));
     try {
       const journal = new Journal({ dir, enabled: true, maxEntries: 200, maxAgeDays: 30 }, "A4H");
@@ -667,8 +781,60 @@ describe("abapWrite — text_pool without source, on an existing PROG/P (src/too
       expect(entries).toHaveLength(1);
       expect(entries[0].operation).toBe("update");
       expect(entries[0].object.type).toBe("PROG/PX");
-      expect(entries[0].irreversible).toBe(true);
+      expect(entries[0].irreversible).toBeUndefined();
+      expect(entries[0].beforeCapture).toBe("failed");
+      expect(entries[0].beforeKind).toBeUndefined();
+      expect(entries[0].undoable).toBe(false);
+      expect(entries[0].undoBlocker).toContain("could not be read");
       expect(entries[0].outcome).toBe("succeeded");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("records a captured `update` journal entry when the before/after reads succeed: beforeKind text-pool, undoable true (issue #200)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "abapsmith-text-pool-journal-"));
+    try {
+      const journal = new Journal({ dir, enabled: true, maxEntries: 200, maxAgeDays: 30 }, "A4H");
+      let symbolsGetCount = 0;
+      const OLD_SYMBOLS = buildSymbolsBody({ "001": "Old" });
+      const NEW_SYMBOLS = buildSymbolsBody({ "001": "Hello" });
+      const { conn } = await connected((r) => {
+        if (r.url === TEXT_URI && r.method === "GET" && !r.qs._action) return resp(200, ZAS_DESCRIPTOR, OK_XML);
+        if (r.url === TEXT_URI && r.qs._action === "LOCK") return resp(200, LOCK_XML(), OK_XML);
+        if (r.url === TEXT_URI && r.qs._action === "UNLOCK") return resp(200, "", OK_TEXT);
+        if (r.url === `${TEXT_URI}/source/symbols` && r.method === "GET") {
+          symbolsGetCount += 1;
+          return resp(200, symbolsGetCount === 1 ? OLD_SYMBOLS : NEW_SYMBOLS);
+        }
+        if (r.url === `${TEXT_URI}/source/selections` && r.method === "GET") return resp(200, "");
+        if (r.url === `${TEXT_URI}/source/headings` && r.method === "GET") return resp(200, "");
+        if (r.url === `${TEXT_URI}/source/symbols` && r.method === "PUT") return resp(200, "", OK_TEXT);
+        if (r.url.includes("/activation")) return resp(200, "", OK_TEXT);
+        return undefined;
+      });
+      const input = WriteInput.parse({
+        object: REPORT,
+        type: "PROG/P",
+        text_pool: { symbols: { "001": "Hello" } },
+      });
+      await abapWrite(conn, input, 20_000, DEFAULT_GATE, journal);
+      const entries = await journal.list();
+      expect(entries).toHaveLength(1);
+      const entry = entries[0];
+      expect(entry.irreversible).toBeUndefined();
+      expect(entry.beforeCapture).toBe("captured");
+      expect(entry.beforeKind).toBe("text-pool");
+      expect(entry.undoable).toBe(true);
+      expect(entry.undoBlocker).toBe("");
+      const before = await journal.beforeImage(entry);
+      expect(before).toBe(
+        textPoolImage({ symbols: { "001": "Old" }, selectionTexts: {}, headings: {} }, "PROG/P"),
+      );
+      const after = await journal.afterImage(entry);
+      expect(after).toBe(
+        textPoolImage({ symbols: { "001": "Hello" }, selectionTexts: {}, headings: {} }, "PROG/P"),
+      );
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
