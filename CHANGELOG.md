@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.35] - 2026-09-23
+
 ### Added
 
 - abap_debug `set_value` changes a simple variable, structure component or table cell at a stop in edit/admin mode, validates the value against the type first, refuses constants and references, and lists every change in the session's final output (#198).
