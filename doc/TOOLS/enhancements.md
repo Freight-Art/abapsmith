@@ -48,6 +48,11 @@ sent. The safety gate's verdict is taken before the resolver is given a
 chance to create a request — see [doc/SAFETY/safety-gate.md](../SAFETY/safety-gate.md),
 the transport allowlist check.
 
+`add_badi_def`, `add_filter_def` and `set_filter_values` change a spot
+or implementation that already exists: pass the `package` it already
+lives in (and, for a transportable one, the request rules above apply
+again). The call does not look the package up.
+
 `activate: false` saves the object without activating it, for everything
 the call creates or changes, with one exception: `add_badi_def`'s marker
 interface (`INTF/OI`) is always activated, because the BAdI definition
