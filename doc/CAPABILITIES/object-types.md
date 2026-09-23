@@ -195,17 +195,50 @@ The `Object` column values are the registry `label` fields, unreworded.
   `SUPPRESS_AUTHORITY_CHECK`/`SUPPRESS_CORR_INSERT`/`SUPPRESS_CORR_CHECK`
   (all `CHAR1`), exceptions `NOT_EXCECUTED` (SAP's own misspelling) and
   `OBJECT_NOT_FOUND` — this entry previously called it inferred; it is not.
+  `TRAN/T` create supports five shapes, chosen with `kind` (#214): `report`
+  (the default — `program`, dynpro fixed at `1000`), `dialog` (`program` plus
+  a `screen` dynpro), `parameter` (`target_transaction`, `parameters`,
+  `skip_first_screen`), `variant` (`target_transaction`, `variant`, optional
+  `cross_client_variant`), and `oo` (`class`, `method`, optional
+  `update_mode`). `oo` is stored the way SE93 stores an OO transaction WITH
+  the transaction model — a `parameter` transaction on `OS_APPLICATION`
+  carrying `TSTCP` `/*OS_APPLICATION CLASS=...;METHOD=...;UPDATE_MODE=...;`
+  — because that is the only OO shape `RPY_TRANSACTION_INSERT` can build. An
+  OO transaction WITHOUT the transaction model (`TSTCP`
+  `\CLASS=...\METHOD=...`, including a class local to a program) has no
+  `RPY_TRANSACTION_INSERT` branch at all, so abapsmith cannot create or
+  retarget one — it is read-only, reachable only through `abap_read`.
+  `abap_read type=TRAN/T` reports `KIND`, `TARGET`, `SKIP FIRST SCREEN`, the
+  parameter list, `VARIANT`/`CROSS-CLIENT`, and
+  `CLASS`/`METHOD`/`UPDATE MODE`/`TRANSACTION MODEL`, decoding every `TSTCP`
+  encoding SE93 writes, both the OO-with-model shape above and the
+  read-only OO-without-model one. `mode="update"` still retargets report
+  transactions only.
   No create into a transportable package has been run for any of the three;
   a `$`-package transaction was created and deleted live on 2026-09-05
   (TRAN-DELETED / TRAN-GONE), and a `$TMP` search help, view and transaction
   were each taken through create/update/delete (search help also through a
   collective-help create and a where-used check) live on 2026-09-12 — see
-  `doc/LIMITATIONS/editing.md` for the message numbers and counts. Because
-  neither delete bridge issues an `RS_CORR_INSERT`, the delete records
-  nothing in CTS: any entry the object already had on a transport request
-  (typically from its create) survives the delete, and the safety gate judges
-  the delete itself as a local mutation rather than against
-  `ABAP_ALLOW_TRANSPORTS`. Both update routes journal the pre-update
+  `doc/LIMITATIONS/editing.md` for the message numbers and counts.
+  `VIEW/DV`'s delete bridge still issues no `RS_CORR_INSERT`: a `VIEW/DV`
+  delete records nothing in CTS, so any entry the view already had on a
+  transport request (typically from its create) survives the delete, and the
+  safety gate judges the delete itself as a local mutation rather than
+  against `ABAP_ALLOW_TRANSPORTS`; it also takes no `corr_nr` at all — its
+  bridge has no transport parameter. `TRAN/T` delete is different (#202):
+  the bridge now passes the transport request to `RPY_TRANSACTION_DELETE`,
+  which registers it via `RS_CORR_INSERT` itself, with the request-choice
+  dialog suppressed — the SAPLSTRD 0300 popup that used to break a delete of
+  a transportable-package transaction never appears. Without `corr_nr` the
+  request is picked the same way a `TRAN/T` create picks one, under the
+  session resolver / `ABAP_ALLOW_TRANSPORTS`; a named `corr_nr` is judged
+  under the normal transport allowlist rules, the same as a create; a
+  `corr_nr` named against a `$TMP` (or other `$`-package) transaction is
+  refused, same as a create into a `$` package. Batch delete (`objects` on
+  `abap_write`) accepts `TRAN/T` entries the same way — each one resolved and
+  gated like a single delete, one bridge call per entry, not journalled; the
+  other bridge-only types in a batch (`VIEW/DV`, `SHLP/DH`, `TABL/DI`) are
+  refused `BAD_INPUT` naming the entry. Both update routes journal the pre-update
   rendered pseudo-DDL as a before-image, but the entry is `irreversible:
   true`: it is for audit and manual comparison only, not automatic undo —
   `abap_journal mode=undo` refuses it outright.
