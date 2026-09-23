@@ -27,6 +27,20 @@ PUBLISH   abap_service op="publish"   admin-gated, confirm required
 Activate each artifact before writing the next. A later artifact referencing an
 inactive earlier one passes PUT and fails activation.
 
+## Generate the whole stack with abap_rap
+
+For a single-entity RAP service off one existing table, `abap_rap` builds
+the whole chain above in one call — root view, projection view, behavior
+definition(s), the behavior class, service definition and service binding —
+with names derived from one prefix and fields mapped automatically. Run it
+with `dry_run: true` first and read the consistency summary (field
+coverage, the etag/draft fields it found) before writing anything; then run
+it again for real. On a release that rejects `define view entity`
+(see "Per-artifact constraints" below), pass `cds_form: "classic"`.
+Publishing is still a separate step through `abap_service op="publish"`
+(see "Publishing" below) — `abap_rap` does not publish. Full parameter
+reference: [doc/TOOLS/rap.md](../../doc/TOOLS/rap.md).
+
 ## Before you create a BDEF
 
 **`BDEF/BDO` delete works.** A raw lock plus DELETE against a live-created

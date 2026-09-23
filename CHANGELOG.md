@@ -12,6 +12,12 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.27] - 2026-09-23
+
+### Added
+
+- **`abap_rap` generates a complete RAP stack from an existing table** (#197). One call takes `table`, `package`, and either `name_prefix` (derives all six artifact names — root view, projection view, behavior class, service definition, service binding, draft table) or explicit `names` overrides, plus `flavour` (`managed`/`unmanaged`), `draft`, `service_binding_type` (`OData V2`/`V4`), `include_projection`, and `cds_form` (`entity`/`classic`, for releases before 7.55 that reject `define view entity`). Artifacts are written in dependency order through the same write path as `abap_write`, so `abap_journal mode=list` shows one entry per artifact (the behavior class is two: main and the `implementations` include) and `mode=undo` reverses any of them exactly as it would an `abap_write` entry. `dry_run` returns every generated source plus a field-coverage summary and writes nothing — the same preflight safety gate still runs, so a refusal costs zero requests either way. A real run stops at the first failing write and reports `RAP_PARTIAL` with each artifact's status (written/activated/failed/not attempted); a rerun with the same arguments writes the same names in place. Gated like every other write: needs `canWrite`, refused `READ_ONLY` on a read-only server. Verified live on A4H 2026-09-23: `dry_run` (writes: 0), a real managed/V4 run of all 8 artifacts written and activated, the binding published and its `$metadata` read back with `abap_service`, one journal entry per artifact, and every object deleted afterwards through `abap_write mode=delete`.
+
 ## [0.6.26] - 2026-09-22
 
 ### Fixed
