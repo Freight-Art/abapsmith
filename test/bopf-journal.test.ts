@@ -512,9 +512,11 @@ describe("abap_bopf_delete — the write journal", () => {
 // create is refused outright") — and that catch-all now intercepts a
 // BOPF entry BEFORE `planUndo` ever reaches `resolveWriteTarget`. The old
 // resolveWriteTarget-throws mechanism is not wrong, exactly — it is simply
-// unreachable for BOPF now, dead code from this call site's point of view,
-// because every BOPF entry always sets `irreversible: true` and the generic
-// check wins first. This is the regression test for the design
+// unreachable for a BOPF entry marked `irreversible: true`, dead code from
+// this call site's point of view. (Not every BOPF entry any more: an
+// `update` with `beforeKind: "bopf-model"` and `beforeCapture: "captured"`
+// now has a real undo via the `bopf-model` special kind, src/adt/undo-special.ts.
+// `create`, which this test uses, still has none.) This is the regression test for the design
 // `irreversible: true` relies on today: prove the refusal is real (an
 // `undoable: false` plan, zero network requests), not merely asserted by the
 // flag.
