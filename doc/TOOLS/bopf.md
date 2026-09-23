@@ -84,9 +84,36 @@ reaching SAP.
 | `activate` | boolean | no | — | Also activate after the edit succeeds. |
 | `allow_dangling_ref` | boolean | no | — | Proceed even if `spec.class` or a trigger's action doesn't exist yet, or, for `add_alternative_key`, a `spec.keyElements` entry isn't a property of the target node or the node has no `persistentStructureRef`. Does not bypass the `checkAfterModify`/`checkBeforeSave`/`noCheck` refusals below — those are refused unconditionally. |
 | `i_know_this_may_not_activate` | boolean | required (`true`) for `add_alternative_key`/`set_alternative_key_fields` | — | Explicit acknowledgment — the key element writes, but a business object carrying one has not been observed to activate. |
-| `package` | string | required for `create_bo` | — | Must be a local (`$TMP`-style) package. |
+| `package` | string | required for `create_bo` | — | Any package, transportable or local (`$TMP`-style) — see "Transportable packages" below for what a transportable one requires and how a failed create is recovered. |
 | `description` | string | `create_bo` only | — | Description of the new BO. |
 | `rootNodeName` | string | `create_bo` only | `"ROOT"` | Name for the root node. |
+| `corr_nr` | string | no | — | Transport request for a transportable package. Omit to let `ABAP_ALLOW_TRANSPORTS` resolve one. Ignored (and unneeded) for a `$TMP`-style package. See "Transportable packages" below. |
+
+### Transportable packages
+
+`create_bo`, and every other `abap_bopf_edit` operation on a BO that
+already exists, work on a transportable package — abapsmith no longer
+refuses to touch one. The transport request is resolved before the lock,
+the same way `abap_write` resolves one: `corr_nr` if given, otherwise
+under `ABAP_ALLOW_TRANSPORTS` — `auto` reuses or creates a session
+request, a pinned allowlist must already contain the request, deny-all
+refuses `SAFETY_DENIED` before any wire request. The resolved request is
+judged by the safety gate, sent as `corrNr` on the create POST or model
+PUT, and cross-checked against the lock's `CORRNR`; a lock naming a
+different request refuses `TRANSPORT_ERROR`, having written nothing. A
+call that used a request carries `transport: <request>` in the response
+header.
+
+`create_bo`'s POST into a transportable package is not atomic — a failed
+POST can still create the object. On failure abapsmith re-reads: object
+present and complete → success, with a `warnings:` header line naming the
+transport and saying the POST failed but the object was found complete
+and kept; object present but unusable (see the unnamed-root case below) →
+the partial object and the constants interface BOPF generated with it
+are deleted again under the same request, and the `BOPF_CREATE_UNUSABLE`
+error states whether that delete worked or what is left; object absent → the original error, unchanged. `$TMP`/local
+packages behave exactly as before this change: no cleanup, no `transport:`
+line.
 
 ### Enum-valued spec fields
 
@@ -606,10 +633,11 @@ reaching SAP.
 |---|---|---|---|---|
 | `bo` | string | yes | — | Business object to delete. |
 | `confirm` | string | required when `dry_run:false` | — | Echo `bo` exactly (case-insensitive) to arm the delete. |
-| `cascade_ddic` | boolean | no | — | Also delete the DDIC objects this BO generated (its combined table type, combined structure, constants interface). By default never deletes `persistentTableRef`/`persistentStructureRef` tables/structures — those are spared and reported separately unless named in `cascade_persistent`. |
+| `cascade_ddic` | boolean | no | — | Also delete the DDIC objects this BO generated (its combined table type, combined structure, constants interface). By default never deletes `persistentTableRef`/`persistentStructureRef` tables/structures — those are spared and reported separately unless named in `cascade_persistent`. The cascade sends the same request resolved for the BO delete to any candidate whose own lock reports a transport; a candidate pinned to a transport while the BO delete itself was local (no request resolved) is reported as not deleted, with the reason, rather than deleted under a request never resolved. |
 | `confirm_cascade` | string | required in addition to `confirm` when `cascade_ddic:true` | — | Echo `bo` exactly again. |
 | `cascade_persistent` | array of string | no | — | Exact DDIC names (case-insensitive) to delete despite being `persistentTableRef`/`persistentStructureRef`. Requires `cascade_ddic:true` (extends the cascade, doesn't replace it) and, on an armed delete, `confirm_cascade`. |
 | `dry_run` | boolean | no | `true` | Report what would be deleted without deleting anything. |
+| `corr_nr` | string | no | — | Transport request for a BO living in a transportable package. Resolved before the lock the same way `abap_write` resolves one (`corr_nr` if given, otherwise via `ABAP_ALLOW_TRANSPORTS`), sent on the DELETE, and cross-checked against the lock's `CORRNR` — a lock naming a different request refuses `TRANSPORT_ERROR`, deleting nothing. `cascade_ddic` sends the same request for any DDIC candidate whose own lock reports a transport. Ignored for a `$TMP`-style BO. |
 
 Dry run (the default) lists DDIC candidates found in the model without
 probing whether they still exist on the server — the armed delete may find
@@ -705,4 +733,13 @@ reused across calls for that BO rather than thrown away — that performs the
 same `MODIFY`+`SAVE` the GUI would. Since this tool writes real rows by
 default, `snapshot_ids` is a natural pairing: snapshot the affected table(s)
 first, then pass the snapshot ids here to see exactly what the run inserted.
+
+The generated bridge source is wrapped at 120 columns — a long string
+literal in a scenario value is split into pieces of at most 100 chars and
+rejoined with `&&` — so a scenario with many fields or a long string value
+no longer produces a `DATA`/transcript/cleanup line past ABAP's
+255-character limit. Before any wire request, abapsmith asserts that no
+emitted line exceeds 255 chars; a scenario that still can't be emitted
+within that limit is refused `BAD_INPUT`, naming the scenario node and
+field responsible, rather than generating source that won't compile.
 

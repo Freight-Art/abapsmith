@@ -63,8 +63,12 @@ abapsmith re-GETs on any throw:
 
 Never retry a create blind.
 
-`bopf_create` and `bopf_delete` **refuse every transportable package.** Local /
-`$TMP` only. Do not look for a flag to override it.
+`bopf_create` and `bopf_delete` **work on transportable packages.** Pass
+`corr_nr`, or omit it and let `ABAP_ALLOW_TRANSPORTS` resolve one — same
+rules as `abap_write`. On a create failure, read the response: `warnings:`
+means the object was found complete and kept (the POST failed, the object
+didn't); `BOPF_CREATE_UNUSABLE` states whether the partial object was
+deleted, or what is left if it wasn't.
 
 `bopf_create` and `bopf_activate` can each take over a minute on a larger
 model. Both run under `ABAP_BOPF_TIMEOUT_MS` (default 180000 ms), not the

@@ -941,13 +941,8 @@ describe("local package refusal at both enforcement points", () => {
     expect(server.calls.slice(before).some((r) => r.method === "POST" && r.path === BOPF_COLLECTION_PATH)).toBe(false);
   });
 
-  it("putModel refuses POST-lock via transportFromLock on every retry's fresh lock — and burns two lock/unlock round trips before surfacing UNSUPPORTED", async () => {
-    // SUSPECT: `putModel`'s transport-refusal throw uses code "UNSUPPORTED",
-    // which relock.ts's `defaultRetryable` does NOT exclude (only
-    // SAFETY_DENIED/BAD_INPUT/LOCKED are). A transport pin cannot be fixed by
-    // a fresh lock, yet withRelockRetry retries it anyway — this test proves
-    // exactly that (2 LOCK calls, not 1) rather than assuming it. Documented
-    // in the final report as a suspected inefficiency, NOT fixed here.
+  it("putModel without a resolved transport refuses a transport-pinned lock after one lock/unlock round trip", async () => {
+    // putModel's own retryable excludes UNSUPPORTED (and TRANSPORT_ERROR) — a transport pin can't be fixed by a fresh lock, so this never retries.
     const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
     const { conn, server } = await wired({
       routes: [store.route, bopfLockTransportRoute({ name: "ZBOPF_PRB1", corrNr: "A4HK900555" })],
@@ -965,13 +960,13 @@ describe("local package refusal at both enforcement points", () => {
     expect((err as AbapError).details).toMatchObject({ corrNr: "A4HK900555" });
 
     const locks = server.callsFor((r) => r.method === "POST" && r.qs["_action"] === "LOCK" && r.path === bopfUri("ZBOPF_PRB1"));
-    expect(locks).toHaveLength(2); // retried despite being fundamentally unfixable by a fresh lock
+    expect(locks).toHaveLength(1); // not retried — UNSUPPORTED is excluded
     // Never actually PUT — the refusal happens before the wire write.
     const puts = server.callsFor((r) => r.method === "PUT" && r.path === bopfUri("ZBOPF_PRB1"));
     expect(puts).toHaveLength(0);
   });
 
-  it("deleteBusinessObject refuses POST-lock via transportFromLock — single-shot, no retry (unlike putModel)", async () => {
+  it("deleteBusinessObject refuses POST-lock via transportFromLock — single-shot, no retry loop wraps it", async () => {
     const store = bopfStore({ zbopf_mc5: FX_ACTIVE_DANGLING });
     const { conn, server } = await wired({
       routes: [store.route, bopfLockTransportRoute({ name: "ZBOPF_MC5", corrNr: "A4HK900777" })],

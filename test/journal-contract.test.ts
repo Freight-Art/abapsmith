@@ -583,17 +583,24 @@ const PINNED_MUTATION_CENSUS: ReadonlyMap<string, { calls: number; note: string 
   [
     "adt/bopf.ts",
     {
-      calls: 5,
+      calls: 6,
       note:
         "createBusinessObject/putModel/deleteBusinessObject/deleteDdicCandidate and the " +
-        "operation:\"activate\" path: conn.post (create), conn.put (model update), conn.del x2 " +
-        "(BO delete + DDIC candidate delete), conn.adt.activate (phase one of the activation " +
-        "handshake). Phase two — the second POST SAP's ioc:inactiveObjects preaudit reply " +
-        "triggers — is issued by adt/activate.ts's postActivation, reached via " +
+        "operation:\"activate\" path: conn.post (create), conn.put (model update), conn.del x3 " +
+        "(BO delete + DDIC candidate delete + partial-create residue delete in " +
+        "cleanupUnusablePartialCreate/deleteResidue), conn.adt.activate (phase one of the " +
+        "activation handshake). Phase two — the second POST SAP's ioc:inactiveObjects preaudit " +
+        "reply triggers — is issued by adt/activate.ts's postActivation, reached via " +
         "activateWithPreauditSet, on this module's behalf; it is counted in that module's own " +
-        "pin, not here, which is a blind spot of a per-module textual census. Journalled via " +
-        "runBopfEdit / runBopfDelete (tools/bopf.ts) — see the JOURNALLED_BY entry above for " +
-        "which of these are deliberately NOT given their own entry.",
+        "pin, not here, which is a blind spot of a per-module textual census. " +
+        "cleanupUnusablePartialCreate's conn.del is reachable only from createBusinessObject " +
+        "and from recoveredCreateOutcome, both called inside runBopfEdit's create_bo " +
+        "withJournalledMutation callback (tools/bopf.ts), so it always runs under that create's " +
+        "journal entry and only ever deletes the object the entry itself records creating — the " +
+        "entry stays \"succeeded\" and the cleanup is reported via BOPF_CREATE_UNUSABLE's " +
+        "details.partialCleanup. Journalled via runBopfEdit / runBopfDelete (tools/bopf.ts) — " +
+        "see the JOURNALLED_BY entry above for which of these are deliberately NOT given their " +
+        "own entry.",
     },
   ],
   [

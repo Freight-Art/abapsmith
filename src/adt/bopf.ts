@@ -18,12 +18,15 @@
  *    404s and looks deleted. Each probe below is commented with which Accept
  *    it uses and why.
  *
- * **Local-package-only refusal:** the non-atomic-create hazard was only ever
- * observed on transportable packages; whether it applies there too is
- * unresolved. Until it is, this module refuses to create/edit/delete a BOPF
- * BO whose package isn't local — checked before create (`SessionTransport.resolve`,
- * no lock exists yet) and after every lock (`transportFromLock`, before the
- * PUT/DELETE).
+ * **Transportable packages are supported.** The transport request is
+ * resolved pre-lock by `preflightCorr` (from the caller's `corr_nr` or
+ * `ABAP_ALLOW_TRANSPORTS`) and judged by the safety gate, then sent as
+ * `corrNr` on the POST/PUT/DELETE and cross-checked against the lock's own
+ * CORRNR (`corrForMutation`/`divergentLockCorrNr`) so nothing transportable
+ * ever reaches the wire unnumbered or under the wrong request. Fails closed
+ * in the two cases that matter: no transport manager wired refuses a create
+ * outright, and a lock reporting a transport with no resolved corr (no
+ * gate, or preflight resolved local) refuses the write/delete.
  *
  * **Byte-splice model:** this module never serialises a `BoModel` back to
  * XML itself — that's `bopf-xml.ts`'s job (`splice`/`spliceOut`/
@@ -36,7 +39,17 @@ import type { LockInfo, StatefulSession } from "./session.js";
 import { translateAdtError, adtExceptionInfo } from "./session.js";
 import type { SessionTransport } from "./session-transport.js";
 import { toAbapError } from "./session-transport.js";
-import { transportFromLock, readCurrentSource, type ResolvedTarget } from "./write.js";
+import {
+  transportFromLock,
+  readCurrentSource,
+  preflightCorr,
+  corrForMutation,
+  divergentLockCorrNr,
+  corrNrNotHonoured,
+  type ResolvedTarget,
+  type PreflightTarget,
+  type TransportOptions,
+} from "./write.js";
 import { buildUri, specForType } from "./types.js";
 import { withRelockRetry } from "./relock.js";
 import { isTransportTimeout, transportTimeoutError } from "./timeouts.js";
@@ -217,12 +230,11 @@ export interface CreateBusinessObjectInput {
 /**
  * `POST /sap/bc/adt/bopf/businessobjects`, v4 Content-Type/Accept.
  *
- * **Local-package-only refusal, pre-lock enforcement.** A create has no lock
- * yet to interrogate, so transport-ness is resolved via
- * `SessionTransport.resolve()` against the intended target instead. Refuses
- * before sending anything on `outcome: "transport"` — and also when no
- * `SessionTransport` was wired in at all (fail closed; "didn't check" must
- * never look like "checked and fine").
+ * **Transport, pre-lock enforcement.** A create has no lock yet to
+ * interrogate, so the transport request is resolved via `preflightCorr`
+ * against the intended target instead — the caller's `corr_nr` or
+ * `ABAP_ALLOW_TRANSPORTS`, judged by `opts.gate`. Fails closed: no `opts.gate`
+ * at all refuses a transportable create outright (this call never guesses).
  *
  * **Non-atomic create.** The POST can itself throw while having created the
  * object server-side (network blip, CTS hiccup, a 409 from a prior attempt
@@ -242,7 +254,15 @@ export async function createBusinessObject(
   transport: SessionTransport | undefined,
   input: CreateBusinessObjectInput,
   authorized: AuthorizedTarget<"write">,
-): Promise<BopfModelRead & { recovered?: boolean; rootNodeCheck: RootNodeNameCheck; corr: SafetyCorr }> {
+  opts: { gate?: SafetyGate; corrNr?: string } = {},
+): Promise<
+  BopfModelRead & {
+    recovered?: boolean;
+    rootNodeCheck: RootNodeNameCheck;
+    corr: SafetyCorr;
+    partialCleanup?: PartialCreateCleanup;
+  }
+> {
   assertAuthorizedMatches(authorized, { name: input.name, packageName: input.packageName }, "createBusinessObject");
 
   const uri = bopfUri(input.name);
@@ -259,30 +279,41 @@ export async function createBusinessObject(
     );
   }
 
-  const resolution = await transport.resolve(
-    conn,
-    { uri, devclass: input.packageName, name: input.name, type: BOPF_TYPE },
-    "I",
-  );
-  const denial = toAbapError(resolution);
-  if (denial) throw denial;
-  if (resolution.outcome === "transport") {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `Cannot create BOPF business object ${input.name}: package ${input.packageName} is transportable.`,
-      { name: input.name, packageName: input.packageName, corrNr: resolution.corrNr },
-      "The non-atomic-create hazard (a failed POST can still create the object) was " +
-        "only ever observed on transportable packages, and whether it applies " +
-        "identically here is unresolved. BOPF create/edit/delete " +
-        "refuse every transportable package until that's resolved. Use a local " +
-        "package instead.",
+  let corr: SafetyCorr;
+  if (opts.gate === undefined) {
+    // No gate handed in — this call cannot judge a resolved corr_nr, so a
+    // transportable create is refused rather than guessed at (fail closed).
+    const resolution = await transport.resolve(
+      conn,
+      { uri, devclass: input.packageName, name: input.name, type: BOPF_TYPE },
+      "I",
     );
+    const denial = toAbapError(resolution);
+    if (denial) throw denial;
+    if (resolution.outcome === "transport") {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `Cannot create BOPF business object ${input.name}: package ${input.packageName} is transportable, ` +
+          "but no safety gate was handed to createBusinessObject to judge the transport request.",
+        { name: input.name, packageName: input.packageName, corrNr: resolution.corrNr },
+        "Fail closed: without a gate this call cannot judge a resolved corr_nr. Pass a " +
+          "SafetyGate through opts.gate, or create the object in a local ($TMP-style) package.",
+      );
+    }
+    corr = { kind: "local" };
+  } else {
+    const preflight = await preflightCorr(
+      conn,
+      { uri, type: BOPF_TYPE, name: input.name, packageName: input.packageName },
+      { transport, gate: opts.gate, corrNr: opts.corrNr },
+      "I",
+      "write",
+    );
+    corr =
+      preflight?.kind === "transport"
+        ? { kind: "transport", corrNr: preflight.corrNr, source: preflight.source }
+        : { kind: "local" };
   }
-
-  // Past the throws above, `resolution.outcome` is necessarily "not-needed" —
-  // CTS itself said no transport is involved, the same authority
-  // `transportFromLock` gives `corrForMutation` in write.ts.
-  const corr: SafetyCorr = { kind: "local" };
 
   const body = buildCreateBody(input);
   try {
@@ -293,6 +324,7 @@ export async function createBusinessObject(
     await conn.withRequestTimeout(conn.cfg.bopfTimeoutMs, () =>
       conn.post(BOPF_COLLECTION, {
         headers: { "Content-Type": BOPF_ACCEPT_V4, Accept: BOPF_ACCEPT_V4 },
+        ...(corr.kind === "transport" ? { qs: { corrNr: corr.corrNr } } : {}),
         body,
       }),
     );
@@ -302,30 +334,160 @@ export async function createBusinessObject(
     // (src/tools/bopf.ts) re-reads the BO on a fresh session slot itself,
     // polling for it to appear, rather than this single same-connection GET.
     if (isTransportTimeout(e)) {
-      throw transportTimeoutError({
-        family: "bopf",
-        operation: "create_bo",
-        name: input.name,
-        type: BOPF_TYPE,
-        uri,
-        timeoutMs: conn.cfg.bopfTimeoutMs,
-        cause: e,
-      });
+      throw withCreateCorr(
+        transportTimeoutError({
+          family: "bopf",
+          operation: "create_bo",
+          name: input.name,
+          type: BOPF_TYPE,
+          uri,
+          timeoutMs: conn.cfg.bopfTimeoutMs,
+          cause: e,
+        }),
+        corr,
+      );
     }
     // Non-atomic create: re-GET before trusting the error (see doc comment above).
     try {
       const recovered = await readModel(conn, input.name);
-      return { ...recovered, recovered: true, rootNodeCheck: checkRootNodeName(input, recovered.model), corr };
+      const rootNodeCheck = checkRootNodeName(input, recovered.model);
+      const partialCleanup = await cleanupUnusablePartialCreate(conn, input.name, rootNodeCheck, corr, recovered.model);
+      return {
+        ...recovered,
+        recovered: true,
+        rootNodeCheck,
+        corr,
+        ...(partialCleanup ? { partialCleanup } : {}),
+      };
     } catch {
-      if (isAbapError(e)) throw e;
-      throw translateAdtError(e, { operation: "write", uri, name: input.name, type: BOPF_TYPE });
+      if (isAbapError(e)) throw withCreateCorr(e, corr);
+      throw withCreateCorr(translateAdtError(e, { operation: "write", uri, name: input.name, type: BOPF_TYPE }), corr);
     }
   }
 
   // Fetched fresh, not assumed — the server may fill in fields (generated
   // constants interface ref, defaults) this function can't predict.
   const read = await readModel(conn, input.name);
-  return { ...read, rootNodeCheck: checkRootNodeName(input, read.model), corr };
+  const rootNodeCheck = checkRootNodeName(input, read.model);
+  const partialCleanup = await cleanupUnusablePartialCreate(conn, input.name, rootNodeCheck, corr, read.model);
+  return { ...read, rootNodeCheck, corr, ...(partialCleanup ? { partialCleanup } : {}) };
+}
+
+const CREATE_CORR_DETAIL = "createCorr";
+
+/**
+ * The transport a failed create was already resolved and sent under, carried
+ * on the error so the tool layer's fresh-session recovery (TIMEOUT,
+ * SESSION_DEAD) can attribute the object and clean up a transportable partial
+ * create instead of reporting `{kind: "unresolved"}`.
+ */
+function withCreateCorr(e: AbapError, corr: SafetyCorr): AbapError {
+  e.details[CREATE_CORR_DETAIL] = corr;
+  return e;
+}
+
+export function corrFromCreateError(e: unknown): SafetyCorr | undefined {
+  if (!isAbapError(e)) return undefined;
+  const corr = e.details[CREATE_CORR_DETAIL];
+  return corr !== undefined && typeof corr === "object" && corr !== null && "kind" in corr ? (corr as SafetyCorr) : undefined;
+}
+
+/**
+ * A create that landed with an unusable (unnamed) root node is permanent
+ * residue — see `RootNodeNameCheck`. On a LOCAL create that residue is cheap
+ * to clean up by hand (`abap_bopf_delete`); on a TRANSPORTABLE create it also
+ * occupies an entry in the transport request, so this deletes it right away
+ * rather than leaving it for the caller to notice and clean up separately.
+ * Own fresh session/lock — never reuses the create's (there wasn't one).
+ * Never throws: a failed cleanup is reported via `reason`, not propagated,
+ * since the create itself already succeeded or was recovered.
+ */
+export async function cleanupUnusablePartialCreate(
+  conn: AbapConnection,
+  name: string,
+  rootNodeCheck: RootNodeNameCheck,
+  corr: SafetyCorr,
+  model?: BoModel,
+): Promise<PartialCreateCleanup | undefined> {
+  const unusable = rootNodeCheck.actual === undefined || rootNodeCheck.actual === "";
+  if (!unusable || corr.kind !== "transport") return undefined;
+
+  // The server generates the constants interface (`ZIF_<bo>_C`) with the
+  // BO and does not drop it with the BO delete; leaving it would keep the
+  // package non-empty and the request entry behind. Both deletes share one
+  // stateful session, like `deleteBusinessObject`'s cascade: a second
+  // session opened right after a BO delete answers "Session Timed Out".
+  const iface = model
+    ? collectDdicCascadeCandidates(model).generated.find((c) => c.kind === "constants-interface")
+    : undefined;
+  const targets: ResidueTarget[] = [{ uri: bopfUri(name), lockAccept: BOPF_LOCK_ACCEPT, readAccept: BOPF_ACCEPT_V4 }];
+  if (iface) targets.push({ uri: iface.uri, readAccept: "*/*" });
+  const [bo, ifaceResult] = await deleteResidue(conn, targets, corr);
+  if (!bo) return { deleted: false, reason: "delete of the partial object was not attempted" };
+  if (!iface || !ifaceResult) return bo;
+  return { ...bo, constantsInterface: { name: iface.name, ...ifaceResult } };
+}
+
+export interface PartialCreateCleanup {
+  readonly deleted: boolean;
+  readonly reason?: string;
+  /** The generated constants interface, deleted after the BO; absent when the model carried none or the BO delete failed. */
+  readonly constantsInterface?: { readonly name: string; readonly deleted: boolean; readonly reason?: string };
+}
+
+interface ResidueTarget {
+  readonly uri: string;
+  readonly lockAccept?: string;
+  readonly readAccept: string;
+}
+
+type ResidueResult = { deleted: boolean; reason?: string };
+
+/**
+ * Lock + DELETE each target in order under `corr` on one fresh stateful
+ * session, stopping at the first failure, then confirm each attempted delete
+ * by read-back. Never throws; results align with `targets` (a target not
+ * attempted has no entry).
+ */
+async function deleteResidue(
+  conn: AbapConnection,
+  targets: readonly ResidueTarget[],
+  corr: SafetyCorr & { kind: "transport" },
+): Promise<ResidueResult[]> {
+  const results: ResidueResult[] = [];
+  const sent: ResidueTarget[] = [];
+  try {
+    await conn.withStatefulSession(async (session) => {
+      for (const t of targets) {
+        const lock = await session.lock(t.uri, t.lockAccept ? { accept: t.lockAccept } : undefined);
+        try {
+          await conn.del(t.uri, { qs: { lockHandle: lock.handle, corrNr: corr.corrNr } });
+        } finally {
+          try {
+            await session.unlock(t.uri);
+          } catch {
+            // best-effort
+          }
+        }
+        sent.push(t);
+      }
+    });
+  } catch (e) {
+    for (const _ of sent) results.push({ deleted: true });
+    results.push({ deleted: false, reason: `delete of the partial object failed: ${describeUnknownError(e)}` });
+  }
+
+  for (const [i, t] of sent.entries()) {
+    try {
+      await conn.get(t.uri, { headers: { Accept: t.readAccept } });
+      results[i] = { deleted: false, reason: "a read-back after the delete still finds the object" };
+    } catch (e) {
+      results[i] = isNotFoundLike(e)
+        ? { deleted: true }
+        : { deleted: false, reason: `a read-back after the delete could not be settled: ${describeUnknownError(e)}` };
+    }
+  }
+  return results;
 }
 
 /**
@@ -468,15 +630,36 @@ export async function putModel(
   bo: string,
   mutate: (xml: string) => string | Promise<string>,
   authorized: AuthorizedTarget<"write">,
+  opts: { transport?: SessionTransport; gate?: SafetyGate; corrNr?: string; packageName?: string } = {},
 ): Promise<BopfModelRead & { corr: SafetyCorr }> {
   assertAuthorizedMatches(authorized, { name: bo }, "putModel");
 
   const uri = bopfUri(bo);
 
+  // Pre-lock preflight — only possible once transport/gate/packageName are
+  // all in hand; a caller missing any of them gets `undefined` here, which
+  // `corrForMutation` below turns into a refusal the moment the lock reports
+  // a transport (never a silent local write of a transportable object).
+  const preflight =
+    opts.transport !== undefined && opts.gate !== undefined && opts.packageName !== undefined
+      ? await preflightCorr(
+          conn,
+          { uri, type: BOPF_TYPE, name: bo, packageName: opts.packageName },
+          { transport: opts.transport, gate: opts.gate, corrNr: opts.corrNr },
+          "U",
+          "write",
+        )
+      : undefined;
+
   const xml = await withRelockRetry<string>({
     session,
     uri,
     lockAccept: BOPF_LOCK_ACCEPT,
+    // UNSUPPORTED/TRANSPORT_ERROR (the two refusals below) are never fixed
+    // by a fresh lock — exclude them from retry same as the three the
+    // default already excludes.
+    retryable: (e: unknown) =>
+      !(isAbapError(e) && (e.code === "SAFETY_DENIED" || e.code === "BAD_INPUT" || e.code === "LOCKED" || e.code === "UNSUPPORTED" || e.code === "TRANSPORT_ERROR")),
     reread: async (lock: LockInfo) => {
       void lock;
       const resp = await conn.get(uri, { headers: { Accept: BOPF_ACCEPT_V4 } });
@@ -487,7 +670,8 @@ export async function putModel(
       // Post-lock enforcement — checked fresh on every attempt since a retry
       // acquires a new lock (transportFromLock's contract in write.ts).
       const info = transportFromLock(lock);
-      if (info.required) {
+      const corr = corrForMutation(preflight, info);
+      if (corr === undefined) {
         try {
           await session.unlock(uri);
         } catch {
@@ -495,17 +679,31 @@ export async function putModel(
         }
         throw new AbapError(
           "UNSUPPORTED",
-          `Cannot write BOPF business object ${bo}: it is pinned to transport ${info.corrNr}.`,
+          `Cannot write BOPF business object ${bo}: the lock reports transport request ` +
+            `${info.corrNr ?? "(unnamed)"}, but no transport was resolved for this write.`,
           { name: bo, corrNr: info.corrNr, corrUser: info.corrUser },
-          "BOPF write refuses every transportable target " +
-            "until the non-atomic-create risk is resolved for transportable " +
-            "packages. Use a local package instead.",
+          "Pass corr_nr, or rely on ABAP_ALLOW_TRANSPORTS to resolve one, so this write's " +
+            "transport request can be judged by the safety gate before it reaches the wire.",
+        );
+      }
+      const divergent = divergentLockCorrNr(corr, info);
+      if (divergent !== undefined) {
+        try {
+          await session.unlock(uri);
+        } catch {
+          // best-effort
+        }
+        throw new AbapError(
+          "TRANSPORT_ERROR",
+          `Cannot write BOPF business object ${bo}: the lock names transport request ${divergent}, but this ` +
+            `write was authorised for ${corr.kind === "transport" ? corr.corrNr : "(local)"}. Nothing was written.`,
+          { name: bo, gatedCorrNr: corr.kind === "transport" ? corr.corrNr : undefined, serverCorrNr: divergent },
         );
       }
       try {
         await conn.put(uri, {
           headers: { "Content-Type": BOPF_ACCEPT_V4, Accept: BOPF_ACCEPT_V4 },
-          qs: { lockHandle: lock.handle },
+          qs: corr.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr.corrNr } : { lockHandle: lock.handle },
           body: payload,
         });
       } catch (e) {
@@ -519,9 +717,8 @@ export async function putModel(
   });
 
   void xml;
-  // `attempt` only ever returns when `transportFromLock(lock).required` was
-  // false — the `info.required` branch throws — so the target is local.
-  const corr: SafetyCorr = { kind: "local" };
+  const corr: SafetyCorr =
+    preflight?.kind === "transport" ? { kind: "transport", corrNr: preflight.corrNr, source: preflight.source } : { kind: "local" };
   // A 0-byte PUT response carries nothing useful — fresh GET is authoritative.
   return { ...(await readModel(conn, bo)), corr };
 }
@@ -694,6 +891,8 @@ export interface DeleteBusinessObjectResult {
    * ran and genuinely found no DDIC objects to report.
    */
   readonly ddicEnumerated: boolean;
+  /** The transport this delete resolved and was authorised under — `{kind: "local"}` for a $TMP-style package. */
+  readonly corr: SafetyCorr;
 }
 
 /**
@@ -839,7 +1038,13 @@ export async function deleteBusinessObject(
   bo: string,
   authorized: AuthorizedTarget<"delete">,
   gate: SafetyGate,
-  opts: { cascadeDdic?: boolean; cascadePersistent?: readonly RequestedDdicTarget[] } = {},
+  opts: {
+    cascadeDdic?: boolean;
+    cascadePersistent?: readonly RequestedDdicTarget[];
+    transport?: SessionTransport;
+    corrNr?: string;
+    packageName?: string;
+  } = {},
 ): Promise<DeleteBusinessObjectResult> {
   assertAuthorizedMatches(authorized, { name: bo }, "deleteBusinessObject");
 
@@ -889,10 +1094,26 @@ export async function deleteBusinessObject(
     }
   }
 
+  // Pre-lock preflight — same shape as `putModel`'s. Only possible once
+  // transport/gate/packageName are all in hand; a caller missing any of them
+  // gets `undefined`, which `corrForMutation` below turns into a refusal the
+  // moment the lock reports a transport.
+  const preflight =
+    opts.transport !== undefined && opts.packageName !== undefined
+      ? await preflightCorr(
+          conn,
+          { uri, type: BOPF_TYPE, name: bo, packageName: opts.packageName },
+          { transport: opts.transport, gate, corrNr: opts.corrNr },
+          "U",
+          "delete",
+        )
+      : undefined;
+
   // Own fresh lock — never a PUT's.
   const lock = await session.lock(uri, { accept: BOPF_LOCK_ACCEPT });
   const info = transportFromLock(lock);
-  if (info.required) {
+  const corr = corrForMutation(preflight, info);
+  if (corr === undefined) {
     try {
       await session.unlock(uri);
     } catch {
@@ -900,17 +1121,33 @@ export async function deleteBusinessObject(
     }
     throw new AbapError(
       "UNSUPPORTED",
-      `Cannot delete BOPF business object ${bo}: it is pinned to transport ${info.corrNr}.`,
+      `Cannot delete BOPF business object ${bo}: the lock reports transport request ` +
+        `${info.corrNr ?? "(unnamed)"}, but no transport was resolved for this delete.`,
       { name: bo, corrNr: info.corrNr, corrUser: info.corrUser },
-      "BOPF delete refuses every transportable target " +
-        "until the non-atomic-create risk is resolved for transportable " +
-        "packages.",
+      "Pass corr_nr, or rely on ABAP_ALLOW_TRANSPORTS to resolve one, so this delete's " +
+        "transport request can be judged by the safety gate before it reaches the wire.",
+    );
+  }
+  const divergentBo = divergentLockCorrNr(corr, info);
+  if (divergentBo !== undefined) {
+    try {
+      await session.unlock(uri);
+    } catch {
+      // best-effort
+    }
+    throw corrNrNotHonoured(
+      { name: bo, type: BOPF_TYPE, uri, packageName: opts.packageName ?? "", label: "BOPF business object" },
+      corr.kind === "transport" ? corr.corrNr : "",
+      divergentBo,
+      "lock",
     );
   }
 
   let boDeleted = false;
   try {
-    await conn.del(uri, { qs: { lockHandle: lock.handle } });
+    await conn.del(uri, {
+      qs: corr.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr.corrNr } : { lockHandle: lock.handle },
+    });
     boDeleted = true;
   } catch (e) {
     try {
@@ -966,7 +1203,7 @@ export async function deleteBusinessObject(
         });
         continue;
       }
-      ddic.push(await deleteDdicCandidate(conn, session, cand, candAuthorized));
+      ddic.push(await deleteDdicCandidate(conn, session, cand, candAuthorized, corr));
     }
   }
 
@@ -1024,11 +1261,11 @@ export async function deleteBusinessObject(
         });
         continue;
       }
-      ddicRequested.push(await deleteDdicCandidate(conn, session, cand, candAuthorized));
+      ddicRequested.push(await deleteDdicCandidate(conn, session, cand, candAuthorized, corr));
     }
   }
 
-  return { boDeleted, ddic, ddicRequested, ddicSpared, ddicEnumerated };
+  return { boDeleted, ddic, ddicRequested, ddicSpared, ddicEnumerated, corr };
 }
 
 /**
@@ -1202,6 +1439,7 @@ async function deleteDdicCandidate(
   session: StatefulSession,
   cand: DdicCandidate,
   authorized: AuthorizedTarget<"delete">,
+  corr: SafetyCorr,
 ): Promise<DdicDeleteReport> {
   assertAuthorizedMatches(authorized, { name: cand.name }, "deleteDdicCandidate");
 
@@ -1239,8 +1477,29 @@ async function deleteDdicCandidate(
       reason: `lock failed: ${describeUnknownError(e)}`,
     };
   }
+  const candTransport = transportFromLock(lock);
+  if (candTransport.required && corr.kind !== "transport") {
+    try {
+      await session.unlock(cand.uri);
+    } catch {
+      // best-effort
+    }
+    return {
+      name: cand.name,
+      kind: cand.kind,
+      uri: cand.uri,
+      existed: true,
+      deleted: false,
+      reason: `pinned to transport ${candTransport.corrNr ?? "(unnamed)"} while the business object delete was local; not deleted`,
+    };
+  }
   try {
-    await conn.del(cand.uri, { qs: { lockHandle: lock.handle } });
+    await conn.del(cand.uri, {
+      qs:
+        candTransport.required && corr.kind === "transport"
+          ? { lockHandle: lock.handle, corrNr: corr.corrNr }
+          : { lockHandle: lock.handle },
+    });
   } catch (e) {
     const deleteFailure = `delete failed: ${describeUnknownError(e)}`;
     // DELETE throwing isn't proof it didn't land — re-probe like the success path below, same tri-state.

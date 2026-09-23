@@ -147422,7 +147422,7 @@ function firstHeader2(headers, name) {
   }
   return void 0;
 }
-async function createBusinessObject(conn, transport, input, authorized) {
+async function createBusinessObject(conn, transport, input, authorized, opts = {}) {
   assertAuthorizedMatches(authorized, { name: input.name, packageName: input.packageName }, "createBusinessObject");
   const uri = bopfUri(input.name);
   if (transport === void 0) {
@@ -147433,53 +147433,132 @@ async function createBusinessObject(conn, transport, input, authorized) {
       "BOPF create refuses fail-open on transport-ness. Whether the non-atomic-create hazard applies identically on transportable packages is unresolved, so this module never lets a transportable create through to find out. Wire a SessionTransport through, or create the object in a local ($TMP-style) package."
     );
   }
-  const resolution = await transport.resolve(
-    conn,
-    { uri, devclass: input.packageName, name: input.name, type: BOPF_TYPE },
-    "I"
-  );
-  const denial = toAbapError(resolution);
-  if (denial) throw denial;
-  if (resolution.outcome === "transport") {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `Cannot create BOPF business object ${input.name}: package ${input.packageName} is transportable.`,
-      { name: input.name, packageName: input.packageName, corrNr: resolution.corrNr },
-      "The non-atomic-create hazard (a failed POST can still create the object) was only ever observed on transportable packages, and whether it applies identically here is unresolved. BOPF create/edit/delete refuse every transportable package until that's resolved. Use a local package instead."
+  let corr;
+  if (opts.gate === void 0) {
+    const resolution = await transport.resolve(
+      conn,
+      { uri, devclass: input.packageName, name: input.name, type: BOPF_TYPE },
+      "I"
     );
+    const denial = toAbapError(resolution);
+    if (denial) throw denial;
+    if (resolution.outcome === "transport") {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `Cannot create BOPF business object ${input.name}: package ${input.packageName} is transportable, but no safety gate was handed to createBusinessObject to judge the transport request.`,
+        { name: input.name, packageName: input.packageName, corrNr: resolution.corrNr },
+        "Fail closed: without a gate this call cannot judge a resolved corr_nr. Pass a SafetyGate through opts.gate, or create the object in a local ($TMP-style) package."
+      );
+    }
+    corr = { kind: "local" };
+  } else {
+    const preflight2 = await preflightCorr(
+      conn,
+      { uri, type: BOPF_TYPE, name: input.name, packageName: input.packageName },
+      { transport, gate: opts.gate, corrNr: opts.corrNr },
+      "I",
+      "write"
+    );
+    corr = preflight2?.kind === "transport" ? { kind: "transport", corrNr: preflight2.corrNr, source: preflight2.source } : { kind: "local" };
   }
-  const corr = { kind: "local" };
   const body = buildCreateBody(input);
   try {
     await conn.withRequestTimeout(
       conn.cfg.bopfTimeoutMs,
       () => conn.post(BOPF_COLLECTION, {
         headers: { "Content-Type": BOPF_ACCEPT_V4, Accept: BOPF_ACCEPT_V4 },
+        ...corr.kind === "transport" ? { qs: { corrNr: corr.corrNr } } : {},
         body
       })
     );
   } catch (e) {
     if (isTransportTimeout(e)) {
-      throw transportTimeoutError({
-        family: "bopf",
-        operation: "create_bo",
-        name: input.name,
-        type: BOPF_TYPE,
-        uri,
-        timeoutMs: conn.cfg.bopfTimeoutMs,
-        cause: e
-      });
+      throw withCreateCorr(
+        transportTimeoutError({
+          family: "bopf",
+          operation: "create_bo",
+          name: input.name,
+          type: BOPF_TYPE,
+          uri,
+          timeoutMs: conn.cfg.bopfTimeoutMs,
+          cause: e
+        }),
+        corr
+      );
     }
     try {
       const recovered = await readModel(conn, input.name);
-      return { ...recovered, recovered: true, rootNodeCheck: checkRootNodeName(input, recovered.model), corr };
+      const rootNodeCheck2 = checkRootNodeName(input, recovered.model);
+      const partialCleanup2 = await cleanupUnusablePartialCreate(conn, input.name, rootNodeCheck2, corr, recovered.model);
+      return {
+        ...recovered,
+        recovered: true,
+        rootNodeCheck: rootNodeCheck2,
+        corr,
+        ...partialCleanup2 ? { partialCleanup: partialCleanup2 } : {}
+      };
     } catch {
-      if (isAbapError(e)) throw e;
-      throw translateAdtError(e, { operation: "write", uri, name: input.name, type: BOPF_TYPE });
+      if (isAbapError(e)) throw withCreateCorr(e, corr);
+      throw withCreateCorr(translateAdtError(e, { operation: "write", uri, name: input.name, type: BOPF_TYPE }), corr);
     }
   }
   const read = await readModel(conn, input.name);
-  return { ...read, rootNodeCheck: checkRootNodeName(input, read.model), corr };
+  const rootNodeCheck = checkRootNodeName(input, read.model);
+  const partialCleanup = await cleanupUnusablePartialCreate(conn, input.name, rootNodeCheck, corr, read.model);
+  return { ...read, rootNodeCheck, corr, ...partialCleanup ? { partialCleanup } : {} };
+}
+var CREATE_CORR_DETAIL = "createCorr";
+function withCreateCorr(e, corr) {
+  e.details[CREATE_CORR_DETAIL] = corr;
+  return e;
+}
+function corrFromCreateError(e) {
+  if (!isAbapError(e)) return void 0;
+  const corr = e.details[CREATE_CORR_DETAIL];
+  return corr !== void 0 && typeof corr === "object" && corr !== null && "kind" in corr ? corr : void 0;
+}
+async function cleanupUnusablePartialCreate(conn, name, rootNodeCheck, corr, model) {
+  const unusable = rootNodeCheck.actual === void 0 || rootNodeCheck.actual === "";
+  if (!unusable || corr.kind !== "transport") return void 0;
+  const iface = model ? collectDdicCascadeCandidates(model).generated.find((c) => c.kind === "constants-interface") : void 0;
+  const targets = [{ uri: bopfUri(name), lockAccept: BOPF_LOCK_ACCEPT, readAccept: BOPF_ACCEPT_V4 }];
+  if (iface) targets.push({ uri: iface.uri, readAccept: "*/*" });
+  const [bo, ifaceResult] = await deleteResidue(conn, targets, corr);
+  if (!bo) return { deleted: false, reason: "delete of the partial object was not attempted" };
+  if (!iface || !ifaceResult) return bo;
+  return { ...bo, constantsInterface: { name: iface.name, ...ifaceResult } };
+}
+async function deleteResidue(conn, targets, corr) {
+  const results = [];
+  const sent = [];
+  try {
+    await conn.withStatefulSession(async (session) => {
+      for (const t of targets) {
+        const lock = await session.lock(t.uri, t.lockAccept ? { accept: t.lockAccept } : void 0);
+        try {
+          await conn.del(t.uri, { qs: { lockHandle: lock.handle, corrNr: corr.corrNr } });
+        } finally {
+          try {
+            await session.unlock(t.uri);
+          } catch {
+          }
+        }
+        sent.push(t);
+      }
+    });
+  } catch (e) {
+    for (const _ of sent) results.push({ deleted: true });
+    results.push({ deleted: false, reason: `delete of the partial object failed: ${describeUnknownError(e)}` });
+  }
+  for (const [i, t] of sent.entries()) {
+    try {
+      await conn.get(t.uri, { headers: { Accept: t.readAccept } });
+      results[i] = { deleted: false, reason: "a read-back after the delete still finds the object" };
+    } catch (e) {
+      results[i] = isNotFoundLike(e) ? { deleted: true } : { deleted: false, reason: `a read-back after the delete could not be settled: ${describeUnknownError(e)}` };
+    }
+  }
+  return results;
 }
 function xmlEscape(s, context) {
   if (s === "undefined" || s === "null") {
@@ -147529,13 +147608,24 @@ async function discloseFailedPut(conn, bo, base) {
   disclosed.cause = base.cause;
   return disclosed;
 }
-async function putModel(conn, session, bo, mutate, authorized) {
+async function putModel(conn, session, bo, mutate, authorized, opts = {}) {
   assertAuthorizedMatches(authorized, { name: bo }, "putModel");
   const uri = bopfUri(bo);
+  const preflight2 = opts.transport !== void 0 && opts.gate !== void 0 && opts.packageName !== void 0 ? await preflightCorr(
+    conn,
+    { uri, type: BOPF_TYPE, name: bo, packageName: opts.packageName },
+    { transport: opts.transport, gate: opts.gate, corrNr: opts.corrNr },
+    "U",
+    "write"
+  ) : void 0;
   const xml4 = await withRelockRetry({
     session,
     uri,
     lockAccept: BOPF_LOCK_ACCEPT,
+    // UNSUPPORTED/TRANSPORT_ERROR (the two refusals below) are never fixed
+    // by a fresh lock — exclude them from retry same as the three the
+    // default already excludes.
+    retryable: (e) => !(isAbapError(e) && (e.code === "SAFETY_DENIED" || e.code === "BAD_INPUT" || e.code === "LOCKED" || e.code === "UNSUPPORTED" || e.code === "TRANSPORT_ERROR")),
     reread: async (lock) => {
       void lock;
       const resp = await conn.get(uri, { headers: { Accept: BOPF_ACCEPT_V4 } });
@@ -147544,22 +147634,35 @@ async function putModel(conn, session, bo, mutate, authorized) {
     rebuild: async (fresh) => await mutate(fresh),
     attempt: async (lock, payload) => {
       const info = transportFromLock(lock);
-      if (info.required) {
+      const corr2 = corrForMutation(preflight2, info);
+      if (corr2 === void 0) {
         try {
           await session.unlock(uri);
         } catch {
         }
         throw new AbapError(
           "UNSUPPORTED",
-          `Cannot write BOPF business object ${bo}: it is pinned to transport ${info.corrNr}.`,
+          `Cannot write BOPF business object ${bo}: the lock reports transport request ${info.corrNr ?? "(unnamed)"}, but no transport was resolved for this write.`,
           { name: bo, corrNr: info.corrNr, corrUser: info.corrUser },
-          "BOPF write refuses every transportable target until the non-atomic-create risk is resolved for transportable packages. Use a local package instead."
+          "Pass corr_nr, or rely on ABAP_ALLOW_TRANSPORTS to resolve one, so this write's transport request can be judged by the safety gate before it reaches the wire."
+        );
+      }
+      const divergent = divergentLockCorrNr(corr2, info);
+      if (divergent !== void 0) {
+        try {
+          await session.unlock(uri);
+        } catch {
+        }
+        throw new AbapError(
+          "TRANSPORT_ERROR",
+          `Cannot write BOPF business object ${bo}: the lock names transport request ${divergent}, but this write was authorised for ${corr2.kind === "transport" ? corr2.corrNr : "(local)"}. Nothing was written.`,
+          { name: bo, gatedCorrNr: corr2.kind === "transport" ? corr2.corrNr : void 0, serverCorrNr: divergent }
         );
       }
       try {
         await conn.put(uri, {
           headers: { "Content-Type": BOPF_ACCEPT_V4, Accept: BOPF_ACCEPT_V4 },
-          qs: { lockHandle: lock.handle },
+          qs: corr2.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr2.corrNr } : { lockHandle: lock.handle },
           body: payload
         });
       } catch (e) {
@@ -147571,7 +147674,7 @@ async function putModel(conn, session, bo, mutate, authorized) {
     }
   });
   void xml4;
-  const corr = { kind: "local" };
+  const corr = preflight2?.kind === "transport" ? { kind: "transport", corrNr: preflight2.corrNr, source: preflight2.source } : { kind: "local" };
   return { ...await readModel(conn, bo), corr };
 }
 async function activateBusinessObject(conn, bo) {
@@ -147677,23 +147780,46 @@ async function deleteBusinessObject(conn, session, bo, authorized, gate, opts = 
       ddicEnumerated = true;
     }
   }
+  const preflight2 = opts.transport !== void 0 && opts.packageName !== void 0 ? await preflightCorr(
+    conn,
+    { uri, type: BOPF_TYPE, name: bo, packageName: opts.packageName },
+    { transport: opts.transport, gate, corrNr: opts.corrNr },
+    "U",
+    "delete"
+  ) : void 0;
   const lock = await session.lock(uri, { accept: BOPF_LOCK_ACCEPT });
   const info = transportFromLock(lock);
-  if (info.required) {
+  const corr = corrForMutation(preflight2, info);
+  if (corr === void 0) {
     try {
       await session.unlock(uri);
     } catch {
     }
     throw new AbapError(
       "UNSUPPORTED",
-      `Cannot delete BOPF business object ${bo}: it is pinned to transport ${info.corrNr}.`,
+      `Cannot delete BOPF business object ${bo}: the lock reports transport request ${info.corrNr ?? "(unnamed)"}, but no transport was resolved for this delete.`,
       { name: bo, corrNr: info.corrNr, corrUser: info.corrUser },
-      "BOPF delete refuses every transportable target until the non-atomic-create risk is resolved for transportable packages."
+      "Pass corr_nr, or rely on ABAP_ALLOW_TRANSPORTS to resolve one, so this delete's transport request can be judged by the safety gate before it reaches the wire."
+    );
+  }
+  const divergentBo = divergentLockCorrNr(corr, info);
+  if (divergentBo !== void 0) {
+    try {
+      await session.unlock(uri);
+    } catch {
+    }
+    throw corrNrNotHonoured(
+      { name: bo, type: BOPF_TYPE, uri, packageName: opts.packageName ?? "", label: "BOPF business object" },
+      corr.kind === "transport" ? corr.corrNr : "",
+      divergentBo,
+      "lock"
     );
   }
   let boDeleted = false;
   try {
-    await conn.del(uri, { qs: { lockHandle: lock.handle } });
+    await conn.del(uri, {
+      qs: corr.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr.corrNr } : { lockHandle: lock.handle }
+    });
     boDeleted = true;
   } catch (e) {
     try {
@@ -147734,7 +147860,7 @@ async function deleteBusinessObject(conn, session, bo, authorized, gate, opts = 
         });
         continue;
       }
-      ddic.push(await deleteDdicCandidate(conn, session, cand, candAuthorized));
+      ddic.push(await deleteDdicCandidate(conn, session, cand, candAuthorized, corr));
     }
   }
   const ddicSpared = spared.map((cand) => ({
@@ -147783,10 +147909,10 @@ async function deleteBusinessObject(conn, session, bo, authorized, gate, opts = 
         });
         continue;
       }
-      ddicRequested.push(await deleteDdicCandidate(conn, session, cand, candAuthorized));
+      ddicRequested.push(await deleteDdicCandidate(conn, session, cand, candAuthorized, corr));
     }
   }
-  return { boDeleted, ddic, ddicRequested, ddicSpared, ddicEnumerated };
+  return { boDeleted, ddic, ddicRequested, ddicSpared, ddicEnumerated, corr };
 }
 function collectDdicCascadeCandidates(model) {
   const generated = [];
@@ -147864,7 +147990,7 @@ function resolvePersistentCascadeRequest(bo, model, names) {
   }
   return [...resolved.filter((c) => c.kind === "table"), ...resolved.filter((c) => c.kind === "structure")];
 }
-async function deleteDdicCandidate(conn, session, cand, authorized) {
+async function deleteDdicCandidate(conn, session, cand, authorized, corr) {
   assertAuthorizedMatches(authorized, { name: cand.name }, "deleteDdicCandidate");
   let existed;
   try {
@@ -147899,8 +148025,25 @@ async function deleteDdicCandidate(conn, session, cand, authorized) {
       reason: `lock failed: ${describeUnknownError(e)}`
     };
   }
+  const candTransport = transportFromLock(lock);
+  if (candTransport.required && corr.kind !== "transport") {
+    try {
+      await session.unlock(cand.uri);
+    } catch {
+    }
+    return {
+      name: cand.name,
+      kind: cand.kind,
+      uri: cand.uri,
+      existed: true,
+      deleted: false,
+      reason: `pinned to transport ${candTransport.corrNr ?? "(unnamed)"} while the business object delete was local; not deleted`
+    };
+  }
   try {
-    await conn.del(cand.uri, { qs: { lockHandle: lock.handle } });
+    await conn.del(cand.uri, {
+      qs: candTransport.required && corr.kind === "transport" ? { lockHandle: lock.handle, corrNr: corr.corrNr } : { lockHandle: lock.handle }
+    });
   } catch (e) {
     const deleteFailure = `delete failed: ${describeUnknownError(e)}`;
     try {
@@ -149067,9 +149210,12 @@ var bopfEditInputSchema = {
   activate: external_exports.boolean().optional().describe("Activate after the edit succeeds."),
   allow_dangling_ref: external_exports.boolean().optional().describe("Accepts the dangling-ref risk that otherwise refuses the write."),
   i_know_this_may_not_activate: external_exports.boolean().optional().describe("Required true for add_alternative_key and set_alternative_key_fields."),
-  package: external_exports.string().optional().describe("create_bo: local ($TMP-style) package, required."),
+  package: external_exports.string().optional().describe(
+    "create_bo: target package. $TMP-style local packages need no transport; a transportable package records the object in a transport request (corr_nr, or one resolved under ABAP_ALLOW_TRANSPORTS)."
+  ),
   description: external_exports.string().optional().describe("create_bo: optional description."),
-  rootNodeName: external_exports.string().optional().describe('create_bo only: root node name, default "ROOT".')
+  rootNodeName: external_exports.string().optional().describe('create_bo only: root node name, default "ROOT".'),
+  corr_nr: external_exports.string().optional().describe("Transport request for a transportable package. $TMP needs none; omitted, one is resolved under ABAP_ALLOW_TRANSPORTS.")
 };
 var BopfEditInput = external_exports.object(bopfEditInputSchema);
 var bopfDeleteInputSchema = {
@@ -149082,7 +149228,8 @@ var bopfDeleteInputSchema = {
   cascade_persistent: external_exports.array(external_exports.string()).optional().describe(
     "Exact DDIC names to also delete from persistentTableRef/persistentStructureRef \u2014 each must be referenced by this BO and live in its package. Requires cascade_ddic: true."
   ),
-  dry_run: external_exports.boolean().optional().describe("Default true: report only, delete nothing.")
+  dry_run: external_exports.boolean().optional().describe("Default true: report only, delete nothing."),
+  corr_nr: external_exports.string().optional().describe("Transport request for a transportable package. $TMP needs none; omitted, one is resolved under ABAP_ALLOW_TRANSPORTS.")
 };
 var BopfDeleteInput = external_exports.object(bopfDeleteInputSchema);
 function bopfGateKey(bo) {
@@ -150224,14 +150371,20 @@ function createBoRootNodeNotes(boName, check2) {
   }
   return [];
 }
-function unusableRootNodeError(boName, check2, entryId, activationSkipped) {
+function constantsInterfaceNote(cleanup) {
+  const iface = cleanup.constantsInterface;
+  if (!iface) return "";
+  return iface.deleted ? ` Its generated constants interface ${iface.name} was deleted with it.` : ` Its generated constants interface ${iface.name} is still there (${iface.reason}); delete it by hand.`;
+}
+function unusableRootNodeError(boName, check2, entryId, activationSkipped, partialCleanup) {
   const lead = check2.actual === void 0 ? `create_bo for "${boName}" requested root node "${check2.requested}", but the model read back after create carries no root node at all. BOPF bakes the root node name into the generated constants interface AT CREATE TIME` : `create_bo for "${boName}" requested root node "${check2.requested}", but the root node BOPF actually created came back UNNAMED (bo:name="") instead. BOPF bakes that empty name into the generated constants interface AT CREATE TIME (an invalid "BEGIN OF ," ABAP structure)`;
-  const tail = ` and never regenerates that interface, so this business object can never be activated. Renaming the root node afterward does NOT repair the interface \u2014 live-observed in this repo (two activation retries, source etag unchanged). The only remedy: abap_bopf_delete "${boName}", then create it again. This BO already exists on the system right now and is residue that must be cleaned up` + (entryId !== void 0 ? ` (journal entry ${entryId})` : "") + "." + (activationSkipped ? " No activation was attempted \u2014 an object whose constants interface is already invalid can only fail to activate." : "");
+  const residue = partialCleanup === void 0 ? "This BO already exists on the system right now and is residue that must be cleaned up" + (entryId !== void 0 ? ` (journal entry ${entryId})` : "") + "." : partialCleanup.deleted ? "This create was on a transportable package, so the unusable residue was deleted right away instead of being left for cleanup" + (entryId !== void 0 ? ` (journal entry ${entryId})` : "") + "." + constantsInterfaceNote(partialCleanup) : "This BO already exists on the system right now and is residue that must be cleaned up" + (entryId !== void 0 ? ` (journal entry ${entryId})` : "") + ` \u2014 the automatic cleanup delete also failed (${partialCleanup.reason}), so it is still there.`;
+  const tail = ` and never regenerates that interface, so this business object can never be activated. Renaming the root node afterward does NOT repair the interface \u2014 live-observed in this repo (two activation retries, source etag unchanged). The only remedy: abap_bopf_delete "${boName}", then create it again. ` + residue + (activationSkipped ? " No activation was attempted \u2014 an object whose constants interface is already invalid can only fail to activate." : "");
   return new AbapError(
     "BOPF_CREATE_UNUSABLE",
     lead + tail,
-    { bo: boName, requested: check2.requested, actual: check2.actual, journalEntryId: entryId },
-    `abap_bopf_delete "${boName}", then create_bo again.`
+    { bo: boName, requested: check2.requested, actual: check2.actual, journalEntryId: entryId, partialCleanup },
+    partialCleanup?.deleted ? `create_bo again \u2014 the unusable copy of "${boName}" was already removed.` : `abap_bopf_delete "${boName}", then create_bo again.`
   );
 }
 function addNodeAutoAssignedRefsNote(input, model) {
@@ -150252,7 +150405,7 @@ function alternativeKeyActivationNote(input) {
   if (input.operation !== "add_alternative_key") return void 0;
   return "add_alternative_key's PUT is confirmed to land, but no alternative key added through this tool has been observed to activate. With a TABL/DS dataTypeRef, activation drew a severity-E message that the key's data type is not a data element \u2014 including for a byte-exact copy of an SAP demo key that is active on SAP's own object. With a DTEL/DE dataTypeRef, activate instead reported activated: false with zero activation messages; removing the key restored activated: true in that case.";
 }
-function buildEditResponse(bo, model, danglingVerdict, activation, recovered, journalEntryId, maxChars, extraNotes = [], rootNodeCheck) {
+function buildEditResponse(bo, model, danglingVerdict, activation, recovered, journalEntryId, maxChars, extraNotes = [], rootNodeCheck, corr, warnings) {
   const notes = [...extraNotes];
   if (recovered) {
     notes.push(
@@ -150282,6 +150435,8 @@ function buildEditResponse(bo, model, danglingVerdict, activation, recovered, jo
       bo,
       version: model.version,
       package: model.packageRef?.name,
+      transport: corr?.kind === "transport" ? corr.corrNr : void 0,
+      warnings: warnings?.length ? warnings.join(" | ") : void 0,
       constantsInterface: model.constantsInterfaceRef?.name,
       nodeCount: model.nodes.length,
       // Makes a clean live create's root node name observable at a glance.
@@ -150483,6 +150638,18 @@ var BOPF_EDIT_TOOL_DESCRIPTION = "One design-time edit to a BOPF business object
 function recoverCreateAfterSessionDeath(deps, createRequest) {
   return deps.pool.withRead("abap_bopf_edit", (conn) => readModel(conn, createRequest.name));
 }
+async function recoveredCreateOutcome(deps, gateKey, createRequest, reread, cause) {
+  const rootNodeCheck = checkRootNodeName(createRequest, reread.model);
+  const corr = corrFromCreateError(cause) ?? { kind: "unresolved" };
+  const unusable = rootNodeCheck.actual === void 0 || rootNodeCheck.actual === "";
+  if (!unusable || corr.kind !== "transport") return { rootNodeCheck, corr };
+  const partialCleanup = await deps.pool.withWrite(
+    "abap_bopf_edit",
+    gateKey,
+    (conn) => cleanupUnusablePartialCreate(conn, createRequest.name, rootNodeCheck, corr, reread.model)
+  );
+  return { rootNodeCheck, corr, ...partialCleanup ? { partialCleanup } : {} };
+}
 var TIMEOUT_REREAD_ATTEMPTS = 6;
 var TIMEOUT_REREAD_INTERVAL_MS = 5e3;
 function defaultSleep2(ms) {
@@ -150571,7 +150738,10 @@ async function runBopfEdit(deps, args) {
               { name: bo, packageName: input.package, type: BOPF_TYPE },
               { corr: { kind: "unresolved" } }
             );
-            const created = await createBusinessObject(conn, deps.transport, createRequest, authorized);
+            const created = await createBusinessObject(conn, deps.transport, createRequest, authorized, {
+              gate: deps.safety,
+              corrNr: input.corr_nr
+            });
             const unusable = created.rootNodeCheck.actual === void 0 || created.rootNodeCheck.actual === "";
             let activation;
             if (wantsActivate && !unusable) {
@@ -150587,7 +150757,9 @@ async function runBopfEdit(deps, args) {
               xml: created.xml,
               recovered: created.recovered === true,
               activation,
-              rootNodeCheck: created.rootNodeCheck
+              rootNodeCheck: created.rootNodeCheck,
+              corr: created.corr,
+              ...created.partialCleanup ? { partialCleanup: created.partialCleanup } : {}
             };
           });
         } catch (e) {
@@ -150597,12 +150769,13 @@ async function runBopfEdit(deps, args) {
             const reread2 = await rereadAfterTimeout(deps, bo, () => true);
             if (reread2.kind === "found") {
               const version2 = reread2.read.model.version ?? "unknown";
+              const recovered = await recoveredCreateOutcome(deps, gateKey, createRequest, reread2.read, e);
               return {
                 model: reread2.read.model,
                 xml: reread2.read.xml,
                 recovered: true,
                 activation: void 0,
-                rootNodeCheck: checkRootNodeName(createRequest, reread2.read.model),
+                ...recovered,
                 timeoutNote: `create_bo did not answer within ${timeoutMs} ms (${envVar}) but completed on the server after the client timeout: a fresh session re-read confirms ${bo} exists (version ${version2}). No activation was attempted on this call` + (wantsActivate ? `; run abap_bopf_edit operation: "activate" to activate it.` : ".")
               };
             }
@@ -150634,6 +150807,7 @@ async function runBopfEdit(deps, args) {
                 recovered: false,
                 activation: { activated: true, messages: [], version: "active" },
                 rootNodeCheck: checkRootNodeName(createRequest, reread2.read.model),
+                corr: { kind: "unresolved" },
                 timeoutNote: `activation of ${bo} did not answer within ${timeoutMs} ms (${envVar}) but completed on the server after the client timeout: a fresh session re-read shows version active.`
               };
             }
@@ -150645,6 +150819,7 @@ async function runBopfEdit(deps, args) {
               recovered: false,
               activation: void 0,
               rootNodeCheck: checkRootNodeName(createRequest, reread2.last.model),
+              corr: { kind: "unresolved" },
               activationTimeoutFailure: {
                 version: reread2.last.model.version ?? "unknown",
                 timeoutMs,
@@ -150665,12 +150840,16 @@ async function runBopfEdit(deps, args) {
             xml: reread.xml,
             recovered: true,
             activation: void 0,
-            rootNodeCheck: checkRootNodeName(createRequest, reread.model)
+            ...await recoveredCreateOutcome(deps, gateKey, createRequest, reread, e)
           };
         }
       }
     );
-    await settle({ outcome: "succeeded", afterSource: result2.xml });
+    await settle({
+      outcome: "succeeded",
+      afterSource: result2.xml,
+      ...result2.corr.kind === "transport" ? { corrNr: result2.corr.corrNr } : {}
+    });
     if (result2.activationTimeoutFailure) {
       const { version: version2, timeoutMs, envVar } = result2.activationTimeoutFailure;
       throw new AbapError(
@@ -150692,7 +150871,7 @@ async function runBopfEdit(deps, args) {
       );
     }
     if (result2.rootNodeCheck.actual === void 0 || result2.rootNodeCheck.actual === "") {
-      throw unusableRootNodeError(bo, result2.rootNodeCheck, entryId, wantsActivate);
+      throw unusableRootNodeError(bo, result2.rootNodeCheck, entryId, wantsActivate, result2.partialCleanup);
     }
     return ok11(
       buildEditResponse(
@@ -150711,7 +150890,11 @@ async function runBopfEdit(deps, args) {
           ...createBoRootNodeNotes(bo, result2.rootNodeCheck),
           ...createBoActivatabilityNotes(result2.model)
         ],
-        result2.rootNodeCheck
+        result2.rootNodeCheck,
+        result2.corr,
+        result2.recovered && result2.corr.kind === "transport" ? [
+          `create POST failed but the object was found complete on re-read and kept (transport request ${result2.corr.corrNr})`
+        ] : void 0
       ),
       entryId
     );
@@ -150813,10 +150996,20 @@ async function runBopfEdit(deps, args) {
               }
               return mutateModel(xml4, input);
             },
-            authorized
+            authorized,
+            {
+              transport: deps.transport,
+              gate: deps.safety,
+              corrNr: input.corr_nr,
+              packageName: initial.model.packageRef?.name
+            }
           )
         );
-        await settle({ outcome: "succeeded", afterSource: putResult.xml });
+        await settle({
+          outcome: "succeeded",
+          afterSource: putResult.xml,
+          ...putResult.corr.kind === "transport" ? { corrNr: putResult.corr.corrNr } : {}
+        });
         entryId = id;
         afterMutate = putResult;
         mutationCorr = putResult.corr;
@@ -150976,7 +151169,8 @@ async function runBopfEdit(deps, args) {
         danglingVerdict,
         activation,
         entryId,
-        notes: targetNodeNote ? [targetNodeNote] : []
+        notes: targetNodeNote ? [targetNodeNote] : [],
+        corr: mutationCorr
       };
     })
   ).catch(async (e) => {
@@ -151028,7 +151222,9 @@ async function runBopfEdit(deps, args) {
         result.timeoutNote,
         ...delegationNotes(input),
         ...result.notes ?? []
-      ].filter((n) => n !== void 0)
+      ].filter((n) => n !== void 0),
+      void 0,
+      result.corr
     ),
     result.entryId
   );
@@ -151172,6 +151368,7 @@ function buildDeleteResultResponse(bo, result, cascadeDdic, leftBehind, spared, 
     header: {
       bo,
       boDeleted: result.boDeleted,
+      transport: result.corr.kind === "transport" ? result.corr.corrNr : void 0,
       cascadeDdic,
       ddicEnumerated: cascadeDdic ? result.ddicEnumerated : void 0,
       ddicCount: cascadeDdic && result.ddicEnumerated ? result.ddic.length : void 0,
@@ -151200,7 +151397,7 @@ function assertRequestedTargetsGate(safety, targets) {
     );
   }
 }
-var BOPF_DELETE_TOOL_DESCRIPTION = "Delete a BOPF business object. dry_run defaults to true. dry_run: false plus confirm (echo bo) deletes. cascade_ddic: true also sweeps generated DDIC objects (needs confirm_cascade too). cascade_persistent names specific persistentTableRef/persistentStructureRef objects to delete too (requires cascade_ddic). Refuses on a transportable package.";
+var BOPF_DELETE_TOOL_DESCRIPTION = "Delete a BOPF business object. dry_run defaults to true. dry_run: false plus confirm (echo bo) deletes. cascade_ddic: true also sweeps generated DDIC objects (needs confirm_cascade too). cascade_persistent names specific persistentTableRef/persistentStructureRef objects to delete too (requires cascade_ddic). A transportable package needs a transport request (corr_nr, or one resolved under ABAP_ALLOW_TRANSPORTS).";
 async function runBopfDelete(deps, args) {
   const input = args;
   const bo = input.bo;
@@ -151327,11 +151524,17 @@ async function runBopfDelete(deps, args) {
           await onBeforeImage(void 0);
           return deleteBusinessObject(conn, session, bo, authorized, deps.safety, {
             cascadeDdic: input.cascade_ddic,
-            cascadePersistent: requestedTargets
+            cascadePersistent: requestedTargets,
+            transport: deps.transport,
+            corrNr: input.corr_nr,
+            packageName: currentModel.packageRef?.name
           });
         }
       );
-      await settle({ outcome: "succeeded" });
+      await settle({
+        outcome: "succeeded",
+        ...delResult.corr.kind === "transport" ? { corrNr: delResult.corr.corrNr } : {}
+      });
       return { ...delResult, entryId };
     })
   );
@@ -151424,6 +151627,80 @@ function bopfBridgeClassName(bo) {
   return `${BOPF_BRIDGE_CLASS_PREFIX}${keep}_${hash2}`;
 }
 var BOPF_LINE_PREFIX = "BOPF> ";
+var MAX_ABAP_LINE = 255;
+var MAX_WRAP_LINE = 120;
+var LITERAL_PIECE_MAX = 100;
+var FIELD_LINE_BUDGET = 90;
+function splitLiteralPieces(literal2, firstMax, restMax) {
+  const quotesBefore = new Array(literal2.length + 1);
+  quotesBefore[0] = 0;
+  for (let i = 0; i < literal2.length; i++) {
+    quotesBefore[i + 1] = quotesBefore[i] + (literal2[i] === "'" ? 1 : 0);
+  }
+  const pieces = [];
+  let pos = 0;
+  let budget = firstMax;
+  while (pos < literal2.length) {
+    let end = Math.min(pos + budget, literal2.length);
+    if (end < literal2.length && literal2[end - 1] === "'" && literal2[end] === "'" && quotesBefore[end - 1] % 2 === 0) {
+      end -= 1;
+    }
+    if (end <= pos) end = pos + 1;
+    pieces.push(literal2.slice(pos, end));
+    pos = end;
+    budget = restMax;
+  }
+  return pieces;
+}
+function chunkFieldTokens(fields, rowRef) {
+  const tokens = fields.map((f) => `${f.nameLower}={ ${rowRef}-${f.nameLower} }`);
+  const groups = [];
+  let current = [];
+  let currentLen = 0;
+  for (const tok of tokens) {
+    const addLen = tok.length + 1;
+    if (current.length > 0 && currentLen + addLen > FIELD_LINE_BUDGET) {
+      groups.push(current);
+      current = [];
+      currentLen = 0;
+    }
+    current.push(tok);
+    currentLen += addLen;
+  }
+  if (current.length > 0) groups.push(current);
+  return groups.map((g) => " " + g.join(" "));
+}
+function wrapTemplateWords(tpl, firstMax, restMax) {
+  const words = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of tpl) {
+    if (ch === "{") depth++;
+    else if (ch === "}") depth = Math.max(0, depth - 1);
+    if (ch === " " && depth === 0) {
+      words.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  words.push(current);
+  const chunks = [];
+  let chunk3 = "";
+  let budget = firstMax;
+  for (const w of words) {
+    const candidate = chunk3 ? `${chunk3} ${w}` : w;
+    if (chunk3 && candidate.length > budget) {
+      chunks.push(chunk3);
+      chunk3 = w;
+      budget = restMax;
+    } else {
+      chunk3 = candidate;
+    }
+  }
+  if (chunk3) chunks.push(chunk3);
+  return chunks;
+}
 function bopfBridgeSource(model, scenario, className) {
   const cls = assertPlainName(className, "Bridge class name").toLowerCase();
   const boName = assertPlainName(model.name, "BO name").toLowerCase();
@@ -151548,7 +151825,59 @@ function bopfBridgeSource(model, scenario, className) {
   let msgN = 1;
   const write = (s) => body.push(s);
   const emitOut = (text5) => write(`        out->write( '${BOPF_LINE_PREFIX}${text5}' ).`);
-  const emitOutTpl = (tpl) => write(`        out->write( |${BOPF_LINE_PREFIX}${tpl}| ).`);
+  const emitOutTpl = (tpl) => {
+    const full = `        out->write( |${BOPF_LINE_PREFIX}${tpl}| ).`;
+    if (full.length <= MAX_WRAP_LINE) {
+      write(full);
+      return;
+    }
+    const chunks = wrapTemplateWords(tpl, 85, 100);
+    if (chunks.length === 1) {
+      write(full);
+      return;
+    }
+    write(`        out->write( |${BOPF_LINE_PREFIX}${chunks[0]} |`);
+    for (let k = 1; k < chunks.length; k++) {
+      const isLast = k === chunks.length - 1;
+      write(`          && |${chunks[k]}${isLast ? "" : " "}|${isLast ? " )." : ""}`);
+    }
+  };
+  const fieldLineOwners = /* @__PURE__ */ new Map();
+  const writeFieldAssignment = (idLower, nodeNameLower, fieldNameLower, literal2) => {
+    const startIndex = body.length;
+    let pieces;
+    if (literal2.length <= LITERAL_PIECE_MAX) {
+      pieces = [literal2];
+    } else {
+      const prefixLen = `        ls_${idLower}-${fieldNameLower} = '`.length;
+      const firstMax = Math.max(10, Math.min(LITERAL_PIECE_MAX, MAX_WRAP_LINE - prefixLen - 1));
+      pieces = splitLiteralPieces(literal2, firstMax, LITERAL_PIECE_MAX);
+    }
+    if (pieces.length === 1) {
+      write(`        ls_${idLower}-${fieldNameLower} = '${pieces[0]}'.`);
+    } else {
+      write(`        ls_${idLower}-${fieldNameLower} = '${pieces[0]}'`);
+      for (let k = 1; k < pieces.length; k++) {
+        const isLast = k === pieces.length - 1;
+        write(`          && '${pieces[k]}'${isLast ? "." : ""}`);
+      }
+    }
+    for (let idx2 = startIndex; idx2 < body.length; idx2++) {
+      fieldLineOwners.set(idx2, { node: nodeNameLower, field: fieldNameLower });
+    }
+  };
+  const writeLineVar = (idLower, pieces) => {
+    if (pieces.length === 1) {
+      write(`        lv_line_${idLower} = |${pieces[0]}|.`);
+    } else {
+      write(`        lv_line_${idLower} = |${pieces[0]}|`);
+      for (let k = 1; k < pieces.length; k++) {
+        const isLast = k === pieces.length - 1;
+        write(`          && |${pieces[k]}|${isLast ? "." : ""}`);
+      }
+    }
+    write(`        out->write( lv_line_${idLower} ).`);
+  };
   emitOut(`STEP${step++} OK service manager obtained`);
   body.length = 0;
   step = 1;
@@ -151567,7 +151896,7 @@ function bopfBridgeSource(model, scenario, className) {
   for (const r of resolved) {
     write(`        DATA ls_${r.idLower} TYPE ${r.structureRefLower}.`);
     for (const f of r.fields) {
-      write(`        ls_${r.idLower}-${f.nameLower} = '${f.literal}'.`);
+      writeFieldAssignment(r.idLower, r.nameLower, f.nameLower, f.literal);
     }
     write("");
   }
@@ -151617,11 +151946,14 @@ function bopfBridgeSource(model, scenario, className) {
     emitOutTpl(`STEP${step++} retrieve(${r.idLower}) rows={ lines( lt_${r.idLower} ) }`);
     write(`        emit( iv_stage = 'RETRIEVE_${r.idLower.toUpperCase()}' io_msg = lo_m${msgN} ).`);
     msgN++;
-    const fieldList = r.fields.map((f) => `${f.nameLower}={ <row_${r.idLower}>-${f.nameLower} }`).join(" ");
-    write(`        LOOP AT lt_${r.idLower} ASSIGNING FIELD-SYMBOL(<row_${r.idLower}>).`);
-    emitOutTpl(
-      `DATA ${r.idLower} key={ <row_${r.idLower}>-key }${fieldList ? " " + fieldList : ""}`
-    );
+    const rowRef = `<row_${r.idLower}>`;
+    const linePieces = [
+      `${BOPF_LINE_PREFIX}DATA ${r.idLower} key={ ${rowRef}-key }`,
+      ...chunkFieldTokens(r.fields, rowRef)
+    ];
+    write(`        DATA lv_line_${r.idLower} TYPE string.`);
+    write(`        LOOP AT lt_${r.idLower} ASSIGNING FIELD-SYMBOL(${rowRef}).`);
+    writeLineVar(r.idLower, linePieces);
     write("        ENDLOOP.");
     write("");
   }
@@ -151642,11 +151974,14 @@ function bopfBridgeSource(model, scenario, className) {
     );
     write(`        emit( iv_stage = 'RBA_${r.idLower.toUpperCase()}' io_msg = lo_m${msgN} ).`);
     msgN++;
-    const fieldList = r.fields.map((f) => `${f.nameLower}={ <row_${r.idLower}>-${f.nameLower} }`).join(" ");
-    write(`        LOOP AT lt_${r.idLower} ASSIGNING FIELD-SYMBOL(<row_${r.idLower}>).`);
-    emitOutTpl(
-      `DATA ${r.idLower} key={ <row_${r.idLower}>-key }${fieldList ? " " + fieldList : ""}`
-    );
+    const rowRef = `<row_${r.idLower}>`;
+    const linePieces = [
+      `${BOPF_LINE_PREFIX}DATA ${r.idLower} key={ ${rowRef}-key }`,
+      ...chunkFieldTokens(r.fields, rowRef)
+    ];
+    write(`        DATA lv_line_${r.idLower} TYPE string.`);
+    write(`        LOOP AT lt_${r.idLower} ASSIGNING FIELD-SYMBOL(${rowRef}).`);
+    writeLineVar(r.idLower, linePieces);
     write("        ENDLOOP.");
     write("");
   }
@@ -151664,9 +151999,9 @@ function bopfBridgeSource(model, scenario, className) {
   if (scenario.cleanup) {
     write("        DATA lt_del TYPE /bobf/t_frw_modification.");
     for (const r of resolved) {
-      write(
-        `        APPEND VALUE #( node = ${cif}=>sc_node-${r.nameLower} key = lv_key_${r.idLower} change_mode = /bobf/if_frw_c=>sc_modify_delete ) TO lt_del.`
-      );
+      write(`        APPEND VALUE #( node        = ${cif}=>sc_node-${r.nameLower}`);
+      write(`                        key         = lv_key_${r.idLower}`);
+      write("                        change_mode = /bobf/if_frw_c=>sc_modify_delete ) TO lt_del.");
     }
     write("        lo_sm->modify( EXPORTING it_modification = lt_del");
     write(`                       IMPORTING eo_message      = DATA(lo_m${msgN}) ).`);
@@ -151683,7 +152018,7 @@ function bopfBridgeSource(model, scenario, className) {
     write("");
   }
   const bodySrc = body.join("\n");
-  return `CLASS ${cls} DEFINITION PUBLIC FINAL CREATE PUBLIC.
+  const source = `CLASS ${cls} DEFINITION PUBLIC FINAL CREATE PUBLIC.
   PUBLIC SECTION.
     INTERFACES if_oo_adt_classrun.
   PRIVATE SECTION.
@@ -151731,6 +152066,22 @@ ${bodySrc}
 
 ENDCLASS.
 `;
+  const sourceLines = source.split("\n");
+  const bodyStart = sourceLines.indexOf("    TRY.") + 1;
+  for (let i = 0; i < sourceLines.length; i++) {
+    const len = sourceLines[i].length;
+    if (len > MAX_ABAP_LINE) {
+      const owner = fieldLineOwners.get(i - bodyStart);
+      const detail = owner ? `scenario node "${owner.node}" field "${owner.field}"` : `first 60 chars: "${sourceLines[i].slice(0, 60)}"`;
+      throw new AbapError(
+        "BAD_INPUT",
+        `abap_bopf_test: generated bridge source line ${i + 1} is ${len} characters, over ABAP's 255-character limit (${detail}).`,
+        { line: i + 1, length: len, node: owner?.node, field: owner?.field },
+        "Shorten the value or split the scenario."
+      );
+    }
+  }
+  return source;
 }
 function splitNodeToken(token) {
   const m = /^(.+)_(\d+)$/.exec(token);

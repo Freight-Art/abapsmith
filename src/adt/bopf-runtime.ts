@@ -169,6 +169,114 @@ export function bopfBridgeClassName(bo: string): string {
 /** Prefix the generated bridge puts on every line of its own transcript. */
 export const BOPF_LINE_PREFIX = "BOPF> ";
 
+/** ABAP source lines are hard-capped at 255 characters; wrap generated
+ *  statements well before that so nothing realistic gets close. */
+const MAX_ABAP_LINE = 255;
+/** Soft wrap target for generated statement lines. */
+const MAX_WRAP_LINE = 120;
+/** A literal longer than this triggers `&&`-piece splitting at all. */
+const LITERAL_PIECE_MAX = 100;
+/** Character budget per `|...|` piece of a transcript DATA line — keeps the
+ *  wrapped `&&`-joined assignment comfortably under 120 columns per line. */
+const FIELD_LINE_BUDGET = 90;
+
+/**
+ * Split a literal (single quotes already doubled) into pieces safe to embed
+ * as `'<piece>'` and `&&`-join across lines. `firstMax` bounds the first
+ * piece (sized to leave room for the caller's own line prefix, e.g.
+ * `ls_<id>-<field> = '`); every later piece is bounded by `restMax`. Never
+ * cuts between the two characters of a doubled `''` — the cut point is
+ * pulled back by one when it would land there.
+ */
+function splitLiteralPieces(literal: string, firstMax: number, restMax: number): string[] {
+  const quotesBefore = new Array<number>(literal.length + 1);
+  quotesBefore[0] = 0;
+  for (let i = 0; i < literal.length; i++) {
+    quotesBefore[i + 1] = quotesBefore[i]! + (literal[i] === "'" ? 1 : 0);
+  }
+  const pieces: string[] = [];
+  let pos = 0;
+  let budget = firstMax;
+  while (pos < literal.length) {
+    let end = Math.min(pos + budget, literal.length);
+    // A cut lands inside a doubled quote iff both neighbouring chars are `'`
+    // AND the left one is the FIRST of the pair (an even count of quotes
+    // precede it) — pull the cut back before the pair in that case.
+    if (end < literal.length && literal[end - 1] === "'" && literal[end] === "'" && quotesBefore[end - 1]! % 2 === 0) {
+      end -= 1;
+    }
+    if (end <= pos) end = pos + 1; // defensive: always make progress
+    pieces.push(literal.slice(pos, end));
+    pos = end;
+    budget = restMax;
+  }
+  return pieces;
+}
+
+/**
+ * Group `field={ <row>-field }` tokens into `|...|` piece bodies (each
+ * carrying the single leading space it needs to reproduce the original
+ * single-space-joined field list once every piece is `&&`-concatenated),
+ * keeping each piece under `FIELD_LINE_BUDGET` chars.
+ */
+function chunkFieldTokens(fields: Array<{ nameLower: string }>, rowRef: string): string[] {
+  const tokens = fields.map((f) => `${f.nameLower}={ ${rowRef}-${f.nameLower} }`);
+  const groups: string[][] = [];
+  let current: string[] = [];
+  let currentLen = 0;
+  for (const tok of tokens) {
+    const addLen = tok.length + 1; // +1 for the separating space
+    if (current.length > 0 && currentLen + addLen > FIELD_LINE_BUDGET) {
+      groups.push(current);
+      current = [];
+      currentLen = 0;
+    }
+    current.push(tok);
+    currentLen += addLen;
+  }
+  if (current.length > 0) groups.push(current);
+  return groups.map((g) => " " + g.join(" "));
+}
+
+/**
+ * Split a single-space-joined template body into `&&`-joinable chunks,
+ * never breaking a word. `firstMax`/`restMax` bound the first/later chunks;
+ * concatenating the returned chunks with `" "` reproduces `tpl` exactly.
+ */
+function wrapTemplateWords(tpl: string, firstMax: number, restMax: number): string[] {
+  // Split only at spaces outside `{ ... }` — a cut inside an embedded
+  // expression would leave `|... { lines( |` behind, which does not compile.
+  const words: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of tpl) {
+    if (ch === "{") depth++;
+    else if (ch === "}") depth = Math.max(0, depth - 1);
+    if (ch === " " && depth === 0) {
+      words.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  words.push(current);
+  const chunks: string[] = [];
+  let chunk = "";
+  let budget = firstMax;
+  for (const w of words) {
+    const candidate = chunk ? `${chunk} ${w}` : w;
+    if (chunk && candidate.length > budget) {
+      chunks.push(chunk);
+      chunk = w;
+      budget = restMax;
+    } else {
+      chunk = candidate;
+    }
+  }
+  if (chunk) chunks.push(chunk);
+  return chunks;
+}
+
 /**
  * TAG FORMAT — owned jointly by `bopfBridgeSource` and `parseBopfTranscript`;
  * change one, change the other (a test in `test/bopf-runtime.test.ts` catches
@@ -381,7 +489,75 @@ export function bopfBridgeSource(model: BoModel, scenario: BopfTestScenario, cla
 
   const write = (s: string) => body.push(s);
   const emitOut = (text: string) => write(`        out->write( '${BOPF_LINE_PREFIX}${text}' ).`);
-  const emitOutTpl = (tpl: string) => write(`        out->write( |${BOPF_LINE_PREFIX}${tpl}| ).`);
+  // Long node/association names (assertPlainName allows up to 40 chars,
+  // repeated more than once in e.g. the retrieve_by_association STEP line)
+  // can push a single-line emission past MAX_WRAP_LINE (or, in the worst
+  // case, past MAX_ABAP_LINE) — wrap on word boundaries when that happens.
+  const emitOutTpl = (tpl: string): void => {
+    const full = `        out->write( |${BOPF_LINE_PREFIX}${tpl}| ).`;
+    if (full.length <= MAX_WRAP_LINE) {
+      write(full);
+      return;
+    }
+    const chunks = wrapTemplateWords(tpl, 85, 100);
+    if (chunks.length === 1) {
+      write(full);
+      return;
+    }
+    write(`        out->write( |${BOPF_LINE_PREFIX}${chunks[0]} |`);
+    for (let k = 1; k < chunks.length; k++) {
+      const isLast = k === chunks.length - 1;
+      write(`          && |${chunks[k]}${isLast ? "" : " "}|${isLast ? " )." : ""}`);
+    }
+  };
+
+  // Maps a `body` index (0-based, pre-header) to the scenario node/field that
+  // produced it — consulted only by the pre-flight line-length check below.
+  const fieldLineOwners = new Map<number, { node: string; field: string }>();
+
+  /** Writes a (possibly `&&`-wrapped) `ls_<id>-<field> = '<literal>'.`
+   *  assignment and records which node/field owns every line it wrote. */
+  const writeFieldAssignment = (idLower: string, nodeNameLower: string, fieldNameLower: string, literal: string): void => {
+    const startIndex = body.length;
+    let pieces: string[];
+    if (literal.length <= LITERAL_PIECE_MAX) {
+      pieces = [literal];
+    } else {
+      // Size the first piece so the prefixed first line (which carries
+      // `ls_<id>-<field> = '`, unlike every continuation line) still lands
+      // at or under MAX_WRAP_LINE; later pieces use the plain 100-char cap.
+      const prefixLen = `        ls_${idLower}-${fieldNameLower} = '`.length;
+      const firstMax = Math.max(10, Math.min(LITERAL_PIECE_MAX, MAX_WRAP_LINE - prefixLen - 1));
+      pieces = splitLiteralPieces(literal, firstMax, LITERAL_PIECE_MAX);
+    }
+    if (pieces.length === 1) {
+      write(`        ls_${idLower}-${fieldNameLower} = '${pieces[0]}'.`);
+    } else {
+      write(`        ls_${idLower}-${fieldNameLower} = '${pieces[0]}'`);
+      for (let k = 1; k < pieces.length; k++) {
+        const isLast = k === pieces.length - 1;
+        write(`          && '${pieces[k]}'${isLast ? "." : ""}`);
+      }
+    }
+    for (let idx = startIndex; idx < body.length; idx++) {
+      fieldLineOwners.set(idx, { node: nodeNameLower, field: fieldNameLower });
+    }
+  };
+
+  /** Writes `lv_line_<id> = |piece0| && |piece1| ... .` then
+   *  `out->write( lv_line_<id> ).` — the wrapped transcript DATA line. */
+  const writeLineVar = (idLower: string, pieces: string[]): void => {
+    if (pieces.length === 1) {
+      write(`        lv_line_${idLower} = |${pieces[0]}|.`);
+    } else {
+      write(`        lv_line_${idLower} = |${pieces[0]}|`);
+      for (let k = 1; k < pieces.length; k++) {
+        const isLast = k === pieces.length - 1;
+        write(`          && |${pieces[k]}|${isLast ? "." : ""}`);
+      }
+    }
+    write(`        out->write( lv_line_${idLower} ).`);
+  };
 
   emitOut(`STEP${step++} OK service manager obtained`);
   // (placeholder overwritten below — real emission happens inline with the calls)
@@ -408,7 +584,7 @@ export function bopfBridgeSource(model: BoModel, scenario: BopfTestScenario, cla
   for (const r of resolved) {
     write(`        DATA ls_${r.idLower} TYPE ${r.structureRefLower}.`);
     for (const f of r.fields) {
-      write(`        ls_${r.idLower}-${f.nameLower} = '${f.literal}'.`);
+      writeFieldAssignment(r.idLower, r.nameLower, f.nameLower, f.literal);
     }
     write("");
   }
@@ -463,11 +639,14 @@ export function bopfBridgeSource(model: BoModel, scenario: BopfTestScenario, cla
     emitOutTpl(`STEP${step++} retrieve(${r.idLower}) rows={ lines( lt_${r.idLower} ) }`);
     write(`        emit( iv_stage = 'RETRIEVE_${r.idLower.toUpperCase()}' io_msg = lo_m${msgN} ).`);
     msgN++;
-    const fieldList = r.fields.map((f) => `${f.nameLower}={ <row_${r.idLower}>-${f.nameLower} }`).join(" ");
-    write(`        LOOP AT lt_${r.idLower} ASSIGNING FIELD-SYMBOL(<row_${r.idLower}>).`);
-    emitOutTpl(
-      `DATA ${r.idLower} key={ <row_${r.idLower}>-key }${fieldList ? " " + fieldList : ""}`,
-    );
+    const rowRef = `<row_${r.idLower}>`;
+    const linePieces = [
+      `${BOPF_LINE_PREFIX}DATA ${r.idLower} key={ ${rowRef}-key }`,
+      ...chunkFieldTokens(r.fields, rowRef),
+    ];
+    write(`        DATA lv_line_${r.idLower} TYPE string.`);
+    write(`        LOOP AT lt_${r.idLower} ASSIGNING FIELD-SYMBOL(${rowRef}).`);
+    writeLineVar(r.idLower, linePieces);
     write("        ENDLOOP.");
     write("");
   }
@@ -491,11 +670,14 @@ export function bopfBridgeSource(model: BoModel, scenario: BopfTestScenario, cla
     );
     write(`        emit( iv_stage = 'RBA_${r.idLower.toUpperCase()}' io_msg = lo_m${msgN} ).`);
     msgN++;
-    const fieldList = r.fields.map((f) => `${f.nameLower}={ <row_${r.idLower}>-${f.nameLower} }`).join(" ");
-    write(`        LOOP AT lt_${r.idLower} ASSIGNING FIELD-SYMBOL(<row_${r.idLower}>).`);
-    emitOutTpl(
-      `DATA ${r.idLower} key={ <row_${r.idLower}>-key }${fieldList ? " " + fieldList : ""}`,
-    );
+    const rowRef = `<row_${r.idLower}>`;
+    const linePieces = [
+      `${BOPF_LINE_PREFIX}DATA ${r.idLower} key={ ${rowRef}-key }`,
+      ...chunkFieldTokens(r.fields, rowRef),
+    ];
+    write(`        DATA lv_line_${r.idLower} TYPE string.`);
+    write(`        LOOP AT lt_${r.idLower} ASSIGNING FIELD-SYMBOL(${rowRef}).`);
+    writeLineVar(r.idLower, linePieces);
     write("        ENDLOOP.");
     write("");
   }
@@ -518,10 +700,9 @@ export function bopfBridgeSource(model: BoModel, scenario: BopfTestScenario, cla
   if (scenario.cleanup) {
     write("        DATA lt_del TYPE /bobf/t_frw_modification.");
     for (const r of resolved) {
-      write(
-        `        APPEND VALUE #( node = ${cif}=>sc_node-${r.nameLower} key = lv_key_${r.idLower} ` +
-          "change_mode = /bobf/if_frw_c=>sc_modify_delete ) TO lt_del.",
-      );
+      write(`        APPEND VALUE #( node        = ${cif}=>sc_node-${r.nameLower}`);
+      write(`                        key         = lv_key_${r.idLower}`);
+      write("                        change_mode = /bobf/if_frw_c=>sc_modify_delete ) TO lt_del.");
     }
     write("        lo_sm->modify( EXPORTING it_modification = lt_del");
     write(`                       IMPORTING eo_message      = DATA(lo_m${msgN}) ).`);
@@ -541,7 +722,7 @@ export function bopfBridgeSource(model: BoModel, scenario: BopfTestScenario, cla
 
   const bodySrc = body.join("\n");
 
-  return `CLASS ${cls} DEFINITION PUBLIC FINAL CREATE PUBLIC.
+  const source = `CLASS ${cls} DEFINITION PUBLIC FINAL CREATE PUBLIC.
   PUBLIC SECTION.
     INTERFACES if_oo_adt_classrun.
   PRIVATE SECTION.
@@ -589,6 +770,30 @@ ${bodySrc}
 
 ENDCLASS.
 `;
+
+  // Pre-flight: never hand back source ABAP cannot parse. `body`'s lines
+  // start right after the fixed "    TRY." line, so a `body` index maps to
+  // the same offset in the final source's line array.
+  const sourceLines = source.split("\n");
+  const bodyStart = sourceLines.indexOf("    TRY.") + 1;
+  for (let i = 0; i < sourceLines.length; i++) {
+    const len = sourceLines[i]!.length;
+    if (len > MAX_ABAP_LINE) {
+      const owner = fieldLineOwners.get(i - bodyStart);
+      const detail = owner
+        ? `scenario node "${owner.node}" field "${owner.field}"`
+        : `first 60 chars: "${sourceLines[i]!.slice(0, 60)}"`;
+      throw new AbapError(
+        "BAD_INPUT",
+        `abap_bopf_test: generated bridge source line ${i + 1} is ${len} characters, over ABAP's ` +
+          `255-character limit (${detail}).`,
+        { line: i + 1, length: len, node: owner?.node, field: owner?.field },
+        "Shorten the value or split the scenario.",
+      );
+    }
+  }
+
+  return source;
 }
 
 // ---------------------------------------------------------------------------

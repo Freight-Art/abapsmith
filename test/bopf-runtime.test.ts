@@ -554,6 +554,131 @@ describe("bopfBridgeSource", () => {
       expect(err.message).toMatch(/no earlier/);
     });
   });
+
+  it("keeps every generated line at or under 255 chars for 30 fields and a 500-char value, and stays compile-shaped", () => {
+    const model = cloneModel(MODEL);
+    const fields: Record<string, string> = {};
+    for (let i = 1; i <= 30; i++) fields[`F${i}`] = `v${i}`;
+    // Raw quote placed so its doubled ('') pair straddles index 93/94 of the
+    // doubled literal — exactly where the first `&&`-piece boundary falls for
+    // `ls_root_0-f15` (firstMax=94) — proving the cut point gets pulled back
+    // rather than splitting the pair.
+    const raw = "a".repeat(93) + "'" + "b".repeat(406); // 500 raw chars, one quote
+    fields.F15 = raw;
+    const scenario: BopfTestScenario = { nodes: [{ node: "ROOT", fields }] };
+    const src = bopfBridgeSource(model, scenario, cls);
+    const lines = src.split("\n");
+
+    for (const l of lines) expect(l.length).toBeLessThanOrEqual(255);
+    expect(Math.max(...lines.map((l) => l.length))).toBeLessThanOrEqual(120);
+
+    // Parentheses stay balanced once text inside '...' literals is ignored.
+    let depth = 0;
+    for (const l of lines) {
+      let inLiteral = false;
+      for (const c of l) {
+        if (c === "'") {
+          inLiteral = !inLiteral;
+          continue;
+        }
+        if (inLiteral) continue;
+        if (c === "(") depth++;
+        else if (c === ")") depth--;
+      }
+    }
+    expect(depth).toBe(0);
+
+    expect(lines.filter((l) => l.endsWith(".")).length).toBeGreaterThan(0);
+    expect(lines.some((l) => l.trimEnd().endsWith("&&"))).toBe(false);
+    expect(src).toContain("out->write( lv_line_");
+    expect(src).toContain("BOPF> DATA ");
+
+    // The wrapped F15 assignment must reassemble to the doubled literal.
+    const fieldBlock = /ls_root_0-f15 = '[\s\S]*?'\.\n/.exec(src);
+    expect(fieldBlock).not.toBeNull();
+    const pieces = [...fieldBlock![0].matchAll(/'((?:[^']|'')*)'/g)].map((m) => m[1]);
+    expect(pieces.join("")).toBe(raw.replace(/'/g, "''"));
+  });
+
+  it("the transcript DATA line stays a single runtime line: the generated pieces concatenate to the pre-wrap text", () => {
+    const model = cloneModel(MODEL);
+    const fields: Record<string, string> = {};
+    for (let i = 1; i <= 30; i++) fields[`F${i}`] = `v${i}`;
+    const scenario: BopfTestScenario = { nodes: [{ node: "ROOT", fields }] };
+    const src = bopfBridgeSource(model, scenario, cls);
+
+    const idLower = "root_0";
+    const rowRef = `<row_${idLower}>`;
+    const expected =
+      `${BOPF_LINE_PREFIX}DATA ${idLower} key={ ${rowRef}-key }` +
+      Array.from({ length: 30 }, (_, i) => ` f${i + 1}={ ${rowRef}-f${i + 1} }`).join("");
+
+    const blockMatch = new RegExp(
+      `lv_line_${idLower} = [\\s\\S]*?out->write\\( lv_line_${idLower} \\)\\.`,
+    ).exec(src);
+    expect(blockMatch).not.toBeNull();
+    const pieces = [...blockMatch![0].matchAll(/\|([^|]*)\|/g)].map((m) => m[1]);
+    expect(pieces.join("")).toBe(expected);
+  });
+
+  it("wraps a long STEP template at word boundaries outside { } so every |...| piece is a valid template", () => {
+    const model = cloneModel(MODEL);
+    const rootName = "ROOT_" + "R".repeat(33);
+    const itemName = "ITEM_" + "I".repeat(33);
+    const assocName = "TO_" + "A".repeat(37);
+    model.nodes[0]!.name = rootName;
+    model.nodes[0]!.associations[0]!.name = assocName;
+    model.nodes[0]!.associations[0]!.targetNodeRef = ref("BOPF/NODE", itemName);
+    model.nodes[1]!.name = itemName;
+    const scenario: BopfTestScenario = {
+      nodes: [
+        { node: rootName, fields: { ORDER_ID: "1" } },
+        { node: itemName, parentNode: rootName, fields: { ITEM_NO: "1" } },
+      ],
+    };
+    const src = bopfBridgeSource(model, scenario, cls);
+    const lines = src.split("\n");
+    for (const l of lines) expect(l.length).toBeLessThanOrEqual(255);
+
+    const at = lines.findIndex((l) => l.startsWith("          && |retrieve_by_association("));
+    expect(at).toBeGreaterThan(0);
+    let start = at;
+    while (!lines[start]!.includes("out->write(")) start--;
+    let end = at;
+    while (!lines[end]!.endsWith(")).") && !lines[end]!.endsWith(" ).")) end++;
+    const pieces = lines
+      .slice(start, end + 1)
+      .flatMap((l) => [...l.matchAll(/\|([^|]*)\|/g)].map((m) => m[1]!));
+    expect(pieces.length).toBeGreaterThan(1);
+    for (const piece of pieces) {
+      expect((piece.match(/{/g) ?? []).length).toBe((piece.match(/}/g) ?? []).length);
+    }
+    const idRoot = `${rootName.toLowerCase()}_0`;
+    const idItem = `${itemName.toLowerCase()}_1`;
+    expect(pieces.join("").replace(/STEP\d+/, "STEPn")).toBe(
+      `${BOPF_LINE_PREFIX}STEPn retrieve_by_association(${idRoot}->${idItem}) ` +
+        `data_rows={ lines( lt_${idItem} ) } target_keys={ lines( lt_tk_${idItem} ) }`,
+    );
+  });
+
+  it("splits a cleanup APPEND VALUE #( … ) over several lines", () => {
+    const model = cloneModel(MODEL);
+    const scenario = cloneScenario(SCENARIO);
+    scenario.cleanup = true;
+    const src = bopfBridgeSource(model, scenario, cls);
+    const lines = src.split("\n");
+
+    let sawDeleteAppend = 0;
+    for (const l of lines) {
+      if (l.includes("sc_modify_delete")) {
+        sawDeleteAppend++;
+        expect(/node\s*=/.test(l)).toBe(false);
+      }
+    }
+    // One cleanup APPEND per resolved node in SCENARIO (ROOT + ITEM).
+    expect(sawDeleteAppend).toBe(2);
+    expect(src).toContain("change_mode = /bobf/if_frw_c=>sc_modify_delete ) TO lt_del.");
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -12,6 +12,16 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.36] - 2026-09-23
+
+### Added
+
+- **`abap_bopf_edit`/`abap_bopf_delete` work on transportable packages** (#216). `abap_bopf_edit operation=create_bo` no longer refuses `UNSUPPORTED` "package X is transportable", and every mutating `abap_bopf_edit` operation plus `abap_bopf_delete` no longer refuse "pinned to transport X" after already taking the lock. Both tools take a new optional `corr_nr` input, resolved before the lock the same way `abap_write` resolves one: the caller's `corr_nr` if given, otherwise under `ABAP_ALLOW_TRANSPORTS` — `auto` reuses or creates a session request, a pinned allowlist must already contain the request, and deny-all refuses `SAFETY_DENIED` before any wire request is made. The resolved request is judged by the safety gate, sent as `corrNr` on the create POST / model PUT / DELETE, and cross-checked against the lock's `CORRNR`: a lock naming a different request refuses `TRANSPORT_ERROR` with nothing written. When a request was used, the response header carries a `transport: <request>` line. `create_bo`'s POST into a transportable package is not atomic — a failed POST can still create the object — so on failure abapsmith now re-reads: object present and complete → success, with a `warnings:` header line saying the POST failed but the object was found complete and kept (naming the transport request); object present but unusable (root node unnamed or absent) → the partial object and the constants interface BOPF generated with it are deleted again under the same request (one stateful session, like the delete cascade), and `BOPF_CREATE_UNUSABLE` states whether that delete worked or what is left; object absent → the original error, unchanged. The same cleanup runs when the POST succeeds but the root node comes back unusable on a transportable package (live-observed on A4H: `rootNodeName` with a space). The journal entry of a BOPF create, edit or delete on a transportable package now records the request as `corrNr`, as `abap_write`'s entries do. `$TMP`/local packages behave exactly as before — no cleanup, no `transport:` line. `abap_bopf_delete`'s `cascade_ddic` sends the same request for any DDIC candidate whose lock reports a transport; a candidate pinned to a different transport while the BO delete itself was local is reported as not deleted, with the reason.
+
+### Fixed
+
+- **`abap_bopf_test` no longer generates bridge source lines over 255 characters** (#207). A scenario with many fields or a long string value could produce a `DATA` line, a transcript line, or a cleanup `APPEND VALUE #( ... )` past ABAP's 255-character line limit, and the generated bridge class failed to compile. The generator now wraps at 120 columns: a long string literal is split into pieces of at most 100 chars and rejoined with `&&`, each node's transcript `DATA` line is assembled from several template pieces, and the cleanup `APPEND VALUE #( ... )` is written one component per line. Before any wire request, abapsmith asserts that no emitted line exceeds 255 chars; if one still would, the call is refused `BAD_INPUT` naming the scenario node and field instead of shipping source that won't compile. The runtime transcript itself is unchanged.
+
 ## [0.6.35] - 2026-09-23
 
 ### Added
