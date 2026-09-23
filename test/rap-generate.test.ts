@@ -134,6 +134,9 @@ describe("generateRapStack — managed, no draft", () => {
     expect(bdef.source).toContain("field ( readonly ) BookingUuid;");
     expect(bdef.source).toContain("field ( readonly ) LastChangedAt;");
     expect(bdef.source).not.toContain("with draft");
+    // Root BDEFs declare operations bare; `use create` is projection-only syntax (A4H rejects it in a root).
+    expect(bdef.source).toMatch(/\n  create;\n  update;\n  delete;\n/);
+    expect(bdef.source).not.toContain("use create");
     for (const alias of ["BookingUuid", "CustomerId", "BookingDate", "Amount", "CurrencyCode", "Status", "LastChangedAt"]) {
       expect(bdef.source).toContain(alias);
     }

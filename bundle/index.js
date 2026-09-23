@@ -141122,9 +141122,9 @@ function buildRootBehaviour(spec, nonClient, keyFields, timestamp) {
   lines.push(`{`);
   for (const f of keyFields) lines.push(`  field ( readonly ) ${f.alias};`);
   if (timestamp && !keyFields.includes(timestamp)) lines.push(`  field ( readonly ) ${timestamp.alias};`);
-  lines.push(`  use create;`);
-  lines.push(`  use update;`);
-  lines.push(`  use delete;`);
+  lines.push(`  create;`);
+  lines.push(`  update;`);
+  lines.push(`  delete;`);
   if (spec.draft) {
     lines.push(`  draft action Edit;`);
     lines.push(`  draft action Activate;`);
