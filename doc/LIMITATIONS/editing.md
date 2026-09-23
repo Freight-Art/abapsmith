@@ -352,9 +352,11 @@
   bridge (see `src/adt/capabilities.ts`); the bridge cannot update an
   existing index — drop and recreate instead. There is still no ADT
   read-back for `TABL/DI`, but `abap_read {"object":"<TABLE>/<INDEX>","type":"TABL/DI"}`
-  now renders one from a `DD12V`/`DD17S` catalog read, and a `TABL/DT` read
-  grew an `indexes` section listing every secondary index found the same
-  way. Create is live-proven and
+  now renders one from a `DD12V`/`DD17S` catalog read, a bare `<TABLE>` read
+  the same way lists every secondary index the table has (`indexes: 0` and
+  an empty listing, not an error, for a table with none), and a `TABL/DT`
+  read grew a `SECONDARY INDEXES` section listing every secondary index
+  found the same way. Create is live-proven and
   unaffected by anything below: a non-unique index and a unique index that
   includes the base table's client field both succeed, an omitting create
   is refused `BAD_INPUT` before the FM runs, and a third live round the

@@ -1535,7 +1535,9 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
     },
     catalogRead: {
       from: "DD12V, DD17S",
-      nameForm: "<TABLE>/<INDEX>, the same parented form the create takes, e.g. ZTAB/Z01",
+      nameForm:
+        "<TABLE>/<INDEX> for one index (the same parented form the create takes, e.g. ZTAB/Z01), " +
+        "or a bare <TABLE> to list every secondary index of the table",
     },
   },
 };

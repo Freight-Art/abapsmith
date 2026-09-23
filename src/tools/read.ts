@@ -17,10 +17,13 @@
  *    sit on different axes, most cross-combinations are refused outright
  *    (see {@link assertViewCompatible}) rather than answering a different
  *    question than the one asked.
- *  - `include`: class-only. ADT stores each of a class's five sections
+ *  - `include`: ADT stores each of a class's five sections
  *    (main/definitions/implementations/macros/testclasses) as its own
  *    document; applies to the source read and `view` alike — see
  *    `sourceUriFor` (`../adt/source.ts`) and {@link assertIncludeCompatible}.
+ *    Meaningful only for CLAS/OC: on every other type it is a no-op (the
+ *    object has a single source document already), disclosed with a note
+ *    rather than refused — see {@link includeIgnoredNote}.
  *
  * Every response carries a content-hash `etag` and goes through the shared
  * compactor, except the `view` paths (see {@link NO_ETAG}).
@@ -33,7 +36,7 @@ import { fetchDdicXml, readDdic, type DdicRender } from "../adt/ddic.js";
 import { capabilitiesFor, NON_READABLE_TYPES, PROPERTIES_SHAPE_TYPES } from "../adt/capabilities.js";
 import { AbapError } from "../adt/errors.js";
 import { readAuthorizationObject, renderAuthorizationObject, SUSO_WHERE_USED_NOTE } from "../adt/suso-read.js";
-import { readSecondaryIndex, renderSecondaryIndex } from "../adt/index-read.js";
+import { readSecondaryIndex, readTableIndexes, renderSecondaryIndex, renderSecondaryIndexList } from "../adt/index-read.js";
 import {
   readBadiImplementation,
   readEnhancementSpot,
@@ -156,7 +159,7 @@ export const readInputSchema = {
     .describe(
       "ADT type to disambiguate. DEVC/K: package listing (types/depth filter it). SUSO/B: renders the " +
         "object's DEFINITION (fields, permitted activities) from the catalog — NOT who holds it, no " +
-        "AGR_*/UST* table is read. TABL/DI: <TABLE>/<INDEX> catalog render. " +
+        "AGR_*/UST* table is read. TABL/DI: <TABLE>/<INDEX> renders one index, bare <TABLE> lists them all. " +
         `Not readable: ${NON_READABLE_TYPES.join(" ")}.`,
     ),
   method: z.string().optional().describe("Only this method/component."),
@@ -249,7 +252,10 @@ export const readInputSchema = {
   include: z
     .enum(CLASS_INCLUDES)
     .optional()
-    .describe('Class include. "testclasses"=Unit tests. Default "main".'),
+    .describe(
+      'CLAS/OC only: which class include to read ("testclasses"=Unit tests; default "main"). ' +
+        "Ignored, with a note, for every other type.",
+    ),
   types: z
     .array(z.string())
     .optional()
@@ -846,6 +852,7 @@ async function readEnhancementObject(
   if (!documentDescription) {
     rendered.notes.push(enhancementDescriptionRequiredNote({ type: obj.type, name: obj.name }));
   }
+  rendered.notes.push(...includeIgnoredNote(input, obj));
 
   const etag = resourceEtag(doc.xml);
   const window = sliceLines(rendered.body, input.offset ?? 1, input.limit);
@@ -1346,6 +1353,26 @@ export function includeNote(include: ClassInclude | undefined): string[] {
 }
 
 /**
+ * `include` is a no-op for anything that is not a class: those have one
+ * source document, so there is nothing for `include` to select. Rather than
+ * refusing (the old behaviour), the read proceeds against that single
+ * document and discloses that the include was dropped. Empty when there is
+ * nothing to disclose: no `include` was asked for, the object is a class
+ * (handled by {@link assertIncludeCompatible} / {@link includeNote}
+ * instead), or the object reference itself already named an include (that
+ * case is still a hard refusal in {@link assertIncludeCompatible}).
+ */
+export function includeIgnoredNote(input: ReadInput, obj: ResolvedObject): string[] {
+  if (!input.include || obj.kind === "CLAS" || obj.include) return [];
+  return [
+    "this object has a single source document; include ignored — " +
+      `${obj.type} ${obj.name} has no "${input.include}" include (class includes ` +
+      `${CLASS_INCLUDES.join(", ")} exist only for CLAS/OC); the single document is shown, ` +
+      "nothing was substituted.",
+  ];
+}
+
+/**
  * The include an ORDINARY (non-`view`) read is about, refusing every
  * combination it cannot honour. `sourceUriFor` (adt/source.ts)
  * guarantees a non-`main` include is never silently answered from main — but
@@ -1372,14 +1399,22 @@ function assertIncludeCompatible(input: ReadInput, obj: ResolvedObject): ClassIn
   const include = input.include ?? obj.include;
   if (!include) return undefined;
   if (obj.kind !== "CLAS") {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `${obj.type} ${obj.name} has no "${include}" include — class includes ` +
-        `(${CLASS_INCLUDES.join(", ")}) exist only for classes.`,
-      { type: obj.type, name: obj.name, requested: include },
-      "Drop include. This object has a single source document, and it was NOT silently " +
-        "returned in place of the include you asked for.",
-    );
+    // A non-class object has one source document. `input.include` alone is
+    // now a no-op (see includeIgnoredNote) — but the object REFERENCE
+    // itself naming a different include (obj.include) is still refused:
+    // that would mean silently substituting a document the caller never
+    // asked to read here.
+    if (obj.include) {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `${obj.type} ${obj.name} has no "${include}" include — class includes ` +
+          `(${CLASS_INCLUDES.join(", ")}) exist only for classes.`,
+        { type: obj.type, name: obj.name, requested: include },
+        "Drop include. This object has a single source document, and it was NOT silently " +
+          "returned in place of the include you asked for.",
+      );
+    }
+    return undefined;
   }
   if (include === "main") return include;
 
@@ -2594,26 +2629,47 @@ async function readCatalogObject(
     );
   }
 
-  // TABL/DI: <TABLE>/<INDEX>, the same parented form the create takes.
+  // TABL/DI: <TABLE>/<INDEX> renders one index, bare <TABLE> lists them all.
   const parts = input.object.split("/");
-  if (parts.length !== 2 || parts[0]!.trim() === "" || parts[1]!.trim() === "") {
+  const trimmedParts = parts.map((p) => p.trim());
+  const isListRoute = trimmedParts.length === 1 && trimmedParts[0] !== "";
+  const isSingleIndexRoute = trimmedParts.length === 2 && trimmedParts[0] !== "" && trimmedParts[1] !== "";
+  if (!isListRoute && !isSingleIndexRoute) {
     throw new AbapError(
       "BAD_INPUT",
       `"${input.object}" is not a valid ${code} name: expected ${catalogRead.nameForm}.`,
       { object: input.object, type: code },
-      'Name it as <TABLE>/<INDEX>, e.g. "ZTAB/Z01". Not sure of the index id? ' +
-        'abap_read {"object":"<TABLE>","type":"TABL/DT"} shows the table\'s own structure.',
+      'Name one index as <TABLE>/<INDEX>, e.g. "ZTAB/Z01", or give the bare table name to list every ' +
+        'secondary index: abap_read {"object":"ZTAB","type":"TABL/DI"}.',
     );
   }
+
+  if (isListRoute) {
+    const table = parts[0]!.trim().toUpperCase();
+    const { indexes, notes } = await readTableIndexes(conn, table);
+    const rendered = renderSecondaryIndexList(table, indexes);
+    rendered.notes.push(...notes);
+    const hints = [
+      `abap_read {"object":"${table}/<INDEX>","type":"TABL/DI"} renders one index on its own.`,
+      `abap_read {"object":"${table}","type":"TABL/DT"} shows the table's own structure.`,
+    ];
+    return buildDdicLikeResponse(rendered, { ...header, object: `${code} ${table}` }, input.offset, input.limit, hints, maxChars);
+  }
+
   const [table, indexId] = parts as [string, string];
-  const hint = `abap_read {"object":"${table.trim().toUpperCase()}","type":"TABL/DT"} to see the table's own structure.`;
-  const { index, notes } = await readSecondaryIndex(conn, table, indexId);
+  const TABLE = table.trim().toUpperCase();
+  const ID = indexId.trim().toUpperCase();
+  const hint = `abap_read {"object":"${TABLE}","type":"TABL/DI"} lists every secondary index of the table; ` +
+    `abap_read {"object":"${TABLE}","type":"TABL/DT"} shows its structure.`;
+  const { index, indexes, notes } = await readSecondaryIndex(conn, table, indexId);
   if (index === undefined) {
+    const existing = indexes.map((i) => i.id);
     throw new AbapError(
       "NOT_FOUND",
-      `Table ${table.trim().toUpperCase()} has no secondary index ${indexId.trim().toUpperCase()} in DD12V ` +
-        "on this system — this is a definitive empty result (HTTP 200, 0 rows), not a refused read.",
-      { table: table.trim().toUpperCase(), index: indexId.trim().toUpperCase() },
+      `Table ${TABLE} has no secondary index ${ID} in DD12V on this system — ` +
+        (existing.length > 0 ? `its secondary indexes are ${existing.join(", ")}` : "it has no secondary index at all") +
+        ` (definitive empty result: HTTP 200, 0 rows for ${ID}, not a refused read).`,
+      { table: TABLE, index: ID, existing },
       hint,
     );
   }
@@ -2903,6 +2959,7 @@ export async function abapRead(
   }
 
   const include = assertIncludeCompatible(input, obj);
+  const ignoredIncludeNotes = includeIgnoredNote(input, obj);
 
   // ------------------------------------------------------------------ raw ---
   // Placed ahead of every other mode: a request for the wire document
@@ -2957,6 +3014,7 @@ export async function abapRead(
         body: windowText,
         bodyLabel: "XML DESCRIPTOR",
         notes: [
+          ...ignoredIncludeNotes,
           "This is the exact ADT XML document — the same shape a properties-shape write must PUT " +
             "back to this object's own URI (not /source/main, which does not exist for this type). " +
             "It is NOT the pseudo-DDL abap_read renders by default; round-trip fidelity is exact " +
@@ -3059,6 +3117,7 @@ export async function abapRead(
           "which is what active names. Omit it — the bytes are identical either way.",
       );
     }
+    rendered.notes.push(...ignoredIncludeNotes);
     // `rendered.hashInput` used to be readDdic's pseudo-DDL rendering for a
     // properties-shape type — hashing a RENDERING was the root cause of the
     // measured etag-mismatch bug (see resourceEtag's doc comment). Fixed
@@ -3121,7 +3180,7 @@ export async function abapRead(
               ]
             : []),
         ]
-      : [];
+      : [...ignoredIncludeNotes];
   const sourceHints: string[] =
     include && include !== "main"
       ? [
@@ -3364,7 +3423,7 @@ export async function abapRead(
     const originLabel = origin
       ? `${origin.name} (${origin.relation} of ${origin.via}, depth ${origin.depth})`
       : undefined;
-    const methodNotes: string[] = [];
+    const methodNotes: string[] = [...ignoredIncludeNotes];
     if (origin) {
       methodNotes.push(
         `${m.member.name} is not declared by ${obj.name}; it comes from ${originLabel}. ` +

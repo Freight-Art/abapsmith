@@ -368,7 +368,9 @@ export async function readTableIndexes(
 
 /**
  * One index. `index: undefined` means it is definitively absent (DD12V has
- * no row for this id on this table), not that the read failed.
+ * no row for this id on this table), not that the read failed. `indexes` is
+ * every secondary index of the table (as `readTableIndexes` returned it), so
+ * a caller can name the indexes that DO exist when `index` is undefined.
  *
  * Reuses `readTableIndexes` and filters, rather than running its own
  * narrower `WHERE ... AND INDEXNAME = ...` queries: a table's full index
@@ -383,11 +385,11 @@ export async function readSecondaryIndex(
   table: string,
   indexId: string,
   opts?: { language?: string },
-): Promise<{ index?: SecondaryIndexInfo; notes: readonly string[] }> {
+): Promise<{ index?: SecondaryIndexInfo; indexes: readonly SecondaryIndexInfo[]; notes: readonly string[] }> {
   const id = assertIndexIdValue(indexId.trim().toUpperCase());
   const { indexes, notes } = await readTableIndexes(conn, table, opts);
   const index = indexes.find((i) => i.id === id);
-  return { index, notes };
+  return { index, indexes, notes };
 }
 
 // -------------------------------------------------------------- verdict ---
@@ -485,14 +487,32 @@ export function renderIndexSection(indexes: readonly SecondaryIndexInfo[]): { ti
   return { title, content };
 }
 
-/** Renders a single `TABL/DI` read as a `DdicRender` for `abap_read`. */
-export function renderSecondaryIndex(index: SecondaryIndexInfo): DdicRender {
-  const ddl = [
+/** The `define index ... on ... { ... }` DDL block for one index. */
+function indexDdl(index: SecondaryIndexInfo): string {
+  return [
     `define index ${index.id.toLowerCase()} on ${index.table.toLowerCase()} {`,
     ...index.fields.map((f) => `  ${f.toLowerCase()};`),
     `}`,
   ].join("\n");
+}
 
+// Hashed as a composite of every attribute this render reflects (not just the DDL, which only
+// carries the field list): a change to e.g. DBSTATE or activation with the same field list
+// would otherwise leave the etag unchanged.
+function indexHashInput(index: SecondaryIndexInfo): string {
+  return [
+    index.table,
+    index.id,
+    index.description,
+    index.unique ? "UNIQUE" : "",
+    index.activation,
+    index.dbState,
+    ...index.fields,
+  ].join("|");
+}
+
+/** Renders a single `TABL/DI` read as a `DdicRender` for `abap_read`. */
+export function renderSecondaryIndex(index: SecondaryIndexInfo): DdicRender {
   const sections: Array<{ title: string; content: string }> = [
     {
       title: "INDEX HEADER",
@@ -512,21 +532,8 @@ export function renderSecondaryIndex(index: SecondaryIndexInfo): DdicRender {
     },
   ];
 
-  // Hashed as a composite of every attribute this render reflects (not just `ddl`, which only
-  // carries the field list): a change to e.g. DBSTATE or activation with the same field list
-  // would otherwise leave the etag unchanged.
-  const hashInput = [
-    index.table,
-    index.id,
-    index.description,
-    index.unique ? "UNIQUE" : "",
-    index.activation,
-    index.dbState,
-    ...index.fields,
-  ].join("|");
-
   return {
-    ddl,
+    ddl: indexDdl(index),
     sections,
     meta: {
       table: index.table,
@@ -537,6 +544,27 @@ export function renderSecondaryIndex(index: SecondaryIndexInfo): DdicRender {
       fields: index.fields.length,
     },
     notes: [],
-    hashInput,
+    hashInput: indexHashInput(index),
+  };
+}
+
+/**
+ * Renders the bare-`<TABLE>` `TABL/DI` listing (every secondary index of the
+ * table) as a `DdicRender` for `abap_read`. An empty `indexes` array is a
+ * definitive "no secondary index" answer, not an error — see `renderIndexSection`.
+ */
+export function renderSecondaryIndexList(table: string, indexes: readonly SecondaryIndexInfo[]): DdicRender {
+  const t = table.toUpperCase();
+  const ddl = indexes.length > 0 ? indexes.map((i) => indexDdl(i)).join("\n\n") : `// ${t} has no secondary index`;
+
+  return {
+    ddl,
+    sections: [renderIndexSection(indexes)],
+    meta: {
+      table: t,
+      indexes: indexes.length,
+    },
+    notes: [],
+    hashInput: [t, ...indexes.map((i) => indexHashInput(i))].join("\n"),
   };
 }
