@@ -1313,19 +1313,21 @@ than the mode disappearing from the tool list.
 
 | Parameter | Type | Required | Default | Meaning |
 |---|---|---|---|---|
-| `query` | string | yes | — | Name pattern (`mode=objects`), target object (`mode=where_used`/`call_graph`), or literal/regex text (`mode=source`, max 255 characters). |
+| `query` | string | yes, except with `inactive: true` | — | Name pattern (`mode=objects`), target object (`mode=where_used`/`call_graph`), or literal/regex text (`mode=source`, max 255 characters). Under `inactive: true` it is an optional name-pattern filter over the inactive worklist instead of a required scope. |
 | `mode` | enum `objects` \| `where_used` \| `source` \| `call_graph` | no | `objects` | Object search, where-used analysis, a source-text scan, or a multi-level caller/callee walk — see ["mode=call_graph: caller/callee tree"](#modecall_graph-callercallee-tree) below. |
-| `type` | string | no | — | `mode=objects`/`where_used`/`call_graph` only. Restrict to one ADT type. Refused under `mode=source` — use `types` instead. |
+| `type` | string | no | — | `mode=objects`/`where_used`/`call_graph` only. Restrict to one ADT type. Refused under `mode=source` — use `types` instead. Also accepted with `inactive: true` to filter the worklist to one type. |
 | `direction` | enum `callers` \| `callees` | no | `callers` | `mode=call_graph` only. `callers`: who calls this (via `usageReferences`, same endpoint as `where_used`). `callees`: what this calls (a static text parse of its own source). Refused with `BAD_INPUT` under any other mode. |
 | `depth` | number (int, positive) | no | `2` | `mode=call_graph` only. Levels to expand. Max 4 — a `depth` above the max is refused with `BAD_INPUT`, never silently clamped down to it. Refused with `BAD_INPUT` under any other mode. |
-| `max` | number (int, positive, ≤200) | no | `50` rows (`objects`/`where_used`), `100` hits (`source`), or `50` children per node (`call_graph`) | Maximum rows/hits/children to return. For `call_graph`, narrowing `query` (not lowering `max`) is what makes a broad call cheaper — see the Evidence paragraph below. |
-| `packages` | array of string | no | — | `mode=source` only. Package scope (TADIR-DEVCLASS). Required unless `objects` narrows the scope instead. |
-| `include_subpackages` | boolean | no | `false` | `mode=source` only. Also scan every package transitively under `packages` (walks TDEVC-PARENTCL). |
+| `max` | number (int, positive, ≤200) | no | `50` rows (`objects`/`where_used`), `100` hits (`source`), or `50` children per node (`call_graph`) | Maximum rows/hits/children to return. For `call_graph`, narrowing `query` (not lowering `max`) is what makes a broad call cheaper — see the Evidence paragraph below. Also applies to `inactive: true`. |
+| `packages` | array of string | no | — | `mode=source`, or `inactive: true`. Package scope (TADIR-DEVCLASS). Required for `mode=source` unless `objects` narrows the scope instead; required for `inactive: true` (1-5 packages). |
+| `include_subpackages` | boolean | no | `false` | `mode=source`, or `inactive: true`. Also scan every package transitively under `packages` (walks TDEVC-PARENTCL). |
 | `objects` | string | no | — | `mode=source` only. Object-name pattern, `*` wildcard (e.g. `"ZCL_MY_*"`). A bare `"*"` does not count as a scope by itself. Alternative to, or combined with, `packages`. |
 | `types` | array of string | no | all five | `mode=source` only. Which object types to scan: `PROG`, `CLAS`, `INTF`, `FUGR`, `DDLS`. |
 | `regex` | boolean | no | `false` | `mode=source` only. Treat `query` as a PCRE pattern instead of a literal substring. |
 | `case_sensitive` | boolean | no | `false` | `mode=source` only. |
 | `include_comments` | boolean | no | `false` | `mode=source` only. Also match inside comments (see below). |
+| `inactive` | boolean | no | `false` | List inactive objects belonging to `packages` instead of running any of the four searches above — see ["Inactive objects"](#inactive-objects-inactive-true) below. |
+| `user` | string | no | caller's own user | `inactive: true` only. List another user's inactive worklist instead of the caller's own. |
 
 Notes: for `mode=where_used`, ADT's `usageReferences` endpoint ignores every
 known limit parameter and always returns the complete result set
@@ -1344,6 +1346,45 @@ applied by this tool after the fetch, not by the server, so the window
 disclosure applies the same way. An object name that isn't plain text — whitespace-padded or
 numeric-looking, e.g. a WDCC/YG row named `00` — is returned verbatim as a
 string rather than coerced to a number.
+
+### Inactive objects (`inactive: true`)
+
+```json
+{
+  "inactive": true,
+  "packages": ["ZAS_PKG213"],
+  "include_subpackages": true,
+  "query": "ZAS_*",
+  "type": "TABL/DT"
+}
+```
+
+Lists the inactive objects that belong to the given packages — a
+package-scoped view of what would otherwise be a flat worklist. ADT's own
+resource for this, `/sap/bc/adt/activation/inactiveobjects`, is a
+PER-USER worklist with no package attribute at all: there is no server
+call that answers "what's inactive in this package." abapsmith fetches
+the worklist for one user — the caller by default, or whoever `user`
+names — and intersects it client-side with each package's own contents
+(walking sub-packages too when `include_subpackages` is set, depth-capped
+the same way `abap_read`'s package listing is). `query` is optional here,
+a name-pattern filter over the intersected result — every other form of
+`abap_search` requires it; `packages` is required here (1-5 packages) —
+every other form does not.
+
+Columns: `TYPE`, `NAME`, `PACKAGE`, `USER`, `STATE` (`inactive` or
+`pending deletion`). The response header carries `mode: objects`,
+`inactive: true`, `packages`, `include_subpackages`, `user`, `count`.
+
+Because the underlying worklist is per user, objects that OTHER users
+left inactive are never included unless `user` names them explicitly — a
+package can have inactive objects sitting outside every listing this call
+can produce for one user at a time.
+
+To activate what this lists, see
+[doc/TOOLS/write-and-activate.md § Package activation](write-and-activate.md#package-activation-package)
+(`abap_activate package=<package>`), which activates the same caller's
+worklist scoped to a package in one call rather than listing it.
 
 ### mode=source: line-wise source-text scan
 
