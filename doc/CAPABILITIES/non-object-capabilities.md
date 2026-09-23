@@ -2,7 +2,7 @@
 
 | Entity | Create | Read | Update | Delete | Activate | Evidence | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Debugger | n/a | yes | no | n/a | n/a | live | Breakpoints and watchpoints are set and cleared as part of a session, including while a debuggee is already suspended; variables can be read but never written, and the frame cursor moves the read position only. Session concurrency is client-configurable (`ABAP_DEBUG_SESSIONS`), but SAP still allows only one active debug listener per SAP user on a system. |
+| Debugger | n/a | yes | partial | n/a | n/a | live | Breakpoints and watchpoints are set and cleared as part of a session, including while a debuggee is already suspended; the frame cursor moves the read position only. `action="set_value"` writes one simple variable, structure component, or table cell at a suspended stop (edit/admin mode only, refused otherwise before any request), refusing constants, references, and structures/tables addressed as a whole; the value is validated against the variable's type before it is sent, and every change is listed in the session's final output (live-verified on A4H 2026-09-23). Session concurrency is client-configurable (`ABAP_DEBUG_SESSIONS`), but SAP still allows only one active debug listener per SAP user on a system. |
 | Breakpoints | yes | yes | no | yes | n/a | live | Line, exception, statement and message kinds, mixable in one call; armed at `start` or added later while stopped (`action="breakpoints"` `op="add"`, additive — never touches a breakpoint this session did not create). `op="list"` is a client-side record of what this session armed, not a server read — `GET .../debugger/breakpoints` answers `200` with a zero-byte body regardless of what is actually armed. `op="remove"` is by id, restricted to ids this session created. `skipCount` is accepted by the server and not enforced, so expect a stop on every hit. |
 | Watchpoints | yes | yes | no | yes | n/a | mixed | Variable-path watch with an optional ABAP-expression condition; add/list/remove while stopped (`action="watch"`). A create response echoes only the newly created watchpoint, never the session's full list. A hit surfaces inside a step response as `reachedWatchpoints`, carrying only the new value — the old value needs a follow-up `op="list"`. This tool never modifies a watchpoint (a modify retires the addressed id and issues a new one), so ids it holds stay valid for the session's whole lifetime. `live`: create/list/get/modify/delete, the 400 on a missing variable name, the 404 on an unknown id, and a hit reported on `stepContinue`. `unverified`: a condition actually gating a stop (accepted and stored, but never isolated as the cause of a hit) and `reachedWatchpoints` on an *attach* response (every captured attach stopped on a line breakpoint instead). |
 | ABAP Unit | yes | yes | yes | n/a | yes | mixed | Runs existing tests: PASSED/FAILED/NO TESTS RAN/UNKNOWN, never collapsing "nothing ran" into a pass — see the outcome breakdown below. Test classes are created and updated through `abap_write` (`include="testclasses"`), not through `abap_test` itself; verified live end to end — write, activate, run, read-back — against SAP A4H, 2026-09-12. A single class include cannot be deleted on its own (ADT has no such verb), only emptied by writing new content over it. There is no activate verb for the include itself: `abap_activate` on the owning class activates `testclasses` along with it, confirmed live, SAP A4H, 2026-09-12. Also selects and runs the test carriers a changed set puts at risk (`scope: "impacted"`) via where-used, instead of one named object — graded `mixed` because of this: see the impacted-scope breakdown below. |
@@ -188,9 +188,13 @@
   with `409`/`conflictDetected` even when the refused request carries a
   different `terminalId` (`test/cassettes/debugger/listener-conflict-409.cassette.json`),
   so `ABAP_DEBUG_SESSIONS` above 1 only raises this client's own cap, never
-  SAP's per-user exclusivity. The debugger is read-only with respect to
-  variables by deliberate design; the underlying set-value verb is left
-  unexposed.
+  SAP's per-user exclusivity. The debugger observes by default; the one
+  exception is `action="set_value"`, which writes a single variable,
+  structure component, or table cell at a suspended stop — gated on
+  edit/admin mode and on the object the session was started on, refused
+  `DEBUG_NOT_STOPPED` unless the session is suspended, and refused
+  `DEBUG_VALUE_NOT_WRITABLE` for constants, references, and
+  structures/tables addressed as a whole. Live-verified on A4H 2026-09-23.
 - **Activation.** Batched activation resolves and authorises every object
   before activating any, so one refusal refuses the whole set. Batches are
   chunked because a single large DDIC batch has been observed to take a live

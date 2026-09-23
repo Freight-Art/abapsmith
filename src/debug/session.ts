@@ -1520,7 +1520,7 @@ export class DebugSession {
     return this.runStateful(stateId, () => this.client.getRootVariables());
   }
 
-  async setVariableValue(stateId: StateId, name: string, value: string): Promise<void> {
+  async setVariableValue(stateId: StateId, name: string, value: string): Promise<string> {
     return this.runStateful(stateId, () => this.client.setVariableValue(name, value));
   }
 

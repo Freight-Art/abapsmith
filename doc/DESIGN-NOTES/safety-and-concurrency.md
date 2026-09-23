@@ -63,20 +63,54 @@ and nothing in the response distinguishes them. The session therefore keeps its
 own lock ledger and short-circuits a re-lock rather than asking the server, and
 releases newest-first on teardown without throwing.
 
-## The debugger is read-only by construction
+## The debugger observes by default; one write is exposed, tightly gated
 
-**Instead of:** exposing variable and stack-position writes, which the underlying
-protocol supports and which are implemented at three internal layers.
+**Instead of:** exposing every write the underlying protocol supports —
+variable writes, stack-position writes, and more — with the same freedom as
+the reads.
 
-They are simply not exposed, and four endpoints throw unconditionally because
-they were observed to short-dump the system. A debugger that can write
-variables in a live session is a much larger blast radius than one that reads,
-and reading is what an agent needs to diagnose.
+Stack-position write (`setStackPosition`) is exposed read-only: `frame`
+switches the server-side READ cursor and nothing else, live-verified to have
+zero effect on what the debuggee executes next. Variable write
+(`setVariableValue`) is exposed as `action="set_value"`, and only there,
+because a debugger that can rewrite a live session's own data is a much
+larger blast radius than one that only reads it — so that one write carries
+its own, narrower set of gates rather than inheriting the reads' freedom:
 
-It is also self-triggered only: `run` is required on `action:"start"`, so it
-cannot arm a breakpoint and wait for a session it did not itself launch, and
-the debuggee identity is hardcoded to the configured user (`requestUser:
-params.cfg.user`), so it cannot listen for another user's session either.
+- it needs edit/admin mode, checked before any request — `READ_ONLY` in read
+  mode, the same refusal shape every other write in this codebase uses;
+- it is authorized against the object the session was started on, the same
+  way `step` is, not against whatever `variable` happens to name;
+- the session must actually be suspended — `DEBUG_NOT_STOPPED` otherwise,
+  again before any request;
+- the variable is read first, and a constant, a reference, or a structure
+  or table addressed as a whole is refused (`DEBUG_VALUE_NOT_WRITABLE`)
+  rather than sent to SAP and left to fail or, worse, silently succeed on
+  the wrong thing;
+- the value is validated against the variable's type — length, digits,
+  date, time, numeric range, decimal, hex — before anything is sent, because
+  SAP itself does not refuse a bad value for these types, it silently
+  converts it.
+
+Every accepted change is recorded and surfaced in the session's own final
+output, so a write made mid-session is never invisible by the time the run
+ends.
+
+Reads have their own, separate hazard: the `data`/`metadata`/`subcomponents`/
+`valueStatement` variable sub-resource family is forbidden outright, not
+merely unimplemented — `part="data"`/`"valueStatement"` was live-verified on
+A4H to throw an HTTP 500 ABAP short dump that destroys both the HTTP session
+and the attached debug session, running the debuggee to completion
+uncontrolled. `variablePartUrl` (its sole choke point) throws unconditionally
+so nothing can wire it up by accident; every variable read instead builds on
+the verified non-destructive path-addressed ids (`getVariables`/
+`getChildVariables`).
+
+The debugger is also self-triggered only: `run` is required on
+`action:"start"`, so it cannot arm a breakpoint and wait for a session it did
+not itself launch, and the debuggee identity is hardcoded to the configured
+user (`requestUser: params.cfg.user`), so it cannot listen for another user's
+session either.
 
 ## Dangerous endpoints are unreachable, not just unused
 

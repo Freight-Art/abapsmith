@@ -1503,10 +1503,12 @@ describe("getChildVariables (valid parent)", () => {
 });
 
 describe("setVariableValue", () => {
-  it("sends the raw value as the body and the variable name on the query string", async () => {
-    const fake = new FakeTransport([NO_BODY]);
+  it("sends the raw value as the body and the variable name on the query string, and resolves with the response body", async () => {
+    const fake = new FakeTransport([{ status: 200, headers: {}, body: "42" }]);
     const client = new DebugClient({ transport: fake, longPoll: new FakeListener() });
-    await expect(client.setVariableValue("LV_COUNT", "42")).resolves.toBeUndefined();
+    // #198: the response body is the SAP-stored value (may differ from what
+    // was sent, e.g. a conversion) — resolves with it, not `undefined`.
+    await expect(client.setVariableValue("LV_COUNT", "42")).resolves.toBe("42");
     expect(fake.calls).toHaveLength(1);
     expect(fake.calls[0]!.method).toBe("POST");
     expect(fake.calls[0]!.path).toContain("method=setVariableValue");

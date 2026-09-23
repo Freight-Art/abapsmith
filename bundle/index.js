@@ -36643,6 +36643,10 @@ var init_errors = __esm({
       // resolves once a lane frees up; not fixable by a different argument, but not permanent either
       DEBUG_JUMP_DISABLED: "terminal",
       // the flag is off; no argument enables it
+      DEBUG_NOT_STOPPED: "conditional",
+      // no suspended session to act on right now; a later stop may fix it
+      DEBUG_VALUE_NOT_WRITABLE: "terminal",
+      // constant, read-only, reference, structure, table or generic type
       DUMP_VARIABLES_DISABLED: "terminal",
       // the flag is off; no argument enables it
       INTERNAL_GATE_MISUSE: "terminal",
@@ -92290,13 +92294,15 @@ var DebugClient = class {
       variables
     };
   }
+  /** Returns the value SAP actually stored after any type conversion (e.g. truncation, rounding). */
   async setVariableValue(variableName, value) {
-    await this.transport.request({
+    const res = await this.transport.request({
       method: "POST",
       path: setVariableValueUrl(variableName),
       headers: { Accept: DBG_XML_ACCEPT },
       body: value
     });
+    return res.body;
   }
   // --- Settings ------------------------------------------------------
   /**
@@ -118078,6 +118084,14 @@ function assertDebugWrite(gate, target, phase = "final") {
 function assertSessionWrite(gate, run) {
   return assertDebugWrite(gate, run.gateTarget.target, run.gateTarget.phase);
 }
+function assertDebugWritesEnabled(gate) {
+  const decision = gate.evaluate("execute", void 0, { phase: "preflight" });
+  if (decision.allowed) return;
+  if (decision.code === "SAFETY_DENIED" && decision.rule === "no object supplied for mutating operation") {
+    return;
+  }
+  gate.assert("execute", void 0, { phase: "preflight" });
+}
 function shutdownDebugTools() {
   const runs = debugLanes;
   debugLanes = [];
@@ -118205,8 +118219,8 @@ var messageBreakpointSchema = external_exports.object({
   msgTy: external_exports.string().describe("Message type letter, e.g. E.")
 });
 var debugInputSchema = {
-  action: external_exports.enum(["start", "step", "stack", "frame", "breakpoints", "watch", "keepalive", "stop", "status"]).describe(
-    "start needs breakpoints+run. step needs stateId+step. stack needs stateId. frame needs stateId+frame. breakpoints needs stateId (op add/remove) or nothing (op list, default). watch needs stateId+variable (op add, default when variable given) or stateId+id (op remove) or stateId (op list). keepalive/stop/status need nothing."
+  action: external_exports.enum(["start", "step", "stack", "frame", "breakpoints", "watch", "set_value", "keepalive", "stop", "status"]).describe(
+    "start needs breakpoints+run. step needs stateId+step. stack needs stateId. frame needs stateId+frame. breakpoints needs stateId (op add/remove) or nothing (op list, default). watch needs stateId+variable (op add, default when variable given) or stateId+id (op remove) or stateId (op list). set_value needs stateId+variable+value and changes a simple variable at a stop (edit/admin mode only). keepalive/stop/status need nothing."
   ),
   breakpoints: external_exports.array(
     external_exports.discriminatedUnion("kind", [
@@ -118244,8 +118258,9 @@ var debugInputSchema = {
   ),
   id: external_exports.string().optional().describe('action="breakpoints"/"watch" op="remove" only \u2014 the id to remove.'),
   variable: external_exports.string().optional().describe(
-    'action="watch" only \u2014 variable path to watch, same syntax abap_debug_value accepts. Presence selects op="add".'
+    `action="watch" \u2014 variable path to watch, same syntax abap_debug_value accepts. Presence selects op="add". action="set_value" \u2014 the variable path to change, same syntax as abap_debug_value's path.`
   ),
+  value: external_exports.string().optional().describe('action="set_value" only \u2014 the new value as text; empty string allowed.'),
   confirm: external_exports.string().optional().describe(
     'Required for step="jumpToLine": echo "jumpToLine". Ignored otherwise.'
   ),
@@ -118359,6 +118374,12 @@ function explainOpaqueDeathDetail(detail) {
   if (detail.trim().toLowerCase() !== ADT_REST_DATA_INVALID_TEXT.toLowerCase()) return detail;
   return `${detail} \u2014 this is cx_adt_rest_data_invalid's default text, raised by SAP's ADT REST layer when it cannot convert the payload of the debugger request in flight; it is not a complaint about a value passed to this tool, and the server gives no further detail. Reported by a live verification run on 2026-09-15 right after breakpoints were changed under a suspended debuggee, at a point where that change reached the debuggee one stop-cycle late and the debuggee was already gone; breakpoint changes now notify the attached debuggee immediately, so this shape should no longer occur that way. In practice: the debug session is no longer there to step \u2014 start a new one.`;
 }
+function renderModifiedValues(run) {
+  return run.modifiedValues.map((m) => {
+    const at = m.program !== void 0 && m.line !== void 0 ? ` (at ${m.program}:${m.line})` : "";
+    return `${m.path}: ${m.oldValue} -> ${m.newValue}${at}`;
+  }).join("\n");
+}
 async function composeDeathOutput(run, action, maxChars, cause, extraNotes = []) {
   const settled = await raceDeadline(run.triggerSettled, STOP_WAIT_MS);
   const outputSection = {
@@ -118397,7 +118418,7 @@ async function composeDeathOutput(run, action, maxChars, cause, extraNotes = [])
       terminationKind: snapshot.terminationResult?.kind,
       triggerOutcome
     },
-    sections: [outputSection],
+    sections: run.modifiedValues.length > 0 ? [outputSection, { title: "MODIFIED VALUES", content: renderModifiedValues(run) }] : [outputSection],
     notes,
     maxChars: clampMaxChars(maxChars)
   });
@@ -118758,6 +118779,7 @@ ${triggerNote}`, {});
     guidance: new GuidanceLedger(),
     armedExceptionClasses,
     exceptionBreakpointFired: false,
+    modifiedValues: [],
     lane: targetLane
   };
   debugLanes[targetLane] = run;
@@ -119268,6 +119290,157 @@ async function handleWatch(input, maxChars, gate) {
     maxChars: clampMaxChars(maxChars)
   });
 }
+var INT8_MIN = -9223372036854775808n;
+var INT8_MAX = 9223372036854775807n;
+function validateDebugValue(variable, value) {
+  const name = variable.name || variable.id;
+  switch (variable.technicalType) {
+    case "C":
+      return value.length <= variable.length ? void 0 : `${name} is C(${variable.length}) \u2014 value is ${value.length} character(s).`;
+    case "N":
+      if (!/^\d*$/.test(value)) return `${name} is N(${variable.length}) \u2014 digits only.`;
+      return value.length <= variable.length ? void 0 : `${name} is N(${variable.length}) \u2014 value is ${value.length} digit(s).`;
+    case "D": {
+      if (value === "" || value === "00000000") return void 0;
+      if (!/^\d{8}$/.test(value)) return `${name} is D \u2014 expected 8 digits (YYYYMMDD).`;
+      const month = Number(value.slice(4, 6));
+      const day = Number(value.slice(6, 8));
+      if (month < 1 || month > 12) return `${name} is D \u2014 month "${value.slice(4, 6)}" is not 01-12.`;
+      const daysInMonth = new Date(Date.UTC(Number(value.slice(0, 4)), month, 0)).getUTCDate();
+      if (day < 1 || day > daysInMonth) return `${name} is D \u2014 ${value} is not a calendar date.`;
+      return void 0;
+    }
+    case "T": {
+      if (value === "") return void 0;
+      if (!/^\d{6}$/.test(value)) return `${name} is T \u2014 expected 6 digits (HHMMSS).`;
+      const hh = Number(value.slice(0, 2));
+      const mm = Number(value.slice(2, 4));
+      const ss = Number(value.slice(4, 6));
+      if (hh > 23) return `${name} is T \u2014 hour "${value.slice(0, 2)}" is not 00-23.`;
+      if (mm > 59) return `${name} is T \u2014 minute "${value.slice(2, 4)}" is not 00-59.`;
+      if (ss > 59) return `${name} is T \u2014 second "${value.slice(4, 6)}" is not 00-59.`;
+      return void 0;
+    }
+    case "I": {
+      if (!/^[+-]?\d+$/.test(value)) return `${name} is I \u2014 expected an integer.`;
+      const n = Number(value);
+      return n >= -2147483648 && n <= 2147483647 ? void 0 : `${name} is I \u2014 ${value} is outside the 32-bit signed range.`;
+    }
+    case "INT8": {
+      if (!/^[+-]?\d+$/.test(value)) return `${name} is INT8 \u2014 expected an integer.`;
+      const n = BigInt(value);
+      return n >= INT8_MIN && n <= INT8_MAX ? void 0 : `${name} is INT8 \u2014 ${value} is outside the 64-bit signed range.`;
+    }
+    case "P":
+      return /^[+-]?\d+(\.\d+)?$/.test(value) ? void 0 : `${name} is P (packed) \u2014 expected a decimal number, e.g. 1.23.`;
+    case "F":
+      return value !== "" && Number.isFinite(Number(value)) ? void 0 : `${name} is F \u2014 expected a finite number.`;
+    case "X":
+      if (!/^[0-9a-fA-F]*$/.test(value) || value.length % 2 !== 0) {
+        return `${name} is X(${variable.length}) \u2014 expected an even-length hex string.`;
+      }
+      return value.length <= variable.length * 2 ? void 0 : `${name} is X(${variable.length}) \u2014 value exceeds ${variable.length * 2} hex characters.`;
+    case "CString":
+      return void 0;
+    case "XString":
+      return /^[0-9a-fA-F]*$/.test(value) && value.length % 2 === 0 ? void 0 : `${name} is XString \u2014 expected an even-length hex string.`;
+    default:
+      return void 0;
+  }
+}
+async function handleSetValue(input, maxChars, gate) {
+  assertDebugWritesEnabled(gate);
+  const run = resolveLaneRun(input.stateId);
+  if (!run) {
+    throw new AbapError(
+      "DEBUG_NOT_STOPPED",
+      'No debug session is stopped. Start one with abap_debug({action:"start", ...}) and wait for status "suspended".'
+    );
+  }
+  assertSessionWrite(gate, run);
+  const status = run.session.snapshot.status;
+  if (status !== "suspended") {
+    throw new AbapError(
+      "DEBUG_NOT_STOPPED",
+      `Session status is "${status}", not "suspended" \u2014 set_value only works while the debuggee is stopped at a breakpoint.`,
+      { status }
+    );
+  }
+  if (!input.stateId) {
+    throw new AbapError("BAD_INPUT", 'abap_debug({action:"set_value"}) requires "stateId".');
+  }
+  if (!input.variable) {
+    throw new AbapError("BAD_INPUT", 'abap_debug({action:"set_value"}) requires "variable".');
+  }
+  if (input.value === void 0) {
+    throw new AbapError("BAD_INPUT", 'abap_debug({action:"set_value"}) requires "value".');
+  }
+  const wireId = wireStateId(run, input.stateId);
+  const validation = validatePath(input.variable);
+  if (!validation.ok) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `Malformed path at "${validation.segment}": ${validation.message}`,
+      { path: input.variable, segment: validation.segment }
+    );
+  }
+  const canonicalPath = formatPath(validation.path);
+  const rootVars = await run.session.getVariables(input.stateId, [canonicalPath]);
+  const align = alignRequestedVariables([canonicalPath], rootVars);
+  const variable = align.resolved[0];
+  if (!variable) {
+    throw new AbapError("NOT_FOUND", `Variable ${canonicalPath} is not visible at this stop.`, {
+      path: canonicalPath
+    });
+  }
+  if (variable.readOnly) {
+    throw new AbapError(
+      "DEBUG_VALUE_NOT_WRITABLE",
+      `${canonicalPath} is a constant or read-only parameter and cannot be changed.`,
+      { path: canonicalPath }
+    );
+  }
+  if (variable.metaType !== "simple" && variable.metaType !== "string") {
+    const hint = variable.metaType === "structure" ? `set a component, e.g. ${canonicalPath}-COMP.` : variable.metaType === "table" ? `set a cell, e.g. ${canonicalPath}[1]-COMP.` : "references and generic types cannot be set.";
+    throw new AbapError(
+      "DEBUG_VALUE_NOT_WRITABLE",
+      `${canonicalPath} is a ${variable.metaType} and cannot be set directly \u2014 ${hint}`,
+      { path: canonicalPath, metaType: variable.metaType }
+    );
+  }
+  const typeError = validateDebugValue(variable, input.value);
+  if (typeError) {
+    throw new AbapError("BAD_INPUT", typeError, { path: canonicalPath, value: input.value });
+  }
+  const applied = await run.session.setVariableValue(input.stateId, canonicalPath, input.value);
+  const shown = (v) => variable.metaType === "string" ? v : v.trimEnd();
+  const oldValue = shown(variable.value);
+  const newValue = shown(applied);
+  const lastStack = run.lastStack;
+  const visibleFrames = lastStack?.frames.filter((f) => !f.systemProgram) ?? [];
+  const top = visibleFrames[0] ?? lastStack?.frames[0];
+  run.modifiedValues.push({
+    path: canonicalPath,
+    oldValue,
+    newValue,
+    program: top?.programName,
+    line: top?.line
+  });
+  const notes = [
+    "This change affects only the current run \u2014 it is not persisted and does not carry over to a later start."
+  ];
+  if (applied.trim() !== input.value.trim()) {
+    notes.push(`SAP converted the value on assignment: sent "${input.value}", stored "${applied}".`);
+  }
+  return buildResponse({
+    header: { action: "set_value", status, stateId: wireId, path: canonicalPath },
+    body: `old: ${renderWatchValue(oldValue)}
+new: ${renderWatchValue(newValue)}`,
+    bodyLabel: "VALUE",
+    notes,
+    maxChars: clampMaxChars(maxChars)
+  });
+}
 async function clearLeakedSessions(force, conn, log2) {
   const tracked = new Set(activeLaneRuns().map((r) => r.session));
   const leaked = listActiveDebugSessions().filter((s) => !tracked.has(s));
@@ -119399,7 +119572,10 @@ async function handleStop(conn, maxChars, deps, gate, force = false) {
     }
     return buildResponse({
       header: { action: "stop", status: finalSnapshot.status, deathReason: finalSnapshot.deathReason },
-      sections: [{ title: "PROGRAM OUTPUT", content: renderTriggerOutcome(settled, STOP_WAIT_MS) }],
+      sections: run.modifiedValues.length > 0 ? [
+        { title: "PROGRAM OUTPUT", content: renderTriggerOutcome(settled, STOP_WAIT_MS) },
+        { title: "MODIFIED VALUES", content: renderModifiedValues(run) }
+      ] : [{ title: "PROGRAM OUTPUT", content: renderTriggerOutcome(settled, STOP_WAIT_MS) }],
       notes,
       maxChars: clampMaxChars(maxChars)
     });
@@ -119469,6 +119645,8 @@ async function abapDebug(conn, input, maxChars, deps, gate) {
       return handleBreakpoints(conn, input, maxChars, deps, gate);
     case "watch":
       return handleWatch(input, maxChars, gate);
+    case "set_value":
+      return handleSetValue(input, maxChars, gate);
     case "keepalive":
       return handleKeepalive(maxChars, gate);
     case "stop":
@@ -131838,7 +132016,8 @@ var DEBUG_UNGATED_ACTIONS = /* @__PURE__ */ new Set([
   "keepalive",
   "stop",
   "breakpoints",
-  "watch"
+  "watch",
+  "set_value"
 ]);
 function stateIdOfResponse(text5) {
   return /^stateId: (.+)$/m.exec(text5)?.[1]?.trim();
@@ -131861,7 +132040,7 @@ function registerDebugTools(mcp, deps) {
   mcp.registerTool(
     "abap_debug",
     {
-      description: "ABAP debugger driver: arm breakpoints, run a program, step, inspect the stack. One session at a time; variables read-only, frames observe-only.",
+      description: "ABAP debugger driver: arm breakpoints, run a program, step, inspect the stack. One session at a time; frames observe-only. set_value changes a simple variable at a stop (edit/admin mode).",
       inputSchema: debugInputSchema,
       annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true }
     },
@@ -131875,6 +132054,7 @@ function registerDebugTools(mcp, deps) {
             phase: "preflight"
           });
         }
+        if (a.action === "set_value") assertDebugWritesEnabled(deps.safety);
         await deps.ensureConnected();
         const primary = deps.pool.primary();
         const res = await abapDebug(primary, args, deps.cfg.maxResponseChars, deps.debugDeps, deps.safety);
