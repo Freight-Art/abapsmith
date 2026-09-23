@@ -116,6 +116,9 @@ export function specialUndoKind(entry: JournalEntry): SpecialUndoKind | undefine
 // Shared helpers
 // ---------------------------------------------------------------------------
 
+/** True for a 404 from either the raw ADT session or a translated AbapError. */
+const isGone = (e: unknown): boolean => isNotFoundError(e) || (e instanceof AbapError && e.code === "NOT_FOUND");
+
 /** A structurally-blocked plan for a special kind — zero further network calls. */
 function blockedPlan(
   entry: JournalEntry,
@@ -636,7 +639,7 @@ async function planEnhDeleteUndo(
     xml = doc.xml;
     data = doc.data;
   } catch (e) {
-    if (isNotFoundError(e)) {
+    if (isGone(e)) {
       const target = enhancementTargetFromEntry(entry, false);
       return noopPlan(entry, target, "enh-delete", "the object no longer exists; nothing to undo");
     }
@@ -814,8 +817,8 @@ async function planEnhImplActiveUndo(
   try {
     live = (await readBadiImplementation(conn, name)).data;
   } catch (e) {
-    const target = enhancementTargetFromEntry(entry, !isNotFoundError(e));
-    if (isNotFoundError(e)) {
+    const target = enhancementTargetFromEntry(entry, !isGone(e));
+    if (isGone(e)) {
       return blockedPlan(entry, target, action, "enh-impl-active", "the implementation object no longer exists; cannot restore its active state");
     }
     return blockedPlan(entry, target, action, "enh-impl-active", `Could not read the current implementation: ${(e as Error).message}`);
