@@ -12,6 +12,14 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+### Added
+
+- **`abap_enh` create-family operations take `package`, `corr_nr` and `activate`** (#215). `create_spot`, `add_badi_def`, `add_filter_def`, `create_impl` and `set_filter_values` now take an optional `package` (default `$TMP`) and, against a transportable package, `corr_nr`, following the same transport rules as `abap_write` — the safety gate's verdict is taken before the session resolver gets a chance to create a request. `activate` (default `true`) set to `false` leaves the object saved but inactive, ready for `abap_read enhancements:true` and a later `abap_activate` (with `affects`, as the response's NOTE spells out); `add_badi_def`'s marker interface is still always activated, since the BAdI definition needs it active. `exercise` and `create_hook` are unchanged.
+
+### Changed
+
+- **`abap_enh affects` is optional where the journal needs no foreign object** (#212). `create_spot`, `add_badi_def` and `add_filter_def` now default `affects` to the spot being created or extended, and `create_hook` derives it from the host named in `spec` with one read of the host object, instead of requiring the caller to repeat what the call already states. `create_impl`, `set_filter_values`, `exercise`, `write_description`, `delete` and `set_impl_active` still require it, and `BAD_INPUT` names all six when it's missing. Every one of these checks runs before any network request.
+
 ## [0.6.29] - 2026-09-23
 
 ### Added
