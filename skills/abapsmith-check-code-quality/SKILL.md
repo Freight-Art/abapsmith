@@ -19,7 +19,11 @@ abap_activate mode=check  →  abap_atc  →  abap_quick_fix mode=list  →  aba
 1. `abap_activate { "object": "ZCL_FOO", "type": "CLAS/OC", "mode": "check" }`
    — a syntax check, cheap and instant, no lock, no worklist, available even
    read-only. Do this first regardless of what ATC says; a syntax error is a
-   different problem (see "Not this skill" below).
+   different problem (see "Not this skill" below). A draft that has no
+   object yet can be checked the same way with `mode: "check"` + `type` +
+   `source` and no `object` — a `PROG/P` draft against no server object at
+   all, a `CLAS/OC` or `INTF/OI` draft against the existing object of that
+   name.
 2. `abap_atc { "object": "ZCL_FOO", "type": "CLAS/OC" }` — findings with
    severity, `object:line`, which check fired, and its message.
 3. Pick one finding and enumerate proposals at its position:

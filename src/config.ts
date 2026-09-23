@@ -359,6 +359,8 @@ export const ConfigSchema = z.object({
   activateTimeoutMs: z.coerce.number().int().positive().default(180_000),
   /** Per-request timeout for abap_run classrun execution (`ABAP_RUN_TIMEOUT_MS`). */
   runTimeoutMs: z.coerce.number().int().positive().default(180_000),
+  /** Per-request timeout for abap_search's repository quick search (`ABAP_SEARCH_TIMEOUT_MS`). */
+  searchTimeoutMs: z.coerce.number().int().positive().default(60_000),
   /** How long to wait for the cross-process journal index lock before giving up. */
   lockWaitMs: z.coerce.number().int().positive().default(5_000),
   /** Directory for cross-process state — the journal index lockfile and the durable auth latch. Default `<cwd>/.abapsmith`. */
@@ -1441,6 +1443,7 @@ export function loadConfig(opts: LoadConfigOptions = {}): Config {
     bopfTimeoutMs: env.ABAP_BOPF_TIMEOUT_MS ?? 180_000,
     activateTimeoutMs: env.ABAP_ACTIVATE_TIMEOUT_MS ?? 180_000,
     runTimeoutMs: env.ABAP_RUN_TIMEOUT_MS ?? 180_000,
+    searchTimeoutMs: env.ABAP_SEARCH_TIMEOUT_MS ?? 60_000,
     lockWaitMs: env.ABAP_LOCK_WAIT_MS ?? 5_000,
     stateDir: env.ABAP_STATE_DIR ?? ".abapsmith",
     maxResponseChars: env.ABAP_MAX_RESPONSE_CHARS,

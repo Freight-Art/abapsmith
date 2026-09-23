@@ -19,6 +19,8 @@ import { fetchUsageReferences, HIGH_FAN_IN_REFERENCES, SLOW_FETCH_MS } from "../
 import { buildCallGraph } from "../adt/call-graph.js";
 import { repairSearchDescriptions } from "../adt/search-descriptions.js";
 import { searchObjectsTolerant } from "../adt/object-search.js";
+import { listInactiveObjectsOfPackage, type PackageInactiveEntry } from "../adt/inactive-objects.js";
+import { familyTimeoutMs, isTransportTimeout, transportTimeoutError } from "../adt/timeouts.js";
 import { buildResponse, textTable, type BuiltResponse } from "../compact.js";
 import { specForKeyword, specForType, specFromUri, TYPES } from "../adt/types.js";
 import { truncateForDisplay } from "../truncate.js";
@@ -65,10 +67,11 @@ const KNOWN_TYPES: string[] = [...new Set(TYPES.flatMap((t) => [t.kind, t.type])
 /** The group half of every known type code: "CLAS/OC" -> "CLAS". */
 export const KNOWN_TYPE_GROUPS = new Set(TYPES.map((t) => t.type.split("/")[0]!));
 
-// The request now always goes out untyped, so nothing server-side rejects a
-// type that does not exist; without this it would render as an ordinary empty
-// result. A sub-type the registry has never heard of is still real as long as
-// its group is known — quickSearch returns ENHS/XB rows nobody listed here.
+// A typed request now goes out with objectType set (group or sub-type), but
+// the server does not reject an unknown type either — it just answers empty.
+// Without this check that would render as an ordinary empty result. A
+// sub-type the registry has never heard of is still real as long as its
+// group is known — quickSearch returns ENHS/XB rows nobody listed here.
 function assertKnownType(type: string): void {
   const value = type.trim();
   if (!value) return;
@@ -85,11 +88,18 @@ function assertKnownType(type: string): void {
   );
 }
 
+/** True when `query` names no real pattern — empty, or only wildcards/whitespace. */
+function isUnspecificQuery(query: string): boolean {
+  return /^[*%\s]*$/.test(query.trim());
+}
+
 export const searchInputSchema = {
   query: z
     .string()
+    .optional()
     .describe(
-      "Name pattern (mode=objects), target object (mode=where_used/call_graph), or literal/regex text (mode=source).",
+      "Name pattern (mode=objects), target object (mode=where_used/call_graph), or literal/regex text (mode=source). " +
+        "Optional with inactive=true (then a name pattern filter, wildcards `*`).",
     ),
   mode: z
     .enum(["objects", "where_used", "source", "call_graph"])
@@ -150,6 +160,17 @@ export const searchInputSchema = {
     .boolean()
     .optional()
     .describe("mode=source: also match inside comments (heuristic, line-local). Default false."),
+  inactive: z
+    .boolean()
+    .optional()
+    .describe(
+      "mode=objects: list the INACTIVE objects (your own inactive worklist, per user in ADT) that belong to " +
+        "`packages` (required, max 5). Optional `query` (name pattern), `type` filter, `include_subpackages`, `user`.",
+    ),
+  user: z
+    .string()
+    .optional()
+    .describe("inactive=true: list another user's inactive worklist instead of your own."),
 };
 
 export const SearchInput = z.object(searchInputSchema);
@@ -163,6 +184,15 @@ export async function abapSearch(
   input: SearchInput,
   maxChars: number,
 ): Promise<BuiltResponse> {
+  if (input.inactive === true) return abapSearchInactive(conn, input, maxChars);
+  if (input.query === undefined) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "`query` is required unless inactive=true",
+      {},
+      "Pass a name pattern, or `inactive: true` with `packages` to list inactive objects.",
+    );
+  }
   const max = input.max ?? 50;
   if (input.type) assertKnownType(input.type);
   const mode = input.mode ?? "objects";
@@ -186,10 +216,125 @@ export async function abapSearch(
   return searchObjects(conn, input.query, input.type, max, maxChars);
 }
 
-// quickSearch's objectType is not trusted server-side (captures
-// 818/819): the sub-type half is ignored and typed rows drop description/
-// packageName. So every request goes out untyped and is filtered here instead.
-const TYPED_FETCH_MULTIPLIER = 10;
+/** `Z*` / `ZFOO_*` -> RegExp, case-insensitive, anchored — same shape as `packagePattern` in safety.ts. */
+function inactiveNameFilter(pattern: string): RegExp {
+  const escaped = pattern
+    .trim()
+    .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*/g, ".*");
+  return new RegExp(`^${escaped}$`, "i");
+}
+
+/**
+ * `inactive=true`: lists the caller's (or `user`'s) inactive worklist,
+ * intersected with `packages` (see `listInactiveObjectsOfPackage`,
+ * src/adt/inactive-objects.ts — ADT's inactive-objects endpoint carries no
+ * package of its own). One package at a time: each is its own nodestructure
+ * walk plus a fetch of the inactive worklist, so there is no benefit to
+ * racing them against ADT.
+ */
+export async function abapSearchInactive(
+  conn: AbapConnection,
+  input: SearchInput,
+  maxChars: number,
+): Promise<BuiltResponse> {
+  if (input.type) assertKnownType(input.type);
+  const spec = input.type ? (specForType(input.type) ?? specForKeyword(input.type)) : undefined;
+  const wanted = input.type ? (spec?.type ?? input.type.toUpperCase().trim()) : undefined;
+
+  const packages = (input.packages ?? []).map((p) => p.toUpperCase());
+  const recursive = !!input.include_subpackages;
+  const max = input.max ?? 50;
+
+  let user = (input.user ?? conn.cfg.user).toUpperCase();
+  let subpackageCapHit = false;
+  const seen = new Set<string>();
+  const all: PackageInactiveEntry[] = [];
+  for (const packageName of packages) {
+    const listing = await listInactiveObjectsOfPackage(conn, {
+      packageName,
+      recursive,
+      ...(input.user ? { user: input.user } : {}),
+    });
+    user = listing.user;
+    if (listing.truncated) subpackageCapHit = true;
+    for (const entry of listing.entries) {
+      const key = `${entry.type}|${entry.name}|${entry.packageName}`.toUpperCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      all.push(entry);
+    }
+  }
+
+  const nameFilter = input.query ? inactiveNameFilter(input.query) : undefined;
+  const filtered = all.filter((e) => {
+    if (nameFilter && !nameFilter.test(e.name)) return false;
+    if (wanted) {
+      const t = e.type.toUpperCase();
+      if (wanted.includes("/") ? t !== wanted : t.split("/")[0] !== wanted) return false;
+    }
+    return true;
+  });
+
+  const rows = filtered.slice(0, max);
+  const droppedByCap = filtered.length - rows.length;
+  // Disclosed in the body (not just notes) so it survives char-budget cuts.
+  const capLine =
+    droppedByCap > 0
+      ? `--- TRUNCATED --- ${droppedByCap} of ${filtered.length} inactive object(s) not shown ` +
+        `(display cap max=${max}). Raise \`max\` to see them.`
+      : undefined;
+
+  const table = rows.length
+    ? textTable(
+        rows.map((e) => ({
+          TYPE: e.type,
+          NAME: e.name,
+          PACKAGE: e.packageName,
+          USER: e.user,
+          STATE: e.deleted ? "pending deletion" : "inactive",
+        })),
+        ["TYPE", "NAME", "PACKAGE", "USER", "STATE"],
+      )
+    : `No inactive objects of ${user} in ${packages.join(", ")}.`;
+  const body = capLine ? `${table}\n${capLine}` : table;
+
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      mode: "objects",
+      inactive: true,
+      packages: packages.join(","),
+      include_subpackages: recursive,
+      user,
+      count: rows.length,
+      truncated_by_subpackage_cap: subpackageCapHit || undefined,
+      truncated_by_max: droppedByCap > 0 || undefined,
+    },
+    body,
+    bodyLabel: "RESULTS",
+    notes: [
+      `ADT's inactive-objects list is per user: this is ${user}'s worklist; pass \`user\` to see another user's.`,
+      ...(subpackageCapHit
+        ? ["Sub-package walk cut at its cap — some sub-packages may not have been scanned."]
+        : []),
+    ],
+    hints: rows.length
+      ? [
+          "Activate them all with abap_activate package=<pkg> (recursive=true for sub-packages), " +
+            "or one at a time with abap_activate object=<name>.",
+        ]
+      : [],
+    maxChars,
+  });
+}
+
+// quickSearch's own type filter is fast (issue #206 live measurements) but
+// is not trusted for sub-types (captures 818/819 show it can still leak
+// sibling sub-types), so a typed request is sent with objectType set (the
+// sub-type when the query is unspecific, else the group) and the result is
+// filtered here again anyway.
+const TYPED_FETCH_MARGIN_MIN = 10;
 const TYPED_FETCH_CAP = 1000;
 
 async function searchObjects(
@@ -199,14 +344,44 @@ async function searchObjects(
   max: number,
   maxChars: number,
 ): Promise<BuiltResponse> {
+  if (isUnspecificQuery(query) && !type) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `query "${query}" matches every object in the system, and mode=objects has no package scope ` +
+        `to bound it — refused rather than run into the request timeout.`,
+      { query, reason: "unspecific" },
+      'Add `type` (e.g. "CLAS/OC" or "FUGR/F") to list objects of one type, or narrow the pattern ' +
+        'to a name prefix such as "Z*" or "ZCL_MY*".',
+    );
+  }
   const spec = type ? (specForType(type) ?? specForKeyword(type)) : undefined;
   const wanted = type ? (spec?.type ?? type.toUpperCase().trim()) : undefined;
-  // Widened so a typed search still gets useful coverage now that the server
-  // no longer narrows the fetch — captures 827/828 confirm a window this
-  // size is honoured (1000 and 5000 rows). `max` itself still only bounds
-  // what is DISPLAYED (see the cap below), never what is fetched.
-  const fetchMax = type ? Math.min(TYPED_FETCH_CAP, max * TYPED_FETCH_MULTIPLIER) : max;
-  const rawResults = await searchObjectsTolerant(conn, query, fetchMax);
+  // A margin above `max`, not a multiplier: the server's own type filter now
+  // does most of the narrowing, so the fetch window only needs headroom for
+  // the client-side re-filter, not 10x coverage. `max` itself still only
+  // bounds what is DISPLAYED (see the cap below), never what is fetched.
+  const fetchMax = type
+    ? Math.min(TYPED_FETCH_CAP, max + Math.max(TYPED_FETCH_MARGIN_MIN, Math.ceil(max / 2)))
+    : max;
+  const typeScoped = wanted !== undefined && isUnspecificQuery(query) && wanted.includes("/");
+  const objectType = wanted === undefined ? undefined : typeScoped ? wanted : wanted.split("/")[0];
+  let rawResults;
+  try {
+    rawResults = await conn.withRequestTimeout(familyTimeoutMs(conn.cfg, "search"), () =>
+      searchObjectsTolerant(conn, query, fetchMax, objectType),
+    );
+  } catch (e) {
+    if (isTransportTimeout(e)) {
+      throw transportTimeoutError({
+        family: "search",
+        operation: "quick search",
+        name: query,
+        timeoutMs: familyTimeoutMs(conn.cfg, "search"),
+        cause: e,
+      });
+    }
+    throw e;
+  }
 
   // Repaired BEFORE the type filter: the permutation is defined over the
   // whole type group as the server returned it, so filtering to one
@@ -252,12 +427,19 @@ async function searchObjects(
         `repaired. Their descriptions may belong to another row in the same group — confirm with abap_read.`,
     );
   }
+  if (typeScoped) {
+    notes.push(
+      `TYPE-SCOPED LISTING: "${query}" with type ${wanted} was sent as a type-scoped quick search ` +
+        `(the server's object-type parameter set to ${wanted}). The server answers it in well under a second but omits description ` +
+        `(and for some types package) on these rows — abap_read gives them.`,
+    );
+  }
   if (droppedByFilter > 0) {
     notes.push(
-      `UNDER-REPORTED: the fetch window was deliberately widened to ${fetchMax} row(s) of mixed type ` +
-        `for "${query}" — your max=${max} bounds only what is shown, not what is fetched, because the ` +
-        `server's own type filter is not trusted and type is filtered here instead. ` +
-        `The server returned ${results.length} hit(s) of mixed type; ` +
+      `UNDER-REPORTED: the server was asked for object type ${objectType} with a window of ${fetchMax} ` +
+        `row(s) (max + a margin) for "${query}" — your max=${max} bounds only what is shown, not what ` +
+        `is fetched. The server's own type filter is not trusted for sub-types, so type is filtered ` +
+        `here too. The server returned ${results.length} hit(s); ` +
         `${droppedByFilter} were dropped here because their type is not ${wanted}. ` +
         `${filtered.length} row(s) matched. ` +
         (windowFull
@@ -480,8 +662,13 @@ const SOURCE_ONLY_FIELDS = [
  * from `abapSearch()` (which stays byte-identical) — this runs in the
  * handler, around the call, not inside it.
  */
-function assertNoSourceOnlyFields(input: SearchInput, mode: "objects" | "where_used" | "call_graph"): void {
+function assertNoSourceOnlyFields(
+  input: SearchInput,
+  mode: "objects" | "where_used" | "call_graph",
+  exempt: readonly string[] = [],
+): void {
   const passed = SOURCE_ONLY_FIELDS.filter((f) => {
+    if (exempt.includes(f)) return false;
     const v = (input as Record<string, unknown>)[f];
     return v !== undefined && !(Array.isArray(v) && v.length === 0);
   });
@@ -543,7 +730,7 @@ export function buildSourceScanQuery(input: SearchInput): SourceScanQuery {
     );
   }
 
-  const query = input.query.trim();
+  const query = (input.query ?? "").trim();
   if (!query) {
     throw new AbapError("BAD_INPUT", 'mode="source" requires a non-empty `query`.', {});
   }
@@ -847,6 +1034,40 @@ export function registerSearchTools(mcp: McpServer, deps: SearchToolDeps): void 
         const input = args as SearchInput;
         const mode = input.mode ?? "objects";
         assertNoCallGraphOnlyFields(input, mode);
+
+        if (input.inactive === true) {
+          if (input.mode !== undefined && input.mode !== "objects") {
+            throw new AbapError("BAD_INPUT", "inactive=true only applies to mode=objects", { mode: input.mode });
+          }
+          const packages = input.packages ?? [];
+          if (packages.length < 1 || packages.length > 5) {
+            throw new AbapError(
+              "BAD_INPUT",
+              "inactive=true needs `packages` (1-5 package names) — ADT's inactive-objects list carries no " +
+                "package, so abapsmith intersects it with each package's contents",
+              { packages },
+            );
+          }
+          assertNoSourceOnlyFields(input, "objects", ["packages", "include_subpackages"]);
+          await deps.ensureConnected();
+          deps.safety.assert("read");
+          const res = await deps.pool.withRead("abap_search", (conn) =>
+            abapSearchInactive(conn, input, deps.cfg.maxResponseChars),
+          );
+          return ok(res.text);
+        }
+
+        if (input.query === undefined) {
+          throw new AbapError(
+            "BAD_INPUT",
+            "`query` is required unless inactive=true",
+            {},
+            "Pass a name pattern, or `inactive: true` with `packages` to list inactive objects.",
+          );
+        }
+        if (input.user !== undefined) {
+          throw new AbapError("BAD_INPUT", "`user` only applies to inactive=true", { user: input.user });
+        }
 
         if (mode === "source") {
           const q = buildSourceScanQuery(input);

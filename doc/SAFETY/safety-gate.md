@@ -100,6 +100,52 @@ Both transport-allowlist refusals name their rule and a caller-side remedy
 for the mode in force (`transportAllowlistHint`, `src/safety.ts`), never an
 environment edit, and are terminal (`retryable: false`) — issue #143.
 
+#### A named request under `auto`: the session-registry hook (#208)
+
+Check 7's own rule for `auto` used to be absolute: `normalized.includes("AUTO")`
+made an `auto`-resolved request pass, but a `source: "named"` request never
+did, however it got there — even one this same process had just created
+and handed back in an earlier write's `transport:` field. That made it
+impossible for a caller to read a request back and pass it explicitly on a
+later call.
+
+`SafetyGate` now takes an optional second constructor argument,
+`SafetyGateHooks`, whose one field is `sessionCreatedRequests: () =>
+readonly string[]` — TRKORRs this process's `SessionTransport` registry
+has recorded as created (`SessionTransport.noteCreated`/
+`sessionCreatedRequests()`), read live through a closure bound after
+`SessionTransport` is constructed (`src/systems/context.ts`). A
+`source: "named"` request under a list containing `AUTO` now also passes
+when it appears in that registry; every other combination is exactly as
+before. A refusal from this branch names what would have been accepted:
+the requests the registry holds, or "omit corr_nr to have one picked or
+created" when it holds none yet.
+
+This stays fail-closed by construction, not by convention: `SafetyGate`'s
+own default for the hooks argument is `{}`, so a caller that builds a gate
+without wiring `sessionCreatedRequests` (every offline test that
+constructs `SafetyGate` directly, and any future call site that forgets
+the wiring) gets the old, stricter behaviour — every named request refused
+under `auto` — rather than silently trusting an empty or absent registry
+as "anything goes". The registry itself only ever grows through
+`SessionTransport.noteCreated`, called at the one place a request this
+process's resolver actually created is recorded; nothing else can add to
+it, so the hook cannot be tricked into admitting a request from outside
+this process or a different session. Deny-all (`ABAP_ALLOW_TRANSPORTS=`)
+and a pinned list without `auto` in it are unaffected either way — the
+hook is only ever consulted on the `normalized.includes("AUTO")` branch.
+
+`abap_write`'s own main path (`SessionTransport.#callerMayName`,
+`src/adt/session-transport.ts`) implements the same rule independently,
+with one addition the gate hook does not have: tier (b), a modifiable
+workbench request owned by the connected user already carrying
+abapsmith's own session description for the same package, which needs a
+CTS read to confirm and so cannot be judged zero-wire. The classic-bridge
+creates (`VIEW/DV`, `TRAN/T`, `SHLP/DH`, `TABL/DI`, `DEVC/K`) go through
+the gate hook only, at their zero-wire pre-check (`bridgePreflightCorr`,
+before `resolveBridgeCreateCorr` ever asks CTS for the package's
+candidates) — so they accept tier (a) but not tier (b).
+
 ### The ladder governs what this server does, not ABAP it executes
 
 Checks 4–7 constrain the arguments this server itself passes on a write —

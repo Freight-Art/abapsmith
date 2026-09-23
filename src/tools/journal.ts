@@ -27,6 +27,7 @@ import {
 } from "../adt/undo.js";
 import { specFromUri } from "../adt/types.js";
 import type { SessionPool } from "../adt/pool.js";
+import type { SessionTransport } from "../adt/session-transport.js";
 import type { Config } from "../config.js";
 import { buildResponse, sliceLines, type BuiltResponse } from "../compact.js";
 import { diffSources, renderHunks } from "../diff.js";
@@ -335,6 +336,7 @@ export async function abapJournal(
   maxChars: number,
   journal?: Journal,
   gate?: SafetyGate,
+  transport?: SessionTransport,
 ): Promise<BuiltResponse> {
   const mode = input.mode ?? "list";
   const j = requireJournal(journal);
@@ -732,6 +734,9 @@ export async function abapJournal(
     ...(input.activate !== undefined ? { activate: input.activate } : {}),
     // A DEVC/K undo deletes through the classrun bridge, which gates itself.
     gate,
+    // TRAN/T undo of a transportable package resolves a request through this —
+    // see src/adt/undo.ts's UndoOptions.transport.
+    transport,
     // Re-authorise on the resolved object: only here is delete vs. write known.
     // gate.authorize both checks and mints the AuthorizedTarget proof that
     // writeObject/deleteObject require to run at all (Layer 2, src/mode.ts) —
@@ -904,6 +909,7 @@ export interface JournalToolDeps {
   readonly errorResult: (e: unknown) => CallToolResult;
   readonly cfg: Pick<Config, "maxResponseChars">;
   readonly journal: Journal;
+  readonly transport?: SessionTransport;
 }
 
 const ok = (text: string): CallToolResult => ({ content: [{ type: "text", text }] });
@@ -964,7 +970,7 @@ export function registerJournalTools(mcp: McpServer, deps: JournalToolDeps): voi
         // list/show/reconcile never touch the network: they work with the system down.
         if (isUndo) await deps.ensureConnected();
         const run = (conn: AbapConnection) =>
-          abapJournal(conn, args as JournalInput, deps.cfg.maxResponseChars, deps.journal, deps.safety);
+          abapJournal(conn, args as JournalInput, deps.cfg.maxResponseChars, deps.journal, deps.safety, deps.transport);
         // Only undo leases a slot — list/show/reconcile put zero requests on the wire
         // and must keep working with the system down / all slots held.
         const res = isUndo

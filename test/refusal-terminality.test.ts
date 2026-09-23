@@ -471,12 +471,19 @@ describe("terminality overrides are deliberate and explained", () => {
   // identified live rather than passed as `target.type` — so both sites keep
   // their own `{ retryable: false }` override, bringing adt/write.ts from 8
   // sites to 9.
-  it("exactly 35 call sites pass a 5th argument to `new AbapError(...)` — 2 in adt/resolve.ts, 9 in adt/write.ts, 2 in adt/datapreview.ts and 1 in adt/locked-holders.ts (re-wraps that carry the classified retryability through unchanged), 1 in adt/resolved-package.ts, 1 in adt/index-create.ts, 3 in adt/undo.ts, 5 in adt/run.ts (the TIMEOUT mint and four re-wraps), 2 in tools/write.ts, 4 in tools/debug.ts, 1 in tools/ui.ts, 1 in debug/session.ts and 3 in tools/bopf.ts (TIMEOUT re-read verdicts: create never landed → true, created-but-inactive → false, activate still inactive → true): all 35 are per-site overrides of RETRYABILITY's default (terminal-by-code UNSUPPORTED/SAFETY_DENIED sites whose own prose promises a working retry, plus BAD_INPUT sites whose own prose forbids a retry); most terminal codes still get retryable:false automatically from RETRYABILITY with no 5th argument at all", () => {
+  // 35 became 38 with issues #201/#202: two CHECK_FAILED sites in
+  // adt/tran-create.ts now surface RPY_TRANSACTION_INSERT's own exception —
+  // `already_exist` is terminal, and the named exception is retryable only
+  // for the exceptions listed in the local `retryable` array — and the batch
+  // TRAN/T delete in tools/write.ts gained the same indeterminate-read
+  // PACKAGE_UNKNOWN override as the single delete, bringing tools/write.ts
+  // from 2 sites to 3.
+  it("exactly 38 call sites pass a 5th argument to `new AbapError(...)` — 2 in adt/resolve.ts, 9 in adt/write.ts, 2 in adt/datapreview.ts and 1 in adt/locked-holders.ts (re-wraps that carry the classified retryability through unchanged), 1 in adt/resolved-package.ts, 1 in adt/index-create.ts, 2 in adt/tran-create.ts, 3 in adt/undo.ts, 5 in adt/run.ts (the TIMEOUT mint and four re-wraps), 3 in tools/write.ts, 4 in tools/debug.ts, 1 in tools/ui.ts, 1 in debug/session.ts and 3 in tools/bopf.ts (TIMEOUT re-read verdicts: create never landed → true, created-but-inactive → false, activate still inactive → true): all 38 are per-site overrides of RETRYABILITY's default (terminal-by-code UNSUPPORTED/SAFETY_DENIED sites whose own prose promises a working retry, plus BAD_INPUT sites whose own prose forbids a retry); most terminal codes still get retryable:false automatically from RETRYABILITY with no 5th argument at all", () => {
     const { calls } = scanSrc();
     expect(
       calls.length,
       `found: ${calls.map((c) => `${c.file}:${c.line}`).join(", ")}`,
-    ).toBe(35);
+    ).toBe(38);
   });
 });
 

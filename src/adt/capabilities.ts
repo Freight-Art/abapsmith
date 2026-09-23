@@ -184,6 +184,14 @@ export interface CreateCapability {
    * tri-state value.
    */
   verified: true | false | "unverified";
+  /**
+   * Send the create POST outside the stateful session. The server keeps
+   * this type's create enqueue for the rest of a stateful session, so a
+   * LOCK right after the create in the same session is refused by our own
+   * user (#205, MSAG/N, live 2026-09-23); a stateless request releases it
+   * when the request ends.
+   */
+  statelessPost?: true;
 }
 
 export interface TypeCapabilities {
@@ -887,7 +895,7 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
     // re-checked and unaffected). An earlier report asserted message classes "do
     // not create at all" — like DTEL/DE, that did not reproduce. Full
     // record: the git history.
-    create: { vendor: true, verified: true },
+    create: { vendor: true, verified: true, statelessPost: true },
     delete: true,
     activate: false,
   },
@@ -1249,10 +1257,13 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "RS_CORR_INSERT for transport/TADIR registration, then inserts TSTC/TSTCT/TSTCC. Called " +
         "from a generated IF_OO_ADT_CLASSRUN bridge — see src/adt/tran-create.ts.",
       limits:
-        "Creates a REPORT transaction (dynpro 1000) that starts an EXISTING program the caller " +
-        "names; the program is not created or checked for existence here. Dialog, parameter, " +
-        "variant and OO transactions, and a caller-chosen dynpro number, are not exposed. " +
-        "Retargeting an EXISTING transaction to a different program is now supported over " +
+        "Creates a report (default, dynpro 1000), dialog (caller-chosen dynpro), parameter, " +
+        "variant, or OO transaction with a transaction model (the OS_APPLICATION form, stored " +
+        "as a parameter transaction with CLASS/METHOD/UPDATE_MODE TSTCP assignments); the " +
+        "underlying program/class/method the caller names is not created or checked for " +
+        "existence here. The OO form with NO transaction model (TSTCP `\\CLASS=...\\METHOD=...`) " +
+        "has no SAP write API and stays read-only. Retargeting an EXISTING transaction to a " +
+        "different program is now supported over " +
         "src/adt/tran-update.ts's updateTransaction: it dispatches the fluid classic tool's " +
         "update_transaction action, which checks TSTC existence, refuses the retarget unless " +
         "the caller passes confirm_in_role_menu when the tcode is already assigned to one or " +
@@ -1298,12 +1309,13 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
         "the caller passes confirm_in_role_menu; an SM01 transaction lock is NOT checked either " +
         "way. Live-verified once, 2026-09-05: a $ package transaction was created and then " +
         "deleted with TRAN-DELETED / TRAN-GONE and a post-delete re-read proving absence. " +
-        "This bridgeCreate entry's own `via` already records that " +
-        "RPY_TRANSACTION_INSERT calls RS_CORR_INSERT for transport/TADIR registration; whether " +
-        "RPY_TRANSACTION_DELETE does the same is unknown, so deleting a transaction out of a " +
-        "TRANSPORTABLE package may plausibly hit a headless-dynpro failure the way " +
-        "VIEW/DV create originally did, before suppress_dialog fixed it there. No transport " +
-        "handling is attempted here either way.",
+        "Delete is now transport-aware (issue #202): a transaction in a transportable " +
+        "(non-$) package is registered via this module's own RS_CORR_INSERT call — the same " +
+        "way tran-update.ts's retarget registers one — before RPY_TRANSACTION_DELETE runs, " +
+        "with suppress_corr_insert/suppress_corr_check both 'X' since that registration " +
+        "already covers CTS; a local ($-prefixed) package still deletes with no transport at " +
+        "all. Only the $TMP path above has actually been run live; the transportable path " +
+        "runs the same FM sequence but has NOT itself been proven against a live system.",
     },
   },
   // Not in types.ts — see the module doc. Program subobjects (not standalone

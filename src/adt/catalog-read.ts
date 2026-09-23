@@ -52,6 +52,7 @@ import {
   parseTransactionParameters,
 } from "./catalog-query.js";
 import { IMG_DEFAULT_LANGUAGE, fld, toRecordSet, type PreviewRecord, type PreviewRecordSet } from "./img-query.js";
+import { tstcKind } from "./ui-tstc.js";
 
 /** What `readSearchHelp`/`readClassicView`/`readTransaction` need from a live connection — exactly `ImgReadConnection`'s shape, kept as its own name so this module doesn't import `img-read.ts` for a one-line interface. */
 export interface CatalogReadConnection {
@@ -585,6 +586,38 @@ async function readTransactionImpl(
   const rawParam = nonEmpty(param.rs.records[0]?.[fld("transactionParam", "parameters")]);
   const parsed = rawParam !== undefined ? parseTransactionParameters(rawParam) : undefined;
 
+  // CINFO's bits give the base kind (`./ui-tstc.ts`'s `tstcKind`); TSTCP
+  // (already parsed above) refines the ambiguous 0x02 bit into which of
+  // parameter/variant/oo it actually is, and a report's own 0x10 bit already
+  // folds into "report" there, so TSTCP's "report-variant" shape is what
+  // distinguishes a report started with a fixed variant from a plain one.
+  const cinfo = nonEmpty(headerRow[fld("transaction", "classInfo")]) ?? "";
+  const baseKind = tstcKind(cinfo);
+  const kind =
+    baseKind === "parameter" && (parsed?.kind === "parameter" || parsed?.kind === "variant" || parsed?.kind === "oo")
+      ? parsed.kind
+      : baseKind === "report" && parsed?.kind === "report-variant"
+        ? "report-variant"
+        : baseKind;
+
+  const kindLines: string[] = [line("KIND", kind)];
+  if (kind === "parameter") {
+    kindLines.push(line("TARGET", parsed?.target));
+    kindLines.push(line("SKIP FIRST SCREEN", parsed?.skipFirstScreen));
+  } else if (kind === "variant") {
+    kindLines.push(line("TARGET", parsed?.target));
+    kindLines.push(line("VARIANT", parsed?.variant));
+    kindLines.push(line("CROSS-CLIENT", parsed?.crossClient));
+  } else if (kind === "oo") {
+    kindLines.push(line("CLASS", parsed?.className));
+    kindLines.push(line("METHOD", parsed?.methodName));
+    kindLines.push(line("UPDATE MODE", parsed?.updateMode));
+    kindLines.push(line("TRANSACTION MODEL", parsed?.transactionModel));
+    kindLines.push(line("LOCAL IN PROGRAM", parsed?.localProgram));
+  } else if (kind === "report" || kind === "report-variant") {
+    kindLines.push(line("VARIANT", parsed?.variant));
+  }
+
   const authLines = auth.rs.records.map((r) => {
     return (
       `${r[fld("transactionAuth", "authObject")] ?? ""} ${r[fld("transactionAuth", "authField")] ?? ""} = ` +
@@ -614,6 +647,7 @@ async function readTransactionImpl(
       line("SCREEN", nonEmpty(headerRow[fld("transaction", "dynpro")])),
       line("CLASS INFO", nonEmpty(headerRow[fld("transaction", "classInfo")])),
       line("MESSAGE AREA", nonEmpty(headerRow[fld("transaction", "messageArea")])),
+      ...kindLines,
     ]
       .filter(Boolean)
       .join("\n") +
@@ -631,6 +665,15 @@ async function readTransactionImpl(
       transaction: tcode,
       program: nonEmpty(headerRow[fld("transaction", "program")]),
       screen: nonEmpty(headerRow[fld("transaction", "dynpro")]),
+      kind,
+      target: parsed?.target,
+      parameters: parsed?.assignments.length ? parsed.assignments.map((a) => `${a.name}=${a.value}`).join(";") : undefined,
+      variant: parsed?.variant,
+      className: parsed?.className,
+      methodName: parsed?.methodName,
+      updateMode: parsed?.updateMode,
+      // kept for backward compatibility with callers reading the old,
+      // 3-kind ("variant" | "parameter" | "other") shape
       parameterKind: parsed?.kind,
       parameterTarget: parsed?.target,
       authCheckCount: auth.rs.records.length,

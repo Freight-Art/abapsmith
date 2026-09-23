@@ -763,15 +763,15 @@ describe("tran-update.ts: updateTransaction validation", () => {
     expect(err.details).toMatchObject({ what: "program" });
   });
 
-  it("refuses a description over TSTCT-TTEXT's CHAR37", async () => {
-    const err = await catchErr(updateTransaction(conn, gate, baseTranParams({ description: "D".repeat(38) })));
+  it("refuses a description over the 36-character limit (issue #209)", async () => {
+    const err = await catchErr(updateTransaction(conn, gate, baseTranParams({ description: "D".repeat(37) })));
     expect(err.code).toBe("BAD_INPUT");
     expect(err.details).toMatchObject({ what: "description" });
   });
 
-  it("accepts a description at exactly CHAR37", async () => {
+  it("accepts a description at exactly the 36-character limit", async () => {
     await expect(
-      updateTransaction(conn, gate, baseTranParams({ description: "D".repeat(37) })),
+      updateTransaction(conn, gate, baseTranParams({ description: "D".repeat(36) })),
     ).rejects.not.toSatisfy((e: unknown) => isAbapError(e));
   });
 

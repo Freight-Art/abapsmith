@@ -1314,6 +1314,20 @@ describe("config: per-family timeouts (bopfTimeoutMs/activateTimeoutMs/runTimeou
     expect(cfg.bopfTimeoutMs).toBe(180_000);
     expect(cfg.activateTimeoutMs).toBe(180_000);
     expect(cfg.runTimeoutMs).toBe(180_000);
+    // #206: searchTimeoutMs is a fifth per-family timeout, but its default
+    // matches the shared ABAP_TIMEOUT_MS default (60_000), not the 3x bump
+    // the other three families got.
+    expect(cfg.searchTimeoutMs).toBe(60_000);
+  });
+
+  // #206: abap_search's repository quick search gets its own per-request
+  // timeout (ABAP_SEARCH_TIMEOUT_MS), same pattern as runTimeoutMs above.
+  it("ABAP_SEARCH_TIMEOUT_MS overrides searchTimeoutMs alone", () => {
+    const cfg = loadConfig({ env: env({ ABAP_SEARCH_TIMEOUT_MS: "90000" }), warn: () => {}, skipDotenv: true });
+    expect(cfg.searchTimeoutMs).toBe(90_000);
+    expect(cfg.bopfTimeoutMs).toBe(180_000);
+    expect(cfg.activateTimeoutMs).toBe(180_000);
+    expect(cfg.runTimeoutMs).toBe(180_000);
   });
 
   it("ABAP_BOPF_TIMEOUT_MS overrides bopfTimeoutMs alone", () => {
@@ -1345,6 +1359,7 @@ describe("config: per-family timeouts (bopfTimeoutMs/activateTimeoutMs/runTimeou
     ["ABAP_BOPF_TIMEOUT_MS", "bopfTimeoutMs"],
     ["ABAP_ACTIVATE_TIMEOUT_MS", "activateTimeoutMs"],
     ["ABAP_RUN_TIMEOUT_MS", "runTimeoutMs"],
+    ["ABAP_SEARCH_TIMEOUT_MS", "searchTimeoutMs"], // #206
   ] as const) {
     it(`${envVar}="0" is rejected through the same "Invalid abapsmith configuration" issue list, naming ${field}`, () => {
       try {

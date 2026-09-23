@@ -505,6 +505,11 @@ export class SessionTransport implements SessionTrOwner {
     this.#created.add(trkorr.trim().toUpperCase());
   }
 
+  /** TRKORRs this session has created, uppercase, in the order they were recorded. */
+  sessionCreatedRequests(): string[] {
+    return [...this.#created];
+  }
+
   /**
    * Decide which transport request this write goes into.
    *
@@ -690,6 +695,66 @@ export class SessionTransport implements SessionTrOwner {
     // Step 5: a TRKORR the caller named.
     if (wanted !== undefined) {
       if (!this.#callerMayName(wanted)) {
+        // Under auto, a named request is still accepted when it's exactly what
+        // auto itself would pick: one this session created, or a modifiable
+        // workbench request already attributed to abapsmith for this package.
+        // Anything else is refused, naming what would have been accepted.
+        if (this.#policy.auto) {
+          if (this.createdThisSession(wanted)) {
+            const problem = await this.#checkUsable(conn, wanted);
+            if (problem) return problem;
+            this.#state = {
+              kind: "active",
+              trkorr: wanted,
+              devclass,
+              createdAt: this.#now().toISOString(),
+              origin: "adopted",
+            };
+            return this.#autoGranted(
+              wanted,
+              "session-created",
+              `Using ${wanted}: named by the caller and created by this session.`,
+            );
+          }
+          const me = this.#whoami();
+          const attributed = candidates.find(
+            (c) =>
+              c.trkorr.toUpperCase() === wanted.toUpperCase() &&
+              me !== undefined &&
+              me !== "" &&
+              this.#isAttributedTo(c, me),
+          );
+          if (attributed !== undefined) {
+            this.#state = {
+              kind: "active",
+              trkorr: wanted,
+              devclass,
+              createdAt: this.#now().toISOString(),
+              origin: "adopted",
+            };
+            return this.#autoGranted(
+              wanted,
+              "session-adopted",
+              `Using ${wanted}: named by the caller; a modifiable workbench request owned by ${me} carrying abapsmith's own description for package ${devclass} — the request auto would have adopted. THIS SESSION DID NOT CREATE IT.`,
+            );
+          }
+          const acceptable = [
+            ...this.sessionCreatedRequests(),
+            ...candidates
+              .filter((c) => me !== undefined && me !== "" && this.#isAttributedTo(c, me))
+              .map((c) => c.trkorr.toUpperCase()),
+          ].filter((t, i, arr) => arr.indexOf(t) === i);
+          return denied(
+            "not-allowlisted",
+            "TRANSPORT_ERROR",
+            `Transport ${wanted} is not permitted by ABAP_ALLOW_TRANSPORTS [auto]: this session did ` +
+              `not create it, and it is not a modifiable request attributed to abapsmith for package ` +
+              `${devclass ?? "?"}. Acceptable: ${
+                acceptable.length ? acceptable.join(", ") : "none yet — omit corr_nr to have one created"
+              }.`,
+            transportAllowlistHint(this.#allowTransports),
+          );
+        }
         return denied(
           "not-allowlisted",
           "TRANSPORT_ERROR",
@@ -1068,10 +1133,7 @@ export class SessionTransport implements SessionTrOwner {
               // just proved dead above; the probe is the newer evidence, so a
               // just-retired request must never be re-adopted in this call.
               (retired === undefined || c.trkorr.toUpperCase() !== retired.toUpperCase()) &&
-              c.kind === "workbench" &&
-              c.status === "modifiable" &&
-              c.owner.toUpperCase() === me.toUpperCase() &&
-              this.#isOwnDescription(c.description) &&
+              this.#isAttributedTo(c, me) &&
               // Already had its chance in tier 1 above; never double-counted.
               !this.createdThisSession(c.trkorr),
           );
@@ -1245,6 +1307,16 @@ export class SessionTransport implements SessionTrOwner {
     return this.#description !== undefined
       ? trimmed === this.#description.trim()
       : /^abapsmith session \d{4}-\d{2}-\d{2}$/.test(trimmed);
+  }
+
+  /** Tier-2 adoption test: a modifiable workbench request owned by `me` carrying abapsmith's own description. */
+  #isAttributedTo(c: TrHeader, me: string): boolean {
+    return (
+      c.kind === "workbench" &&
+      c.status === "modifiable" &&
+      c.owner.toUpperCase() === me.toUpperCase() &&
+      this.#isOwnDescription(c.description)
+    );
   }
 
   /**
