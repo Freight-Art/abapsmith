@@ -126,6 +126,106 @@ export interface TextPool {
   headings: TextPoolHeadings;
 }
 
+/**
+ * Canonical JSON snapshot of a text pool (issue #200's before/after image for
+ * undo), keys uppercased and sorted so two logically-identical pools always
+ * serialise identically. `undefined pool` and a `CLAS/OC` pool's absent
+ * selections/headings both canonicalise to all-empty — see `TEXT_POOL_SPECS`.
+ * `parseTextPoolImage()` is the inverse.
+ */
+export function textPoolImage(pool: TextPool | undefined, type: TextPoolObjectType): string {
+  const symbols = canonicalStringRecord(pool?.symbols ?? {});
+  if (!TEXT_POOL_SPECS[type].selections) {
+    return JSON.stringify({ symbols });
+  }
+  const selectionTexts = canonicalStringRecord(pool?.selectionTexts ?? {});
+  const headings = pool?.headings ?? {};
+  return JSON.stringify({
+    symbols,
+    selectionTexts,
+    headings: {
+      listHeader: headings.listHeader ?? "",
+      columnHeaders: headings.columnHeaders ?? [],
+    },
+  });
+}
+
+/** Keys uppercased, then sorted — matches `textPoolImage()`'s canonical form. */
+function canonicalStringRecord(rec: Record<string, string>): Record<string, string> {
+  const entries = Object.entries(rec).map(([k, v]) => [k.toUpperCase(), v] as const);
+  entries.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  return Object.fromEntries(entries);
+}
+
+function parseStringRecord(value: unknown, field: string, type: TextPoolObjectType): Record<string, string> {
+  if (value === undefined) return {};
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new AbapError("BAD_INPUT", `Text pool image "${field}" must be an object.`, { type });
+  }
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof v !== "string") {
+      throw new AbapError("BAD_INPUT", `Text pool image "${field}.${k}" must be a string.`, { type });
+    }
+    out[k] = v;
+  }
+  return out;
+}
+
+/**
+ * The inverse of `textPoolImage()`. Only ever fed abapsmith's own blobs, so a
+ * malformed one means the journal was corrupted or hand-edited, not a caller
+ * mistake to explain gently. Returns a complete `TextPool` — empty parts
+ * filled in, not left absent.
+ */
+export function parseTextPoolImage(text: string, type: TextPoolObjectType): TextPool {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch (e) {
+    throw new AbapError("BAD_INPUT", `Text pool image is not valid JSON: ${(e as Error).message}`, { type });
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new AbapError("BAD_INPUT", "Text pool image must be a JSON object.", { type });
+  }
+  const obj = parsed as Record<string, unknown>;
+  const symbols = parseStringRecord(obj.symbols, "symbols", type);
+
+  if (!TEXT_POOL_SPECS[type].selections) {
+    return { symbols, selectionTexts: {}, headings: {} };
+  }
+
+  const selectionTexts = parseStringRecord(obj.selectionTexts, "selectionTexts", type);
+  const headingsRaw = obj.headings;
+  if (typeof headingsRaw !== "object" || headingsRaw === null || Array.isArray(headingsRaw)) {
+    throw new AbapError("BAD_INPUT", 'Text pool image "headings" must be an object.', { type });
+  }
+  const h = headingsRaw as Record<string, unknown>;
+  if (h.listHeader !== undefined && typeof h.listHeader !== "string") {
+    throw new AbapError("BAD_INPUT", 'Text pool image "headings.listHeader" must be a string.', { type });
+  }
+  const columnHeadersRaw = h.columnHeaders;
+  if (
+    columnHeadersRaw !== undefined &&
+    (!Array.isArray(columnHeadersRaw) || !columnHeadersRaw.every((c) => typeof c === "string"))
+  ) {
+    throw new AbapError(
+      "BAD_INPUT",
+      'Text pool image "headings.columnHeaders" must be an array of strings.',
+      { type },
+    );
+  }
+
+  return {
+    symbols,
+    selectionTexts,
+    headings: {
+      listHeader: typeof h.listHeader === "string" ? h.listHeader : "",
+      columnHeaders: (columnHeadersRaw as string[] | undefined) ?? [],
+    },
+  };
+}
+
 /** `@MaxLength:N` + `KEY=text` per entry, blank-line separated, uppercased keys. */
 export function buildSymbolsBody(symbols: Record<string, string>): string {
   const entries = Object.entries(symbols).map(([rawKey, text]) => {
