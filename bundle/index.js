@@ -61928,7 +61928,7 @@ var init_capabilities = __esm({
         },
         catalogRead: {
           from: "DD12V, DD17S",
-          nameForm: "<TABLE>/<INDEX>, the same parented form the create takes, e.g. ZTAB/Z01"
+          nameForm: "<TABLE>/<INDEX> for one index (the same parented form the create takes, e.g. ZTAB/Z01), or a bare <TABLE> to list every secondary index of the table"
         }
       }
     };
@@ -116296,7 +116296,7 @@ async function readSecondaryIndex(conn, table, indexId, opts) {
   const id = assertIndexIdValue(indexId.trim().toUpperCase());
   const { indexes, notes } = await readTableIndexes(conn, table, opts);
   const index = indexes.find((i) => i.id === id);
-  return { index, notes };
+  return { index, indexes, notes };
 }
 async function verifySecondaryIndex(conn, table, indexId, expect) {
   try {
@@ -116349,12 +116349,25 @@ function renderIndexSection(indexes) {
   );
   return { title, content };
 }
-function renderSecondaryIndex(index) {
-  const ddl = [
+function indexDdl(index) {
+  return [
     `define index ${index.id.toLowerCase()} on ${index.table.toLowerCase()} {`,
     ...index.fields.map((f) => `  ${f.toLowerCase()};`),
     `}`
   ].join("\n");
+}
+function indexHashInput(index) {
+  return [
+    index.table,
+    index.id,
+    index.description,
+    index.unique ? "UNIQUE" : "",
+    index.activation,
+    index.dbState,
+    ...index.fields
+  ].join("|");
+}
+function renderSecondaryIndex(index) {
   const sections = [
     {
       title: "INDEX HEADER",
@@ -116373,17 +116386,8 @@ function renderSecondaryIndex(index) {
       )
     }
   ];
-  const hashInput = [
-    index.table,
-    index.id,
-    index.description,
-    index.unique ? "UNIQUE" : "",
-    index.activation,
-    index.dbState,
-    ...index.fields
-  ].join("|");
   return {
-    ddl,
+    ddl: indexDdl(index),
     sections,
     meta: {
       table: index.table,
@@ -116394,7 +116398,21 @@ function renderSecondaryIndex(index) {
       fields: index.fields.length
     },
     notes: [],
-    hashInput
+    hashInput: indexHashInput(index)
+  };
+}
+function renderSecondaryIndexList(table, indexes) {
+  const t = table.toUpperCase();
+  const ddl = indexes.length > 0 ? indexes.map((i) => indexDdl(i)).join("\n\n") : `// ${t} has no secondary index`;
+  return {
+    ddl,
+    sections: [renderIndexSection(indexes)],
+    meta: {
+      table: t,
+      indexes: indexes.length
+    },
+    notes: [],
+    hashInput: [t, ...indexes.map((i) => indexHashInput(i))].join("\n")
   };
 }
 
@@ -135521,7 +135539,7 @@ var PATTERN_DEFAULT_CONTEXT = 2;
 var readInputSchema = {
   object: external_exports.string().describe('Name, "class X", "table Y", or ADT URI.'),
   type: external_exports.string().optional().describe(
-    `ADT type to disambiguate. DEVC/K: package listing (types/depth filter it). SUSO/B: renders the object's DEFINITION (fields, permitted activities) from the catalog \u2014 NOT who holds it, no AGR_*/UST* table is read. TABL/DI: <TABLE>/<INDEX> catalog render. Not readable: ${NON_READABLE_TYPES.join(" ")}.`
+    `ADT type to disambiguate. DEVC/K: package listing (types/depth filter it). SUSO/B: renders the object's DEFINITION (fields, permitted activities) from the catalog \u2014 NOT who holds it, no AGR_*/UST* table is read. TABL/DI: <TABLE>/<INDEX> renders one index, bare <TABLE> lists them all. Not readable: ${NON_READABLE_TYPES.join(" ")}.`
   ),
   method: external_exports.string().optional().describe("Only this method/component."),
   outline: external_exports.boolean().optional().describe(
@@ -135563,7 +135581,9 @@ var readInputSchema = {
   // implementations/macros/testclasses) as its own document, so silently
   // defaulting to `main` hides changes made in e.g. testclasses. Selectable
   // on both the source-read and `view` paths, always disclosed.
-  include: external_exports.enum(CLASS_INCLUDES).optional().describe('Class include. "testclasses"=Unit tests. Default "main".'),
+  include: external_exports.enum(CLASS_INCLUDES).optional().describe(
+    'CLAS/OC only: which class include to read ("testclasses"=Unit tests; default "main"). Ignored, with a note, for every other type.'
+  ),
   types: external_exports.array(external_exports.string()).optional().describe('DEVC/K only: filter package contents to these kind codes, e.g. ["CLAS","DDLS"].'),
   field: external_exports.string().optional().describe('view="lineage" only: trace one field back to its base columns.'),
   // The upper bound used to live in this schema as `.max(3)`, back when DEVC/K
@@ -135850,6 +135870,7 @@ async function readEnhancementObject(conn, obj, baseHeader, input, maxChars) {
   if (!documentDescription) {
     rendered.notes.push(enhancementDescriptionRequiredNote({ type: obj.type, name: obj.name }));
   }
+  rendered.notes.push(...includeIgnoredNote(input, obj));
   const etag = resourceEtag(doc.xml);
   const window2 = sliceLines(rendered.body, input.offset ?? 1, input.limit);
   const built = buildReadResponse({
@@ -136086,6 +136107,12 @@ function includeNote(include) {
     `This covers class include "${include}" ONLY. ADT versions each include separately, so a change made in ${others.join(", ")} does not appear here \u2014 re-run with include="\u2026" to see those.`
   ];
 }
+function includeIgnoredNote(input, obj) {
+  if (!input.include || obj.kind === "CLAS" || obj.include) return [];
+  return [
+    `this object has a single source document; include ignored \u2014 ${obj.type} ${obj.name} has no "${input.include}" include (class includes ${CLASS_INCLUDES.join(", ")} exist only for CLAS/OC); the single document is shown, nothing was substituted.`
+  ];
+}
 function assertIncludeCompatible(input, obj) {
   if (input.include && obj.include && input.include !== obj.include) {
     throw new AbapError(
@@ -136098,12 +136125,15 @@ function assertIncludeCompatible(input, obj) {
   const include = input.include ?? obj.include;
   if (!include) return void 0;
   if (obj.kind !== "CLAS") {
-    throw new AbapError(
-      "UNSUPPORTED",
-      `${obj.type} ${obj.name} has no "${include}" include \u2014 class includes (${CLASS_INCLUDES.join(", ")}) exist only for classes.`,
-      { type: obj.type, name: obj.name, requested: include },
-      "Drop include. This object has a single source document, and it was NOT silently returned in place of the include you asked for."
-    );
+    if (obj.include) {
+      throw new AbapError(
+        "UNSUPPORTED",
+        `${obj.type} ${obj.name} has no "${include}" include \u2014 class includes (${CLASS_INCLUDES.join(", ")}) exist only for classes.`,
+        { type: obj.type, name: obj.name, requested: include },
+        "Drop include. This object has a single source document, and it was NOT silently returned in place of the include you asked for."
+      );
+    }
+    return void 0;
   }
   if (include === "main") return include;
   const clash = (param, why, hint) => {
@@ -136871,22 +136901,39 @@ async function readCatalogObject2(conn, input, catalogRead, label, maxChars) {
     );
   }
   const parts = input.object.split("/");
-  if (parts.length !== 2 || parts[0].trim() === "" || parts[1].trim() === "") {
+  const trimmedParts = parts.map((p) => p.trim());
+  const isListRoute = trimmedParts.length === 1 && trimmedParts[0] !== "";
+  const isSingleIndexRoute = trimmedParts.length === 2 && trimmedParts[0] !== "" && trimmedParts[1] !== "";
+  if (!isListRoute && !isSingleIndexRoute) {
     throw new AbapError(
       "BAD_INPUT",
       `"${input.object}" is not a valid ${code} name: expected ${catalogRead.nameForm}.`,
       { object: input.object, type: code },
-      `Name it as <TABLE>/<INDEX>, e.g. "ZTAB/Z01". Not sure of the index id? abap_read {"object":"<TABLE>","type":"TABL/DT"} shows the table's own structure.`
+      'Name one index as <TABLE>/<INDEX>, e.g. "ZTAB/Z01", or give the bare table name to list every secondary index: abap_read {"object":"ZTAB","type":"TABL/DI"}.'
     );
   }
+  if (isListRoute) {
+    const table2 = parts[0].trim().toUpperCase();
+    const { indexes: indexes2, notes: notes2 } = await readTableIndexes(conn, table2);
+    const rendered2 = renderSecondaryIndexList(table2, indexes2);
+    rendered2.notes.push(...notes2);
+    const hints = [
+      `abap_read {"object":"${table2}/<INDEX>","type":"TABL/DI"} renders one index on its own.`,
+      `abap_read {"object":"${table2}","type":"TABL/DT"} shows the table's own structure.`
+    ];
+    return buildDdicLikeResponse(rendered2, { ...header, object: `${code} ${table2}` }, input.offset, input.limit, hints, maxChars);
+  }
   const [table, indexId] = parts;
-  const hint = `abap_read {"object":"${table.trim().toUpperCase()}","type":"TABL/DT"} to see the table's own structure.`;
-  const { index, notes } = await readSecondaryIndex(conn, table, indexId);
+  const TABLE2 = table.trim().toUpperCase();
+  const ID = indexId.trim().toUpperCase();
+  const hint = `abap_read {"object":"${TABLE2}","type":"TABL/DI"} lists every secondary index of the table; abap_read {"object":"${TABLE2}","type":"TABL/DT"} shows its structure.`;
+  const { index, indexes, notes } = await readSecondaryIndex(conn, table, indexId);
   if (index === void 0) {
+    const existing = indexes.map((i) => i.id);
     throw new AbapError(
       "NOT_FOUND",
-      `Table ${table.trim().toUpperCase()} has no secondary index ${indexId.trim().toUpperCase()} in DD12V on this system \u2014 this is a definitive empty result (HTTP 200, 0 rows), not a refused read.`,
-      { table: table.trim().toUpperCase(), index: indexId.trim().toUpperCase() },
+      `Table ${TABLE2} has no secondary index ${ID} in DD12V on this system \u2014 ` + (existing.length > 0 ? `its secondary indexes are ${existing.join(", ")}` : "it has no secondary index at all") + ` (definitive empty result: HTTP 200, 0 rows for ${ID}, not a refused read).`,
+      { table: TABLE2, index: ID, existing },
       hint
     );
   }
@@ -137075,6 +137122,7 @@ async function abapRead(conn, input, maxChars, gate) {
     }
   }
   const include = assertIncludeCompatible(input, obj);
+  const ignoredIncludeNotes = includeIgnoredNote(input, obj);
   if (input.format === "raw") {
     refuseSourceOnlyParams(input, obj, 'format="raw" returns the XML descriptor, not source lines');
     if (input.version) {
@@ -137109,6 +137157,7 @@ async function abapRead(conn, input, maxChars, gate) {
         body: windowText,
         bodyLabel: "XML DESCRIPTOR",
         notes: [
+          ...ignoredIncludeNotes,
           "This is the exact ADT XML document \u2014 the same shape a properties-shape write must PUT back to this object's own URI (not /source/main, which does not exist for this type). It is NOT the pseudo-DDL abap_read renders by default; round-trip fidelity is exact (this document, edited in place, is a valid PUT body) except for server-managed fields documented as such (e.g. a domain fixed value's position is assigned by the server, never sent by the client).",
           hasMore ? `offset/limit address CHARACTERS in format="raw" (this document is one line): showing ${charOffset + 1}-${charOffset + windowText.length} of ${charTotal}. Fetch the rest with offset=${nextOffset}.` : `Full descriptor shown (${charTotal} characters).`,
           ...requestedLimit && requestedLimit > defaultWindowChars ? [`limit=${requestedLimit} was clamped to ${defaultWindowChars} characters to stay under the response budget.`] : []
@@ -137172,6 +137221,7 @@ async function abapRead(conn, input, maxChars, gate) {
         'version="active" had no effect here: a DDIC read always renders the current definition, which is what active names. Omit it \u2014 the bytes are identical either way.'
       );
     }
+    rendered.notes.push(...ignoredIncludeNotes);
     return buildDdicLikeResponse(
       rendered,
       { ...baseHeader, mode: "ddic" },
@@ -137204,7 +137254,7 @@ async function abapRead(conn, input, maxChars, gate) {
     ...input.version ? [
       `version="${input.version}" was sent as the query parameter on this include's own GET, exactly as it is for a main-source read \u2014 it was NOT applied by reading main instead. Whether ADT honours the active/inactive selector per include is UNVERIFIED here; if the returned bytes look active when you asked for inactive, treat that as the server ignoring the parameter, and use view="history" on this include to see what versions it actually has.`
     ] : []
-  ] : [];
+  ] : [...ignoredIncludeNotes];
   const sourceHints = include && include !== "main" ? [
     "offset/limit page this include. method= and outline=true are refused alongside a non-main include \u2014 both describe the class body, which is a different document."
   ] : [
@@ -137358,7 +137408,7 @@ async function abapRead(conn, input, maxChars, gate) {
     const parts = (declarationOnly ? [m.declaration] : [m.declaration, m.implementation]).filter(Boolean).join("\n\n");
     const origin = m.foundOn;
     const originLabel = origin ? `${origin.name} (${origin.relation} of ${origin.via}, depth ${origin.depth})` : void 0;
-    const methodNotes = [];
+    const methodNotes = [...ignoredIncludeNotes];
     if (origin) {
       methodNotes.push(
         `${m.member.name} is not declared by ${obj.name}; it comes from ${originLabel}. The block below and its line numbers are ${origin.name}'s, not ${obj.name}'s (searched: ${m.searched.join(" -> ")}).`
