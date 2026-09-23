@@ -483,7 +483,10 @@ describe("connect()'s tail (F1a) — the death record is cleared before two more
     const info = await conn.connect();
     expect(info.connected).toBe(true);
     expect(conn.isDead).toBe(false);
-    expect(info.generation).toBe(2);
+    // Generation 3, not 2: the kill was a stateless ICMENOSESSION, which
+    // costs one recovery logon (#203) before the second loss marks the
+    // connection dead; this connect() is the third real logon.
+    expect(info.generation).toBe(3);
   }, 10_000);
 });
 
@@ -576,7 +579,8 @@ describe("the dispatch instant (F1b) — a request parked on the session mutex",
       // never been dispatched.
       await conn.connect();
       expect(conn.isConnected).toBe(true);
-      expect(conn.generation).toBe(2);
+      // 3, not 2: the stateless kill above cost one recovery logon (#203).
+      expect(conn.generation).toBe(3);
     });
 
     // Released, dispatched under generation 2, answered with a genuine
@@ -655,7 +659,8 @@ describe("staleDeathReports is a counter, staleDeathAnomalies is the signal", ()
     const info = conn.info();
     expect(info).toMatchObject({
       connected: true,
-      generation: 2,
+      // 3, not 2: connectedThenKilled() cost one recovery logon (#203).
+      generation: 3,
       staleDeathReports: 0,
       staleDeathAnomalies: 0,
       overlappingDispatches: 0,
