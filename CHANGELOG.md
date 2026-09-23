@@ -12,6 +12,15 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+### Added
+
+- **`abap_read type=TABL/DI` with a bare `<TABLE>` lists every secondary index** (#210). `abap_read {"object":"ZTAB","type":"TABL/DI"}` answers with header `object: TABL/DI ZTAB`, `indexes: N`, a `SECONDARY INDEXES` section (index, unique, status, db status, fields in position order, description) and a pseudo-DDL block with one `define index z01 on ztab { field1; field2; }` block per index. A table with no secondary index gets a definitive empty listing (`indexes: 0`, the section says so) rather than an error — DD12V answered 200 with zero rows. Read-only (`ABAP_MODE=read` suffices), two catalog SELECTs (DD12V, DD17S), same as the single-index read; `<TABLE>/<INDEX>` still renders one index exactly as before.
+
+### Changed
+
+- **`abap_read include=` is now `CLAS/OC`-only; every other type ignores it with a note instead of refusing `UNSUPPORTED`** (#211). `INTF/OI`, `FUGR/FF`, `PROG/P`, DDIC types and the rest proceed against the object's single document, and the response carries a `NOTE:` explaining that the object has one document and the include was ignored — the header carries no `include:` line. `INTF/OI` with `method=` and `include="definitions"` returns the method's declaration (an interface method has nothing else) with the same note, instead of the old error. `CLAS/OC` behaviour is unchanged — a non-main include still reads from its own document, and `method=` with `include="definitions"` is still the declaration-only route. `include` is still refused with `view="history"`/`"diff"`/`"footprint"`/`"docu"`/`"digest"`, on a `DEVC/K` package read, on the catalog types `SUSO/B`/`TABL/DI`, and when the object reference's own URI names a class include on a non-class.
+- **`abap_read type=TABL/DI` `NOT_FOUND` for a missing index now names the table's actual index ids, and `BAD_INPUT` is narrower** (#210). `<TABLE>/<INDEX>` naming an index the table doesn't have (e.g. `ZTAB/Z09`) answers `NOT_FOUND` naming them in the message ("its secondary indexes are Z01, Z02", or "it has no secondary index at all"), carries them in `details.existing`, and hints at the bare `<TABLE>` listing. `BAD_INPUT` "is not a valid TABL/DI name" is now only for an empty part or more than one slash (`ZTAB/`, `/Z01`, `A/B/C`, empty) — no longer for a bare table name, which lists.
+
 ## [0.6.26] - 2026-09-22
 
 ### Fixed

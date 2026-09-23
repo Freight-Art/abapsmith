@@ -30,7 +30,7 @@ Read the source, metadata or outline of an ABAP object.
 | `to_system` | string | `view="diff"` only, and only with more than one system configured | — | Cross-system diff: the other side of the comparison, e.g. `{"object":"ZCL_FOO","view":"diff","to_system":"QAS"}`. Giving either `from_system` or `to_system` switches the whole request into cross-system mode. |
 | `line` | number (int, ≥1) | required with `view="definition"`; refused otherwise | — | 1-based source line — same convention as `abap_quick_fix`. Refused with `UNSUPPORTED` together with `view="history"`/`"diff"`/`"lineage"`/`"footprint"`/`"docu"`/`"digest"`, and refused with `BAD_INPUT` if given with no `view` at all (it would silently be discarded by an ordinary read). |
 | `column` | number (int, ≥0) | no | `0` | 0-based column — same convention as `abap_quick_fix`. Only meaningful with `view="definition"`; refused otherwise on the same terms as `line`. |
-| `include` | enum `CLASS_INCLUDES` | no | `"main"` | Classes only — which class include to read; applies to the source read and to `view` alike. `"testclasses"` holds ABAP Unit tests; `"main"` never does. Always an explicit, disclosed choice — silently defaulting to `main` would hide changes made in another include. Refused with `UNSUPPORTED` together with `view="footprint"` — footprint scans every include by design, so naming one is refused rather than silently narrowing the scan. Refused with `UNSUPPORTED` together with `view="docu"` or `view="digest"` — `docu` resolves its own documentation target from the object's type and name and has no class-include axis; a digest always reads the class's own main source plus its testclasses include, never a caller-picked one. |
+| `include` | enum `CLASS_INCLUDES` | no | `"main"` | `CLAS/OC` only: which class include to read; applies to the source read and to `view` alike. `"testclasses"` holds ABAP Unit tests; `"main"` never does. Always an explicit, disclosed choice — silently defaulting to `main` would hide changes made in another include. Ignored, with a note, for every other type: the read proceeds against that object's own single document, the response carries a `NOTE:` explaining that the object has one document and the include was ignored, and the header carries no `include:` line. `INTF/OI` with `method=` and `include="definitions"` returns the method's declaration (an interface method has nothing else) with the same note, instead of the old `UNSUPPORTED`. Refused with `UNSUPPORTED` together with `view="footprint"` — footprint scans every include by design, so naming one is refused rather than silently narrowing the scan. Refused with `UNSUPPORTED` together with `view="docu"` or `view="digest"` — `docu` resolves its own documentation target from the object's type and name and has no class-include axis; a digest always reads the class's own main source plus its testclasses include, never a caller-picked one. |
 | `types` | string[] | no | — | `DEVC/K` only — filter the package listing to these kind codes, e.g. `["CLAS","DDLS"]`. Refused with `BAD_INPUT` against any other type. |
 | `depth` | number (int) | no | `1` (`DEVC/K`); `5` (`view="lineage"`) | `DEVC/K`: how many sub-package levels to list, 1-3, `1` lists only the package itself. `view="lineage"`: how many levels of data source/association to walk, 1-10. Both refuse `BAD_INPUT` above their own maximum — refused, not silently clamped down to it — and both refuse `BAD_INPUT` against any other type/view, since the two maxima differ and a shared schema constraint can't express "3 here, 10 there." |
 | `field` | string | no | — | `view="lineage"` only — trace one field back to its base columns instead of rendering the whole data-source/association tree. Refused with `BAD_INPUT` against any other view. |
@@ -187,7 +187,10 @@ this build — the installed MCP tools run the released bundle, whose
   `method=` together with `include="definitions"` returns the declaration
   alone (`METHOD DECLARATION` body label) — the way to learn a signature
   without reading the class. `method=` with any other `include` is still
-  `UNSUPPORTED`, since method bodies live in `main`.
+  `UNSUPPORTED` on `CLAS/OC`, since method bodies live in `main`. On
+  `INTF/OI`, `method=` with any `include` returns the method's declaration
+  (an interface method has nothing else) and notes that the include was
+  ignored — see the `include` row above.
 - **`outline=true` shows inherited members.** After the class's own
   components an `INHERITED (…)` section lists the public and protected methods,
   attributes and events declared on its superclasses and interfaces, grouped
@@ -1279,13 +1282,25 @@ that was dropped, not silently discarding it) — this includes `types` and
 - **`TABL/DI` (table secondary index)** — named as `<TABLE>/<INDEX>`, e.g.
   `abap_read {"object":"ZTAB/Z01","type":"TABL/DI"}`. Renders one secondary
   index from `DD12V`/`DD17S`: its unique/non-unique flag, active/inactive
-  status, and ordered field list. A name that doesn't split into exactly
-  two non-empty `<TABLE>/<INDEX>` parts is refused `BAD_INPUT` with a hint
-  to use that form; an index that DD12V has zero rows for is a definitive
-  `NOT_FOUND` (HTTP 200, 0 rows), not a refused read. Not sure of a table's
-  index id? `abap_read {"object":"<TABLE>","type":"TABL/DT"}` now appends
-  an `indexes` section listing every secondary index found this way, before
-  you need to name one.
+  status, and ordered field list. A bare `<TABLE>` instead lists every
+  secondary index the table has: header `object: TABL/DI ZTAB`,
+  `indexes: N`, a `SECONDARY INDEXES` section (index, unique, status, db
+  status, fields in position order, description) and a pseudo-DDL block
+  with one `define index z01 on ztab { field1; field2; }` block per index.
+  A table with no secondary index gets a definitive empty listing —
+  `indexes: 0`, the section says so — not an error; DD12V answered 200 with
+  zero rows. `<TABLE>/<INDEX>` naming an index the table doesn't have is a
+  definitive `NOT_FOUND` (HTTP 200, 0 rows) that now names the table's
+  actual index ids in the message ("its secondary indexes are Z01, Z02", or
+  "it has no secondary index at all"), carries them in `details.existing`,
+  and hints at the bare `<TABLE>` listing. `BAD_INPUT` "is not a valid
+  TABL/DI name" is now only for a name that doesn't split into exactly two
+  non-empty `<TABLE>/<INDEX>` parts — an empty part or more than one slash
+  (`ZTAB/`, `/Z01`, `A/B/C`, empty) — not for an index the table doesn't
+  have. Not sure of a table's index id?
+  `abap_read {"object":"<TABLE>","type":"TABL/DI"}` is the direct way to
+  list them; `abap_read {"object":"<TABLE>","type":"TABL/DT"}` still shows
+  the same `SECONDARY INDEXES` section alongside the table's own fields.
 
 Both catalog reads are available under `ABAP_MODE=read`: nothing is
 deployed or written, only targeted, validated `WHERE`-filtered `SELECT`s
