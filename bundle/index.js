@@ -36609,6 +36609,7 @@ var init_errors = __esm({
       LOCKED: "conditional",
       CHECK_FAILED: "conditional",
       SESSION_DEAD: "conditional",
+      LOGON_CEILING: "conditional",
       RUNTIME_DUMP: "conditional",
       TIMEOUT: "conditional",
       JOURNAL_IO: "conditional",
@@ -36690,6 +36691,15 @@ var init_errors = __esm({
         this.details = details;
         this.hint = hint;
         this.retryable = options?.retryable ?? defaultRetryable(code);
+      }
+      /**
+       * Same `Symbol.for` value as the vendor's `AdtException` classes, so
+       * `fromException` (run by `AdtHTTP._request` on every throw) returns an
+       * `AbapError` unchanged instead of rewriting it into a code-less
+       * `AdtErrorException` (e.g. a refusal thrown from the request hook).
+       */
+      get typeID() {
+        return /* @__PURE__ */ Symbol.for("ADT EXCEPTION");
       }
       toJSON() {
         return {
@@ -65344,7 +65354,7 @@ function connectionDeadError(death) {
     "Every lock the session held was released when it died \u2014 there is nothing to clean up on the ABAP side. Call connect() again to establish a new session; this is not an authentication failure and does not count against the logon-attempt budget."
   );
 }
-var import_abap_adt_api2, import_abap_adt_api3, import_abap_adt_api4, opOf, DATA_PREVIEW_DDIC, DATA_PREVIEW_FREESTYLE, FREESTYLE_MAX_LENGTH, FREESTYLE_BANNED_KEYWORDS, FREESTYLE_BANNED_RE, FREESTYLE_UP_TO_RE, DDIC_ENTITY_CHARS, SERVICE_METADATA_PATH, CSRF_FETCH, LOGON_ENDPOINT, LOGON_ENDPOINT_LIFETIME_CEILING, CSRF_REFRESH_ENDPOINT, DEFAULT_SHUTDOWN_DEADLINE_MS, RequestBudget, AbapConnection;
+var import_abap_adt_api2, import_abap_adt_api3, import_abap_adt_api4, opOf, DATA_PREVIEW_DDIC, DATA_PREVIEW_FREESTYLE, FREESTYLE_MAX_LENGTH, FREESTYLE_BANNED_KEYWORDS, FREESTYLE_BANNED_RE, FREESTYLE_UP_TO_RE, DDIC_ENTITY_CHARS, SERVICE_METADATA_PATH, CSRF_FETCH, LOGON_ENDPOINT, LOGON_CEILING_PER_WINDOW, LOGON_CEILING_WINDOW_MS, CSRF_REFRESH_ENDPOINT, DEFAULT_SHUTDOWN_DEADLINE_MS, RequestBudget, AbapConnection;
 var init_connection = __esm({
   "src/adt/connection.ts"() {
     "use strict";
@@ -65393,7 +65403,8 @@ var init_connection = __esm({
     SERVICE_METADATA_PATH = /^\/sap\/opu\/odata4?\/[A-Za-z0-9_\-/]{1,240}\/\$metadata$/;
     CSRF_FETCH = "fetch";
     LOGON_ENDPOINT = "/sap/bc/adt/compatibility/graph";
-    LOGON_ENDPOINT_LIFETIME_CEILING = 5;
+    LOGON_CEILING_PER_WINDOW = 5;
+    LOGON_CEILING_WINDOW_MS = 10 * 6e4;
     CSRF_REFRESH_ENDPOINT = "/sap/bc/adt/discovery";
     DEFAULT_SHUTDOWN_DEADLINE_MS = 5e3;
     RequestBudget = class {
@@ -65403,6 +65414,25 @@ var init_connection = __esm({
       url;
       logons = 0;
       resends = 0;
+      /** First ICMENOSESSION seen outside a stateful session, recorded so `attempt()` can try one recovery logon+resend instead of `markDead` on the spot. Set once; later losses in the same request are ignored here (they fall through to `markDead` in `noteWireResponse`). */
+      sessionLoss;
+      /** Whether `attempt()` already spent its one recovery attempt for `sessionLoss`. */
+      recoveryAttempted = false;
+      /**
+       * Set once the recovery logon in `attempt()`'s catch succeeds: a new
+       * session provably exists from that point on, so `request()`'s own
+       * catch-all (which promotes an unresolved `sessionLoss` to `markDead` for
+       * every OTHER call inside this budget that saw the same timeout, e.g. a
+       * CSRF resend racing the same ICMENOSESSION) must not kill a connection
+       * that already has a fresh session under it.
+       */
+      recovered = false;
+      /** Records the first session loss for this request. Returns true if this call recorded it, false if one was already recorded (caller should fall back to `markDead`). */
+      noteSessionLoss(reason, generation) {
+        if (this.sessionLoss) return false;
+        this.sessionLoss = { reason, generation };
+        return true;
+      }
       /** One logon per logical request. The second one throws instead of flying. */
       spendLogon() {
         if (++this.logons > 1) throw this.exceeded("logon attempt", this.logons);
@@ -65535,20 +65565,51 @@ var init_connection = __esm({
        * requests that proceed are charged — a refusal (ceiling or
        * `RequestBudget.spendLogon()`) never reaches the endpoint and must not
        * inflate this count; its ordinal is reported separately as `details.attempted`.
-       * LIFETIME, not reset on revival: it IS the bound on how often a connection
-       * can be revived ({@link LOGON_ENDPOINT_LIFETIME_CEILING}).
+       * LIFETIME, not reset on revival, and never pruned — this is the
+       * "how many logons has this connection ever done" measurement tests read
+       * via `logonEndpointRequests`, distinct from the sliding-window count
+       * {@link LOGON_CEILING_PER_WINDOW} actually enforces.
        */
       logonEndpointRequestCount = 0;
       /**
-       * Latched the first time {@link LOGON_ENDPOINT_LIFETIME_CEILING} refuses a
-       * request. Never cleared — the ceiling only grows, so once tripped it stays
-       * tripped. Exists because since a refused attempt is uncharged, "count ===
-       * ceiling" is ambiguous between "5th logon flew, SAP rejected it" and "6th was
-       * refused locally" (D5c); `connectUnderLock()`'s catch reads this flag instead.
+       * `this.now()` timestamps of every UNBUDGETED logon-endpoint request
+       * charged (not refused) — the data {@link LOGON_CEILING_PER_WINDOW}'s
+       * sliding window is measured against. Pruned of entries older than
+       * {@link LOGON_CEILING_WINDOW_MS} before every check, so unlike
+       * `logonEndpointRequestCount` this one can shrink: a connection that has
+       * been quiet can log on again.
        */
-      logonCeilingRefused = false;
+      unbudgetedLogonAtMs = [];
+      /**
+       * Set on the most recent local logon-ceiling refusal (`noteWireRequest()`'s
+       * throw); `undefined` while no refusal is pending. Exists because since a
+       * refused attempt is uncharged, "count === ceiling" is ambiguous between
+       * "5th logon flew, SAP rejected it" and "6th was refused locally" (D5c);
+       * `connectUnderLock()`'s catch reads this instead. CLEARED at the start of
+       * each `connectUnderLock()` login attempt — the window slides, so once it
+       * has moved on a later `connect()` must be able to succeed rather than
+       * staying latched forever the way the old lifetime ceiling did.
+       */
+      logonCeilingRefusal;
       /** True only for the duration of `dropSession()`'s wire call — tells `noteWireRequest()` this logon-endpoint hit is a drop, not a logon. */
       droppingSession = false;
+      /**
+       * Reads {@link logonCeilingRefusal} through an indirection. `connectUnderLock()`
+       * clears that field unconditionally near its top, then reads it again after
+       * `await this.logon()` — without this method call in between, TS's control
+       * flow analysis persists the "just cleared to `undefined`" narrowing straight
+       * through the `await` (it does not know `logon()` can reach `noteWireRequest()`
+       * and set it again) and collapses the later read to `never`.
+       */
+      readLogonCeilingRefusal() {
+        return this.logonCeilingRefusal;
+      }
+      /**
+       * Coalesces concurrent logons into one `client.login()` call: whoever finds
+       * this set awaits it instead of starting a second one. `undefined` while no
+       * logon is in flight. See `logon()`.
+       */
+      logonInFlight;
       /** The clock. Injected only by tests; `Date.now` everywhere else. */
       now;
       /**
@@ -65577,26 +65638,35 @@ var init_connection = __esm({
       deferredDeath;
       /**
        * F1b — which incarnation of the ABAP session this connection is on. Advanced
-       * in exactly one place: the top of `connectUnderLock()`, after the
-       * already-connected early return and before `login()`. Starts at 0 so a
+       * in exactly one place: the top of `logon()`, on every actual
+       * `client.login()` call it starts (never on a coalesced await of one
+       * already in flight) — reached both from `connectUnderLock()`, after the
+       * already-connected early return and before the login itself, and from
+       * `attempt()`'s auto-logon. Starts at 0 so a
        * connection that never calls `connect()` (auto-logon via `attempt()`) still
        * has its deaths honoured (`0 < 0` is false). Named apart from the
        * `generation` getter because TS forbids a getter/field name clash.
        *
-       * Counts connect ATTEMPTS, not session incarnations — `dropSession()`,
-       * `withFreshSession()` and `attempt()`'s auto-logon mint/destroy real sessions
-       * without touching this counter, and a refused `connect()` advances it having
-       * minted nothing. This is sound anyway, because the only question it answers
-       * is "does this response belong to the session live NOW", which can only be
-       * got wrong if a session is destroyed/minted *while a request is in flight* —
-       * and every dispatch, `dropSession()`/`withFreshSession()`, and auto-logon all
-       * run under the same exclusive `SessionLock` hold, so that never happens.
-       * Live-tested: 8 concurrent `conn.get()` calls on a never-connected connection
-       * against A4H all took the `freshLogon` branch for one memoised
-       * `AdtHTTP.login()`; `logonEndpointRequests === 1`, not 8 (see
-       * the git history for the full trace, including the
-       * `overlappingDispatches` counter that makes the exclusivity measured, not
-       * merely asserted).
+       * Counts real logons — every actual `client.login()` call this connection
+       * starts, whether reached via `connect()`/`connectUnderLock()` or via
+       * `attempt()`'s auto-logon — because a login clears the vendor cookie jar
+       * and mints a new SAP session, which is exactly what a generation boundary
+       * means. `dropSession()` and `withFreshSession()` mint/destroy real
+       * sessions without a `client.login()` call, so without touching this
+       * counter either; a refused `connect()` (e.g. the logon ceiling) likewise
+       * does not advance it, having started no login. This is sound anyway,
+       * because the only question it answers is "does this response belong to
+       * the session live NOW", which can only be got wrong if a session is
+       * destroyed/minted *while a request is in flight* — and every dispatch,
+       * `dropSession()`/`withFreshSession()`, and `logon()` all run under the
+       * same exclusive `SessionLock` hold, so that never happens.
+       * Live-tested: 8 concurrent `conn.get()` calls on a never-connected
+       * connection against A4H all took the `freshLogon` branch and coalesced
+       * onto one `logon()` call (itself layered over `AdtHTTP`'s own memoised
+       * `login()`); `logonEndpointRequests === 1`, not 8, and `currentGeneration`
+       * advanced by exactly 1 (see the git history for the full trace, including
+       * the `overlappingDispatches` counter that makes the exclusivity measured,
+       * not merely asserted).
        */
       currentGeneration = 0;
       /**
@@ -65827,6 +65897,18 @@ var init_connection = __esm({
       get logonEndpointRequests() {
         return this.logonEndpointRequestCount;
       }
+      /** Charged, unbudgeted logons still inside {@link LOGON_CEILING_WINDOW_MS}, after pruning. What {@link LOGON_CEILING_PER_WINDOW} is actually compared against. */
+      get logonsInWindow() {
+        this.pruneLogonWindow();
+        return this.unbudgetedLogonAtMs.length;
+      }
+      /** Drops `unbudgetedLogonAtMs` entries older than {@link LOGON_CEILING_WINDOW_MS}. Called before every read of that array so it stays a true sliding window. */
+      pruneLogonWindow() {
+        const cutoff = this.now() - LOGON_CEILING_WINDOW_MS;
+        while ((this.unbudgetedLogonAtMs[0] ?? Infinity) < cutoff) {
+          this.unbudgetedLogonAtMs.shift();
+        }
+      }
       /** Called by the guard for every request past the breaker, before dispatch: counts logons and refuses a second one inside a single logical request. */
       noteWireRequest(url2) {
         const ticket = this.dispatchContext.getStore();
@@ -65853,23 +65935,30 @@ var init_connection = __esm({
           this.logonEndpointRequestCount++;
           return;
         }
-        if (this.logonEndpointRequestCount >= LOGON_ENDPOINT_LIFETIME_CEILING) {
-          this.logonCeilingRefused = true;
+        this.pruneLogonWindow();
+        if (this.unbudgetedLogonAtMs.length >= LOGON_CEILING_PER_WINDOW) {
+          const now = this.now();
+          const oldestInWindow = this.unbudgetedLogonAtMs[0];
+          const retryAfterSeconds = Math.max(1, Math.ceil((oldestInWindow + LOGON_CEILING_WINDOW_MS - now) / 1e3));
+          const attempted = this.logonEndpointRequestCount + 1;
+          this.logonCeilingRefusal = { retryAfterSeconds, attempted };
           throw new AbapError(
-            "ADT_ERROR",
-            `Refused logon-endpoint request #${this.logonEndpointRequestCount + 1} to ${LOGON_ENDPOINT}: this connection may reach the logon endpoint at most ${LOGON_ENDPOINT_LIFETIME_CEILING} times outside a budgeted request().`,
+            "LOGON_CEILING",
+            `Refused logon-endpoint request #${attempted} to ${LOGON_ENDPOINT}: this connection may reach the logon endpoint at most ${LOGON_CEILING_PER_WINDOW} times per ${LOGON_CEILING_WINDOW_MS / 6e4} minutes outside a budgeted request(); a new logon is allowed in ${retryAfterSeconds} s.`,
             {
               operation: "request",
               url: LOGON_ENDPOINT,
               reason: "logon-ceiling-exceeded",
-              limit: LOGON_ENDPOINT_LIFETIME_CEILING,
-              // Ordinal of the refused attempt (6th), not the charged count — this one is not charged.
-              attempted: this.logonEndpointRequestCount + 1
+              limit: LOGON_CEILING_PER_WINDOW,
+              windowSeconds: LOGON_CEILING_WINDOW_MS / 1e3,
+              attempted,
+              retryAfterSeconds
             },
-            "This is an abapsmith bug, not a SAP one: some path outside the budgeted request() wrapper kept logging on. The request was refused locally rather than spending another attempt against the 5-attempt user lock."
+            `This is NOT an authentication failure: the request was refused locally and the SAP user lock counter was never touched. Concurrent tool calls are the usual cause: calls to one server share a small session pool and are serialized, so firing them in parallel costs extra logons without making them faster. Wait ${retryAfterSeconds} s and retry sequentially.`
           );
         }
         this.logonEndpointRequestCount++;
+        this.unbudgetedLogonAtMs.push(this.now());
       }
       // ------------------------------------------------------------ liveness ---
       // T3. Everything below is inferred from traffic that was going to happen
@@ -66001,6 +66090,12 @@ var init_connection = __esm({
           this.deferredDeath ??= { reason, generation };
           return;
         }
+        if (settled === "thrown" && kind === "session-timeout" && generation >= this.currentGeneration) {
+          const budget = this.requestContext.getStore()?.budget;
+          if (budget && this.activeSession === void 0 && !this.client.httpClient.isStateful && budget.noteSessionLoss(reason, generation)) {
+            return;
+          }
+        }
         this.markDead(reason, generation);
       }
       /** The throw half of `noteWireResponse`. Only an exception carrying a response counts — local refusals and bare network errors prove nothing about the session and must not be treated as death. */
@@ -66043,38 +66138,71 @@ var init_connection = __esm({
         this.assertBreakerClosed();
         return await this.lock.runExclusive("connect", () => this.connectUnderLock());
       }
+      /**
+       * Issue #204 item 1 — the single place `client.login()` is ever called from
+       * this class. Coalesces concurrent callers (`connectUnderLock()` and
+       * `attempt()`'s auto-logon alike) onto ONE `client.login()`: whoever finds
+       * `logonInFlight` already set just awaits it instead of starting a second
+       * logon. `AdtHTTP.login()` has its own internal `loginPromise` memoization
+       * too, but that alone was not enough here — before this method existed,
+       * `connectUnderLock()` incremented `currentGeneration` unconditionally at
+       * its own top regardless of whether the wire call it was about to make got
+       * deduplicated by the library, so a concurrent `connectUnderLock()` and
+       * `attempt()` auto-logon could advance the generation twice for one actual
+       * new SAP session. Advancing it HERE, only for the call that actually starts
+       * a `client.login()`, keeps `currentGeneration` counting real logons (see
+       * its doc comment).
+       */
+      async logon() {
+        if (this.logonInFlight) {
+          await this.logonInFlight;
+          return;
+        }
+        this.currentGeneration++;
+        this.logonInFlight = this.client.login().finally(() => {
+          this.logonInFlight = void 0;
+        });
+        await this.logonInFlight;
+      }
       /** The body of {@link connect}, run with the session to itself. */
       async connectUnderLock() {
         if (this.connected) return this.info();
-        this.currentGeneration++;
+        this.logonCeilingRefusal = void 0;
         const timed = timingDebugEnabled();
         const clock = () => timed ? Date.now() : 0;
         const tStart = clock();
         const latchedBeforeThisAttempt = this.breaker.isTripped;
         try {
-          await this.client.login();
+          await this.logon();
         } catch (e) {
           const trip = this.breaker.info;
           const latchedByThisAttempt = !latchedBeforeThisAttempt && this.breaker.isTripped && (trip?.status === 401 || trip?.status === 403);
           if (!latchedByThisAttempt) this.assertBreakerClosed();
-          if (this.logonCeilingRefused || e instanceof AbapError && e.details.reason === "logon-ceiling-exceeded") {
-            this.markDead(
-              `Refused locally by the logon-endpoint lifetime ceiling (${LOGON_ENDPOINT_LIFETIME_CEILING}): this connection can never log on again. Nothing was sent and no credential was rejected.`
+          const refusal = this.readLogonCeilingRefusal();
+          if (refusal || e instanceof AbapError && e.details.reason === "logon-ceiling-exceeded") {
+            const retryAfterSeconds = refusal?.retryAfterSeconds ?? Math.max(
+              1,
+              Math.ceil(
+                ((this.unbudgetedLogonAtMs[0] ?? this.now()) + LOGON_CEILING_WINDOW_MS - this.now()) / 1e3
+              )
             );
-            if (e instanceof AbapError && e.details.reason === "logon-ceiling-exceeded") throw e;
+            const attempted = refusal?.attempted ?? this.logonEndpointRequestCount + 1;
+            this.markDead(
+              `Refused locally by the logon ceiling (${LOGON_CEILING_PER_WINDOW} logons per ${LOGON_CEILING_WINDOW_MS / 6e4} minutes on this connection); a new logon is allowed in ${retryAfterSeconds} s.`
+            );
             throw new AbapError(
-              "ADT_ERROR",
-              `Could not connect to ${stripUrlCredentials(this.cfg.url)}: refused locally after ${this.logonEndpointRequestCount} logon-endpoint requests (ceiling ${LOGON_ENDPOINT_LIFETIME_CEILING}). Nothing was sent; no credential was rejected.`,
+              "LOGON_CEILING",
+              `Could not connect to ${stripUrlCredentials(this.cfg.url)}: refused locally after ${this.logonEndpointRequestCount} logon-endpoint requests (ceiling ${LOGON_CEILING_PER_WINDOW} per ${LOGON_CEILING_WINDOW_MS / 6e4} minutes). Nothing was sent; no credential was rejected; a new logon is allowed in ${retryAfterSeconds} s.`,
               {
                 url: stripUrlCredentials(this.cfg.url),
                 user: this.cfg.user,
                 reason: "logon-ceiling-exceeded",
-                limit: LOGON_ENDPOINT_LIFETIME_CEILING,
-                // Matches the guard's own refusal ordinal — refusals are free, so
-                // the count itself stops at the ceiling.
-                attempted: this.logonEndpointRequestCount + 1
+                limit: LOGON_CEILING_PER_WINDOW,
+                windowSeconds: LOGON_CEILING_WINDOW_MS / 1e3,
+                attempted,
+                retryAfterSeconds
               },
-              "This is an abapsmith bug, not a SAP one, and NOT an authentication failure: the user lock counter was never touched. Do not treat it as a 401. Find the path that kept logging on outside a budgeted request()."
+              `This is NOT an authentication failure: the request was refused locally and the SAP user lock counter was never touched. Concurrent tool calls are the usual cause: calls to one server share a small session pool and are serialized, so firing them in parallel costs extra logons without making them faster. Wait ${retryAfterSeconds} s and retry sequentially.`
             );
           }
           const verdict = latchedByThisAttempt ? credentialsRejectedVerdict(trip?.status ?? 401, this.cfg.authMethod) : classifyConnectFailure(e, this.cfg.authMethod);
@@ -66532,16 +66660,37 @@ var init_connection = __esm({
         this.applyDeferredDeath();
         this.assertUsable();
         const budget = new RequestBudget(url2);
-        return await this.requestContext.run({ budget }, () => this.attempt(url2, config2, budget));
+        try {
+          return await this.requestContext.run({ budget }, () => this.attempt(url2, config2, budget));
+        } catch (e) {
+          const loss = budget.sessionLoss;
+          if (loss && !budget.recovered && !this.isDead) this.markDead(loss.reason, loss.generation);
+          throw e;
+        }
       }
       /** One logical request: optional autologin, one send, at most one recovery. */
       async attempt(url2, config2, budget) {
         const http3 = this.client.httpClient;
         const freshLogon = !http3.loggedin;
-        if (freshLogon) await this.client.login();
+        if (freshLogon) await this.logon();
         try {
           return await this.noRetryTransport()._request(url2, config2);
         } catch (e) {
+          const loss = budget.sessionLoss;
+          if (loss && !budget.recoveryAttempted) {
+            budget.recoveryAttempted = true;
+            if (freshLogon || this.breaker.isTripped) {
+              this.markDead(loss.reason, loss.generation);
+              throw e;
+            }
+            this.log(
+              "[abapsmith] the ABAP session no longer exists (ICMENOSESSION) outside a stateful session; logging on once more and resending " + url2
+            );
+            budget.spendResend();
+            await this.logon();
+            budget.recovered = true;
+            return await this.noRetryTransport()._request(url2, config2);
+          }
           if (!(0, import_abap_adt_api4.isCsrfError)(e) || this.breaker.isTripped) throw e;
           if (freshLogon) throw e;
           this.refuseCsrfRecoveryInStatefulSession(url2, e);
@@ -112583,6 +112732,14 @@ async function reportCreatePutRejection(conn, session, t, preflight2, err) {
     await session.unlock(lockUri(t));
     return rollbackCreate(conn, session, t, preflight2);
   })();
+  let rollbackSessionDropError;
+  if (rollback.rolledBack === true) {
+    try {
+      await conn.dropSession();
+    } catch (dropErr) {
+      rollbackSessionDropError = describeUnknownError(dropErr);
+    }
+  }
   const suffix = rollbackSuffix(t, true, rollback);
   return new AbapError(
     err.code,
@@ -112593,7 +112750,8 @@ async function reportCreatePutRejection(conn, session, t, preflight2, err) {
       rolledBack: rollback.rolledBack,
       ...rollback.attempted === false ? { rollbackAttempted: false } : {},
       ...rollback.skipReason ? { rollbackSkipReason: rollback.skipReason } : {},
-      ...rollback.rollbackError ? { rollbackError: rollback.rollbackError } : {}
+      ...rollback.rollbackError ? { rollbackError: rollback.rollbackError } : {},
+      ...rollbackSessionDropError ? { rollbackSessionDropError } : {}
     },
     correctChangedClaim(err.hint, true)
   );
@@ -119802,6 +119960,8 @@ function hintForRawThrow(code) {
       return "This lock conflict was classified from the raw HTTP/exception shape only \u2014 it was never diagnosed beyond that, so no blocking session or object name could be extracted here. Do NOT retry in a loop: there is no lock timeout while the holding session lives, so a second attempt fails the same way. Close the other session (another terminal, an Eclipse/SE80 editor) if you have one open on this object, or work on a different object.";
     case "NOT_FOUND":
       return "Check the name with abap_search, or create the object first.";
+    case "LOGON_CEILING":
+      return "This is NOT an authentication failure: the request was refused locally and the SAP user lock counter was never touched. Concurrent tool calls are the usual cause: calls to one server share a small session pool and are serialized, so firing them in parallel costs extra logons without making them faster. Retry sequentially, not in parallel.";
     default:
       return "This failure was never classified beyond a generic HTTP/exception shape, so nothing more specific is known about it. Check the `adt` block in the tool result: `adt.localizedMessage` and `adt.t100` (id/no/variables) carry what SAP sent verbatim, when present, and are usually more specific than the message above. Do not retry unchanged \u2014 an unrecognised response will not resolve itself on a second try.";
   }
@@ -165185,7 +165345,7 @@ function instructionsFor(abapMode, readOnly, allowPackages, fluidAvailable = fal
   const writeGate = abapMode !== void 0 ? `unless ABAP_MODE is edit or admin (it is ${abapMode})` : "unless the operator set ABAP_ALLOW_WRITE";
   const packageScope = packageScopeSentence(readOnly, allowPackages);
   const systemsSentence = systems !== void 0 && systems.length > 1 ? ` This process serves ${systems.length} systems: ${systems.map((s) => `${s.alias} (${s.sid}, ${s.mode})`).join(", ")}. Every tool takes an optional system parameter naming one of these aliases and defaults to ${systems[0]?.alias ?? "the default system"} when omitted; each system's permission ceiling is its own \u2014 read-only on one alias is not lifted by admin mode on another.` : "";
-  return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (a large class answers with its outline by default; then method= or pattern=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked.` + (fluidAvailable ? " abap_fluid deploys and runs small generated ABAP tools inside $ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)." : "") + (lockedToolCount > 0 ? ` ${lockedToolCount} further tools are listed but LOCKED at this permission level (abap_write among them) \u2014 each one's description says what unlocks it, and calling one returns a refusal without touching the SAP system.` : "") + systemsSentence;
+  return `Access to an SAP ABAP system over ADT. Use abap_search to locate objects, abap_read to read source or DDIC definitions (a large class answers with its outline by default; then method= or pattern=), abap_write to create/change/delete, abap_activate to syntax-check or activate, abap_run to execute a class or report and capture its output, abap_test to run ABAP Unit tests (it reports NO TESTS RAN separately from PASSED \u2014 they are not the same answer), abap_debug/abap_debug_vars/abap_debug_value to set breakpoints and step through execution with full variable inspection, abap_journal to see what you changed and undo it. Writes are OFF ${writeGate}, and need a customer-namespace object name plus a package the allowlist permits: ${packageScope} Every write records the previous source locally first, so abap_journal mode=undo can put it back \u2014 but only for objects this server wrote. Responses are capped and truncation is always marked. Calls to one server share a pool of at most 5 SAP sessions (2 read, 2 write, 1 debug); calls beyond that queue, writes to the same object are serialized, and every extra session costs a logon \u2014 sending tool calls in parallel does not make them faster and is the usual way to reach the logon ceiling (5 logons per 10 minutes per session), so issue calls in sequence.` + (fluidAvailable ? " abap_fluid deploys and runs small generated ABAP tools inside $ABAPSMITH_FLUID_API (call it with no arguments for the catalogue)." : "") + (lockedToolCount > 0 ? ` ${lockedToolCount} further tools are listed but LOCKED at this permission level (abap_write among them) \u2014 each one's description says what unlocks it, and calling one returns a refusal without touching the SAP system.` : "") + systemsSentence;
 }
 function describeStartupProbeFailure(e) {
   if (isAbapError(e)) return { code: e.code, message: e.message, hint: e.hint };
