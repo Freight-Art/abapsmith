@@ -19,6 +19,7 @@ import { fetchUsageReferences, HIGH_FAN_IN_REFERENCES, SLOW_FETCH_MS } from "../
 import { buildCallGraph } from "../adt/call-graph.js";
 import { repairSearchDescriptions } from "../adt/search-descriptions.js";
 import { searchObjectsTolerant } from "../adt/object-search.js";
+import { listInactiveObjectsOfPackage, type PackageInactiveEntry } from "../adt/inactive-objects.js";
 import { buildResponse, textTable, type BuiltResponse } from "../compact.js";
 import { specForKeyword, specForType, specFromUri, TYPES } from "../adt/types.js";
 import { truncateForDisplay } from "../truncate.js";
@@ -88,8 +89,10 @@ function assertKnownType(type: string): void {
 export const searchInputSchema = {
   query: z
     .string()
+    .optional()
     .describe(
-      "Name pattern (mode=objects), target object (mode=where_used/call_graph), or literal/regex text (mode=source).",
+      "Name pattern (mode=objects), target object (mode=where_used/call_graph), or literal/regex text (mode=source). " +
+        "Optional with inactive=true (then a name pattern filter, wildcards `*`).",
     ),
   mode: z
     .enum(["objects", "where_used", "source", "call_graph"])
@@ -150,6 +153,17 @@ export const searchInputSchema = {
     .boolean()
     .optional()
     .describe("mode=source: also match inside comments (heuristic, line-local). Default false."),
+  inactive: z
+    .boolean()
+    .optional()
+    .describe(
+      "mode=objects: list the INACTIVE objects (your own inactive worklist, per user in ADT) that belong to " +
+        "`packages` (required, max 5). Optional `query` (name pattern), `type` filter, `include_subpackages`, `user`.",
+    ),
+  user: z
+    .string()
+    .optional()
+    .describe("inactive=true: list another user's inactive worklist instead of your own."),
 };
 
 export const SearchInput = z.object(searchInputSchema);
@@ -163,6 +177,15 @@ export async function abapSearch(
   input: SearchInput,
   maxChars: number,
 ): Promise<BuiltResponse> {
+  if (input.inactive === true) return abapSearchInactive(conn, input, maxChars);
+  if (input.query === undefined) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "`query` is required unless inactive=true",
+      {},
+      "Pass a name pattern, or `inactive: true` with `packages` to list inactive objects.",
+    );
+  }
   const max = input.max ?? 50;
   if (input.type) assertKnownType(input.type);
   const mode = input.mode ?? "objects";
@@ -184,6 +207,113 @@ export async function abapSearch(
     return buildCallGraph(conn, input.query, input.type, input.direction ?? "callers", depth, max, maxChars);
   }
   return searchObjects(conn, input.query, input.type, max, maxChars);
+}
+
+/** `Z*` / `ZFOO_*` -> RegExp, case-insensitive, anchored — same shape as `packagePattern` in safety.ts. */
+function inactiveNameFilter(pattern: string): RegExp {
+  const escaped = pattern
+    .trim()
+    .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*/g, ".*");
+  return new RegExp(`^${escaped}$`, "i");
+}
+
+/**
+ * `inactive=true`: lists the caller's (or `user`'s) inactive worklist,
+ * intersected with `packages` (see `listInactiveObjectsOfPackage`,
+ * src/adt/inactive-objects.ts — ADT's inactive-objects endpoint carries no
+ * package of its own). One package at a time: each is its own nodestructure
+ * walk plus a fetch of the inactive worklist, so there is no benefit to
+ * racing them against ADT.
+ */
+export async function abapSearchInactive(
+  conn: AbapConnection,
+  input: SearchInput,
+  maxChars: number,
+): Promise<BuiltResponse> {
+  if (input.type) assertKnownType(input.type);
+  const spec = input.type ? (specForType(input.type) ?? specForKeyword(input.type)) : undefined;
+  const wanted = input.type ? (spec?.type ?? input.type.toUpperCase().trim()) : undefined;
+
+  const packages = (input.packages ?? []).map((p) => p.toUpperCase());
+  const recursive = !!input.include_subpackages;
+  const max = input.max ?? 50;
+
+  let user = (input.user ?? conn.cfg.user).toUpperCase();
+  let subpackageCapHit = false;
+  const seen = new Set<string>();
+  const all: PackageInactiveEntry[] = [];
+  for (const packageName of packages) {
+    const listing = await listInactiveObjectsOfPackage(conn, {
+      packageName,
+      recursive,
+      ...(input.user ? { user: input.user } : {}),
+    });
+    user = listing.user;
+    if (listing.truncated) subpackageCapHit = true;
+    for (const entry of listing.entries) {
+      const key = `${entry.type}|${entry.name}|${entry.packageName}`.toUpperCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      all.push(entry);
+    }
+  }
+
+  const nameFilter = input.query ? inactiveNameFilter(input.query) : undefined;
+  const filtered = all.filter((e) => {
+    if (nameFilter && !nameFilter.test(e.name)) return false;
+    if (wanted) {
+      const t = e.type.toUpperCase();
+      if (wanted.includes("/") ? t !== wanted : t.split("/")[0] !== wanted) return false;
+    }
+    return true;
+  });
+
+  const rows = filtered.slice(0, max);
+  const truncatedByMax = filtered.length > rows.length;
+
+  const body = rows.length
+    ? textTable(
+        rows.map((e) => ({
+          TYPE: e.type,
+          NAME: e.name,
+          PACKAGE: e.packageName,
+          USER: e.user,
+          STATE: e.deleted ? "pending deletion" : "inactive",
+        })),
+        ["TYPE", "NAME", "PACKAGE", "USER", "STATE"],
+      )
+    : `No inactive objects of ${user} in ${packages.join(", ")}.`;
+
+  return buildResponse({
+    header: {
+      system: conn.cfg.sid,
+      mode: "objects",
+      inactive: true,
+      packages: packages.join(","),
+      include_subpackages: recursive,
+      user,
+      count: rows.length,
+      truncated_by_subpackage_cap: subpackageCapHit || undefined,
+      truncated_by_max: truncatedByMax || undefined,
+    },
+    body,
+    bodyLabel: "RESULTS",
+    notes: [
+      `ADT's inactive-objects list is per user: this is ${user}'s worklist; pass \`user\` to see another user's.`,
+      ...(subpackageCapHit
+        ? ["Sub-package walk cut at its cap — some sub-packages may not have been scanned."]
+        : []),
+      ...(truncatedByMax ? [`Showing ${max} of ${filtered.length}.`] : []),
+    ],
+    hints: rows.length
+      ? [
+          "Activate them all with abap_activate package=<pkg> (recursive=true for sub-packages), " +
+            "or one at a time with abap_activate object=<name>.",
+        ]
+      : [],
+    maxChars,
+  });
 }
 
 // quickSearch's objectType is not trusted server-side (captures
@@ -480,8 +610,13 @@ const SOURCE_ONLY_FIELDS = [
  * from `abapSearch()` (which stays byte-identical) — this runs in the
  * handler, around the call, not inside it.
  */
-function assertNoSourceOnlyFields(input: SearchInput, mode: "objects" | "where_used" | "call_graph"): void {
+function assertNoSourceOnlyFields(
+  input: SearchInput,
+  mode: "objects" | "where_used" | "call_graph",
+  exempt: readonly string[] = [],
+): void {
   const passed = SOURCE_ONLY_FIELDS.filter((f) => {
+    if (exempt.includes(f)) return false;
     const v = (input as Record<string, unknown>)[f];
     return v !== undefined && !(Array.isArray(v) && v.length === 0);
   });
@@ -543,7 +678,7 @@ export function buildSourceScanQuery(input: SearchInput): SourceScanQuery {
     );
   }
 
-  const query = input.query.trim();
+  const query = (input.query ?? "").trim();
   if (!query) {
     throw new AbapError("BAD_INPUT", 'mode="source" requires a non-empty `query`.', {});
   }
@@ -847,6 +982,40 @@ export function registerSearchTools(mcp: McpServer, deps: SearchToolDeps): void 
         const input = args as SearchInput;
         const mode = input.mode ?? "objects";
         assertNoCallGraphOnlyFields(input, mode);
+
+        if (input.inactive === true) {
+          if (input.mode !== undefined && input.mode !== "objects") {
+            throw new AbapError("BAD_INPUT", "inactive=true only applies to mode=objects", { mode: input.mode });
+          }
+          const packages = input.packages ?? [];
+          if (packages.length < 1 || packages.length > 5) {
+            throw new AbapError(
+              "BAD_INPUT",
+              "inactive=true needs `packages` (1-5 package names) — ADT's inactive-objects list carries no " +
+                "package, so abapsmith intersects it with each package's contents",
+              { packages },
+            );
+          }
+          assertNoSourceOnlyFields(input, "objects", ["packages", "include_subpackages"]);
+          await deps.ensureConnected();
+          deps.safety.assert("read");
+          const res = await deps.pool.withRead("abap_search", (conn) =>
+            abapSearchInactive(conn, input, deps.cfg.maxResponseChars),
+          );
+          return ok(res.text);
+        }
+
+        if (input.query === undefined) {
+          throw new AbapError(
+            "BAD_INPUT",
+            "`query` is required unless inactive=true",
+            {},
+            "Pass a name pattern, or `inactive: true` with `packages` to list inactive objects.",
+          );
+        }
+        if (input.user !== undefined) {
+          throw new AbapError("BAD_INPUT", "`user` only applies to inactive=true", { user: input.user });
+        }
 
         if (mode === "source") {
           const q = buildSourceScanQuery(input);
