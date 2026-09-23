@@ -451,10 +451,11 @@ const JOURNALLED_BY: ReadonlyMap<string, string> = new Map([
   // `abapWrite` (tools/write.ts) wraps in `withJournalledMutation` — same
   // `operation: "create"` entry as every other abap_write create.
   ["adt/program-create.ts", "tools/write.ts"],
-  // `writeTextPool`'s two `conn.put` (symbols, selections textelements PUT,
-  // issue #182). `writeTextPoolJournalled` (tools/write-text-pool.ts) wraps
-  // it in `withJournalledMutation`, one `operation: "update"`,
-  // `irreversible: true` entry on `PROG/PX`, begun before the lock/PUT.
+  // `writeTextPool`'s three `conn.put` (symbols, selections, headings
+  // textelements PUT, issue #182/#199). `writeTextPoolJournalled`
+  // (tools/write-text-pool.ts) wraps it in `withJournalledMutation`, one
+  // `operation: "update"`, `irreversible: true` entry on the textelements
+  // resource (PROG/PX, CLAS/OCX or FUGR/PX), begun before the lock/PUT.
   ["adt/text-pool.ts", "tools/write-text-pool.ts"],
 ]);
 
@@ -629,12 +630,12 @@ const PINNED_MUTATION_CENSUS: ReadonlyMap<string, { calls: number; note: string 
   [
     "adt/text-pool.ts",
     {
-      calls: 2,
+      calls: 3,
       note:
-        "writeTextPool's two conn.put (symbols, selections). readTextPool's two conn.get are " +
-        "reads, not counted here. Activation goes through adt/activate.ts and is counted there. " +
-        "Journalled via writeTextPoolJournalled's withJournalledMutation (tools/write-text-pool.ts), " +
-        "one irreversible operation:\"update\" entry per call.",
+        "writeTextPool's three conn.put (symbols, selections, headings). readTextPool's conn.get " +
+        "are reads, not counted here. Activation goes through adt/activate.ts and is counted " +
+        "there. Journalled via writeTextPoolJournalled's withJournalledMutation " +
+        "(tools/write-text-pool.ts), one irreversible operation:\"update\" entry per call.",
     },
   ],
 ]);

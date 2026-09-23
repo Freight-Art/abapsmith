@@ -20,6 +20,16 @@ version was set to `0.3.0`, which is intended.
 
 - **`abap_enh affects` is optional where the journal needs no foreign object** (#212). `create_spot`, `add_badi_def` and `add_filter_def` now default `affects` to the spot being created or extended, and `create_hook` derives it from the host named in `spec` with one read of the host object, instead of requiring the caller to repeat what the call already states. `create_impl`, `set_filter_values`, `exercise`, `write_description`, `delete` and `set_impl_active` still require it, and `BAD_INPUT` names all six when it's missing. Every one of these checks runs before any network request.
 
+## [0.6.33] - 2026-09-23
+
+### Added
+
+- **`abap_write`'s `text_pool` now applies to `CLAS/OC` and `FUGR/F`, not just `PROG/P`, and gains a `headings` group** (#199). Each type writes its own textelements resource (`PROG/PX`/`CLAS/OCX`/`FUGR/PX`); a `CLAS/OC` text pool has text symbols only — naming `selection_texts` or `headings` for a class is refused `BAD_INPUT` before any request ("applies to PROG/P and FUGR/F only"). `headings` (`PROG/P` and `FUGR/F` only) is `{list_header?, column_headers?}` — the report's list header (max 70 chars) and up to four column heading lines (max 132 chars each, SE38 "List Headings"); each group given still replaces that whole group, as before. Naming `text_pool` against any other type is refused `BAD_INPUT` before any request, now naming the supported types ("`text_pool` applies to PROG/P, CLAS/OC and FUGR/F only, not INTF/OI."). A whole-object source read of a `CLAS/OC` or `FUGR/F` now appends the same `TEXT POOL` section a `PROG/P` read has, including the new `headings:` group, when the object has any text symbols, selection texts or headings; that read costs one extra request for a class (three for a function group), as it already did for a program. The textelements resource has no per-call language selector — probed on A4H, a `sap-language`/`language` query parameter, an `Accept-Language`/`sap-language` header, and `ABAP_LANGUAGE=EN` vs `DE` at logon all returned the same master-language texts — so `text_pool` reads and writes the object's own master language and takes no `language` parameter. Verified on A4H: `$TMP` class `ZCL_AS_TEXT199` (static method returning `text-001`), function group `ZAS_FG199` with a module returning `text-002`, and report `ZAS_R199` calling both — after `text_pool` writes, `abap_read` showed the `TEXT POOL` section for all three and `abap_run` of the report printed `class: Hello`, `fm: Hello from FM`, the list header `Issue 199 headings` and both column heading lines; `text_pool` on `INTF/OI` and `selection_texts` on the class were refused as described.
+
+### Changed
+
+- **The `text_pool` response's `<language>` is now the object's master language, not the configured logon language** (#199). The textelements resource has no per-call language selector and always writes the master language, so the response header now reads `<language>` off the textelements descriptor instead of reporting the configured logon language.
+
 ## [0.6.32] - 2026-09-23
 
 ### Added

@@ -92,7 +92,7 @@ import {
 } from "../compact.js";
 import { canonicalEtag, parseProcessingType } from "../adt/write.js";
 import { parseFixPointArithmetic } from "../adt/program-create.js";
-import { readTextPool, type TextPool } from "../adt/text-pool.js";
+import { countHeadings, isTextPoolType, readTextPool, type TextPool } from "../adt/text-pool.js";
 import { buildLineage, LINEAGE_DEFAULT_DEPTH, LINEAGE_MAX_DEPTH, renderLineage } from "../adt/cds-lineage.js";
 import { buildFootprint, FOOTPRINT_TYPES, renderFootprint } from "../adt/footprint.js";
 import type { SessionPool } from "../adt/pool.js";
@@ -626,6 +626,13 @@ function renderTextPool(pool: TextPool): string {
   if (selectionNames.length > 0) {
     parts.push("selection_texts:");
     for (const name of selectionNames) parts.push(`  ${name}  ${pool.selectionTexts[name]}`);
+  }
+  if (countHeadings(pool.headings) > 0) {
+    parts.push("headings:");
+    if (pool.headings.listHeader !== undefined) parts.push(`  list_header  ${pool.headings.listHeader}`);
+    (pool.headings.columnHeaders ?? []).forEach((text, i) => {
+      if (text !== "") parts.push(`  column_header_${i + 1}  ${text}`);
+    });
   }
   return parts.join("\n");
 }
@@ -3535,13 +3542,14 @@ export async function abapRead(
     }
   }
 
-  // Issue #182: the text pool (symbols/selection texts) is a separate
-  // sub-resource, not part of this source — shown only on the first page of
-  // a whole-object read, best-effort like the flag above.
+  // Issue #182/#199: the text pool (symbols/selection texts/headings) is a
+  // separate sub-resource, not part of this source — shown only on the first
+  // page of a whole-object read, best-effort like the flag above. Applies to
+  // PROG/P, CLAS/OC and FUGR/F.
   const textPoolSections: Array<{ title: string; content: string }> = [];
-  if (obj.type === "PROG/P" && wholeObjectRead && firstPage) {
+  if (isTextPoolType(obj.type) && wholeObjectRead && firstPage) {
     try {
-      const pool = await readTextPool(conn, obj.name);
+      const pool = await readTextPool(conn, obj.name, obj.type);
       if (pool) textPoolSections.push({ title: "TEXT POOL", content: renderTextPool(pool) });
     } catch {
       // omit

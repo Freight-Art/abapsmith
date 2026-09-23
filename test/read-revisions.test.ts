@@ -1267,14 +1267,18 @@ describe("[PENDING READ MERGE] abap_read reads a class include directly", () => 
     stub.object = resolved();
     const { conn, gets } = sourceConn();
     await abapRead(conn, { object: "CL_CI_INSPECTION", include: "main" } as never, 20_000);
-    expect(gets).toEqual([`${CLS_URI}/source/main`]);
+    // Issue #199: a whole-object read also fires the best-effort text-pool
+    // symbols GET right after /source/main.
+    expect(gets).toEqual([`${CLS_URI}/source/main`, "/sap/bc/adt/textelements/classes/cl_ci_inspection/source/symbols"]);
   });
 
   it("still reads /source/main when no include is named — the default is unchanged", async () => {
     stub.object = resolved();
     const { conn, gets } = sourceConn();
     await abapRead(conn, { object: "CL_CI_INSPECTION" } as never, 20_000);
-    expect(gets).toEqual([`${CLS_URI}/source/main`]);
+    // Issue #199: a whole-object read also fires the best-effort text-pool
+    // symbols GET right after /source/main.
+    expect(gets).toEqual([`${CLS_URI}/source/main`, "/sap/bc/adt/textelements/classes/cl_ci_inspection/source/symbols"]);
   });
 
   it("refuses an include ADT does not have, by name, without reading anything", async () => {
