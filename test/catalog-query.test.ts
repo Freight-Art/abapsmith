@@ -367,6 +367,7 @@ describe("parseTransactionParameters", () => {
     expect(parseTransactionParameters("/*SM30 VIEWNAME=/AIF/BDC_V_CONF;UPDATE=X;")).toEqual({
       kind: "parameter",
       target: "SM30",
+      skipFirstScreen: true,
       assignments: [
         { name: "VIEWNAME", value: "/AIF/BDC_V_CONF" },
         { name: "UPDATE", value: "X" },
@@ -379,6 +380,7 @@ describe("parseTransactionParameters", () => {
     expect(parseTransactionParameters("/*SM34 VCLDIR-VCLNAME=/AIF/ACTIONS;UPDATE=X;")).toEqual({
       kind: "parameter",
       target: "SM34",
+      skipFirstScreen: true,
       assignments: [
         { name: "VCLDIR-VCLNAME", value: "/AIF/ACTIONS" },
         { name: "UPDATE", value: "X" },
@@ -386,12 +388,22 @@ describe("parseTransactionParameters", () => {
     });
   });
 
-  it("parses a bare /N<TCODE> switch into kind 'other' with target set and no assignments", () => {
-    expect(parseTransactionParameters("/NSE38")).toEqual({ kind: "other", target: "SE38", assignments: [] });
+  it("parses a bare /N<TCODE> switch into kind 'parameter', not skipping the first screen, no assignments", () => {
+    expect(parseTransactionParameters("/NSE38")).toEqual({
+      kind: "parameter",
+      target: "SE38",
+      skipFirstScreen: false,
+      assignments: [],
+    });
   });
 
   it("upper-cases the target of a /N<TCODE> switch", () => {
-    expect(parseTransactionParameters("/nse38")).toEqual({ kind: "other", target: "SE38", assignments: [] });
+    expect(parseTransactionParameters("/nse38")).toEqual({
+      kind: "parameter",
+      target: "SE38",
+      skipFirstScreen: false,
+      assignments: [],
+    });
   });
 
   it("degrades unparseable input to kind 'other' with no target and no assignments, never throwing", () => {
@@ -403,6 +415,7 @@ describe("parseTransactionParameters", () => {
     expect(parseTransactionParameters("/*SM30 ;NOEQUALSIGN;NAME=VALUE;;")).toEqual({
       kind: "parameter",
       target: "SM30",
+      skipFirstScreen: true,
       assignments: [{ name: "NAME", value: "VALUE" }],
     });
   });
@@ -411,22 +424,81 @@ describe("parseTransactionParameters", () => {
     expect(parseTransactionParameters("/*SM30 =VALUE;NAME=OK;")).toEqual({
       kind: "parameter",
       target: "SM30",
+      skipFirstScreen: true,
       assignments: [{ name: "NAME", value: "OK" }],
     });
   });
 
   it("trims surrounding whitespace before matching either shape", () => {
-    expect(parseTransactionParameters("  /NSE38  ")).toEqual({ kind: "other", target: "SE38", assignments: [] });
+    expect(parseTransactionParameters("  /NSE38  ")).toEqual({
+      kind: "parameter",
+      target: "SE38",
+      skipFirstScreen: false,
+      assignments: [],
+    });
   });
 
-  it("never produces kind 'variant' — declared in the type but not implemented by any current input shape", () => {
-    // The source's own doc comment on ParsedTransactionParameter says this
-    // explicitly: "variant" is reserved for a TSTCP shape not yet observed
-    // live. This test pins the current gap, not a future promise.
-    const seen = new Set<string>();
-    for (const input of ["/*SM30 A=B;", "/NSE38", "", "anything else"]) {
-      seen.add(parseTransactionParameters(input).kind);
-    }
-    expect(seen.has("variant")).toBe(false);
+  // The remaining 4 of parseTransactionParameters's 6 ordered branches
+  // (issue #214) — OS_APPLICATION-with-model is covered above via the
+  // general parameter-transaction tests' sibling shape.
+  it("parses /*OS_APPLICATION CLASS=...;METHOD=...;UPDATE_MODE=...; into kind 'oo' with a transaction model", () => {
+    expect(parseTransactionParameters("/*OS_APPLICATION CLASS=ZCL_FOO;METHOD=RUN;UPDATE_MODE=S;")).toEqual({
+      kind: "oo",
+      target: "OS_APPLICATION",
+      transactionModel: true,
+      className: "ZCL_FOO",
+      methodName: "RUN",
+      updateMode: "S",
+      assignments: [],
+    });
+  });
+
+  it("parses \\PROGRAM=...\\CLASS=...\\METHOD=... into kind 'oo' with no transaction model", () => {
+    expect(parseTransactionParameters("\\PROGRAM=SAPMZFOO\\CLASS=ZCL_FOO\\METHOD=RUN")).toEqual({
+      kind: "oo",
+      transactionModel: false,
+      className: "ZCL_FOO",
+      methodName: "RUN",
+      localProgram: "SAPMZFOO",
+      assignments: [],
+    });
+  });
+
+  it("parses \\CLASS=...\\METHOD=... (no PROGRAM) into kind 'oo' with no localProgram", () => {
+    expect(parseTransactionParameters("\\CLASS=ZCL_FOO\\METHOD=RUN")).toEqual({
+      kind: "oo",
+      transactionModel: false,
+      className: "ZCL_FOO",
+      methodName: "RUN",
+      assignments: [],
+    });
+  });
+
+  it("parses @<TCODE> <VARIANT> into kind 'variant', client-specific", () => {
+    expect(parseTransactionParameters("@SM30 ZVARIANT1")).toEqual({
+      kind: "variant",
+      crossClient: false,
+      target: "SM30",
+      variant: "ZVARIANT1",
+      assignments: [],
+    });
+  });
+
+  it("parses @@<TCODE> <VARIANT> into kind 'variant', cross-client", () => {
+    expect(parseTransactionParameters("@@SM30 ZVARIANT1")).toEqual({
+      kind: "variant",
+      crossClient: true,
+      target: "SM30",
+      variant: "ZVARIANT1",
+      assignments: [],
+    });
+  });
+
+  it("parses a bare token with no target transaction into kind 'report-variant'", () => {
+    expect(parseTransactionParameters("ZVARIANT1")).toEqual({
+      kind: "report-variant",
+      variant: "ZVARIANT1",
+      assignments: [],
+    });
   });
 });

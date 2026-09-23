@@ -972,7 +972,8 @@ describe("capabilities.ts registry (write-support-for-missing-DDIC-types)", () =
   it("TRAN/T's and VIEW/DV's hints share the generic create call-out but keep their own type-specific limits", async () => {
     const tran = await catchErr(resolveWriteTarget(offline, { type: "TRAN/T", name: "ZX" }));
     expect(String(tran.hint ?? "")).toMatch(/no mode=create/);
-    expect(String(tran.hint ?? "")).toMatch(/REPORT transaction/);
+    // Issue #214: report/dialog/parameter/variant/oo kinds, not just a bare "report" mention.
+    expect(String(tran.hint ?? "")).toMatch(/dialog \(caller-chosen dynpro\)/);
     expect(String(tran.hint ?? "")).not.toMatch(/base table/);
     expect(String(tran.hint ?? "")).not.toMatch(/resolves a transport request the same way/);
 
@@ -6019,37 +6020,11 @@ describe("abap_write → bridge creation (VIEW/DV, TRAN/T): routing and zero-net
     expect(String(e.message)).toMatch(/base_table/);
   });
 
-  it("a VIEW/DV with no `description` is refused BAD_INPUT, and the refusal NAMES description", async () => {
-    const e = await catchErr(
-      abapWrite(
-        offline,
-        {
-          object: "ZMCP_V_CARRIER",
-          type: "VIEW/DV",
-          package: "$TMP",
-          base_table: "ZMCP_CARRIER",
-          view_fields: ["CARRIER_ID", "NAME"],
-        },
-        MAX,
-        gate,
-      ),
-    );
-    expect(e.code).toBe("BAD_INPUT");
-    expect(String(e.message)).toMatch(/description/);
-  });
-
-  it("a TRAN/T with no `description` is refused BAD_INPUT, and the refusal NAMES description", async () => {
-    const e = await catchErr(
-      abapWrite(
-        offline,
-        { object: "ZMCPT01", type: "TRAN/T", package: "$TMP", program: "ZMCP_CARRIER_LIST" },
-        MAX,
-        gate,
-      ),
-    );
-    expect(e.code).toBe("BAD_INPUT");
-    expect(String(e.message)).toMatch(/description/);
-  });
+  // Issue #209: a missing `description` is no longer a zero-network refusal for either
+  // type — it defaults to the object's own name (upper-cased) and the create proceeds.
+  // That is no longer a zero-network invariant, so it is not pinned in this describe
+  // block; see "description defaulting (issue #209)" in write-bridge-crud.test.ts for
+  // the connected-fake coverage of the actual default + response-note behaviour.
 });
 
 /**

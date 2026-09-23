@@ -3,8 +3,6 @@ import type { ClassicAbapPart } from "./abap-core.js";
 const SOURCE = `  METHOD create_transaction.
     DATA lv_tcode TYPE tstc-tcode.
     lv_tcode = s( 'tcode' ).
-    DATA lv_program TYPE tstc-pgmna.
-    lv_program = s( 'program' ).
     DATA lv_description TYPE tstct-ttext.
     lv_description = s( 'description' ).
     DATA lv_package TYPE devclass.
@@ -18,20 +16,95 @@ const SOURCE = `  METHOD create_transaction.
       lv_transport = lv_corr_nr.
     ENDIF.
 
+    " issue #214: transaction_type now selects among RPY_TRANSACTION_INSERT's
+    " four reachable shapes - 'R' report, 'D' dialog, 'P' parameter (also how
+    " an OO transaction with transaction model is stored - see
+    " tran-create.ts's header), 'V' variant. There is no 'O' branch in the
+    " FM itself - never send it.
+    DATA lv_type TYPE stran_type.
+    lv_type = s( 'transaction_type' ).
+    IF lv_type <> 'R' AND lv_type <> 'D' AND lv_type <> 'P' AND lv_type <> 'V'.
+      fail( |transaction_type { lv_type } must be one of R (report), D (dialog), | &&
+        |P (parameter), V (variant)| ).
+      RETURN.
+    ENDIF.
+
+    DATA lv_program TYPE tstc-pgmna.
+    lv_program = s( 'program' ).
+
+    " RPY_TRANSACTION_INSERT's DYNPRO is TYPE d020s-dnum (CHAR4), not
+    " tstc-dypno (NUMC4) - a NUMC local here raises CX_SY_DYN_CALL_ILLEGAL_TYPE.
+    " Report kind ignores dynpro anyway (always starts on 1000).
+    DATA lv_dynpro TYPE d020s-dnum.
+    IF lv_type = 'R'.
+      lv_dynpro = '1000'.
+    ELSEIF s( 'dynpro' ) IS NOT INITIAL.
+      lv_dynpro = s( 'dynpro' ).
+    ENDIF.
+
+    " called_transaction/transaction_type/variant also fail with
+    " CX_SY_DYN_CALL_ILLEGAL_TYPE if left as s()'s inferred TYPE string -
+    " RPY_TRANSACTION_INSERT's VALUE() parameters reject a STRING actual.
+    DATA lv_called TYPE tstc-tcode.
+    lv_called = s( 'called_transaction' ).
+    DATA lv_skip TYPE char01.
+    lv_skip = COND char01( WHEN b( 'skip_first_screen' ) = abap_true THEN 'X' ELSE space ).
+    DATA lv_variant TYPE tcvariant.
+    lv_variant = s( 'variant' ).
+    DATA lv_cl_indep TYPE char01.
+    lv_cl_indep = COND char01( WHEN b( 'cross_client_variant' ) = abap_true THEN 'X' ELSE space ).
+
+    " TSTCP screen-field assignments (parameter transactions) or the fixed
+    " CLASS/METHOD/UPDATE_MODE triple (OO with transaction model, sent by
+    " tran-create.ts's transactionInsertArgs as transaction_type 'P' against
+    " called_transaction 'OS_APPLICATION') - same n()/DO...TIMES shape
+    " abap-shlp.ts's fields/includes/assignments tables use.
+    DATA lt_params TYPE STANDARD TABLE OF rsparam WITH DEFAULT KEY.
+    DATA lv_param_count TYPE i.
+    DATA lv_i TYPE i.
+    lv_param_count = n( 'parameters' ).
+    DO lv_param_count TIMES.
+      lv_i = sy-index.
+      APPEND VALUE #( field = s( |parameters/{ lv_i - 1 }/field| )
+                       value = s( |parameters/{ lv_i - 1 }/value| ) ) TO lt_params.
+    ENDDO.
+
     CALL FUNCTION 'RPY_TRANSACTION_INSERT'
-      EXPORTING transaction       = lv_tcode
-                program           = lv_program
-                dynpro            = '1000'
-                language          = sy-langu
-                development_class = lv_package
-                transport_number  = lv_transport
-                transaction_type  = 'R'
-                shorttext         = lv_description
+      EXPORTING transaction             = lv_tcode
+                program                 = lv_program
+                dynpro                  = lv_dynpro
+                language                = sy-langu
+                development_class       = lv_package
+                transport_number        = lv_transport
+                transaction_type        = lv_type
+                shorttext               = lv_description
+                called_transaction      = lv_called
+                called_transaction_skip = lv_skip
+                variant                 = lv_variant
+                cl_independend          = lv_cl_indep
+      TABLES param_values = lt_params
       EXCEPTIONS cancelled = 1 already_exist = 2 permission_error = 3
                  name_not_allowed = 4 name_conflict = 5 illegal_type = 6
                  object_inconsistent = 7 db_access_error = 8 OTHERS = 9.
     IF sy-subrc <> 0.
-      fail( |RPY_TRANSACTION_INSERT failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      DATA lv_exc TYPE string.
+      CASE sy-subrc.
+        WHEN 1. lv_exc = 'cancelled'.
+        WHEN 2. lv_exc = 'already_exist'.
+        WHEN 3. lv_exc = 'permission_error'.
+        WHEN 4. lv_exc = 'name_not_allowed'.
+        WHEN 5. lv_exc = 'name_conflict'.
+        WHEN 6. lv_exc = 'illegal_type'.
+        WHEN 7. lv_exc = 'object_inconsistent'.
+        WHEN 8. lv_exc = 'db_access_error'.
+        WHEN OTHERS. lv_exc = 'unknown'.
+      ENDCASE.
+      DATA lv_msg TYPE string.
+      IF sy-msgid IS NOT INITIAL.
+        MESSAGE ID sy-msgid TYPE 'S' NUMBER sy-msgno
+          WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4 INTO lv_msg.
+      ENDIF.
+      fail( |RPY_TRANSACTION_INSERT failed, sy-subrc={ sy-subrc } ({ lv_exc }): { lv_msg }| ).
       RETURN.
     ENDIF.
     line( 'TRAN-CREATED' ).
@@ -179,11 +252,27 @@ const SOURCE = `  METHOD create_transaction.
     DATA ls_tstc TYPE tstc.
     DATA lv_tcode TYPE tstc-tcode.
     lv_tcode = s( 'tcode' ).
+    DATA lv_package TYPE devclass.
+    lv_package = s( 'package_name' ).
+    DATA(lv_corr_nr) = s( 'corr_nr' ).
+    DATA(lv_local) = boolc( to_upper( lv_package ) CP '$*' ).
+    DATA lv_korrnum TYPE trkorr.
+    lv_korrnum = lv_corr_nr.
 
     " Step 1: confirm the transaction exists.
     SELECT SINGLE * FROM tstc INTO @ls_tstc WHERE tcode = @lv_tcode.
     IF sy-subrc <> 0.
       fail( |transaction { lv_tcode } does not exist| ).
+      RETURN.
+    ENDIF.
+
+    " Step 1a (issue #202): a transportable package needs a transport
+    " request the same way create/update do - RPY_TRANSACTION_DELETE has no
+    " suppress-dialog-only path for its own SAPLSTRD 0300 transport-request
+    " popup, so without corr_nr a headless run would hang there.
+    IF lv_local = abap_false AND lv_corr_nr IS INITIAL.
+      fail( |transaction { lv_tcode } is in transportable package { lv_package }; deleting it needs | &&
+        |a transport request (SAPLSTRD 0300) - pass corr_nr| ).
       RETURN.
     ENDIF.
 
@@ -220,12 +309,54 @@ const SOURCE = `  METHOD create_transaction.
         |({ lv_agr_list }) - an SM01 transaction lock is not checked here either| ).
     ENDIF.
 
-    " Step 2: delete via RPY_TRANSACTION_DELETE.
-    CALL FUNCTION 'RPY_TRANSACTION_DELETE'
-      EXPORTING transaction = lv_tcode
-      EXCEPTIONS OTHERS = 1.
+    DATA lv_del_msg TYPE string.
+    IF lv_local = abap_false.
+      " Step 2a (issue #202): register the delete in CTS first, same shape
+      " as update_transaction's Step 3 (RS_CORR_INSERT), but with no MODE
+      " - this call only needs to attach the object to the request, not
+      " insert-or-update its master record the way a retarget's re-insert
+      " does.
+      CALL FUNCTION 'RS_CORR_INSERT'
+        EXPORTING object = lv_tcode
+                  object_class = 'TRAN'
+                  devclass = lv_package
+                  master_language = sy-langu
+                  global_lock = 'X'
+                  korrnum = lv_korrnum
+                  suppress_dialog = 'X'
+        EXCEPTIONS cancelled = 1 permission_failure = 2 unknown_objectclass = 3 OTHERS = 4.
+      IF sy-subrc <> 0.
+        fail( |RS_CORR_INSERT failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+        RETURN.
+      ENDIF.
+      line( 'TRAN-REGISTERED' ).
+
+      " Step 2b: delete via RPY_TRANSACTION_DELETE - the transport is
+      " already registered above, so suppress_corr_insert/suppress_corr_check
+      " are both 'X', same reasoning as update_transaction's Step 4.
+      CALL FUNCTION 'RPY_TRANSACTION_DELETE'
+        EXPORTING transaction          = lv_tcode
+                  transport_number     = lv_korrnum
+                  suppress_corr_insert = 'X'
+                  suppress_corr_check  = 'X'
+        EXCEPTIONS not_excecuted = 1
+                   object_not_found = 2
+                   OTHERS = 3.
+    ELSE.
+      " Step 2: delete via RPY_TRANSACTION_DELETE - local package, no
+      " transport at all.
+      CALL FUNCTION 'RPY_TRANSACTION_DELETE'
+        EXPORTING transaction = lv_tcode
+        EXCEPTIONS not_excecuted = 1
+                   object_not_found = 2
+                   OTHERS = 3.
+    ENDIF.
     IF sy-subrc <> 0.
-      fail( |RPY_TRANSACTION_DELETE failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      IF sy-msgid IS NOT INITIAL.
+        MESSAGE ID sy-msgid TYPE 'S' NUMBER sy-msgno
+          WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4 INTO lv_del_msg.
+      ENDIF.
+      fail( |RPY_TRANSACTION_DELETE failed, sy-subrc={ sy-subrc }: { lv_del_msg }| ).
       RETURN.
     ENDIF.
     line( 'TRAN-DELETED' ).

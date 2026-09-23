@@ -114,7 +114,7 @@ export async function probeObjectPresence(
  * nothing settled it. `"read-back"` is a GET against the object's own
  * content URI — used by {@link verifyObjectDeleted}, never by the create path.
  */
-export type VerifySource = "vit-bridge" | "repository-search" | "read-back";
+export type VerifySource = "vit-bridge" | "repository-search" | "read-back" | "tstc";
 
 export type VerifyOutcome =
   | {

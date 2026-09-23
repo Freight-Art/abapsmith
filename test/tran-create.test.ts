@@ -37,7 +37,13 @@ import { SafetyGate, type EvaluateOptions, type Operation, type SafetyTarget } f
 import { ConfigSchema, type Config } from "../src/config.js";
 import { isAbapError, type AbapError } from "../src/adt/errors.js";
 import { DDIC_ERR_PREFIX, assertDdicTranscript, parseDdicTranscript } from "../src/adt/ddic-transcript.js";
-import { assertTransactionCreateTarget, createTransaction, type TransactionParams } from "../src/adt/tran-create.js";
+import {
+  assertTransactionCreateTarget,
+  assertTransactionKindParams,
+  createTransaction,
+  type TransactionKind,
+  type TransactionParams,
+} from "../src/adt/tran-create.js";
 import { tranPart } from "../src/adt/fluid/builtin/classic/abap-tran.js";
 import { isLocalPackageName } from "../src/adt/transports.js";
 import { resetFluidEnsureState } from "../src/adt/fluid/ensure.js";
@@ -250,11 +256,11 @@ describe("closed template — caller strings are refused, not escaped", () => {
     ).resolves.toBeDefined();
   });
 
-  it("refuses a description longer than TSTCT-TTEXT's 37 characters — refused, never truncated", async () => {
+  it("refuses a description longer than TSTCT-TTEXT's 36 characters — refused, never truncated", async () => {
     const tooLong = "X".repeat(38);
     const err = await catchErr(createTransaction(offline, allowingGate(), { ...PARAMS, description: tooLong }));
     expect(err.code).toBe("BAD_INPUT");
-    expect(err.message).toContain("37");
+    expect(err.message).toContain("36");
   });
 
   it("refuses a tcode longer than TSTC-TCODE's 20 characters", async () => {
@@ -475,10 +481,17 @@ describe("createTransaction happy path", () => {
     expect(payload).toBe(
       canonicalArgsJson({
         tcode: PARAMS.tcode,
-        program: PARAMS.program,
         description: PARAMS.description,
         package_name: PARAMS.packageName,
         corr_nr: CORR_NR,
+        transaction_type: "R",
+        program: PARAMS.program,
+        dynpro: "1000",
+        called_transaction: "",
+        skip_first_screen: false,
+        variant: "",
+        cross_client_variant: false,
+        parameters: [],
       }),
     );
     expect(src).toContain("create_transaction");
@@ -615,5 +628,46 @@ describe("transport_number threaded into RPY_TRANSACTION_INSERT", () => {
     const { conn } = await connected(fake.route);
     await createTransaction(conn, gate, { ...PARAMS, packageName: "$TMP", corrNr: undefined });
     expect(seen).toEqual([{}]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10 — kind-aware create validation (issue #214): assertTransactionKindParams
+// ---------------------------------------------------------------------------
+
+describe("assertTransactionKindParams — one required-field set per kind (issue #214)", () => {
+  const BASE = { tcode: "ZTM_CARRIERS", description: "Carrier list", packageName: "$TMP" } as const;
+
+  const VALID: Record<TransactionKind, TransactionParams> = {
+    report: { ...BASE, kind: "report", program: "ZTM_CARRIER_LIST" },
+    dialog: { ...BASE, kind: "dialog", program: "ZTM_CARRIER_LIST", screen: "1000" },
+    parameter: { ...BASE, kind: "parameter", targetTransaction: "SU01" },
+    variant: { ...BASE, kind: "variant", targetTransaction: "SU01", variant: "DEFAULT" },
+    oo: { ...BASE, kind: "oo", className: "ZCL_MY_TX_MODEL", methodName: "EXECUTE" },
+  };
+
+  it.each(Object.entries(VALID) as Array<[TransactionKind, TransactionParams]>)(
+    "kind=%s: a fully-populated params object is accepted, and the returned kind matches",
+    (kind, params) => {
+      expect(assertTransactionKindParams(params)).toBe(kind);
+    },
+  );
+
+  it.each([
+    ["report", "program", { ...VALID.report, program: undefined }],
+    ["dialog", "screen", { ...VALID.dialog, screen: undefined }],
+    ["parameter", "target_transaction", { ...VALID.parameter, targetTransaction: undefined }],
+    ["variant", "variant", { ...VALID.variant, variant: undefined }],
+    ["oo", "class", { ...VALID.oo, className: undefined }],
+  ] as const)("kind=%s: omitting its required field is refused BAD_INPUT naming %s", (_kind, field, params) => {
+    let err: unknown;
+    try {
+      assertTransactionKindParams(params);
+    } catch (e) {
+      err = e;
+    }
+    expect(isAbapError(err)).toBe(true);
+    expect((err as AbapError).code).toBe("BAD_INPUT");
+    expect((err as AbapError).details).toMatchObject({ field });
   });
 });
