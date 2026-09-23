@@ -283,6 +283,17 @@ const xml = (body: string): ReturnType<typeof fakeResponse> =>
   fakeResponse(200, body, { "content-type": "application/xml; charset=utf-8" });
 
 /**
+ * Issue #199: a whole-object CLAS/OC read fires one best-effort GET on the
+ * text-pool symbols sub-resource right after the source GET. Answered with
+ * an empty body — `parseSymbols` reads that as "no symbols", which keeps
+ * these goldens about the wire shape rather than the text-pool content.
+ */
+const textPoolSymbolsRoute: FakeRoute = (r) =>
+  r.method === "GET" && r.path === "/sap/bc/adt/textelements/classes/zcl_demo/source/symbols"
+    ? fakeResponse(200, "", { "content-type": "text/plain" })
+    : undefined;
+
+/**
  * `POST /sap/bc/adt/cts/transportchecks`, answered LOCAL (`KORRFLAG` empty).
  * $TMP objects need no transport, so this keeps every mutating golden free of
  * the `trCreate` round trip — the transport branch has its own tests, and
@@ -408,8 +419,8 @@ describe("golden wire traces (pre-pool baseline)", () => {
    * the source GET, not one. `searchRoute` supplies the packageName the
    * safety gate needs; the golden was zero-search before that fix landed.
    */
-  it("abap_read — connect preamble, package lookup, then ONE stateless source GET", async () => {
-    const server = scaffold([searchRoute]);
+  it("abap_read — connect preamble, package lookup, then ONE stateless source GET plus the text-pool symbols GET", async () => {
+    const server = scaffold([searchRoute, textPoolSymbolsRoute]);
     const h = await harness(cfg(), server);
 
     await callOk(h, "abap_read", { object: "ZCL_DEMO", type: "CLAS/OC" });
@@ -426,6 +437,8 @@ describe("golden wire traces (pre-pool baseline)", () => {
         false,
       ],
       ["GET", "/sap/bc/adt/oo/classes/zcl_demo/source/main", "s1", false],
+      // Issue #199: best-effort text-pool symbols GET, right after the source GET.
+      ["GET", "/sap/bc/adt/textelements/classes/zcl_demo/source/symbols", "s1", false],
     ]);
     server.assertNoViolations();
   });
@@ -668,7 +681,7 @@ describe("golden wire traces (pre-pool baseline)", () => {
    * and the one a per-tool golden above cannot see.
    */
   it("two tool calls on one server share ONE logon and ONE session", async () => {
-    const server = scaffold([searchRoute]);
+    const server = scaffold([searchRoute, textPoolSymbolsRoute]);
     const h = await harness(cfg(), server);
 
     await callOk(h, "abap_read", { object: "ZCL_DEMO", type: "CLAS/OC" });
@@ -688,6 +701,8 @@ describe("golden wire traces (pre-pool baseline)", () => {
         false,
       ],
       ["GET", "/sap/bc/adt/oo/classes/zcl_demo/source/main", "s1", false],
+      // Issue #199: best-effort text-pool symbols GET, right after the source GET.
+      ["GET", "/sap/bc/adt/textelements/classes/zcl_demo/source/symbols", "s1", false],
       [
         "GET",
         "/sap/bc/adt/repository/informationsystem/search?maxResults=50&operation=quickSearch&query=ZCL_DEMO*",
