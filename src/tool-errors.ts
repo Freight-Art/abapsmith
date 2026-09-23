@@ -476,6 +476,18 @@ function hintForRawThrow(code: AbapErrorCode): string | undefined {
       );
     case "NOT_FOUND":
       return "Check the name with abap_search, or create the object first.";
+    case "LOGON_CEILING":
+      // Same wording the connection layer's own LOGON_CEILING hint gives
+      // (src/adt/connection.ts) — reused verbatim, minus the "Wait N s"
+      // sentence: `retryAfterSeconds` lives in `details`, not reachable from
+      // this raw-throw classification alone.
+      return (
+        "This is NOT an authentication failure: the request was refused locally and the " +
+        "SAP user lock counter was never touched. Concurrent tool calls are the usual " +
+        "cause: calls to one server share a small session pool and are serialized, so " +
+        "firing them in parallel costs extra logons without making them faster. Retry " +
+        "sequentially, not in parallel."
+      );
     default:
       // ADT_ERROR: same "unclassified" shape the normal translation path
       // falls back to, one level further out — this one never even reached
