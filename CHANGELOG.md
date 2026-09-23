@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.31] - 2026-09-23
+
 ### Fixed
 
 - **`MSAG/N` create no longer reports `LOCKED` right after the object was created** (#205). The vendor create POST ran inside the stateful ADT session, and the server keeps a message class's create enqueue for the rest of that session, so the LOCK that followed was refused by our own connected user (`EU510`). Types whose registry entry carries `create.statelessPost` (today only `MSAG/N`) now send the create POST outside the stateful session, so the enqueue ends with the request; and for every created object, a LOCK right after create that is refused by the connected user's own enqueue is retried once in a fresh session (the write then reports the note "the lock was retried once in a fresh session"). A lock held by another user still surfaces `LOCKED` with `created: true`; a second write of an existing message class takes the update path (`created: false`), never `LOCKED`.
