@@ -574,6 +574,19 @@ const isCdsCheckUrl = (url: string): boolean =>
   /^\/sap\/bc\/adt\/((ddic\/ddlx?)|(acm\/dcl))\/sources\//.test(url);
 
 /**
+ * Minimal shape `checkSource` needs — narrower than `ResolvedTarget` so a
+ * caller with no real resolved object (e.g. `abap_activate`'s inline PROG/P
+ * check, which checks a draft against a synthetic URI, never one the server
+ * confirmed) doesn't have to fabricate one. Any `ResolvedTarget` satisfies
+ * this structurally.
+ */
+export interface CheckSourceTarget {
+  uri: string;
+  sourceUri: string;
+  name: string;
+}
+
+/**
  * `POST /sap/bc/adt/checkruns?reporters=abapCheckRun` with source inline as
  * base64 — no lock, no write, no state change. Safe on unsaved source, which
  * is what makes it a *pre*-flight. Implemented on `abap-adt-api`'s
@@ -581,7 +594,7 @@ const isCdsCheckUrl = (url: string): boolean =>
  */
 export async function checkSource(
   conn: AbapConnection,
-  target: ResolvedTarget,
+  target: CheckSourceTarget,
   source: string,
 ): Promise<CheckOutcome> {
   const objectUri = target.uri;

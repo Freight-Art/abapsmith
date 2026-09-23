@@ -44,12 +44,23 @@
  * combines only with the OBJECT form — the text form writes nothing, so a
  * transport request is meaningless there.
  *
- * No `package` argument: activation goes through `authorizeMutation`, which
- * asks the server what package the object is actually in and judges that
- * against the safety gate. That guarantee only holds for an object that
- * EXISTS — `resolveWriteTarget` would otherwise fabricate `$TMP` for an
- * absent one — so `mode=activate` on a nonexistent object is refused BEFORE
- * the gate is consulted. `mode=check` is unaffected; it never reaches the gate.
+ * `package` argument (`mode=activate` only, not combinable with `object`/
+ * `objects`/`type`/`source`/`affects`): activate every inactive object of a
+ * package — the CALLER's own inactive worklist, intersected with the
+ * package (and, with `recursive`, its sub-packages) — in one request. See
+ * `abapActivatePackage`.
+ *
+ * For the `object`/`objects` forms: activation goes through
+ * `authorizeMutation`, which asks the server what package the object is
+ * actually in and judges that against the safety gate. That guarantee only
+ * holds for an object that EXISTS — `resolveWriteTarget` would otherwise
+ * fabricate `$TMP` for an absent one — so `mode=activate` on a nonexistent
+ * object is refused BEFORE the gate is consulted. `mode=check` is
+ * unaffected; it never reaches the gate.
+ *
+ * `mode=check` with `type`+`source` and no `object` at all: an inline check
+ * of an unsaved draft, matched to a server object by name only. See
+ * `inlineCheckTarget`/`abapActivateInline`.
  *
  * ## Journalling
  *
@@ -92,7 +103,8 @@ import type { SessionPool } from "../adt/pool.js";
 import { parseObjectRef } from "../adt/resolve.js";
 import { translateAdtError } from "../adt/session.js";
 import { enrichLockedError, type LockHolderLookup } from "../adt/locked-holders.js";
-import { specForKeyword, specForType } from "../adt/types.js";
+import { specForKeyword, specForType, type TypeSpec } from "../adt/types.js";
+import { listInactiveObjectsOfPackage } from "../adt/inactive-objects.js";
 import { toAbapError, type SessionTransport } from "../adt/session-transport.js";
 import {
   authorizeMutation,
@@ -130,8 +142,20 @@ const affectsSchema = z.object({
 });
 
 export const activateInputSchema = {
-  object: z.string().optional().describe("Object reference."),
-  type: z.string().optional().describe("ADT type, e.g. CLAS/OC."),
+  object: z
+    .string()
+    .optional()
+    .describe(
+      "Object reference. Required unless `objects` (batch), `package` (package activation), " +
+        "or the inline form (mode=check with `type` + `source`, no server object).",
+    ),
+  type: z
+    .string()
+    .optional()
+    .describe(
+      "ADT type, e.g. CLAS/OC. Also names the type of an inline `source` draft when `object` " +
+        "is omitted (mode=check only): PROG/P, CLAS/OC or INTF/OI.",
+    ),
   mode: z
     .enum(["check", "activate", "format"])
     .optional()
@@ -139,7 +163,13 @@ export const activateInputSchema = {
       "Default activate. format pretty-prints ABAP source: `source` alone formats text (no " +
         "write), `object` alone formats and saves the object if it changed — never both.",
     ),
-  source: z.string().optional().describe("Unsaved draft to check/activate, or text to format."),
+  source: z
+    .string()
+    .optional()
+    .describe(
+      "With `object`: draft to check/activate for that object. mode=check without `object`: " +
+        "the draft to check inline (needs `type`). Or text to format.",
+    ),
   corr_nr: z.string().optional().describe("Transport request. $TMP needs none. Not for text format."),
   // Same shape as abap_write's `affects` — REQUIRED to activate an EXISTING
   // ENHO/XH or ENHS/XS (safety.ts); ignored for every other type.
@@ -163,6 +193,18 @@ export const activateInputSchema = {
     .max(MAX_ACTIVATION_BATCH)
     .optional()
     .describe("Batch activate, 2+ objects; omit `object`. mode=activate only."),
+  package: z
+    .string()
+    .optional()
+    .describe(
+      "mode=activate only: activate every inactive object of this package (your own inactive " +
+        "worklist, intersected with the package contents) in one activation request. Not " +
+        "combinable with `object`, `objects`, `type`, `source`, `affects`.",
+    ),
+  recursive: z
+    .boolean()
+    .optional()
+    .describe("With `package`: also include sub-packages (depth-capped)."),
 };
 
 export const ActivateInput = z.object(activateInputSchema);
@@ -384,6 +426,17 @@ export async function abapActivate(
   // container-parented types (FUGR/FF, FUGR/I); see archive for the incident.
   const mode = input.mode ?? "activate";
 
+  // `recursive` only means anything alongside `package` — checked first,
+  // ahead of every dispatch below, so it can't be silently ignored by one.
+  if (input.recursive !== undefined && input.package === undefined) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "`recursive` only applies together with `package` — it has no meaning without one.",
+      {},
+      "Add `package`, or drop `recursive`.",
+    );
+  }
+
   // ---- batch dispatch ----------------------------------------------------
   //
   // `object`/`objects` are both plain-optional (not a `.refine()`-wrapped
@@ -391,7 +444,7 @@ export async function abapActivate(
   // `test/v2-write-arg-forwarding.test.ts` §6. The cross-field rules a union
   // would otherwise encode are therefore checked here, by hand.
   if (input.objects !== undefined) {
-    const stray = (["object", "type", "affects", "corr_nr", "source"] as const).filter(
+    const stray = (["object", "type", "affects", "corr_nr", "source", "package"] as const).filter(
       (k) => input[k] !== undefined,
     );
     if (stray.length) {
@@ -418,18 +471,62 @@ export async function abapActivate(
     return abapActivateBatch(conn, input.objects, maxChars, gate, transport, journal);
   }
 
+  // ---- package dispatch (issue #217) --------------------------------------
+  // `objects` already ruled out above, so this can't be reached with both.
+  if (input.package !== undefined) {
+    const stray = (["object", "objects", "type", "source", "affects"] as const).filter(
+      (k) => input[k] !== undefined,
+    );
+    if (stray.length) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "`package` activates every inactive object of that package and does not combine with " +
+          `top-level ${stray.map((k) => `\`${k}\``).join(", ")} — those name a single object or ` +
+          "a batch, which `package` does not use.",
+        { stray },
+        "Drop the field(s) named above, or activate a specific object/batch with `object`/" +
+          "`objects` instead of `package`.",
+      );
+    }
+    if (mode !== "activate") {
+      throw new AbapError(
+        "BAD_INPUT",
+        "`package` only supports mode=activate — there is no package-wide syntax check.",
+        { mode },
+        "Drop `mode` (default is activate), or check objects individually with `object`.",
+      );
+    }
+    return abapActivatePackage(conn, input, maxChars, gate, transport, journal);
+  }
+
   if (mode === "format") {
     return abapActivateFormat(conn, input, maxChars, gate, transport, journal, verifyWrites);
+  }
+
+  // ---- inline check dispatch (issue #213) ---------------------------------
+  // `object`/`objects`/`package` all ruled out above — a source draft with no
+  // server object at all, matched to a type instead.
+  if (
+    input.object === undefined &&
+    input.objects === undefined &&
+    input.package === undefined &&
+    mode === "check" &&
+    input.source !== undefined
+  ) {
+    return abapActivateInline(conn, input, maxChars, gate);
   }
 
   const objectRef = input.object;
   if (objectRef === undefined) {
     throw new AbapError(
       "BAD_INPUT",
-      "Pass either `object` (single object) or `objects` (batch — 2 or more objects in one " +
-        "activation request).",
+      "Pass either `object` (single object), `objects` (batch — 2 or more objects in one " +
+        "activation request), or `package` (activate every inactive object of a package). To syntax-check " +
+        "a draft with no server object yet, use mode=check with `type` and `source` instead of " +
+        "`object`.",
       {},
-      "Add `object: \"<name>\"` to activate one object, or `objects: [...]` to activate several.",
+      'Add `object: "<name>"`, `objects: [...]`, or `package: "<name>"` — or, with mode=check, ' +
+        "`type` + `source` to check a draft inline.",
     );
   }
 
@@ -745,6 +842,140 @@ export async function abapActivate(
 }
 
 /**
+ * Pure, zero-wire: what `mode=check` without `object` needs before any
+ * request goes out — normalise `type`, and derive the object name the draft
+ * in `source` names. PROG/P is checked against a synthetic URI with no
+ * server object at all (the checkrun endpoint only needs a well-formed
+ * name); CLAS/OC and INTF/OI are checked as a draft of an EXISTING server
+ * object of that name (`abapActivateInline` resolves and confirms it) —
+ * ADT's checkrun answers `notProcessed` with no messages for a class/
+ * interface draft naming nothing on the server, which the vendor parser
+ * turns into a falsely clean result, so that case is refused with NOT_FOUND
+ * instead of silently reporting "clean". Exported so the tool handler can
+ * call this as its own zero-network preflight refusal.
+ */
+export function inlineCheckTarget(
+  type: string,
+  source: string,
+): { spec: TypeSpec; type: "PROG/P" | "CLAS/OC" | "INTF/OI"; name: string } {
+  const spec = specForType(type) ?? specForKeyword(type);
+  if (!spec || (spec.type !== "PROG/P" && spec.type !== "CLAS/OC" && spec.type !== "INTF/OI")) {
+    throw new AbapError(
+      "UNSUPPORTED",
+      "mode=check without `object` can only check PROG/P, CLAS/OC and INTF/OI drafts inline; " +
+        `${type} is not one of them.`,
+      { type, supported: ["PROG/P", "CLAS/OC", "INTF/OI"] },
+      "Write the object with activate: false and check it with `object`, or pass `object` " +
+        "naming an existing object of that type.",
+    );
+  }
+  const resolvedType = spec.type as "PROG/P" | "CLAS/OC" | "INTF/OI";
+
+  if (resolvedType === "PROG/P") {
+    const m = /^\s*(?:REPORT|PROGRAM)\s+([\w/]+)/im.exec(source);
+    // No REPORT/PROGRAM statement: let the server report the missing
+    // statement itself, under a placeholder name.
+    return { spec, type: resolvedType, name: m ? m[1]!.toUpperCase() : "ZAS_INLINE_CHECK" };
+  }
+  if (resolvedType === "CLAS/OC") {
+    const m = /^\s*CLASS\s+([\w/]+)\s+DEFINITION/im.exec(source);
+    if (!m) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "no `CLASS <name> DEFINITION` statement found in `source`, so the draft cannot be " +
+          "matched to a server object.",
+        {},
+        "Add the `CLASS <name> DEFINITION` statement, or pass `object` naming an existing " +
+          "class instead.",
+      );
+    }
+    return { spec, type: resolvedType, name: m[1]!.toUpperCase() };
+  }
+  const m = /^\s*INTERFACE\s+([\w/]+)/im.exec(source);
+  if (!m) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "no `INTERFACE <name>` statement found in `source`, so the draft cannot be matched to a " +
+        "server object.",
+      {},
+      "Add the `INTERFACE <name>` statement, or pass `object` naming an existing interface " +
+        "instead.",
+    );
+  }
+  return { spec, type: resolvedType, name: m[1]!.toUpperCase() };
+}
+
+/**
+ * `mode=check` with no `object`: check a PROG/P, CLAS/OC or INTF/OI draft
+ * inline. See `inlineCheckTarget` for how the target is derived and why
+ * CLAS/OC and INTF/OI need an existing server object but PROG/P does not.
+ */
+export async function abapActivateInline(
+  conn: AbapConnection,
+  input: ActivateInput,
+  maxChars: number,
+  gate: SafetyGate,
+): Promise<BuiltResponse> {
+  if (input.type === undefined) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "mode=check without `object` needs `type` (PROG/P, CLAS/OC or INTF/OI) and `source`.",
+      {},
+      "Pass `object` to check an existing object (with or without `source`), or add `type` " +
+        "alongside `source` to check a draft inline with no object.",
+    );
+  }
+  const source = input.source as string; // guaranteed by the caller's dispatch condition
+  const t = inlineCheckTarget(input.type, source);
+
+  const respond = (
+    check: { ok: boolean; errors: number; warnings: number; messages: AdtMessage[] },
+    note: string,
+  ): BuiltResponse =>
+    buildResponse({
+      header: {
+        system: conn.cfg.sid,
+        object: `${t.type} ${t.name}`,
+        mode: "check",
+        inline: true,
+        result: check.ok ? "clean" : `${check.errors} error(s), ${check.warnings} warning(s)`,
+        errors: check.errors,
+        warnings: check.warnings,
+      },
+      body: `# SYNTAX CHECK\n${renderMessages(check.messages, source).trim() || "(no messages)"}`,
+      bodyLabel: "MESSAGES",
+      notes: [note],
+      hints: ["Line numbers come from the check run and refer to the source that was checked."],
+      maxChars,
+    });
+
+  if (t.type === "PROG/P") {
+    const uri = t.spec.path.replace("{name}", t.name.toLowerCase());
+    const check = await checkSource(conn, { uri, sourceUri: `${uri}/source/main`, name: t.name }, source);
+    return respond(check, "Checked the supplied draft inline (no server object was read or written).");
+  }
+
+  // CLAS/OC or INTF/OI: must exist, or ADT's checkrun silently reports clean.
+  const target = await resolveWriteTarget(conn, { name: t.name, type: t.type }, "activate");
+  if (!target.exists) {
+    throw new AbapError(
+      "NOT_FOUND",
+      `${t.spec.label} ${t.name} does not exist on ${conn.cfg.sid}; a class or interface draft ` +
+        "is checked as a draft of the server object of that name (a missing one is reported as " +
+        "clean by ADT).",
+      { object: t.name, type: t.type, system: conn.cfg.sid, mode: "check", inline: true },
+      "Write it first with abap_write (activate: false is enough), then check; or check plain " +
+        "report code as PROG/P.",
+    );
+  }
+  const check = await checkSource(conn, target, source);
+  return respond(
+    check,
+    `Checked the supplied draft against the existing ${t.spec.label} ${t.name}; nothing was written.`,
+  );
+}
+
+/**
  * The batch path for `abap_activate`'s `objects` field. Called from
  * `abapActivate` once `objects` is validated as the only relevant input;
  * also exported for direct test use.
@@ -787,6 +1018,20 @@ export async function abapActivateBatch(
   transport?: SessionTransport,
   /** See `abapActivate`'s own `journal` parameter. */
   journal?: Journal,
+  /**
+   * Present only when called from `abapActivatePackage` (the `package`
+   * form) — adds `package`/`recursive`/`packages_scanned` to the response
+   * header and scope-specific notes. Absent for the plain `objects` batch
+   * path, which this parameter must not otherwise affect.
+   */
+  scope?: {
+    package: string;
+    recursive: boolean;
+    packages: string[];
+    truncated: boolean;
+    user: string;
+    skippedDeleted: string[];
+  },
 ): Promise<BuiltResponse> {
   const wanted = entries.map((e) => {
     const hint = e.type ? (specForType(e.type) ?? specForKeyword(e.type)) : undefined;
@@ -901,6 +1146,13 @@ export async function abapActivateBatch(
       objects: targets.map((t) => t.name).join(", "),
       count: targets.length,
       mode: "activate",
+      ...(scope
+        ? {
+            package: scope.package,
+            recursive: scope.recursive,
+            packages_scanned: scope.packages.length,
+          }
+        : {}),
       result:
         outcome.warnings > 0 ? `clean, ${outcome.warnings} warning(s)` : "clean",
       activated: outcome.activated,
@@ -922,6 +1174,28 @@ export async function abapActivateBatch(
         : []),
       "No `source` was supplied for any object — batch activation acts directly on the version " +
         "already saved on the server for each one; the messages above are the only check that ran.",
+      ...(scope
+        ? [
+            `Activated ${scope.user}'s inactive objects of package ${scope.package}` +
+              (scope.recursive && scope.packages.length > 1
+                ? ` and ${scope.packages.length - 1} sub-package(s)`
+                : "") +
+              " — ADT's inactive worklist is per-user; another user's inactive changes here were " +
+              "not included.",
+            ...(scope.skippedDeleted.length
+              ? [
+                  `Skipped ${scope.skippedDeleted.length} pending deletion(s) — abap_activate never ` +
+                    `activates a deletion: ${scope.skippedDeleted.join(", ")}.`,
+                ]
+              : []),
+            ...(scope.truncated
+              ? [
+                  "The sub-package walk was cut at its cap before finishing — some sub-packages may " +
+                    "not have been scanned.",
+                ]
+              : []),
+          ]
+        : []),
     ],
     hints: [
       "Each object's own section above is what the server tied to it; the (unattributed) " +
@@ -930,6 +1204,106 @@ export async function abapActivateBatch(
     ],
     maxChars,
   });
+}
+
+// DDIC types ordered first within a package batch — same fan-out-avoidance
+// rationale as `chunkActivationTargets` grouping by type (src/adt/activate.ts):
+// putting domains before data elements before tables etc. keeps a batch's
+// DDIC dependencies activating in dependency order rather than at random.
+const DDIC_ACTIVATION_ORDER = ["DOMA/DD", "DTEL/DE", "TABL/DT", "TTYP/DA", "VIEW/DV", "DDLS/DF"];
+
+/**
+ * `abap_activate`'s `package` form (issue #217): activate every inactive
+ * object of a package — restricted to the CALLER's own inactive worklist
+ * (`listInactiveObjectsOfPackage`; ADT's inactive-objects list is per-user,
+ * there is no "everyone's inactive objects in this package" endpoint)
+ * intersected with the package and, if `recursive`, its sub-packages — in
+ * one activation request via `abapActivateBatch`.
+ *
+ * Objects pending DELETION are never activated (there is nothing to
+ * activate) — they are reported skipped, not silently dropped.
+ */
+export async function abapActivatePackage(
+  conn: AbapConnection,
+  input: ActivateInput,
+  maxChars: number,
+  gate: SafetyGate,
+  transport?: SessionTransport,
+  journal?: Journal,
+): Promise<BuiltResponse> {
+  const packageName = input.package as string; // guaranteed by the caller's dispatch condition
+  const recursive = input.recursive ?? false;
+  const listing = await listInactiveObjectsOfPackage(conn, { packageName, recursive });
+
+  const deleted = listing.entries.filter((e) => e.deleted);
+  const candidates = listing.entries.filter((e) => !e.deleted);
+  const subPackageCount = Math.max(listing.packages.length - 1, 0);
+
+  if (candidates.length === 0) {
+    return buildResponse({
+      header: {
+        system: conn.cfg.sid,
+        package: packageName,
+        recursive,
+        mode: "activate",
+        count: 0,
+        result: "nothing to activate",
+        user: listing.user,
+      },
+      body:
+        `No inactive objects of ${listing.user} in ${packageName}` +
+        (recursive && subPackageCount > 0 ? ` or its ${subPackageCount} sub-package(s)` : "") +
+        ".",
+      notes: [
+        "This lists only your own inactive objects — ADT's inactive worklist is per-user; " +
+          "another user's inactive changes in this package are not visible here.",
+        ...(deleted.length
+          ? [
+              `${deleted.length} pending deletion(s) were skipped — abap_activate never activates ` +
+                `a deletion: ${deleted.map((d) => d.name).join(", ")}.`,
+            ]
+          : []),
+      ],
+      maxChars,
+    });
+  }
+
+  if (candidates.length > MAX_ACTIVATION_BATCH) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `package ${packageName} has ${candidates.length} inactive object(s), over the ` +
+        `${MAX_ACTIVATION_BATCH}-object activation batch limit.`,
+      { package: packageName, count: candidates.length, limit: MAX_ACTIVATION_BATCH },
+      "Activate a sub-package at a time (recursive: false, or a narrower `package`), or use " +
+        "`objects` with a smaller list.",
+    );
+  }
+
+  const rank = (type: string): number => {
+    const i = DDIC_ACTIVATION_ORDER.indexOf(type);
+    return i === -1 ? DDIC_ACTIVATION_ORDER.length : i;
+  };
+  const ordered = candidates
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => rank(a.c.type) - rank(b.c.type) || a.i - b.i)
+    .map(({ c }) => c);
+
+  return abapActivateBatch(
+    conn,
+    ordered.map((c) => ({ object: c.name, type: c.type })),
+    maxChars,
+    gate,
+    transport,
+    journal,
+    {
+      package: packageName,
+      recursive,
+      packages: listing.packages,
+      truncated: listing.truncated,
+      user: listing.user,
+      skippedDeleted: deleted.map((d) => d.name),
+    },
+  );
 }
 
 /**
@@ -1296,8 +1670,66 @@ export function registerActivateTools(mcp: McpServer, deps: ActivateToolDeps): v
           source?: string;
           affects?: EnhancedObjectRef;
           objects?: Array<{ object: string; type?: string; affects?: EnhancedObjectRef }>;
+          package?: string;
+          recursive?: boolean;
         };
         const mode = a.mode ?? "activate";
+
+        // `recursive` only means anything alongside `package` — same rule
+        // `abapActivate` enforces again below, but this half must fail
+        // BEFORE `ensureConnected()`.
+        if (a.recursive !== undefined && a.package === undefined) {
+          throw new AbapError(
+            "BAD_INPUT",
+            "`recursive` only applies together with `package` — it has no meaning without one.",
+            {},
+            "Add `package`, or drop `recursive`.",
+          );
+        }
+
+        if (a.package !== undefined) {
+          const stray = (["object", "objects", "type", "source", "affects"] as const).filter(
+            (k) => a[k] !== undefined,
+          );
+          if (stray.length) {
+            throw new AbapError(
+              "BAD_INPUT",
+              "`package` activates every inactive object of that package and does not combine " +
+                `with top-level ${stray.map((k) => `\`${k}\``).join(", ")} — those name a single ` +
+                "object or a batch, which `package` does not use.",
+              { stray },
+              "Drop the field(s) named above, or activate a specific object/batch with " +
+                "`object`/`objects` instead of `package`.",
+            );
+          }
+          if (mode !== "activate") {
+            throw new AbapError(
+              "BAD_INPUT",
+              "`package` only supports mode=activate — there is no package-wide syntax check.",
+              { mode },
+              "Drop `mode` (default is activate), or check objects individually with `object`.",
+            );
+          }
+          // Zero-network gate ceiling check (productive/writesLockedOut/
+          // read-only) — this is legitimately object-less at this point, so
+          // only a genuine ceiling refusal is raised here; per-object
+          // authorisation happens inside `abapActivateBatch` once the
+          // package's inactive objects are known.
+          const d = deps.safety.evaluate("activate", undefined, { phase: "preflight" });
+          if (!d.allowed && d.rule !== "no object supplied for mutating operation") {
+            throw new AbapError(
+              d.code ?? "READ_ONLY",
+              d.reason,
+              { operation: "activate", rule: d.rule, package: a.package, phase: "preflight" },
+              d.hint,
+            );
+          }
+          await deps.ensureConnected();
+          const run = (conn: AbapConnection) =>
+            abapActivate(conn, args as ActivateInput, deps.cfg.maxResponseChars, deps.safety, deps.transport, deps.journal);
+          const res = await deps.pool.withWrite("abap_activate", undefined, run);
+          return ok(res.text);
+        }
 
         if (a.objects !== undefined) {
           // Same rule `abapActivate` enforces again below, but this half
@@ -1420,14 +1852,40 @@ export function registerActivateTools(mcp: McpServer, deps: ActivateToolDeps): v
           return ok(res.text);
         }
 
+        // ---- inline check dispatch (issue #213) ---------------------------
+        // `object`/`objects`/`package` all ruled out above — a source draft
+        // with no server object at all, matched to a type instead. Same
+        // zero-network preflight as `inlineCheckTarget` itself: a missing
+        // `type` or an unparseable draft is refused before `ensureConnected()`.
+        if (a.object === undefined && mode === "check" && a.source !== undefined) {
+          if (a.type === undefined) {
+            throw new AbapError(
+              "BAD_INPUT",
+              "mode=check without `object` needs `type` (PROG/P, CLAS/OC or INTF/OI) and `source`.",
+              {},
+              "Pass `object` to check an existing object (with or without `source`), or add " +
+                "`type` alongside `source` to check a draft inline with no object.",
+            );
+          }
+          const t = inlineCheckTarget(a.type, a.source);
+          deps.safety.assert("analyze", { name: t.name, type: t.type }, { phase: "preflight" });
+          await deps.ensureConnected();
+          const run = (conn: AbapConnection) =>
+            abapActivate(conn, args as ActivateInput, deps.cfg.maxResponseChars, deps.safety, deps.transport, deps.journal);
+          const res = await deps.pool.withRead("abap_activate", run);
+          return ok(res.text);
+        }
+
         if (a.object === undefined) {
           throw new AbapError(
             "BAD_INPUT",
-            "Pass either `object` (single object) or `objects` (batch — 2 or more objects in " +
-              "one activation request).",
+            "Pass either `object` (single object), `objects` (batch — 2 or more objects in one " +
+              "activation request), or `package` (activate every inactive object of a package). " +
+              "To syntax-check a draft with no server object yet, use mode=check with `type` and " +
+              "`source` instead of `object`.",
             {},
-            'Add `object: "<name>"` to activate one object, or `objects: [...]` to activate ' +
-              "several.",
+            'Add `object: "<name>"`, `objects: [...]`, or `package: "<name>"` — or, with ' +
+              "mode=check, `type` + `source` to check a draft inline.",
           );
         }
         const object = a.object;
