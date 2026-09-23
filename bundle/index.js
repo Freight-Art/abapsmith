@@ -61852,12 +61852,12 @@ var init_capabilities = __esm({
         bridgeCreate: {
           adtRest: "ADT exposes a transaction read-only through the generic VIT bridge and returns 405 ExceptionMethodNotSupported on every mutating verb; there is no writable ADT collection for TRAN/T. (The ADT type code is TRAN/T, not TSTC \u2014 TSTC is the underlying database table, not an ADT object type.) src/adt/catalog-read.ts also reads TSTC/TSTCT/TSTCP/TSTCA/AGR_TCODES through plain-text catalog SELECTs, which return strictly more than the VIT bridge's read (call parameters, authorisation checks, role-menu membership) and work in every ABAP_MODE, unlike the fluid bridge the writes below depend on.",
           via: "RPY_TRANSACTION_INSERT (function group SEUA) \u2014 SE93's own backend: it collision-checks TSTC, runs RS_ACCESS_PERMISSION, fires the SWBM_C_OP_CREATE BAdI check, calls RS_CORR_INSERT for transport/TADIR registration, then inserts TSTC/TSTCT/TSTCC. Called from a generated IF_OO_ADT_CLASSRUN bridge \u2014 see src/adt/tran-create.ts.",
-          limits: "Creates a REPORT transaction (dynpro 1000) that starts an EXISTING program the caller names; the program is not created or checked for existence here. Dialog, parameter, variant and OO transactions, and a caller-chosen dynpro number, are not exposed. Retargeting an EXISTING transaction to a different program is now supported over src/adt/tran-update.ts's updateTransaction: it dispatches the fluid classic tool's update_transaction action, which checks TSTC existence, refuses the retarget unless the caller passes confirm_in_role_menu when the tcode is already assigned to one or more roles' menus (AGR_TCODES) \u2014 an SM01 transaction lock is NOT checked either way, by explicit design choice, see abap-tran.ts's own honesty note \u2014 registers the change via RS_CORR_INSERT, calls RPY_TRANSACTION_DELETE (function group SEUA) with suppress_corr_insert/suppress_corr_check both 'X' since the registration above already covers CTS, then re-RPY_TRANSACTION_INSERTs against the new program, then re-reads TSTC to prove PGMNA actually changed. RPY_TRANSACTION_DELETE's signature was captured live on A4H (NetWeaver 7.54, client 001) 2026-09-12 \u2014 not inferred, as this entry previously read: IN TRANSACTION TSTC-TCODE (required), TRANSPORT_NUMBER RGLIF-TRKORR, SUPPRESS_AUTHORITY_CHECK CHAR1, SUPPRESS_CORR_INSERT CHAR1, SUPPRESS_CORR_CHECK CHAR1; exceptions NOT_EXCECUTED (SAP's own misspelling, not a typo introduced here) and OBJECT_NOT_FOUND. Proven live on A4H 2026-09-12, in $TMP only: the delete step returned message EU075, and the read-back showed the new program. The transportable (non-$TMP) path runs the identical FM sequence with a real korrnum but has NOT itself been run against a live system \u2014 see this type's bridgeDelete entry below for the same caveat on plain deletion. A transportable package requires corr_nr (TRANSPORT_ERROR without one); a $ package refuses one (BAD_INPUT) and registers with korrnum = space. RPY_TRANSACTION_INSERT's signature was read live on A4H 2026-09-05: transport_number is optional and is forwarded verbatim to RS_CORR_INSERT as korrnum, and suppress_corr_insert defaults to space, so the transport/TADIR registration always runs. No live create with a transport has been run yet."
+          limits: "Creates a report (default, dynpro 1000), dialog (caller-chosen dynpro), parameter, variant, or OO transaction with a transaction model (the OS_APPLICATION form, stored as a parameter transaction with CLASS/METHOD/UPDATE_MODE TSTCP assignments); the underlying program/class/method the caller names is not created or checked for existence here. The OO form with NO transaction model (TSTCP `\\CLASS=...\\METHOD=...`) has no SAP write API and stays read-only. Retargeting an EXISTING transaction to a different program is now supported over src/adt/tran-update.ts's updateTransaction: it dispatches the fluid classic tool's update_transaction action, which checks TSTC existence, refuses the retarget unless the caller passes confirm_in_role_menu when the tcode is already assigned to one or more roles' menus (AGR_TCODES) \u2014 an SM01 transaction lock is NOT checked either way, by explicit design choice, see abap-tran.ts's own honesty note \u2014 registers the change via RS_CORR_INSERT, calls RPY_TRANSACTION_DELETE (function group SEUA) with suppress_corr_insert/suppress_corr_check both 'X' since the registration above already covers CTS, then re-RPY_TRANSACTION_INSERTs against the new program, then re-reads TSTC to prove PGMNA actually changed. RPY_TRANSACTION_DELETE's signature was captured live on A4H (NetWeaver 7.54, client 001) 2026-09-12 \u2014 not inferred, as this entry previously read: IN TRANSACTION TSTC-TCODE (required), TRANSPORT_NUMBER RGLIF-TRKORR, SUPPRESS_AUTHORITY_CHECK CHAR1, SUPPRESS_CORR_INSERT CHAR1, SUPPRESS_CORR_CHECK CHAR1; exceptions NOT_EXCECUTED (SAP's own misspelling, not a typo introduced here) and OBJECT_NOT_FOUND. Proven live on A4H 2026-09-12, in $TMP only: the delete step returned message EU075, and the read-back showed the new program. The transportable (non-$TMP) path runs the identical FM sequence with a real korrnum but has NOT itself been run against a live system \u2014 see this type's bridgeDelete entry below for the same caveat on plain deletion. A transportable package requires corr_nr (TRANSPORT_ERROR without one); a $ package refuses one (BAD_INPUT) and registers with korrnum = space. RPY_TRANSACTION_INSERT's signature was read live on A4H 2026-09-05: transport_number is optional and is forwarded verbatim to RS_CORR_INSERT as korrnum, and suppress_corr_insert defaults to space, so the transport/TADIR registration always runs. No live create with a transport has been run yet."
         },
         bridgeDelete: {
           adtRest: "Read-only through the generic VIT bridge, same as bridgeCreate: 405 ExceptionMethodNotSupported on every mutating verb, no writable ADT collection.",
           via: "RPY_TRANSACTION_DELETE (function group SEUA \u2014 SE93's own backend), called from a generated IF_OO_ADT_CLASSRUN bridge. Success is proven by re-reading TSTC, not by a clean FM return alone. See src/adt/tran-delete.ts and src/adt/ddic-bridge.ts.",
-          limits: "RPY_TRANSACTION_DELETE's parameter set was captured live on A4H (NetWeaver 7.54, client 001) 2026-09-12 \u2014 not inferred from RPY_TRANSACTION_INSERT's `transaction` parameter name, as this entry previously read: IN TRANSACTION TSTC-TCODE (required), TRANSPORT_NUMBER RGLIF-TRKORR, SUPPRESS_AUTHORITY_CHECK CHAR1, SUPPRESS_CORR_INSERT CHAR1, SUPPRESS_CORR_CHECK CHAR1; exceptions NOT_EXCECUTED (SAP's own misspelling) and OBJECT_NOT_FOUND \u2014 see this type's bridgeCreate entry above, where the same signature backs the retarget route. Guarded by the same where-used check as retargeting: a tcode already assigned to one or more roles' menus (AGR_TCODES) refuses the delete unless the caller passes confirm_in_role_menu; an SM01 transaction lock is NOT checked either way. Live-verified once, 2026-09-05: a $ package transaction was created and then deleted with TRAN-DELETED / TRAN-GONE and a post-delete re-read proving absence. This bridgeCreate entry's own `via` already records that RPY_TRANSACTION_INSERT calls RS_CORR_INSERT for transport/TADIR registration; whether RPY_TRANSACTION_DELETE does the same is unknown, so deleting a transaction out of a TRANSPORTABLE package may plausibly hit a headless-dynpro failure the way VIEW/DV create originally did, before suppress_dialog fixed it there. No transport handling is attempted here either way."
+          limits: "RPY_TRANSACTION_DELETE's parameter set was captured live on A4H (NetWeaver 7.54, client 001) 2026-09-12 \u2014 not inferred from RPY_TRANSACTION_INSERT's `transaction` parameter name, as this entry previously read: IN TRANSACTION TSTC-TCODE (required), TRANSPORT_NUMBER RGLIF-TRKORR, SUPPRESS_AUTHORITY_CHECK CHAR1, SUPPRESS_CORR_INSERT CHAR1, SUPPRESS_CORR_CHECK CHAR1; exceptions NOT_EXCECUTED (SAP's own misspelling) and OBJECT_NOT_FOUND \u2014 see this type's bridgeCreate entry above, where the same signature backs the retarget route. Guarded by the same where-used check as retargeting: a tcode already assigned to one or more roles' menus (AGR_TCODES) refuses the delete unless the caller passes confirm_in_role_menu; an SM01 transaction lock is NOT checked either way. Live-verified once, 2026-09-05: a $ package transaction was created and then deleted with TRAN-DELETED / TRAN-GONE and a post-delete re-read proving absence. Delete is now transport-aware (issue #202): a transaction in a transportable (non-$) package is registered via this module's own RS_CORR_INSERT call \u2014 the same way tran-update.ts's retarget registers one \u2014 before RPY_TRANSACTION_DELETE runs, with suppress_corr_insert/suppress_corr_check both 'X' since that registration already covers CTS; a local ($-prefixed) package still deletes with no transport at all. Only the $TMP path above has actually been run live; the transportable path runs the same FM sequence but has NOT itself been proven against a live system."
         }
       },
       // Not in types.ts — see the module doc. Program subobjects (not standalone
@@ -80117,8 +80117,6 @@ var viewPart = {
 var SOURCE2 = `  METHOD create_transaction.
     DATA lv_tcode TYPE tstc-tcode.
     lv_tcode = s( 'tcode' ).
-    DATA lv_program TYPE tstc-pgmna.
-    lv_program = s( 'program' ).
     DATA lv_description TYPE tstct-ttext.
     lv_description = s( 'description' ).
     DATA lv_package TYPE devclass.
@@ -80132,20 +80130,95 @@ var SOURCE2 = `  METHOD create_transaction.
       lv_transport = lv_corr_nr.
     ENDIF.
 
+    " issue #214: transaction_type now selects among RPY_TRANSACTION_INSERT's
+    " four reachable shapes - 'R' report, 'D' dialog, 'P' parameter (also how
+    " an OO transaction with transaction model is stored - see
+    " tran-create.ts's header), 'V' variant. There is no 'O' branch in the
+    " FM itself - never send it.
+    DATA lv_type TYPE stran_type.
+    lv_type = s( 'transaction_type' ).
+    IF lv_type <> 'R' AND lv_type <> 'D' AND lv_type <> 'P' AND lv_type <> 'V'.
+      fail( |transaction_type { lv_type } must be one of R (report), D (dialog), | &&
+        |P (parameter), V (variant)| ).
+      RETURN.
+    ENDIF.
+
+    DATA lv_program TYPE tstc-pgmna.
+    lv_program = s( 'program' ).
+
+    " RPY_TRANSACTION_INSERT's DYNPRO is TYPE d020s-dnum (CHAR4), not
+    " tstc-dypno (NUMC4) - a NUMC local here raises CX_SY_DYN_CALL_ILLEGAL_TYPE.
+    " Report kind ignores dynpro anyway (always starts on 1000).
+    DATA lv_dynpro TYPE d020s-dnum.
+    IF lv_type = 'R'.
+      lv_dynpro = '1000'.
+    ELSEIF s( 'dynpro' ) IS NOT INITIAL.
+      lv_dynpro = s( 'dynpro' ).
+    ENDIF.
+
+    " called_transaction/transaction_type/variant also fail with
+    " CX_SY_DYN_CALL_ILLEGAL_TYPE if left as s()'s inferred TYPE string -
+    " RPY_TRANSACTION_INSERT's VALUE() parameters reject a STRING actual.
+    DATA lv_called TYPE tstc-tcode.
+    lv_called = s( 'called_transaction' ).
+    DATA lv_skip TYPE char01.
+    lv_skip = COND char01( WHEN b( 'skip_first_screen' ) = abap_true THEN 'X' ELSE space ).
+    DATA lv_variant TYPE tcvariant.
+    lv_variant = s( 'variant' ).
+    DATA lv_cl_indep TYPE char01.
+    lv_cl_indep = COND char01( WHEN b( 'cross_client_variant' ) = abap_true THEN 'X' ELSE space ).
+
+    " TSTCP screen-field assignments (parameter transactions) or the fixed
+    " CLASS/METHOD/UPDATE_MODE triple (OO with transaction model, sent by
+    " tran-create.ts's transactionInsertArgs as transaction_type 'P' against
+    " called_transaction 'OS_APPLICATION') - same n()/DO...TIMES shape
+    " abap-shlp.ts's fields/includes/assignments tables use.
+    DATA lt_params TYPE STANDARD TABLE OF rsparam WITH DEFAULT KEY.
+    DATA lv_param_count TYPE i.
+    DATA lv_i TYPE i.
+    lv_param_count = n( 'parameters' ).
+    DO lv_param_count TIMES.
+      lv_i = sy-index.
+      APPEND VALUE #( field = s( |parameters/{ lv_i - 1 }/field| )
+                       value = s( |parameters/{ lv_i - 1 }/value| ) ) TO lt_params.
+    ENDDO.
+
     CALL FUNCTION 'RPY_TRANSACTION_INSERT'
-      EXPORTING transaction       = lv_tcode
-                program           = lv_program
-                dynpro            = '1000'
-                language          = sy-langu
-                development_class = lv_package
-                transport_number  = lv_transport
-                transaction_type  = 'R'
-                shorttext         = lv_description
+      EXPORTING transaction             = lv_tcode
+                program                 = lv_program
+                dynpro                  = lv_dynpro
+                language                = sy-langu
+                development_class       = lv_package
+                transport_number        = lv_transport
+                transaction_type        = lv_type
+                shorttext               = lv_description
+                called_transaction      = lv_called
+                called_transaction_skip = lv_skip
+                variant                 = lv_variant
+                cl_independend          = lv_cl_indep
+      TABLES param_values = lt_params
       EXCEPTIONS cancelled = 1 already_exist = 2 permission_error = 3
                  name_not_allowed = 4 name_conflict = 5 illegal_type = 6
                  object_inconsistent = 7 db_access_error = 8 OTHERS = 9.
     IF sy-subrc <> 0.
-      fail( |RPY_TRANSACTION_INSERT failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      DATA lv_exc TYPE string.
+      CASE sy-subrc.
+        WHEN 1. lv_exc = 'cancelled'.
+        WHEN 2. lv_exc = 'already_exist'.
+        WHEN 3. lv_exc = 'permission_error'.
+        WHEN 4. lv_exc = 'name_not_allowed'.
+        WHEN 5. lv_exc = 'name_conflict'.
+        WHEN 6. lv_exc = 'illegal_type'.
+        WHEN 7. lv_exc = 'object_inconsistent'.
+        WHEN 8. lv_exc = 'db_access_error'.
+        WHEN OTHERS. lv_exc = 'unknown'.
+      ENDCASE.
+      DATA lv_msg TYPE string.
+      IF sy-msgid IS NOT INITIAL.
+        MESSAGE ID sy-msgid TYPE 'S' NUMBER sy-msgno
+          WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4 INTO lv_msg.
+      ENDIF.
+      fail( |RPY_TRANSACTION_INSERT failed, sy-subrc={ sy-subrc } ({ lv_exc }): { lv_msg }| ).
       RETURN.
     ENDIF.
     line( 'TRAN-CREATED' ).
@@ -80293,11 +80366,27 @@ var SOURCE2 = `  METHOD create_transaction.
     DATA ls_tstc TYPE tstc.
     DATA lv_tcode TYPE tstc-tcode.
     lv_tcode = s( 'tcode' ).
+    DATA lv_package TYPE devclass.
+    lv_package = s( 'package_name' ).
+    DATA(lv_corr_nr) = s( 'corr_nr' ).
+    DATA(lv_local) = boolc( to_upper( lv_package ) CP '$*' ).
+    DATA lv_korrnum TYPE trkorr.
+    lv_korrnum = lv_corr_nr.
 
     " Step 1: confirm the transaction exists.
     SELECT SINGLE * FROM tstc INTO @ls_tstc WHERE tcode = @lv_tcode.
     IF sy-subrc <> 0.
       fail( |transaction { lv_tcode } does not exist| ).
+      RETURN.
+    ENDIF.
+
+    " Step 1a (issue #202): a transportable package needs a transport
+    " request the same way create/update do - RPY_TRANSACTION_DELETE has no
+    " suppress-dialog-only path for its own SAPLSTRD 0300 transport-request
+    " popup, so without corr_nr a headless run would hang there.
+    IF lv_local = abap_false AND lv_corr_nr IS INITIAL.
+      fail( |transaction { lv_tcode } is in transportable package { lv_package }; deleting it needs | &&
+        |a transport request (SAPLSTRD 0300) - pass corr_nr| ).
       RETURN.
     ENDIF.
 
@@ -80334,12 +80423,54 @@ var SOURCE2 = `  METHOD create_transaction.
         |({ lv_agr_list }) - an SM01 transaction lock is not checked here either| ).
     ENDIF.
 
-    " Step 2: delete via RPY_TRANSACTION_DELETE.
-    CALL FUNCTION 'RPY_TRANSACTION_DELETE'
-      EXPORTING transaction = lv_tcode
-      EXCEPTIONS OTHERS = 1.
+    DATA lv_del_msg TYPE string.
+    IF lv_local = abap_false.
+      " Step 2a (issue #202): register the delete in CTS first, same shape
+      " as update_transaction's Step 3 (RS_CORR_INSERT), but with no MODE
+      " - this call only needs to attach the object to the request, not
+      " insert-or-update its master record the way a retarget's re-insert
+      " does.
+      CALL FUNCTION 'RS_CORR_INSERT'
+        EXPORTING object = lv_tcode
+                  object_class = 'TRAN'
+                  devclass = lv_package
+                  master_language = sy-langu
+                  global_lock = 'X'
+                  korrnum = lv_korrnum
+                  suppress_dialog = 'X'
+        EXCEPTIONS cancelled = 1 permission_failure = 2 unknown_objectclass = 3 OTHERS = 4.
+      IF sy-subrc <> 0.
+        fail( |RS_CORR_INSERT failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+        RETURN.
+      ENDIF.
+      line( 'TRAN-REGISTERED' ).
+
+      " Step 2b: delete via RPY_TRANSACTION_DELETE - the transport is
+      " already registered above, so suppress_corr_insert/suppress_corr_check
+      " are both 'X', same reasoning as update_transaction's Step 4.
+      CALL FUNCTION 'RPY_TRANSACTION_DELETE'
+        EXPORTING transaction          = lv_tcode
+                  transport_number     = lv_korrnum
+                  suppress_corr_insert = 'X'
+                  suppress_corr_check  = 'X'
+        EXCEPTIONS not_excecuted = 1
+                   object_not_found = 2
+                   OTHERS = 3.
+    ELSE.
+      " Step 2: delete via RPY_TRANSACTION_DELETE - local package, no
+      " transport at all.
+      CALL FUNCTION 'RPY_TRANSACTION_DELETE'
+        EXPORTING transaction = lv_tcode
+        EXCEPTIONS not_excecuted = 1
+                   object_not_found = 2
+                   OTHERS = 3.
+    ENDIF.
     IF sy-subrc <> 0.
-      fail( |RPY_TRANSACTION_DELETE failed, sy-subrc={ sy-subrc }, { sy-msgid }{ sy-msgno }| ).
+      IF sy-msgid IS NOT INITIAL.
+        MESSAGE ID sy-msgid TYPE 'S' NUMBER sy-msgno
+          WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4 INTO lv_del_msg.
+      ENDIF.
+      fail( |RPY_TRANSACTION_DELETE failed, sy-subrc={ sy-subrc }: { lv_del_msg }| ).
       RETURN.
     ENDIF.
     line( 'TRAN-DELETED' ).
@@ -82037,19 +82168,63 @@ var classicManifest = {
     {
       name: "create_transaction",
       category: "mutate",
-      description: "Registers a dialog transaction code against a report and dynpro 1000.",
+      description: "Creates a transaction code: report (default), dialog, parameter, variant, or an OO transaction with transaction model (stored as a parameter transaction on OS_APPLICATION).",
       input: {
         type: "object",
-        required: ["tcode", "program", "description", "package_name", "corr_nr"],
+        required: ["tcode", "description", "package_name", "corr_nr", "transaction_type"],
         properties: {
           tcode: { type: "string", maxLength: 20, description: "The transaction code to create." },
-          program: { type: "string", maxLength: 40, description: "The report the tcode starts." },
-          description: { type: "string", maxLength: 60, description: "Short text." },
+          program: {
+            type: "string",
+            maxLength: 40,
+            description: "The report/screen program the tcode starts. Required for transaction_type R/D."
+          },
+          description: { type: "string", maxLength: 36, description: "Short text (TSTCT-TTEXT)." },
           package_name: { type: "string", maxLength: 30, description: "Target package (devclass)." },
           corr_nr: {
             type: "string",
             maxLength: 10,
             description: "Transport request. Empty string for a $ (local) package."
+          },
+          transaction_type: {
+            type: "string",
+            enum: ["R", "D", "P", "V"],
+            description: "R report (program), D dialog (program+dynpro), P parameter (called_transaction+parameters), V variant (called_transaction+variant). There is no OO type; OO with transaction model is sent as P against called_transaction OS_APPLICATION with CLASS/METHOD/UPDATE_MODE parameters."
+          },
+          dynpro: {
+            type: "string",
+            maxLength: 4,
+            description: "The 4-digit dynpro the tcode starts on. transaction_type D only."
+          },
+          called_transaction: {
+            type: "string",
+            maxLength: 20,
+            description: "The transaction this one calls into. transaction_type P/V only."
+          },
+          skip_first_screen: {
+            type: "boolean",
+            description: "Whether called_transaction's first screen is skipped. transaction_type P only."
+          },
+          variant: {
+            type: "string",
+            maxLength: 30,
+            description: "The screen variant passed to called_transaction. transaction_type V only."
+          },
+          cross_client_variant: {
+            type: "boolean",
+            description: "Whether variant is cross-client (TSTCP @@) rather than client-specific (@). transaction_type V only."
+          },
+          parameters: {
+            type: "array",
+            description: "TSTCP screen-field assignments. transaction_type P only.",
+            items: {
+              type: "object",
+              required: ["field", "value"],
+              properties: {
+                field: { type: "string", maxLength: 30, description: "Screen field name." },
+                value: { type: "string", maxLength: 255, description: "Value assigned to the field." }
+              }
+            }
           }
         }
       },
@@ -82066,7 +82241,7 @@ var classicManifest = {
         properties: {
           tcode: { type: "string", maxLength: 20, description: "The existing transaction code to retarget." },
           program: { type: "string", maxLength: 40, description: "The new report the tcode starts." },
-          description: { type: "string", maxLength: 60, description: "Short text." },
+          description: { type: "string", maxLength: 36, description: "Short text (TSTCT-TTEXT)." },
           package_name: { type: "string", maxLength: 30, description: "Target package (devclass)." },
           corr_nr: {
             type: "string",
@@ -82085,13 +82260,18 @@ var classicManifest = {
     {
       name: "delete_transaction",
       category: "mutate",
-      description: "Deletes a dialog transaction code and confirms the TSTC row is gone.",
+      description: "Deletes a transaction code and confirms the TSTC row is gone.",
       input: {
         type: "object",
         required: ["tcode", "package_name"],
         properties: {
           tcode: { type: "string", maxLength: 20, description: "The transaction code to delete." },
           package_name: { type: "string", maxLength: 30, description: "The tcode's current package, for the gate." },
+          corr_nr: {
+            type: "string",
+            maxLength: 10,
+            description: "Transport request. Required for a transportable package (RPY_TRANSACTION_DELETE registers the delete via RS_CORR_INSERT first); empty string, or omitted, for a $ (local) package."
+          },
           confirm_in_role_menu: {
             type: "boolean",
             description: "Required (true) if the tcode is already assigned to one or more roles' menus (AGR_TCODES) \u2014 deleting it removes it from those role menus. An SM01 transaction lock is not checked."
@@ -82099,7 +82279,7 @@ var classicManifest = {
         }
       },
       output: { type: "array", items: { type: "string" }, description: "One transcript line per element." },
-      targets: { object: "/tcode", package: "/package_name", corr: "local" }
+      targets: { object: "/tcode", package: "/package_name", transport: "/corr_nr" }
     },
     {
       name: "create_index",
@@ -90221,7 +90401,7 @@ function isPlainObject3(v) {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 async function loadPlugin(dir, knownIds, claimedObjects, cfg) {
-  const refuse2 = (reason, id2) => ({
+  const refuse3 = (reason, id2) => ({
     refusal: { path: dir, id: id2, code: "FLUID_MANIFEST_INVALID", reason }
   });
   const refuseAs = (code, reason, id2, rule) => ({
@@ -90231,18 +90411,18 @@ async function loadPlugin(dir, knownIds, claimedObjects, cfg) {
   try {
     raw = await fs2.readFile(path3.join(dir, MANIFEST_FILE), "utf8");
   } catch (err) {
-    return refuse2(`cannot read ${MANIFEST_FILE}: ${err instanceof Error ? err.message : String(err)}`);
+    return refuse3(`cannot read ${MANIFEST_FILE}: ${err instanceof Error ? err.message : String(err)}`);
   }
   let parsed;
   try {
     parsed = JSON.parse(raw);
   } catch (err) {
-    return refuse2(`${MANIFEST_FILE} is not valid JSON: ${err instanceof Error ? err.message : String(err)}`);
+    return refuse3(`${MANIFEST_FILE} is not valid JSON: ${err instanceof Error ? err.message : String(err)}`);
   }
   const result = FluidManifestSchema.safeParse(parsed);
   if (!result.success) {
     const declaredId = isPlainObject3(parsed) && typeof parsed["id"] === "string" ? parsed["id"] : void 0;
-    return refuse2(
+    return refuse3(
       `${MANIFEST_FILE} failed schema validation: ${result.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
       declaredId
     );
@@ -90251,7 +90431,7 @@ async function loadPlugin(dir, knownIds, claimedObjects, cfg) {
   const id = manifest.id;
   const [major, minor] = manifest.contract.split(".").map(Number);
   if (major !== FLUID_CONTRACT_MAJOR) {
-    return refuse2(`unknown contract major "${manifest.contract}" (this build supports ${FLUID_CONTRACT_MAJOR}.x)`, id);
+    return refuse3(`unknown contract major "${manifest.contract}" (this build supports ${FLUID_CONTRACT_MAJOR}.x)`, id);
   }
   let warning;
   const [, expectedMinor] = FLUID_CONTRACT.split(".").map(Number);
@@ -90259,12 +90439,12 @@ async function loadPlugin(dir, knownIds, claimedObjects, cfg) {
     warning = `plugin "${id}" declares contract ${manifest.contract}, this build ships ${FLUID_CONTRACT}`;
   }
   if (knownIds.has(id)) {
-    return refuse2(`id "${id}" collides with an already-loaded tool of the same id`, id);
+    return refuse3(`id "${id}" collides with an already-loaded tool of the same id`, id);
   }
   const ns = namespaceRe(id);
   for (const obj of manifest.objects) {
     if (!ns.test(obj.name)) {
-      return refuse2(
+      return refuse3(
         `object "${obj.name}" is outside this plugin's own namespace (expected ZCL_ZMCP_X_${id.toUpperCase()}[_SUFFIX] or ZIF_ZMCP_X_${id.toUpperCase()})`,
         id
       );
@@ -90281,31 +90461,31 @@ async function loadPlugin(dir, knownIds, claimedObjects, cfg) {
   const sources = /* @__PURE__ */ new Map();
   for (const obj of manifest.objects) {
     if ("text" in obj.source) {
-      return refuse2(`object "${obj.name}" uses {"text": ...}, which is reserved for built-ins; a plugin must use {"file": ...}`, id);
+      return refuse3(`object "${obj.name}" uses {"text": ...}, which is reserved for built-ins; a plugin must use {"file": ...}`, id);
     }
     const file2 = obj.source.file;
     if (path3.isAbsolute(file2)) {
-      return refuse2(`object "${obj.name}" source.file "${file2}" is an absolute path, which is refused`, id);
+      return refuse3(`object "${obj.name}" source.file "${file2}" is an absolute path, which is refused`, id);
     }
     if (file2.split(/[/\\]/).includes("..")) {
-      return refuse2(`object "${obj.name}" source.file "${file2}" contains a ".." segment, which is refused`, id);
+      return refuse3(`object "${obj.name}" source.file "${file2}" contains a ".." segment, which is refused`, id);
     }
     const candidate = path3.resolve(dir, file2);
     let realCandidate;
     try {
       realCandidate = await fs2.realpath(candidate);
     } catch (err) {
-      return refuse2(`object "${obj.name}" source.file "${file2}" cannot be resolved: ${err instanceof Error ? err.message : String(err)}`, id);
+      return refuse3(`object "${obj.name}" source.file "${file2}" cannot be resolved: ${err instanceof Error ? err.message : String(err)}`, id);
     }
     const relFromDir = path3.relative(dir, realCandidate);
     if (relFromDir.startsWith("..") || path3.isAbsolute(relFromDir)) {
-      return refuse2(`object "${obj.name}" source.file "${file2}" resolves outside the plugin directory`, id);
+      return refuse3(`object "${obj.name}" source.file "${file2}" resolves outside the plugin directory`, id);
     }
     let text5;
     try {
       text5 = await fs2.readFile(realCandidate, "utf8");
     } catch (err) {
-      return refuse2(`object "${obj.name}" source.file "${file2}" could not be read: ${err instanceof Error ? err.message : String(err)}`, id);
+      return refuse3(`object "${obj.name}" source.file "${file2}" could not be read: ${err instanceof Error ? err.message : String(err)}`, id);
     }
     sources.set(obj.name, text5);
   }
@@ -90314,7 +90494,7 @@ async function loadPlugin(dir, knownIds, claimedObjects, cfg) {
     const findings = reviewFluidAbap(obj.name, source);
     const first = findings[0];
     if (first !== void 0) {
-      return refuse2(
+      return refuse3(
         `static review refused object "${first.object}" at line ${first.line}, rule "${first.rule}"`,
         id
       );
@@ -122757,7 +122937,7 @@ init_errors();
 init_enhancement_templates();
 init_transports();
 var TCODE_MAX_LENGTH = 20;
-var TTEXT_MAX_LENGTH = 37;
+var TTEXT_MAX_LENGTH = 36;
 var PROGRAM_MAX_LENGTH = 40;
 var PACKAGE_MAX_LENGTH3 = 30;
 function assertTransactionCode(value, what = "tcode") {
@@ -122771,7 +122951,7 @@ function assertTransactionCode(value, what = "tcode") {
   }
   return value;
 }
-function assertCorrNr3(value) {
+function assertTransactionCorrNr(value) {
   if (!isTrkorr(value)) {
     throw new AbapError(
       "BAD_INPUT",
@@ -122780,6 +122960,171 @@ function assertCorrNr3(value) {
     );
   }
   return value;
+}
+var TARGET_TRANSACTION_RE = /^[A-Za-z0-9_/]{1,20}$/;
+var SCREEN_RE = /^\d{4}$/;
+var PARAMETER_FIELD_RE = /^[A-Za-z0-9_/-]{1,30}$/;
+var VARIANT_RE = /^[A-Za-z0-9_/]{1,30}$/;
+var CLASS_NAME_RE = /^[A-Za-z0-9_/]{1,30}$/;
+var METHOD_NAME_RE = /^[A-Za-z0-9_]{1,30}$/;
+function refuse(tcode, kind, field, message2) {
+  throw new AbapError("BAD_INPUT", message2, { tcode, kind, field });
+}
+function assertTransactionKindParams(p) {
+  const kind = p.kind ?? "report";
+  const tcode = p.tcode;
+  const refuseForeign = (field, ownerKind) => refuse(
+    tcode,
+    kind,
+    field,
+    `${field} applies to kind=${ownerKind}, not kind=${kind}.`
+  );
+  switch (kind) {
+    case "report": {
+      if (p.program === void 0 || p.program === "") {
+        refuse(tcode, kind, "program", `kind=report requires program (the existing report it starts).`);
+      }
+      if (p.screen !== void 0) refuseForeign("screen", "dialog");
+      if (p.targetTransaction !== void 0) refuseForeign("target_transaction", "parameter");
+      if (p.parameters !== void 0) refuseForeign("parameters", "parameter");
+      if (p.variant !== void 0) refuseForeign("variant", "variant");
+      if (p.className !== void 0) refuseForeign("class", "oo");
+      if (p.methodName !== void 0) refuseForeign("method", "oo");
+      break;
+    }
+    case "dialog": {
+      if (p.program === void 0 || p.program === "") {
+        refuse(tcode, kind, "program", `kind=dialog requires program (the existing screen program it starts).`);
+      }
+      if (p.screen === void 0 || p.screen === "") {
+        refuse(tcode, kind, "screen", `kind=dialog requires screen (a 4-digit dynpro number).`);
+      }
+      if (!SCREEN_RE.test(p.screen)) {
+        refuse(tcode, kind, "screen", `screen ${JSON.stringify(p.screen)} must be exactly 4 digits.`);
+      }
+      if (p.targetTransaction !== void 0) refuseForeign("target_transaction", "parameter");
+      if (p.parameters !== void 0) refuseForeign("parameters", "parameter");
+      if (p.variant !== void 0) refuseForeign("variant", "variant");
+      if (p.className !== void 0) refuseForeign("class", "oo");
+      if (p.methodName !== void 0) refuseForeign("method", "oo");
+      break;
+    }
+    case "parameter": {
+      if (p.program !== void 0) refuseForeign("program", "report");
+      if (p.screen !== void 0) refuseForeign("screen", "dialog");
+      if (p.targetTransaction === void 0 || p.targetTransaction === "") {
+        refuse(tcode, kind, "target_transaction", `kind=parameter requires target_transaction.`);
+      }
+      if (!TARGET_TRANSACTION_RE.test(p.targetTransaction)) {
+        refuse(
+          tcode,
+          kind,
+          "target_transaction",
+          `target_transaction ${JSON.stringify(p.targetTransaction)} must match ${TARGET_TRANSACTION_RE}.`
+        );
+      }
+      for (const a of p.parameters ?? []) {
+        if (!PARAMETER_FIELD_RE.test(a.field)) {
+          refuse(
+            tcode,
+            kind,
+            "parameters",
+            `parameters field ${JSON.stringify(a.field)} must match ${PARAMETER_FIELD_RE}.`
+          );
+        }
+        if (a.value === "" || a.value.includes(";")) {
+          refuse(
+            tcode,
+            kind,
+            "parameters",
+            `parameters value for field ${JSON.stringify(a.field)} must be non-empty and must not contain ';'.`
+          );
+        }
+      }
+      if (p.variant !== void 0) refuseForeign("variant", "variant");
+      if (p.className !== void 0) refuseForeign("class", "oo");
+      if (p.methodName !== void 0) refuseForeign("method", "oo");
+      break;
+    }
+    case "variant": {
+      if (p.program !== void 0) refuseForeign("program", "report");
+      if (p.screen !== void 0) refuseForeign("screen", "dialog");
+      if (p.targetTransaction === void 0 || p.targetTransaction === "") {
+        refuse(tcode, kind, "target_transaction", `kind=variant requires target_transaction.`);
+      }
+      if (!TARGET_TRANSACTION_RE.test(p.targetTransaction)) {
+        refuse(
+          tcode,
+          kind,
+          "target_transaction",
+          `target_transaction ${JSON.stringify(p.targetTransaction)} must match ${TARGET_TRANSACTION_RE}.`
+        );
+      }
+      if (p.variant === void 0 || p.variant === "") {
+        refuse(tcode, kind, "variant", `kind=variant requires variant.`);
+      }
+      if (!VARIANT_RE.test(p.variant)) {
+        refuse(tcode, kind, "variant", `variant ${JSON.stringify(p.variant)} must match ${VARIANT_RE} (no whitespace).`);
+      }
+      if (p.parameters !== void 0) refuseForeign("parameters", "parameter");
+      if (p.className !== void 0) refuseForeign("class", "oo");
+      if (p.methodName !== void 0) refuseForeign("method", "oo");
+      break;
+    }
+    case "oo": {
+      if (p.program !== void 0) refuseForeign("program", "report");
+      if (p.screen !== void 0) refuseForeign("screen", "dialog");
+      if (p.targetTransaction !== void 0) refuseForeign("target_transaction", "parameter");
+      if (p.parameters !== void 0) refuseForeign("parameters", "parameter");
+      if (p.variant !== void 0) refuseForeign("variant", "variant");
+      if (p.className === void 0 || p.className === "") {
+        refuse(tcode, kind, "class", `kind=oo requires class.`);
+      }
+      if (!CLASS_NAME_RE.test(p.className)) {
+        refuse(tcode, kind, "class", `class ${JSON.stringify(p.className)} must match ${CLASS_NAME_RE}.`);
+      }
+      if (p.methodName === void 0 || p.methodName === "") {
+        refuse(tcode, kind, "method", `kind=oo requires method.`);
+      }
+      if (!METHOD_NAME_RE.test(p.methodName)) {
+        refuse(tcode, kind, "method", `method ${JSON.stringify(p.methodName)} must match ${METHOD_NAME_RE}.`);
+      }
+      if (p.updateMode !== void 0 && p.updateMode !== "S" && p.updateMode !== "A" && p.updateMode !== "L") {
+        refuse(tcode, kind, "update_mode", `update_mode ${JSON.stringify(p.updateMode)} must be one of "S", "A" or "L".`);
+      }
+      break;
+    }
+  }
+  return kind;
+}
+function transactionInsertArgs(p) {
+  const kind = p.kind ?? "report";
+  const transactionType = kind === "report" ? "R" : kind === "dialog" ? "D" : kind === "oo" ? "P" : kind === "variant" ? "V" : "P";
+  const program = kind === "report" || kind === "dialog" ? p.program ?? "" : "";
+  const dynpro = kind === "report" ? "1000" : kind === "dialog" ? p.screen ?? "" : "";
+  const calledTransaction = kind === "parameter" || kind === "variant" ? p.targetTransaction ?? "" : kind === "oo" ? "OS_APPLICATION" : "";
+  const skipFirstScreen = kind === "parameter" ? p.skipFirstScreen ?? false : kind === "oo" ? true : false;
+  const variant = kind === "variant" ? p.variant ?? "" : "";
+  const crossClientVariant = kind === "variant" ? p.crossClientVariant ?? false : false;
+  const parameters = kind === "parameter" ? (p.parameters ?? []).map((a) => ({ field: a.field.toUpperCase(), value: a.value })) : kind === "oo" ? [
+    { field: "CLASS", value: (p.className ?? "").toUpperCase() },
+    { field: "METHOD", value: (p.methodName ?? "").toUpperCase() },
+    { field: "UPDATE_MODE", value: p.updateMode ?? "S" }
+  ] : [];
+  return {
+    tcode: p.tcode,
+    description: p.description,
+    package_name: p.packageName,
+    corr_nr: p.corrNr ?? "",
+    transaction_type: transactionType,
+    program,
+    dynpro,
+    called_transaction: calledTransaction,
+    skip_first_screen: skipFirstScreen,
+    variant,
+    cross_client_variant: crossClientVariant,
+    parameters
+  };
 }
 function assertTransactionCreateTarget(packageName, corrNr) {
   const validated = assertEnhIdentifier(packageName, "packageName", {
@@ -122802,638 +123147,77 @@ function assertTransactionCreateTarget(packageName, corrNr) {
       "Through abap_write no corr_nr is needed: omitted, the request is resolved under ABAP_ALLOW_TRANSPORTS before this module runs (auto reuses a modifiable request this session created for the package, else creates one; a pinned list uses one of its entries). Reaching this refusal from abap_write means no session transport manager was wired into the call \u2014 an abapsmith wiring defect, not a caller error. A direct caller of this module hands it a TRKORR the safety gate has already judged."
     );
   }
-  if (corrNr !== void 0) assertCorrNr3(corrNr);
+  if (corrNr !== void 0) assertTransactionCorrNr(corrNr);
   return validated;
 }
 async function createTransaction(conn, gate, params) {
+  const kind = assertTransactionKindParams(params);
   const tcode = assertTransactionCode(params.tcode);
-  const program = assertEnhIdentifier(params.program, "program", { maxLength: PROGRAM_MAX_LENGTH });
   const description = assertAbapText(params.description, "description", TTEXT_MAX_LENGTH);
   const packageName = assertTransactionCreateTarget(params.packageName, params.corrNr);
   const local = isLocalPackageName(packageName);
   const corrNr = local ? void 0 : params.corrNr;
+  const program = kind === "report" || kind === "dialog" ? assertEnhIdentifier(params.program, "program", { maxLength: PROGRAM_MAX_LENGTH }) : void 0;
   const corr = local ? void 0 : { kind: "transport", corrNr, source: params.corrSource ?? "named" };
   assertBridgeMutation(
     gate,
     { type: "TRAN/T", name: tcode, packageName },
     { activate: false, ...corr !== void 0 ? { corr } : {} }
   );
+  const args = transactionInsertArgs({
+    ...params,
+    tcode,
+    description,
+    packageName,
+    corrNr,
+    ...program !== void 0 ? { program } : {}
+  });
+  const beforeAssert = (transcript) => {
+    const errorLine = transcript.errorLine;
+    if (!errorLine || !errorLine.includes("RPY_TRANSACTION_INSERT failed")) return;
+    if (errorLine.includes("already_exist")) {
+      throw new AbapError(
+        "CHECK_FAILED",
+        `RPY_TRANSACTION_INSERT refused to create transaction ${tcode}: ${errorLine}`,
+        { tcode, raw: transcript.raw },
+        `abap_read {"object":"${tcode}","type":"TRAN/T"} shows the existing transaction. To point it at a different program use abap_write mode="update"; to replace it, delete it first (mode="delete") and create it again.`,
+        { retryable: false }
+        // a retry cannot succeed until the transaction is deleted or retargeted
+      );
+    }
+    const notRetryable = ["permission_error", "name_not_allowed", "name_conflict"];
+    const retryable = ["db_access_error", "cancelled"];
+    const named = [...notRetryable, ...retryable].find((n) => errorLine.includes(n));
+    if (named) {
+      throw new AbapError(
+        "CHECK_FAILED",
+        `RPY_TRANSACTION_INSERT refused to create transaction ${tcode}: ${errorLine}`,
+        { tcode, raw: transcript.raw },
+        retryable.includes(named) ? "Retry; if it recurs check SM12 locks on TSTC for the tcode." : void 0,
+        { retryable: retryable.includes(named) }
+        // retryable only for the exceptions listed in `retryable` above
+      );
+    }
+    throw new AbapError(
+      "CHECK_FAILED",
+      `RPY_TRANSACTION_INSERT failed to create transaction ${tcode}: ${errorLine}`,
+      { tcode, raw: transcript.raw }
+    );
+  };
   return runClassicAction(conn, gate, {
     action: "create_transaction",
-    args: {
-      tcode,
-      program,
-      description,
-      package_name: packageName,
-      corr_nr: corrNr ?? ""
-    },
-    what: `Creating transaction ${tcode}`,
+    args,
+    what: `Creating ${kind} transaction ${tcode}`,
     ...corr !== void 0 ? { corrSource: corr.source } : {},
-    expectTags: ["TRAN-CREATED"]
+    expectTags: ["TRAN-CREATED"],
+    beforeAssert
   });
 }
 
 // src/adt/tran-delete.ts
 init_errors();
 init_enhancement_templates();
-var PACKAGE_MAX_LENGTH4 = 30;
-async function deleteTransactionViaBridge(conn, gate, params) {
-  assertServerPackage(params.packageName, `transaction ${params.tcode}`);
-  const tcode = assertTransactionCode(params.tcode);
-  const packageName = assertEnhIdentifier(params.packageName.name, "packageName", {
-    maxLength: PACKAGE_MAX_LENGTH4,
-    allowLocal: true
-  });
-  assertBridgeMutation(
-    gate,
-    { type: "TRAN/T", name: tcode, packageName },
-    { activate: false, op: "delete", corr: { kind: "local" } }
-  );
-  const beforeAssert = (transcript) => {
-    if (transcript.errorLine?.includes("does not exist")) {
-      throw new AbapError(
-        "CHECK_FAILED",
-        `Transaction ${tcode} does not exist and was NOT deleted. Raw ABAP-side detail: ${transcript.errorLine}`,
-        { tcode, raw: transcript.raw }
-      );
-    }
-  };
-  return runClassicAction(conn, gate, {
-    action: "delete_transaction",
-    args: {
-      tcode,
-      package_name: packageName,
-      ...params.confirmInRoleMenu !== void 0 ? { confirm_in_role_menu: params.confirmInRoleMenu } : {}
-    },
-    what: `Deleting transaction ${tcode}`,
-    expectTags: ["TRAN-DELETED", "TRAN-GONE"],
-    beforeAssert
-  });
-}
-
-// src/adt/tran-update.ts
-init_errors();
-init_enhancement_templates();
 init_transports();
-var TTEXT_MAX_LENGTH2 = 37;
-var PROGRAM_MAX_LENGTH2 = 40;
-var PACKAGE_MAX_LENGTH5 = 30;
-function assertCorrNr4(value) {
-  if (!isTrkorr(value)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `corr_nr ${JSON.stringify(value)} is not a transport request/task number this system would issue (e.g. A4HK900121). This module never acquires a request on its own \u2014 the caller must hand it one that has already been judged by the safety gate.`,
-      { what: "corrNr", value }
-    );
-  }
-  return value;
-}
-function assertTransactionUpdateTarget(packageName, corrNr) {
-  const validated = assertEnhIdentifier(packageName, "packageName", {
-    maxLength: PACKAGE_MAX_LENGTH5,
-    allowLocal: true
-  });
-  const local = isLocalPackageName(validated);
-  if (local && corrNr !== void 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, but a local ($-prefixed) transaction is registered with korrnum = space rather than on a transport request, so there is nothing here for one to attach to.`,
-      { packageName: validated, corrNr }
-    );
-  }
-  if (!local && corrNr === void 0) {
-    throw new AbapError(
-      "TRANSPORT_ERROR",
-      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this retarget must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
-      { packageName: validated },
-      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
-    );
-  }
-  if (corrNr !== void 0) assertCorrNr4(corrNr);
-  return validated;
-}
-async function updateTransaction(conn, gate, params) {
-  assertServerPackage(params.packageName, `transaction ${params.tcode}`);
-  const tcode = assertTransactionCode(params.tcode);
-  const program = assertEnhIdentifier(params.program, "program", { maxLength: PROGRAM_MAX_LENGTH2 });
-  const description = assertAbapText(params.description, "description", TTEXT_MAX_LENGTH2);
-  const packageName = assertTransactionUpdateTarget(params.packageName.name, params.corrNr);
-  const local = isLocalPackageName(packageName);
-  const corrNr = local ? void 0 : params.corrNr;
-  const corr = local ? void 0 : { kind: "transport", corrNr, source: params.corrSource ?? "named" };
-  assertBridgeMutation(
-    gate,
-    { type: "TRAN/T", name: tcode, packageName },
-    { activate: false, ...corr !== void 0 ? { corr } : {} }
-  );
-  const beforeAssert = (transcript) => {
-    if (transcript.errorLine?.includes("does not exist")) {
-      throw new AbapError(
-        "CHECK_FAILED",
-        `Transaction ${tcode} does not exist, so there is nothing to retarget. Raw ABAP-side detail: ${transcript.errorLine}`,
-        { tcode, raw: transcript.raw }
-      );
-    }
-  };
-  const expectTags = ["TRAN-REGISTERED", "TRAN-RETARGETED"];
-  return runClassicAction(conn, gate, {
-    action: "update_transaction",
-    args: {
-      tcode,
-      program,
-      description,
-      package_name: packageName,
-      corr_nr: corrNr ?? "",
-      ...params.confirmInRoleMenu !== void 0 ? { confirm_in_role_menu: params.confirmInRoleMenu } : {}
-    },
-    what: `Retargeting transaction ${tcode}`,
-    expectTags,
-    beforeAssert
-  });
-}
-
-// src/adt/view-create.ts
-init_errors();
-init_enhancement_templates();
-init_transports();
-var VIEW_NAME_MAX = 30;
-var VIEW_TEXT_MAX = 60;
-var MAX_VIEW_FIELDS = 249;
-function isLocalPackage2(packageName) {
-  return isLocalPackageName(packageName);
-}
-function classicViewUri(viewName) {
-  return `/sap/bc/adt/ddic/views/${viewName.trim().toLowerCase()}`;
-}
-var PACKAGE_RULES3 = { maxLength: VIEW_NAME_MAX, allowLocal: true };
-function assertCorrNr5(value) {
-  if (!isTrkorr(value)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `corr_nr ${JSON.stringify(value)} is not a transport request/task number this system would issue (e.g. A4HK900121). This module never acquires a request on its own \u2014 the caller must hand it one that has already been judged by the safety gate.`,
-      { what: "corrNr", value }
-    );
-  }
-  return value;
-}
-function assertClassicViewCreateTarget(packageName, corrNr) {
-  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES3);
-  const local = isLocalPackage2(validated);
-  if (local && corrNr !== void 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, but a local ($-prefixed) view is registered with korrnum = space rather than on a transport request, so there is nothing here for one to attach to.`,
-      { packageName: validated, corrNr }
-    );
-  }
-  if (corrNr !== void 0) assertCorrNr5(corrNr);
-  return validated;
-}
-function validate3(p) {
-  const viewName = assertEnhIdentifier(p.viewName, "viewName", { maxLength: VIEW_NAME_MAX });
-  const baseTable = assertEnhIdentifier(p.baseTable, "baseTable", { maxLength: VIEW_NAME_MAX });
-  if (!Array.isArray(p.fields) || p.fields.length === 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      "fields must be a non-empty list of base-table field names \u2014 a classic view projecting no field at all is not a view SE11 or DDIF_VIEW_PUT would accept.",
-      { viewName, baseTable }
-    );
-  }
-  if (p.fields.length > MAX_VIEW_FIELDS) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `fields has ${p.fields.length} entries, more than the ${MAX_VIEW_FIELDS} this bridge generates. DD27P-OBJPOS is a 4-character numeric position and this bridge fills it by zero-padding a 1-based index, so every generated position must stay inside 0001-9999.`,
-      { viewName, count: p.fields.length, max: MAX_VIEW_FIELDS }
-    );
-  }
-  const fields = p.fields.map(
-    (f, i) => assertEnhIdentifier(f, `fields[${i}]`, { maxLength: VIEW_NAME_MAX })
-  );
-  const description = assertAbapText(p.description, "description", VIEW_TEXT_MAX);
-  const packageName = assertClassicViewCreateTarget(p.packageName, p.corrNr);
-  const local = isLocalPackage2(packageName);
-  if (!local && p.corrNr === void 0) {
-    throw new AbapError(
-      "TRANSPORT_ERROR",
-      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this view must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 and none was resolved for this call.`,
-      { packageName },
-      "Through abap_write no corr_nr is needed: omitted, the request is resolved under ABAP_ALLOW_TRANSPORTS before this module runs (auto reuses a modifiable request this session created for the package, else creates one; a pinned list uses one of its entries). Reaching this refusal from abap_write means no session transport manager was wired into the call \u2014 an abapsmith wiring defect, not a caller error. A direct caller of this module hands it a TRKORR the safety gate has already judged."
-    );
-  }
-  const corrNr = local ? void 0 : p.corrNr;
-  return { viewName, baseTable, fields, description, packageName, corrNr, corrSource: p.corrSource };
-}
-function viewCreatePartialSuccess(viewName) {
-  return {
-    completed: {
-      "VIEW-REGISTERED": `RS_CORR_INSERT registered ${viewName} in TADIR \u2014 on the transport request for a transportable package, with korrnum = space for a local one \u2014 before any dictionary write; no view was created by it.`,
-      "VIEW-PUT": `DDIF_VIEW_PUT wrote ${viewName}, and the COMMIT WORK that follows it committed it, inactive.`
-    },
-    hint: `If VIEW-PUT fired, ${viewName} exists AND is registered \u2014 abap_write mode="delete" type="VIEW/DV" can remove it. If only VIEW-REGISTERED fired, no view was written and only the TADIR entry exists \u2014 for a transportable package, remove it from the request in SE09/SE10, or reuse it by re-running the create into the same request; for a local package (korrnum = space) it is registered but not on any request.`
-  };
-}
-async function createClassicView(conn, gate, params) {
-  const validated = validate3(params);
-  const { viewName, baseTable, fields, description, packageName, corrNr, corrSource } = validated;
-  const corr = isLocalPackage2(packageName) ? void 0 : { kind: "transport", corrNr, source: corrSource ?? "named" };
-  assertBridgeMutation(
-    gate,
-    { type: "VIEW/DV", name: viewName, packageName },
-    { activate: true, ...corr !== void 0 ? { corr } : {} }
-  );
-  const expectTags = ["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"];
-  const partial2 = viewCreatePartialSuccess(viewName);
-  return runClassicAction(conn, gate, {
-    action: "create_view",
-    args: {
-      view_name: viewName,
-      base_table: baseTable,
-      fields,
-      description,
-      package_name: packageName,
-      corr_nr: corrNr ?? ""
-    },
-    what: `Creating classic view ${viewName}`,
-    ...corr !== void 0 ? { corrSource: corr.source } : {},
-    expectTags,
-    completed: partial2.completed,
-    partialHint: partial2.hint
-  });
-}
-
-// src/adt/view-delete.ts
-init_errors();
-init_enhancement_templates();
-var VIEW_NAME_MAX2 = 30;
-function validate4(p) {
-  const viewName = assertEnhIdentifier(p.viewName, "viewName", { maxLength: VIEW_NAME_MAX2 });
-  return { viewName };
-}
-async function deleteClassicViewViaBridge(conn, gate, params) {
-  assertServerPackage(params.packageName, `view ${params.viewName}`);
-  const { viewName } = validate4(params);
-  const packageName = params.packageName.name;
-  assertBridgeMutation(
-    gate,
-    { type: "VIEW/DV", name: viewName, packageName },
-    { activate: false, op: "delete", corr: { kind: "local" } }
-  );
-  const beforeAssert = (transcript) => {
-    if (transcript.errorLine?.includes(`${viewName} does not exist`)) {
-      throw new AbapError(
-        "CHECK_FAILED",
-        `View ${viewName} does not exist, so there is nothing to delete. Raw ABAP-side detail: ${transcript.errorLine}`,
-        { viewName, raw: transcript.raw }
-      );
-    }
-  };
-  return runClassicAction(conn, gate, {
-    action: "delete_view",
-    args: {
-      view_name: viewName,
-      package_name: packageName,
-      ...params.confirmMaintenanceDialog !== void 0 ? { confirm_maintenance_dialog: params.confirmMaintenanceDialog } : {}
-    },
-    what: `Deleting classic view ${viewName}`,
-    expectTags: ["VIEW-DELETED", "VIEW-GONE"],
-    beforeAssert
-  });
-}
-
-// src/adt/view-update.ts
-init_errors();
-init_enhancement_templates();
-init_transports();
-async function updateClassicView(conn, gate, params) {
-  const viewName = assertEnhIdentifier(params.viewName, "viewName", { maxLength: VIEW_NAME_MAX });
-  const baseTable = assertEnhIdentifier(params.baseTable, "baseTable", { maxLength: VIEW_NAME_MAX });
-  if (!Array.isArray(params.fields) || params.fields.length === 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      "fields must be a non-empty list of base-table field names \u2014 an update replaces the whole field list, and DDIF_VIEW_PUT would not accept a view projecting no field at all.",
-      { viewName, baseTable }
-    );
-  }
-  if (params.fields.length > MAX_VIEW_FIELDS) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `fields has ${params.fields.length} entries, more than the ${MAX_VIEW_FIELDS} this bridge generates. DD27P-OBJPOS is a 4-character numeric position and this bridge fills it by zero-padding a 1-based index, so every generated position must stay inside 0001-9999.`,
-      { viewName, count: params.fields.length, max: MAX_VIEW_FIELDS }
-    );
-  }
-  const fields = params.fields.map(
-    (f, i) => assertEnhIdentifier(f, `fields[${i}]`, { maxLength: VIEW_NAME_MAX })
-  );
-  const description = assertAbapText(params.description, "description", VIEW_TEXT_MAX);
-  const packageName = assertClassicViewCreateTarget(params.packageName, params.corrNr);
-  const local = isLocalPackageName(packageName);
-  if (!local && params.corrNr === void 0) {
-    throw new AbapError(
-      "TRANSPORT_ERROR",
-      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this view update must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
-      { packageName },
-      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
-    );
-  }
-  const corrNr = local ? void 0 : params.corrNr;
-  const corr = local ? void 0 : { kind: "transport", corrNr, source: params.corrSource ?? "named" };
-  assertBridgeMutation(
-    gate,
-    { type: "VIEW/DV", name: viewName, packageName },
-    { activate: true, ...corr !== void 0 ? { corr } : {} }
-  );
-  const beforeAssert = (transcript) => {
-    if (transcript.errorLine?.includes(`${viewName} does not exist`)) {
-      throw new AbapError(
-        "CHECK_FAILED",
-        `View ${viewName} does not exist, so there is nothing to update. Raw ABAP-side detail: ${transcript.errorLine}`,
-        { viewName, raw: transcript.raw }
-      );
-    }
-  };
-  const expectTags = ["VIEW-REGISTERED", "VIEW-UPDATED", "VIEW-ACTIVATED"];
-  return runClassicAction(conn, gate, {
-    action: "update_view",
-    args: {
-      view_name: viewName,
-      base_table: baseTable,
-      fields,
-      description,
-      package_name: packageName,
-      corr_nr: corrNr ?? ""
-    },
-    what: `Updating classic view ${viewName}`,
-    expectTags,
-    beforeAssert
-  });
-}
-
-// src/adt/shlp-create.ts
-init_errors();
-init_enhancement_templates();
-init_transports();
-var SHLP_NAME_MAX = 30;
-var SHLP_TEXT_MAX = 60;
-var DEFAULT_VALUE_MAX = 132;
-var SELECTION_METHOD_TYPES = /* @__PURE__ */ new Set(["T", "V", "M"]);
-var ASSIGNMENT_DIRECTIONS = /* @__PURE__ */ new Set(["I", "E"]);
-var PACKAGE_RULES4 = { maxLength: SHLP_NAME_MAX, allowLocal: true };
-function assertCorrNr6(value) {
-  if (!isTrkorr(value)) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `corr_nr ${JSON.stringify(value)} is not a transport request/task number this system would issue (e.g. A4HK900121). This module never acquires a request on its own \u2014 the caller must hand it one that has already been judged by the safety gate.`,
-      { what: "corrNr", value }
-    );
-  }
-  return value;
-}
-function assertSearchHelpTarget(packageName, corrNr) {
-  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES4);
-  const local = isLocalPackageName(validated);
-  if (local && corrNr !== void 0) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, but a local ($-prefixed) search help is registered with korrnum = space rather than on a transport request, so there is nothing here for one to attach to.`,
-      { packageName: validated, corrNr }
-    );
-  }
-  if (corrNr !== void 0) assertCorrNr6(corrNr);
-  return validated;
-}
-function validate5(packageNameStr, p) {
-  const shlpName = assertEnhIdentifier(p.shlpName, "shlpName", { maxLength: SHLP_NAME_MAX });
-  const description = assertAbapText(p.description, "description", SHLP_TEXT_MAX);
-  const packageName = assertSearchHelpTarget(packageNameStr, p.corrNr);
-  const local = isLocalPackageName(packageName);
-  if (!local && p.corrNr === void 0) {
-    throw new AbapError(
-      "TRANSPORT_ERROR",
-      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this search help must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 and none was resolved for this call.`,
-      { packageName },
-      "Through abap_write no corr_nr is needed: omitted, the request is resolved under ABAP_ALLOW_TRANSPORTS before this module runs (auto reuses a modifiable request this session created for the package, else creates one; a pinned list uses one of its entries). Reaching this refusal from abap_write means no session transport manager was wired into the call \u2014 an abapsmith wiring defect, not a caller error. A direct caller of this module hands it a TRKORR the safety gate has already judged."
-    );
-  }
-  const corrNr = local ? void 0 : p.corrNr;
-  const selectionMethodGiven = p.selectionMethod !== void 0 && p.selectionMethod !== "";
-  const selectionMethod = selectionMethodGiven ? assertEnhIdentifier(p.selectionMethod, "selectionMethod", { maxLength: SHLP_NAME_MAX }) : "";
-  let selectionMethodType;
-  if (!selectionMethodGiven) {
-    if (p.selectionMethodType !== void 0 && p.selectionMethodType !== "") {
-      throw new AbapError(
-        "BAD_INPUT",
-        `selectionMethodType ${JSON.stringify(p.selectionMethodType)} was given but selectionMethod was not \u2014 DD30V-SELMTYPE only means something alongside a selection method; leave both blank for a collective search help, or an elementary one driven by a search-help exit.`,
-        { what: "selectionMethodType", value: p.selectionMethodType }
-      );
-    }
-    selectionMethodType = "";
-  } else {
-    if (typeof p.selectionMethodType !== "string" || !SELECTION_METHOD_TYPES.has(p.selectionMethodType)) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `selectionMethodType ${JSON.stringify(p.selectionMethodType)} must be one of ${[...SELECTION_METHOD_TYPES].join(", ")} \u2014 abap-shlp.ts only special-cases "T" (table) and "V" (view) existence checks, and does not check anything else against the server.`,
-        { what: "selectionMethodType", value: p.selectionMethodType }
-      );
-    }
-    selectionMethodType = p.selectionMethodType;
-  }
-  const dialogType = p.dialogType === void 0 ? void 0 : assertAbapText(p.dialogType, "dialogType", 1);
-  const textTable2 = p.textTable === void 0 ? void 0 : assertEnhIdentifier(p.textTable, "textTable", { maxLength: SHLP_NAME_MAX });
-  const hotKey = p.hotKey === void 0 ? void 0 : assertAbapText(p.hotKey, "hotKey", 1);
-  if (typeof p.elementary !== "boolean") {
-    throw new AbapError("BAD_INPUT", "elementary must be a boolean.", { what: "elementary" });
-  }
-  if (!Array.isArray(p.fields)) {
-    throw new AbapError("BAD_INPUT", "fields must be an array.", { what: "fields" });
-  }
-  const fields = p.fields.map((f, i) => {
-    const name = assertEnhIdentifier(f.name, `fields[${i}].name`, { maxLength: SHLP_NAME_MAX });
-    const dataElement = assertEnhIdentifier(f.dataElement, `fields[${i}].dataElement`, { maxLength: SHLP_NAME_MAX });
-    const defaultValue = f.defaultValue === void 0 ? void 0 : assertAbapText(f.defaultValue, `fields[${i}].defaultValue`, DEFAULT_VALUE_MAX);
-    return {
-      name,
-      dataElement,
-      import: f.import === true,
-      export: f.export === true,
-      ...defaultValue !== void 0 ? { defaultValue } : {}
-    };
-  });
-  if (p.elementary) {
-    if (fields.length === 0) {
-      throw new AbapError(
-        "BAD_INPUT",
-        "fields must be non-empty for an elementary search help (DD30V-ISSIMPLE = 'X') \u2014 DDIF_SHLP_PUT needs at least one import and one export parameter.",
-        { shlpName }
-      );
-    }
-    if (!fields.some((f) => f.import) || !fields.some((f) => f.export)) {
-      throw new AbapError(
-        "BAD_INPUT",
-        "an elementary search help needs at least one field marked import and at least one marked export \u2014 abap-shlp.ts refuses this at runtime too, but this fails before any network call.",
-        { shlpName, fields }
-      );
-    }
-  }
-  const includes = (p.includes ?? []).map((inc, i) => ({
-    name: assertEnhIdentifier(inc.name, `includes[${i}].name`, { maxLength: SHLP_NAME_MAX })
-  }));
-  const assignments = (p.assignments ?? []).map((a, i) => {
-    const field = assertEnhIdentifier(a.field, `assignments[${i}].field`, { maxLength: SHLP_NAME_MAX });
-    const includedHelp = assertEnhIdentifier(a.includedHelp, `assignments[${i}].includedHelp`, { maxLength: SHLP_NAME_MAX });
-    const includedField = assertEnhIdentifier(a.includedField, `assignments[${i}].includedField`, { maxLength: SHLP_NAME_MAX });
-    if (typeof a.direction !== "string" || !ASSIGNMENT_DIRECTIONS.has(a.direction)) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `assignments[${i}].direction ${JSON.stringify(a.direction)} must be one of ${[...ASSIGNMENT_DIRECTIONS].join(", ")} (DD33V-VALUEDIREC).`,
-        { what: `assignments[${i}].direction`, value: a.direction }
-      );
-    }
-    return { field, includedHelp, includedField, direction: a.direction };
-  });
-  const fieldNames = new Set(fields.map((f) => f.name.toUpperCase()));
-  const includeNames = new Set(includes.map((inc) => inc.name.toUpperCase()));
-  assignments.forEach((a, i) => {
-    if (!fieldNames.has(a.field.toUpperCase())) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `assignments[${i}].field ${JSON.stringify(a.field)} is not one of this search help's own interface parameters (fields[].name) \u2014 DDIF_SHLP_ACTIVATE would otherwise fail with rc = 8 / DH109 ("search help & was not activated") after DDIF_SHLP_PUT had already succeeded, leaving the search help stranded as an inactive-only object (a DD30L row with AS4LOCAL = 'N', no active row, plus a TADIR entry) \u2014 measured live on A4H 2026-09-15.`,
-        { what: `assignments[${i}].field`, value: a.field, fields: fields.map((f) => f.name) }
-      );
-    }
-    if (!includeNames.has(a.includedHelp.toUpperCase())) {
-      throw new AbapError(
-        "BAD_INPUT",
-        `assignments[${i}].includedHelp ${JSON.stringify(a.includedHelp)} names a search help this definition does not include (includes[].name) \u2014 the same DH109 activation failure applies as for assignments[].field above: DDIF_SHLP_ACTIVATE returns rc = 8 for a DD33V row whose SUBSHLP is not among this search help's own DD31V includes, after DDIF_SHLP_PUT has already succeeded, stranding the search help as an inactive-only object.`,
-        { what: `assignments[${i}].includedHelp`, value: a.includedHelp, includes: includes.map((inc) => inc.name) }
-      );
-    }
-  });
-  return {
-    shlpName,
-    description,
-    packageName,
-    corrNr,
-    corrSource: p.corrSource,
-    selectionMethod,
-    selectionMethodType,
-    dialogType,
-    textTable: textTable2,
-    hotKey,
-    elementary: p.elementary,
-    fields,
-    includes,
-    assignments
-  };
-}
-function buildArgs(v) {
-  return {
-    shlp_name: v.shlpName,
-    description: v.description,
-    package_name: v.packageName,
-    corr_nr: v.corrNr ?? "",
-    selection_method: v.selectionMethod,
-    selection_method_type: v.selectionMethodType,
-    ...v.dialogType !== void 0 ? { dialog_type: v.dialogType } : {},
-    ...v.textTable !== void 0 ? { text_table: v.textTable } : {},
-    ...v.hotKey !== void 0 ? { hot_key: v.hotKey } : {},
-    elementary: v.elementary,
-    fields: v.fields.map((f) => ({
-      name: f.name,
-      data_element: f.dataElement,
-      import: f.import ?? false,
-      export: f.export ?? false,
-      ...f.defaultValue !== void 0 ? { default_value: f.defaultValue } : {}
-    })),
-    includes: v.includes.map((inc) => ({ name: inc.name })),
-    assignments: v.assignments.map((a) => ({
-      field: a.field,
-      included_help: a.includedHelp,
-      included_field: a.includedField,
-      direction: a.direction
-    }))
-  };
-}
-var SHLP_EXPECT_TAGS = ["SHLP-REGISTERED", "SHLP-PUT", "SHLP-ACTIVATED"];
-function corrOf(local, corrNr, corrSource) {
-  return local ? void 0 : { kind: "transport", corrNr, source: corrSource ?? "named" };
-}
-async function createSearchHelp(conn, gate, params) {
-  assertServerPackage(params.packageName, `search help ${params.shlpName}`);
-  const v = validate5(params.packageName.name, params);
-  const local = isLocalPackageName(v.packageName);
-  assertBridgeMutation(
-    gate,
-    { type: "SHLP/DH", name: v.shlpName, packageName: v.packageName },
-    { activate: true, ...corrOf(local, v.corrNr, v.corrSource) !== void 0 ? { corr: corrOf(local, v.corrNr, v.corrSource) } : {} }
-  );
-  return runClassicAction(conn, gate, {
-    action: "create_search_help",
-    args: buildArgs(v),
-    what: `Creating search help ${v.shlpName}`,
-    ...local ? {} : { corrSource: v.corrSource ?? "named" },
-    expectTags: SHLP_EXPECT_TAGS
-  });
-}
-async function updateSearchHelp(conn, gate, params) {
-  assertServerPackage(params.packageName, `search help ${params.shlpName}`);
-  const v = validate5(params.packageName.name, params);
-  const local = isLocalPackageName(v.packageName);
-  assertBridgeMutation(
-    gate,
-    { type: "SHLP/DH", name: v.shlpName, packageName: v.packageName },
-    { activate: true, ...corrOf(local, v.corrNr, v.corrSource) !== void 0 ? { corr: corrOf(local, v.corrNr, v.corrSource) } : {} }
-  );
-  return runClassicAction(conn, gate, {
-    action: "update_search_help",
-    args: buildArgs(v),
-    what: `Updating search help ${v.shlpName}`,
-    ...local ? {} : { corrSource: v.corrSource ?? "named" },
-    expectTags: SHLP_EXPECT_TAGS
-  });
-}
-
-// src/adt/shlp-delete.ts
-init_errors();
-init_enhancement_templates();
-var SHLP_NAME_MAX2 = 30;
-function validate6(p) {
-  const shlpName = assertEnhIdentifier(p.shlpName, "shlpName", { maxLength: SHLP_NAME_MAX2 });
-  return { shlpName };
-}
-async function deleteSearchHelpViaBridge(conn, gate, params) {
-  assertServerPackage(params.packageName, `search help ${params.shlpName}`);
-  const { shlpName } = validate6(params);
-  const packageName = params.packageName.name;
-  assertBridgeMutation(
-    gate,
-    { type: "SHLP/DH", name: shlpName, packageName },
-    { activate: false, op: "delete", corr: { kind: "local" } }
-  );
-  const beforeAssert = (transcript) => {
-    if (transcript.errorLine?.includes(`${shlpName} does not exist`)) {
-      throw new AbapError(
-        "CHECK_FAILED",
-        `Search help ${shlpName} does not exist, so there is nothing to delete. Raw ABAP-side detail: ${transcript.errorLine}`,
-        { shlpName, raw: transcript.raw }
-      );
-    }
-  };
-  return runClassicAction(conn, gate, {
-    action: "delete_search_help",
-    args: {
-      shlp_name: shlpName,
-      package_name: packageName,
-      ...params.confirmInUse !== void 0 ? { confirm_in_use: params.confirmInUse } : {}
-    },
-    what: `Deleting search help ${shlpName}`,
-    expectTags: ["SHLP-DELETED", "SHLP-GONE"],
-    beforeAssert
-  });
-}
-
-// src/adt/catalog-read.ts
-init_datapreview();
-init_errors();
 
 // src/adt/img-query.ts
 init_errors();
@@ -124612,33 +124396,755 @@ function buildTransactionRolesQuery(tcode) {
   const where2 = [inClause(transaction, [tcode], "tcode", assertTransactionCode2)];
   return buildSelect(cols.join(", "), tbl2("roleTransaction"), where2, role);
 }
+function extractParamAssignments(rest) {
+  const assignments = [];
+  const re = /([^\s=;]+)=([^;]*);/g;
+  let m;
+  while ((m = re.exec(rest)) !== null) {
+    assignments.push({ name: m[1], value: m[2] });
+  }
+  return assignments;
+}
 function parseTransactionParameters(param) {
   const trimmed = param.trim();
-  const parameterMatch = /^\/\*(\S+)\s+(.*)$/.exec(trimmed);
-  if (parameterMatch) {
-    const target = parameterMatch[1];
-    const rest = parameterMatch[2];
-    const assignments = [];
-    for (const part of rest.split(";")) {
-      const piece = part.trim();
-      if (piece === "") continue;
-      const eq = piece.indexOf("=");
-      if (eq === -1) continue;
-      const name = piece.slice(0, eq).trim();
-      const value = piece.slice(eq + 1).trim();
-      if (name === "") continue;
-      assignments.push({ name, value });
-    }
-    return { kind: "parameter", target, assignments };
+  if (/^\/\*OS_APPLICATION\s+CLASS=/.test(trimmed)) {
+    const restMatch = /^\/\*OS_APPLICATION\s+(.*)$/.exec(trimmed);
+    const rest = restMatch ? restMatch[1] : "";
+    const pairs = extractParamAssignments(rest);
+    const byName = new Map(pairs.map((a) => [a.name, a.value]));
+    return {
+      kind: "oo",
+      target: "OS_APPLICATION",
+      transactionModel: true,
+      className: byName.get("CLASS"),
+      methodName: byName.get("METHOD"),
+      updateMode: byName.get("UPDATE_MODE"),
+      assignments: []
+    };
   }
-  const switchMatch = /^\/N(\S+)$/i.exec(trimmed);
-  if (switchMatch) {
-    return { kind: "other", target: switchMatch[1].toUpperCase(), assignments: [] };
+  const parameterMatch = /^\/([*Nn])([^\s=;]+)\s*(.*)$/.exec(trimmed);
+  if (parameterMatch) {
+    const skipFirstScreen = parameterMatch[1] === "*";
+    const target = parameterMatch[2].toUpperCase();
+    const rest = parameterMatch[3];
+    return { kind: "parameter", target, skipFirstScreen, assignments: extractParamAssignments(rest) };
+  }
+  const ooMatch = /^\\(?:PROGRAM=([^\\]+)\\)?CLASS=([^\\]+)\\METHOD=(.+)$/.exec(trimmed);
+  if (ooMatch) {
+    return {
+      kind: "oo",
+      transactionModel: false,
+      className: ooMatch[2],
+      methodName: ooMatch[3],
+      ...ooMatch[1] !== void 0 ? { localProgram: ooMatch[1] } : {},
+      assignments: []
+    };
+  }
+  const variantMatch = /^@(@?)([^\s=;]+)\s+([^\s=;]+)$/.exec(trimmed);
+  if (variantMatch) {
+    return {
+      kind: "variant",
+      crossClient: variantMatch[1] === "@",
+      target: variantMatch[2],
+      variant: variantMatch[3],
+      assignments: []
+    };
+  }
+  if (/^[^\s;]+$/.test(trimmed)) {
+    return { kind: "report-variant", variant: trimmed, assignments: [] };
   }
   return { kind: "other", assignments: [] };
 }
 
+// src/adt/ui-tstc.ts
+init_catalog_select();
+var KIND_TEXT = {
+  dialog: "dialog transaction (classic dynpro; batch input / press applies)",
+  report: "report transaction (SUBMIT-driven; batch input does NOT apply)",
+  parameter: "parameter/variant transaction (TSTCP-driven; batch input does NOT apply to it directly)",
+  oo: "OO transaction (class method; batch input does NOT apply)",
+  menu: "area menu (batch input does NOT apply)"
+};
+function tstcKind(cinfo) {
+  const bits = parseInt(cinfo, 16);
+  if (Number.isNaN(bits)) return "dialog";
+  if (bits & 128) return "report";
+  if (bits & 8) return "oo";
+  if (bits & 2) return "parameter";
+  if (bits & 1) return "menu";
+  return "dialog";
+}
+async function lookupTransaction(conn, tcode) {
+  const result = await runCatalogSelect(conn, buildTransactionDetailQuery(tcode), 1);
+  if (!result.columns.includes("TCODE")) return void 0;
+  const row2 = result.rows[0];
+  if (!row2) return void 0;
+  const cinfo = (row2.CINFO ?? "").trim();
+  const kindCode = tstcKind(cinfo);
+  return {
+    tcode: (row2.TCODE ?? tcode).trim(),
+    program: (row2.PGMNA ?? "").trim(),
+    dynpro: (row2.DYPNO ?? "").trim(),
+    cinfo,
+    kindCode,
+    kind: KIND_TEXT[kindCode],
+    bdcApplies: cinfo === "00" ? true : kindCode === "report" ? false : void 0
+  };
+}
+
+// src/adt/tran-delete.ts
+init_write_verify();
+var PACKAGE_MAX_LENGTH4 = 30;
+async function deleteTransactionViaBridge(conn, gate, params) {
+  assertServerPackage(params.packageName, `transaction ${params.tcode}`);
+  const tcode = assertTransactionCode(params.tcode);
+  const packageName = assertEnhIdentifier(params.packageName.name, "packageName", {
+    maxLength: PACKAGE_MAX_LENGTH4,
+    allowLocal: true
+  });
+  const local = isLocalPackageName(packageName);
+  if (local && params.corrNr !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(params.corrNr)} was supplied for local package ${JSON.stringify(packageName)}, but a local ($-prefixed) transaction is deleted with no transport request, so there is nothing here for one to attach to.`,
+      { packageName, corrNr: params.corrNr }
+    );
+  }
+  if (!local && params.corrNr === void 0) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so deleting transaction ${tcode} must be registered in CTS via RS_CORR_INSERT first, which requires a transport request \u2014 and none was resolved for this call.`,
+      { packageName, tcode },
+      "Through abap_write no corr_nr is needed: omitted, the request is resolved under ABAP_ALLOW_TRANSPORTS before this module runs. A direct caller of this module hands it a TRKORR the safety gate has already judged."
+    );
+  }
+  const corrNr = local ? void 0 : params.corrNr;
+  if (corrNr !== void 0) assertTransactionCorrNr(corrNr);
+  const corr = local ? void 0 : { kind: "transport", corrNr, source: params.corrSource ?? "named" };
+  assertBridgeMutation(
+    gate,
+    { type: "TRAN/T", name: tcode, packageName },
+    { activate: false, op: "delete", ...corr !== void 0 ? { corr } : { corr: { kind: "local" } } }
+  );
+  const beforeAssert = (transcript) => {
+    const errorLine = transcript.errorLine;
+    if (!errorLine) return;
+    if (errorLine.includes("does not exist")) {
+      throw new AbapError(
+        "CHECK_FAILED",
+        `Transaction ${tcode} does not exist and was NOT deleted. Raw ABAP-side detail: ${errorLine}`,
+        { tcode, raw: transcript.raw }
+      );
+    }
+    if (errorLine.includes("SAPLSTRD") || errorLine.includes("no transport request")) {
+      throw new AbapError(
+        "TRANSPORT_ERROR",
+        `Deleting transaction ${tcode} needs a transport request and none was registered. Raw ABAP-side detail: ${errorLine}`,
+        { tcode, raw: transcript.raw },
+        "Pass corr_nr (an ALREADY gate-judged TRKORR), or set ABAP_ALLOW_TRANSPORTS so abap_write resolves one before this module runs."
+      );
+    }
+  };
+  return runClassicAction(conn, gate, {
+    action: "delete_transaction",
+    args: {
+      tcode,
+      package_name: packageName,
+      corr_nr: corrNr ?? "",
+      ...params.confirmInRoleMenu !== void 0 ? { confirm_in_role_menu: params.confirmInRoleMenu } : {}
+    },
+    what: `Deleting transaction ${tcode}`,
+    ...corr !== void 0 ? { corrSource: corr.source } : {},
+    expectTags: ["TRAN-DELETED", "TRAN-GONE"],
+    beforeAssert
+  });
+}
+async function verifyTransactionDeleted(conn, tcode) {
+  const uri = vitBridgeUri("trant", tcode);
+  const outcome = await verifyObjectDeleted(conn, {
+    uri,
+    accept: VIT_STUB_ACCEPT,
+    objectName: tcode,
+    expectType: "TRAN/T"
+  });
+  if (outcome.status === "confirmed-absent") return outcome;
+  let tstc;
+  try {
+    tstc = await lookupTransaction(conn, tcode);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (outcome.status === "indeterminate") {
+      return { ...outcome, reason: `${outcome.reason} The TSTC cross-check also failed: ${msg}` };
+    }
+    return outcome;
+  }
+  if (tstc === void 0) return { status: "confirmed-absent", uri, via: "tstc" };
+  return { status: "confirmed", uri, via: "tstc" };
+}
+
+// src/adt/tran-update.ts
+init_errors();
+init_enhancement_templates();
+init_transports();
+var TTEXT_MAX_LENGTH2 = 36;
+var PROGRAM_MAX_LENGTH2 = 40;
+var PACKAGE_MAX_LENGTH5 = 30;
+function assertCorrNr3(value) {
+  if (!isTrkorr(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(value)} is not a transport request/task number this system would issue (e.g. A4HK900121). This module never acquires a request on its own \u2014 the caller must hand it one that has already been judged by the safety gate.`,
+      { what: "corrNr", value }
+    );
+  }
+  return value;
+}
+function assertTransactionUpdateTarget(packageName, corrNr) {
+  const validated = assertEnhIdentifier(packageName, "packageName", {
+    maxLength: PACKAGE_MAX_LENGTH5,
+    allowLocal: true
+  });
+  const local = isLocalPackageName(validated);
+  if (local && corrNr !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, but a local ($-prefixed) transaction is registered with korrnum = space rather than on a transport request, so there is nothing here for one to attach to.`,
+      { packageName: validated, corrNr }
+    );
+  }
+  if (!local && corrNr === void 0) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(validated)} is not local ($-prefixed), so this retarget must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
+      { packageName: validated },
+      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
+    );
+  }
+  if (corrNr !== void 0) assertCorrNr3(corrNr);
+  return validated;
+}
+async function updateTransaction(conn, gate, params) {
+  assertServerPackage(params.packageName, `transaction ${params.tcode}`);
+  const tcode = assertTransactionCode(params.tcode);
+  const program = assertEnhIdentifier(params.program, "program", { maxLength: PROGRAM_MAX_LENGTH2 });
+  const description = assertAbapText(params.description, "description", TTEXT_MAX_LENGTH2);
+  const packageName = assertTransactionUpdateTarget(params.packageName.name, params.corrNr);
+  const local = isLocalPackageName(packageName);
+  const corrNr = local ? void 0 : params.corrNr;
+  const corr = local ? void 0 : { kind: "transport", corrNr, source: params.corrSource ?? "named" };
+  assertBridgeMutation(
+    gate,
+    { type: "TRAN/T", name: tcode, packageName },
+    { activate: false, ...corr !== void 0 ? { corr } : {} }
+  );
+  const beforeAssert = (transcript) => {
+    if (transcript.errorLine?.includes("does not exist")) {
+      throw new AbapError(
+        "CHECK_FAILED",
+        `Transaction ${tcode} does not exist, so there is nothing to retarget. Raw ABAP-side detail: ${transcript.errorLine}`,
+        { tcode, raw: transcript.raw }
+      );
+    }
+  };
+  const expectTags = ["TRAN-REGISTERED", "TRAN-RETARGETED"];
+  return runClassicAction(conn, gate, {
+    action: "update_transaction",
+    args: {
+      tcode,
+      program,
+      description,
+      package_name: packageName,
+      corr_nr: corrNr ?? "",
+      ...params.confirmInRoleMenu !== void 0 ? { confirm_in_role_menu: params.confirmInRoleMenu } : {}
+    },
+    what: `Retargeting transaction ${tcode}`,
+    expectTags,
+    beforeAssert
+  });
+}
+
+// src/adt/view-create.ts
+init_errors();
+init_enhancement_templates();
+init_transports();
+var VIEW_NAME_MAX = 30;
+var VIEW_TEXT_MAX = 60;
+var MAX_VIEW_FIELDS = 249;
+function isLocalPackage2(packageName) {
+  return isLocalPackageName(packageName);
+}
+function classicViewUri(viewName) {
+  return `/sap/bc/adt/ddic/views/${viewName.trim().toLowerCase()}`;
+}
+var PACKAGE_RULES3 = { maxLength: VIEW_NAME_MAX, allowLocal: true };
+function assertCorrNr4(value) {
+  if (!isTrkorr(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(value)} is not a transport request/task number this system would issue (e.g. A4HK900121). This module never acquires a request on its own \u2014 the caller must hand it one that has already been judged by the safety gate.`,
+      { what: "corrNr", value }
+    );
+  }
+  return value;
+}
+function assertClassicViewCreateTarget(packageName, corrNr) {
+  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES3);
+  const local = isLocalPackage2(validated);
+  if (local && corrNr !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, but a local ($-prefixed) view is registered with korrnum = space rather than on a transport request, so there is nothing here for one to attach to.`,
+      { packageName: validated, corrNr }
+    );
+  }
+  if (corrNr !== void 0) assertCorrNr4(corrNr);
+  return validated;
+}
+function validate3(p) {
+  const viewName = assertEnhIdentifier(p.viewName, "viewName", { maxLength: VIEW_NAME_MAX });
+  const baseTable = assertEnhIdentifier(p.baseTable, "baseTable", { maxLength: VIEW_NAME_MAX });
+  if (!Array.isArray(p.fields) || p.fields.length === 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "fields must be a non-empty list of base-table field names \u2014 a classic view projecting no field at all is not a view SE11 or DDIF_VIEW_PUT would accept.",
+      { viewName, baseTable }
+    );
+  }
+  if (p.fields.length > MAX_VIEW_FIELDS) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `fields has ${p.fields.length} entries, more than the ${MAX_VIEW_FIELDS} this bridge generates. DD27P-OBJPOS is a 4-character numeric position and this bridge fills it by zero-padding a 1-based index, so every generated position must stay inside 0001-9999.`,
+      { viewName, count: p.fields.length, max: MAX_VIEW_FIELDS }
+    );
+  }
+  const fields = p.fields.map(
+    (f, i) => assertEnhIdentifier(f, `fields[${i}]`, { maxLength: VIEW_NAME_MAX })
+  );
+  const description = assertAbapText(p.description, "description", VIEW_TEXT_MAX);
+  const packageName = assertClassicViewCreateTarget(p.packageName, p.corrNr);
+  const local = isLocalPackage2(packageName);
+  if (!local && p.corrNr === void 0) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this view must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 and none was resolved for this call.`,
+      { packageName },
+      "Through abap_write no corr_nr is needed: omitted, the request is resolved under ABAP_ALLOW_TRANSPORTS before this module runs (auto reuses a modifiable request this session created for the package, else creates one; a pinned list uses one of its entries). Reaching this refusal from abap_write means no session transport manager was wired into the call \u2014 an abapsmith wiring defect, not a caller error. A direct caller of this module hands it a TRKORR the safety gate has already judged."
+    );
+  }
+  const corrNr = local ? void 0 : p.corrNr;
+  return { viewName, baseTable, fields, description, packageName, corrNr, corrSource: p.corrSource };
+}
+function viewCreatePartialSuccess(viewName) {
+  return {
+    completed: {
+      "VIEW-REGISTERED": `RS_CORR_INSERT registered ${viewName} in TADIR \u2014 on the transport request for a transportable package, with korrnum = space for a local one \u2014 before any dictionary write; no view was created by it.`,
+      "VIEW-PUT": `DDIF_VIEW_PUT wrote ${viewName}, and the COMMIT WORK that follows it committed it, inactive.`
+    },
+    hint: `If VIEW-PUT fired, ${viewName} exists AND is registered \u2014 abap_write mode="delete" type="VIEW/DV" can remove it. If only VIEW-REGISTERED fired, no view was written and only the TADIR entry exists \u2014 for a transportable package, remove it from the request in SE09/SE10, or reuse it by re-running the create into the same request; for a local package (korrnum = space) it is registered but not on any request.`
+  };
+}
+async function createClassicView(conn, gate, params) {
+  const validated = validate3(params);
+  const { viewName, baseTable, fields, description, packageName, corrNr, corrSource } = validated;
+  const corr = isLocalPackage2(packageName) ? void 0 : { kind: "transport", corrNr, source: corrSource ?? "named" };
+  assertBridgeMutation(
+    gate,
+    { type: "VIEW/DV", name: viewName, packageName },
+    { activate: true, ...corr !== void 0 ? { corr } : {} }
+  );
+  const expectTags = ["VIEW-REGISTERED", "VIEW-PUT", "VIEW-ACTIVATED"];
+  const partial2 = viewCreatePartialSuccess(viewName);
+  return runClassicAction(conn, gate, {
+    action: "create_view",
+    args: {
+      view_name: viewName,
+      base_table: baseTable,
+      fields,
+      description,
+      package_name: packageName,
+      corr_nr: corrNr ?? ""
+    },
+    what: `Creating classic view ${viewName}`,
+    ...corr !== void 0 ? { corrSource: corr.source } : {},
+    expectTags,
+    completed: partial2.completed,
+    partialHint: partial2.hint
+  });
+}
+
+// src/adt/view-delete.ts
+init_errors();
+init_enhancement_templates();
+var VIEW_NAME_MAX2 = 30;
+function validate4(p) {
+  const viewName = assertEnhIdentifier(p.viewName, "viewName", { maxLength: VIEW_NAME_MAX2 });
+  return { viewName };
+}
+async function deleteClassicViewViaBridge(conn, gate, params) {
+  assertServerPackage(params.packageName, `view ${params.viewName}`);
+  const { viewName } = validate4(params);
+  const packageName = params.packageName.name;
+  assertBridgeMutation(
+    gate,
+    { type: "VIEW/DV", name: viewName, packageName },
+    { activate: false, op: "delete", corr: { kind: "local" } }
+  );
+  const beforeAssert = (transcript) => {
+    if (transcript.errorLine?.includes(`${viewName} does not exist`)) {
+      throw new AbapError(
+        "CHECK_FAILED",
+        `View ${viewName} does not exist, so there is nothing to delete. Raw ABAP-side detail: ${transcript.errorLine}`,
+        { viewName, raw: transcript.raw }
+      );
+    }
+  };
+  return runClassicAction(conn, gate, {
+    action: "delete_view",
+    args: {
+      view_name: viewName,
+      package_name: packageName,
+      ...params.confirmMaintenanceDialog !== void 0 ? { confirm_maintenance_dialog: params.confirmMaintenanceDialog } : {}
+    },
+    what: `Deleting classic view ${viewName}`,
+    expectTags: ["VIEW-DELETED", "VIEW-GONE"],
+    beforeAssert
+  });
+}
+
+// src/adt/view-update.ts
+init_errors();
+init_enhancement_templates();
+init_transports();
+async function updateClassicView(conn, gate, params) {
+  const viewName = assertEnhIdentifier(params.viewName, "viewName", { maxLength: VIEW_NAME_MAX });
+  const baseTable = assertEnhIdentifier(params.baseTable, "baseTable", { maxLength: VIEW_NAME_MAX });
+  if (!Array.isArray(params.fields) || params.fields.length === 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "fields must be a non-empty list of base-table field names \u2014 an update replaces the whole field list, and DDIF_VIEW_PUT would not accept a view projecting no field at all.",
+      { viewName, baseTable }
+    );
+  }
+  if (params.fields.length > MAX_VIEW_FIELDS) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `fields has ${params.fields.length} entries, more than the ${MAX_VIEW_FIELDS} this bridge generates. DD27P-OBJPOS is a 4-character numeric position and this bridge fills it by zero-padding a 1-based index, so every generated position must stay inside 0001-9999.`,
+      { viewName, count: params.fields.length, max: MAX_VIEW_FIELDS }
+    );
+  }
+  const fields = params.fields.map(
+    (f, i) => assertEnhIdentifier(f, `fields[${i}]`, { maxLength: VIEW_NAME_MAX })
+  );
+  const description = assertAbapText(params.description, "description", VIEW_TEXT_MAX);
+  const packageName = assertClassicViewCreateTarget(params.packageName, params.corrNr);
+  const local = isLocalPackageName(packageName);
+  if (!local && params.corrNr === void 0) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this view update must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 pass corr_nr (an ALREADY gate-judged TRKORR, e.g. A4HK900121).`,
+      { packageName },
+      "Via abap_write, pass corr_nr with the TRKORR the safety gate already judged for this write (see the abapsmith-put-work-on-a-transport skill)."
+    );
+  }
+  const corrNr = local ? void 0 : params.corrNr;
+  const corr = local ? void 0 : { kind: "transport", corrNr, source: params.corrSource ?? "named" };
+  assertBridgeMutation(
+    gate,
+    { type: "VIEW/DV", name: viewName, packageName },
+    { activate: true, ...corr !== void 0 ? { corr } : {} }
+  );
+  const beforeAssert = (transcript) => {
+    if (transcript.errorLine?.includes(`${viewName} does not exist`)) {
+      throw new AbapError(
+        "CHECK_FAILED",
+        `View ${viewName} does not exist, so there is nothing to update. Raw ABAP-side detail: ${transcript.errorLine}`,
+        { viewName, raw: transcript.raw }
+      );
+    }
+  };
+  const expectTags = ["VIEW-REGISTERED", "VIEW-UPDATED", "VIEW-ACTIVATED"];
+  return runClassicAction(conn, gate, {
+    action: "update_view",
+    args: {
+      view_name: viewName,
+      base_table: baseTable,
+      fields,
+      description,
+      package_name: packageName,
+      corr_nr: corrNr ?? ""
+    },
+    what: `Updating classic view ${viewName}`,
+    expectTags,
+    beforeAssert
+  });
+}
+
+// src/adt/shlp-create.ts
+init_errors();
+init_enhancement_templates();
+init_transports();
+var SHLP_NAME_MAX = 30;
+var SHLP_TEXT_MAX = 60;
+var DEFAULT_VALUE_MAX = 132;
+var SELECTION_METHOD_TYPES = /* @__PURE__ */ new Set(["T", "V", "M"]);
+var ASSIGNMENT_DIRECTIONS = /* @__PURE__ */ new Set(["I", "E"]);
+var PACKAGE_RULES4 = { maxLength: SHLP_NAME_MAX, allowLocal: true };
+function assertCorrNr5(value) {
+  if (!isTrkorr(value)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(value)} is not a transport request/task number this system would issue (e.g. A4HK900121). This module never acquires a request on its own \u2014 the caller must hand it one that has already been judged by the safety gate.`,
+      { what: "corrNr", value }
+    );
+  }
+  return value;
+}
+function assertSearchHelpTarget(packageName, corrNr) {
+  const validated = assertEnhIdentifier(packageName, "packageName", PACKAGE_RULES4);
+  const local = isLocalPackageName(validated);
+  if (local && corrNr !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `corr_nr ${JSON.stringify(corrNr)} was supplied for local package ${JSON.stringify(validated)}, but a local ($-prefixed) search help is registered with korrnum = space rather than on a transport request, so there is nothing here for one to attach to.`,
+      { packageName: validated, corrNr }
+    );
+  }
+  if (corrNr !== void 0) assertCorrNr5(corrNr);
+  return validated;
+}
+function validate5(packageNameStr, p) {
+  const shlpName = assertEnhIdentifier(p.shlpName, "shlpName", { maxLength: SHLP_NAME_MAX });
+  const description = assertAbapText(p.description, "description", SHLP_TEXT_MAX);
+  const packageName = assertSearchHelpTarget(packageNameStr, p.corrNr);
+  const local = isLocalPackageName(packageName);
+  if (!local && p.corrNr === void 0) {
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `packageName ${JSON.stringify(packageName)} is not local ($-prefixed), so this search help must be registered in CTS via RS_CORR_INSERT, which requires a transport request \u2014 and none was resolved for this call.`,
+      { packageName },
+      "Through abap_write no corr_nr is needed: omitted, the request is resolved under ABAP_ALLOW_TRANSPORTS before this module runs (auto reuses a modifiable request this session created for the package, else creates one; a pinned list uses one of its entries). Reaching this refusal from abap_write means no session transport manager was wired into the call \u2014 an abapsmith wiring defect, not a caller error. A direct caller of this module hands it a TRKORR the safety gate has already judged."
+    );
+  }
+  const corrNr = local ? void 0 : p.corrNr;
+  const selectionMethodGiven = p.selectionMethod !== void 0 && p.selectionMethod !== "";
+  const selectionMethod = selectionMethodGiven ? assertEnhIdentifier(p.selectionMethod, "selectionMethod", { maxLength: SHLP_NAME_MAX }) : "";
+  let selectionMethodType;
+  if (!selectionMethodGiven) {
+    if (p.selectionMethodType !== void 0 && p.selectionMethodType !== "") {
+      throw new AbapError(
+        "BAD_INPUT",
+        `selectionMethodType ${JSON.stringify(p.selectionMethodType)} was given but selectionMethod was not \u2014 DD30V-SELMTYPE only means something alongside a selection method; leave both blank for a collective search help, or an elementary one driven by a search-help exit.`,
+        { what: "selectionMethodType", value: p.selectionMethodType }
+      );
+    }
+    selectionMethodType = "";
+  } else {
+    if (typeof p.selectionMethodType !== "string" || !SELECTION_METHOD_TYPES.has(p.selectionMethodType)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `selectionMethodType ${JSON.stringify(p.selectionMethodType)} must be one of ${[...SELECTION_METHOD_TYPES].join(", ")} \u2014 abap-shlp.ts only special-cases "T" (table) and "V" (view) existence checks, and does not check anything else against the server.`,
+        { what: "selectionMethodType", value: p.selectionMethodType }
+      );
+    }
+    selectionMethodType = p.selectionMethodType;
+  }
+  const dialogType = p.dialogType === void 0 ? void 0 : assertAbapText(p.dialogType, "dialogType", 1);
+  const textTable2 = p.textTable === void 0 ? void 0 : assertEnhIdentifier(p.textTable, "textTable", { maxLength: SHLP_NAME_MAX });
+  const hotKey = p.hotKey === void 0 ? void 0 : assertAbapText(p.hotKey, "hotKey", 1);
+  if (typeof p.elementary !== "boolean") {
+    throw new AbapError("BAD_INPUT", "elementary must be a boolean.", { what: "elementary" });
+  }
+  if (!Array.isArray(p.fields)) {
+    throw new AbapError("BAD_INPUT", "fields must be an array.", { what: "fields" });
+  }
+  const fields = p.fields.map((f, i) => {
+    const name = assertEnhIdentifier(f.name, `fields[${i}].name`, { maxLength: SHLP_NAME_MAX });
+    const dataElement = assertEnhIdentifier(f.dataElement, `fields[${i}].dataElement`, { maxLength: SHLP_NAME_MAX });
+    const defaultValue = f.defaultValue === void 0 ? void 0 : assertAbapText(f.defaultValue, `fields[${i}].defaultValue`, DEFAULT_VALUE_MAX);
+    return {
+      name,
+      dataElement,
+      import: f.import === true,
+      export: f.export === true,
+      ...defaultValue !== void 0 ? { defaultValue } : {}
+    };
+  });
+  if (p.elementary) {
+    if (fields.length === 0) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "fields must be non-empty for an elementary search help (DD30V-ISSIMPLE = 'X') \u2014 DDIF_SHLP_PUT needs at least one import and one export parameter.",
+        { shlpName }
+      );
+    }
+    if (!fields.some((f) => f.import) || !fields.some((f) => f.export)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        "an elementary search help needs at least one field marked import and at least one marked export \u2014 abap-shlp.ts refuses this at runtime too, but this fails before any network call.",
+        { shlpName, fields }
+      );
+    }
+  }
+  const includes = (p.includes ?? []).map((inc, i) => ({
+    name: assertEnhIdentifier(inc.name, `includes[${i}].name`, { maxLength: SHLP_NAME_MAX })
+  }));
+  const assignments = (p.assignments ?? []).map((a, i) => {
+    const field = assertEnhIdentifier(a.field, `assignments[${i}].field`, { maxLength: SHLP_NAME_MAX });
+    const includedHelp = assertEnhIdentifier(a.includedHelp, `assignments[${i}].includedHelp`, { maxLength: SHLP_NAME_MAX });
+    const includedField = assertEnhIdentifier(a.includedField, `assignments[${i}].includedField`, { maxLength: SHLP_NAME_MAX });
+    if (typeof a.direction !== "string" || !ASSIGNMENT_DIRECTIONS.has(a.direction)) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `assignments[${i}].direction ${JSON.stringify(a.direction)} must be one of ${[...ASSIGNMENT_DIRECTIONS].join(", ")} (DD33V-VALUEDIREC).`,
+        { what: `assignments[${i}].direction`, value: a.direction }
+      );
+    }
+    return { field, includedHelp, includedField, direction: a.direction };
+  });
+  const fieldNames = new Set(fields.map((f) => f.name.toUpperCase()));
+  const includeNames = new Set(includes.map((inc) => inc.name.toUpperCase()));
+  assignments.forEach((a, i) => {
+    if (!fieldNames.has(a.field.toUpperCase())) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `assignments[${i}].field ${JSON.stringify(a.field)} is not one of this search help's own interface parameters (fields[].name) \u2014 DDIF_SHLP_ACTIVATE would otherwise fail with rc = 8 / DH109 ("search help & was not activated") after DDIF_SHLP_PUT had already succeeded, leaving the search help stranded as an inactive-only object (a DD30L row with AS4LOCAL = 'N', no active row, plus a TADIR entry) \u2014 measured live on A4H 2026-09-15.`,
+        { what: `assignments[${i}].field`, value: a.field, fields: fields.map((f) => f.name) }
+      );
+    }
+    if (!includeNames.has(a.includedHelp.toUpperCase())) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `assignments[${i}].includedHelp ${JSON.stringify(a.includedHelp)} names a search help this definition does not include (includes[].name) \u2014 the same DH109 activation failure applies as for assignments[].field above: DDIF_SHLP_ACTIVATE returns rc = 8 for a DD33V row whose SUBSHLP is not among this search help's own DD31V includes, after DDIF_SHLP_PUT has already succeeded, stranding the search help as an inactive-only object.`,
+        { what: `assignments[${i}].includedHelp`, value: a.includedHelp, includes: includes.map((inc) => inc.name) }
+      );
+    }
+  });
+  return {
+    shlpName,
+    description,
+    packageName,
+    corrNr,
+    corrSource: p.corrSource,
+    selectionMethod,
+    selectionMethodType,
+    dialogType,
+    textTable: textTable2,
+    hotKey,
+    elementary: p.elementary,
+    fields,
+    includes,
+    assignments
+  };
+}
+function buildArgs(v) {
+  return {
+    shlp_name: v.shlpName,
+    description: v.description,
+    package_name: v.packageName,
+    corr_nr: v.corrNr ?? "",
+    selection_method: v.selectionMethod,
+    selection_method_type: v.selectionMethodType,
+    ...v.dialogType !== void 0 ? { dialog_type: v.dialogType } : {},
+    ...v.textTable !== void 0 ? { text_table: v.textTable } : {},
+    ...v.hotKey !== void 0 ? { hot_key: v.hotKey } : {},
+    elementary: v.elementary,
+    fields: v.fields.map((f) => ({
+      name: f.name,
+      data_element: f.dataElement,
+      import: f.import ?? false,
+      export: f.export ?? false,
+      ...f.defaultValue !== void 0 ? { default_value: f.defaultValue } : {}
+    })),
+    includes: v.includes.map((inc) => ({ name: inc.name })),
+    assignments: v.assignments.map((a) => ({
+      field: a.field,
+      included_help: a.includedHelp,
+      included_field: a.includedField,
+      direction: a.direction
+    }))
+  };
+}
+var SHLP_EXPECT_TAGS = ["SHLP-REGISTERED", "SHLP-PUT", "SHLP-ACTIVATED"];
+function corrOf(local, corrNr, corrSource) {
+  return local ? void 0 : { kind: "transport", corrNr, source: corrSource ?? "named" };
+}
+async function createSearchHelp(conn, gate, params) {
+  assertServerPackage(params.packageName, `search help ${params.shlpName}`);
+  const v = validate5(params.packageName.name, params);
+  const local = isLocalPackageName(v.packageName);
+  assertBridgeMutation(
+    gate,
+    { type: "SHLP/DH", name: v.shlpName, packageName: v.packageName },
+    { activate: true, ...corrOf(local, v.corrNr, v.corrSource) !== void 0 ? { corr: corrOf(local, v.corrNr, v.corrSource) } : {} }
+  );
+  return runClassicAction(conn, gate, {
+    action: "create_search_help",
+    args: buildArgs(v),
+    what: `Creating search help ${v.shlpName}`,
+    ...local ? {} : { corrSource: v.corrSource ?? "named" },
+    expectTags: SHLP_EXPECT_TAGS
+  });
+}
+async function updateSearchHelp(conn, gate, params) {
+  assertServerPackage(params.packageName, `search help ${params.shlpName}`);
+  const v = validate5(params.packageName.name, params);
+  const local = isLocalPackageName(v.packageName);
+  assertBridgeMutation(
+    gate,
+    { type: "SHLP/DH", name: v.shlpName, packageName: v.packageName },
+    { activate: true, ...corrOf(local, v.corrNr, v.corrSource) !== void 0 ? { corr: corrOf(local, v.corrNr, v.corrSource) } : {} }
+  );
+  return runClassicAction(conn, gate, {
+    action: "update_search_help",
+    args: buildArgs(v),
+    what: `Updating search help ${v.shlpName}`,
+    ...local ? {} : { corrSource: v.corrSource ?? "named" },
+    expectTags: SHLP_EXPECT_TAGS
+  });
+}
+
+// src/adt/shlp-delete.ts
+init_errors();
+init_enhancement_templates();
+var SHLP_NAME_MAX2 = 30;
+function validate6(p) {
+  const shlpName = assertEnhIdentifier(p.shlpName, "shlpName", { maxLength: SHLP_NAME_MAX2 });
+  return { shlpName };
+}
+async function deleteSearchHelpViaBridge(conn, gate, params) {
+  assertServerPackage(params.packageName, `search help ${params.shlpName}`);
+  const { shlpName } = validate6(params);
+  const packageName = params.packageName.name;
+  assertBridgeMutation(
+    gate,
+    { type: "SHLP/DH", name: shlpName, packageName },
+    { activate: false, op: "delete", corr: { kind: "local" } }
+  );
+  const beforeAssert = (transcript) => {
+    if (transcript.errorLine?.includes(`${shlpName} does not exist`)) {
+      throw new AbapError(
+        "CHECK_FAILED",
+        `Search help ${shlpName} does not exist, so there is nothing to delete. Raw ABAP-side detail: ${transcript.errorLine}`,
+        { shlpName, raw: transcript.raw }
+      );
+    }
+  };
+  return runClassicAction(conn, gate, {
+    action: "delete_search_help",
+    args: {
+      shlp_name: shlpName,
+      package_name: packageName,
+      ...params.confirmInUse !== void 0 ? { confirm_in_use: params.confirmInUse } : {}
+    },
+    what: `Deleting search help ${shlpName}`,
+    expectTags: ["SHLP-DELETED", "SHLP-GONE"],
+    beforeAssert
+  });
+}
+
 // src/adt/catalog-read.ts
+init_datapreview();
+init_errors();
 var CAP_ONE = 1;
 var CAP_TEXT = 50;
 var CAP_LIST = 200;
@@ -124980,6 +125486,26 @@ async function readTransactionImpl(conn, tcode, language) {
   const description = nonEmpty(text5.rs.records[0]?.[fld2("transactionText", "text")]);
   const rawParam = nonEmpty(param.rs.records[0]?.[fld2("transactionParam", "parameters")]);
   const parsed = rawParam !== void 0 ? parseTransactionParameters(rawParam) : void 0;
+  const cinfo = nonEmpty(headerRow[fld2("transaction", "classInfo")]) ?? "";
+  const baseKind = tstcKind(cinfo);
+  const kind = baseKind === "parameter" && (parsed?.kind === "parameter" || parsed?.kind === "variant" || parsed?.kind === "oo") ? parsed.kind : baseKind === "report" && parsed?.kind === "report-variant" ? "report-variant" : baseKind;
+  const kindLines = [line("KIND", kind)];
+  if (kind === "parameter") {
+    kindLines.push(line("TARGET", parsed?.target));
+    kindLines.push(line("SKIP FIRST SCREEN", parsed?.skipFirstScreen));
+  } else if (kind === "variant") {
+    kindLines.push(line("TARGET", parsed?.target));
+    kindLines.push(line("VARIANT", parsed?.variant));
+    kindLines.push(line("CROSS-CLIENT", parsed?.crossClient));
+  } else if (kind === "oo") {
+    kindLines.push(line("CLASS", parsed?.className));
+    kindLines.push(line("METHOD", parsed?.methodName));
+    kindLines.push(line("UPDATE MODE", parsed?.updateMode));
+    kindLines.push(line("TRANSACTION MODEL", parsed?.transactionModel));
+    kindLines.push(line("LOCAL IN PROGRAM", parsed?.localProgram));
+  } else if (kind === "report" || kind === "report-variant") {
+    kindLines.push(line("VARIANT", parsed?.variant));
+  }
   const authLines = auth.rs.records.map((r) => {
     return `${r[fld2("transactionAuth", "authObject")] ?? ""} ${r[fld2("transactionAuth", "authField")] ?? ""} = ${r[fld2("transactionAuth", "authValue")] ?? ""}`;
   });
@@ -125003,7 +125529,8 @@ async function readTransactionImpl(conn, tcode, language) {
     line("PROGRAM", nonEmpty(headerRow[fld2("transaction", "program")])),
     line("SCREEN", nonEmpty(headerRow[fld2("transaction", "dynpro")])),
     line("CLASS INFO", nonEmpty(headerRow[fld2("transaction", "classInfo")])),
-    line("MESSAGE AREA", nonEmpty(headerRow[fld2("transaction", "messageArea")]))
+    line("MESSAGE AREA", nonEmpty(headerRow[fld2("transaction", "messageArea")])),
+    ...kindLines
   ].filter(Boolean).join("\n") + block("PARAMETERS", paramLines) + block("AUTHORIZATION", authLines) + block("ASSIGNED TO ROLES", roleLines);
   return {
     ddl,
@@ -125015,6 +125542,15 @@ async function readTransactionImpl(conn, tcode, language) {
       transaction: tcode,
       program: nonEmpty(headerRow[fld2("transaction", "program")]),
       screen: nonEmpty(headerRow[fld2("transaction", "dynpro")]),
+      kind,
+      target: parsed?.target,
+      parameters: parsed?.assignments.length ? parsed.assignments.map((a) => `${a.name}=${a.value}`).join(";") : void 0,
+      variant: parsed?.variant,
+      className: parsed?.className,
+      methodName: parsed?.methodName,
+      updateMode: parsed?.updateMode,
+      // kept for backward compatibility with callers reading the old,
+      // 3-kind ("variant" | "parameter" | "other") shape
       parameterKind: parsed?.kind,
       parameterTarget: parsed?.target,
       authCheckCount: auth.rs.records.length,
@@ -126088,7 +126624,9 @@ var writeInputSchema = {
     new_string: external_exports.string(),
     replace_all: external_exports.boolean().optional()
   }).optional().describe("Splice a unique old_string; skip `source`."),
-  method: external_exports.string().optional().describe("One method to replace; body in `source`."),
+  method: external_exports.string().optional().describe(
+    "CLAS/OC: one method to replace; body in `source`. TRAN/T kind=oo: public method without mandatory parameters."
+  ),
   // `source`/`edit`/`method` all apply to the include named here
   // (`resolveWriteTarget` builds `sourceUri` from it). Must be declared for
   // the same zod-strips-undeclared-keys reason as `edit`/`method` above — an
@@ -126099,7 +126637,9 @@ var writeInputSchema = {
   package: external_exports.string().optional().describe(
     "Package for a NEW object. Default $TMP. A transportable one resolves its transport request under ABAP_ALLOW_TRANSPORTS when corr_nr is omitted (every type, including TRAN/T, VIEW/DV, SHLP/DH and TABL/DI). A $-package refuses corr_nr. TABL/DI: ignored except to check agreement \u2014 an index's package is always the base table's, never caller-chosen."
   ),
-  description: external_exports.string().optional().describe("Required to create a TRAN/T. Max 37 chars."),
+  description: external_exports.string().optional().describe(
+    "Short text for a create. Default: the object name (TABL/DI: `<table> index <id>`). Limit: 36 chars for TRAN/T (TSTCT-TTEXT), 60 for DDIC types (DDTEXT). Required for mode=update of TRAN/T, VIEW/DV, SHLP/DH."
+  ),
   // Structured create for the three XML-only DDIC types, so a
   // caller doesn't have to hand-compose the descriptor. Builder + grounding
   // citation live in src/adt/ddic-payload.ts (buildStructuredDdicDescriptor);
@@ -126219,7 +126759,22 @@ var writeInputSchema = {
   // "EXISTING" and "SUBMIT-only" are load-bearing: abapsmith checks the
   // program exists first, and RPY_TRANSACTION_INSERT only wires a
   // report/SUBMIT transaction, never a dialog one.
-  program: external_exports.string().optional().describe("TRAN/T, required: existing SUBMIT-only report."),
+  program: external_exports.string().optional().describe("TRAN/T kind=report|dialog: existing program."),
+  kind: external_exports.enum(["report", "dialog", "parameter", "variant", "oo"]).optional().describe(
+    "TRAN/T create. report (default): program, dynpro 1000. dialog: program + screen. parameter: target_transaction + parameters (+ skip_first_screen). variant: target_transaction + variant. oo: class + method (+ update_mode), stored as an OS_APPLICATION transaction-model transaction."
+  ),
+  screen: external_exports.string().optional().describe("TRAN/T kind=dialog: 4-digit screen of program."),
+  target_transaction: external_exports.string().optional().describe("TRAN/T kind=parameter|variant: existing transaction to call."),
+  skip_first_screen: external_exports.boolean().optional().describe(
+    "TRAN/T kind=parameter: skip the called transaction's first screen. Default false."
+  ),
+  parameters: external_exports.array(external_exports.object({ field: external_exports.string(), value: external_exports.string() }).strict()).optional().describe(
+    'TRAN/T kind=parameter: screen-field values, e.g. [{field:"VIEWNAME",value:"V_T001"},{field:"UPDATE",value:"X"}].'
+  ),
+  variant: external_exports.string().optional().describe("TRAN/T kind=variant: transaction variant (SHD0) of target_transaction."),
+  cross_client_variant: external_exports.boolean().optional().describe("TRAN/T kind=variant: variant is cross-client. Default false."),
+  class: external_exports.string().optional().describe("TRAN/T kind=oo: global class."),
+  update_mode: external_exports.enum(["S", "A", "L"]).optional().describe("TRAN/T kind=oo: S synchronous (default), A asynchronous, L local update."),
   confirm_in_use: external_exports.boolean().optional().describe(
     "SHLP/DH delete only: required true when the search help is still attached to a data element, a table/view field, or included by a collective search help (DD04L/DD35L/DD31S). Refused zero-network for any other type/mode combination."
   ),
@@ -126305,17 +126860,13 @@ function resolveDdicStructuredSource(input, target) {
       "Add `type`, or drop `ddic` and pass hand-composed XML via `source`."
     );
   }
-  const description = target.description?.trim();
-  if (!description) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `\`description\` is required to create a ${target.type} with \`ddic\` \u2014 it is the object's short text, and the descriptor has no default for it.`,
-      { name: target.name, type: target.type },
-      "Add `description`."
-    );
-  }
+  const explicit = target.description?.trim();
+  const description = explicit || target.name.toUpperCase();
   const packageName = target.packageName?.trim() || "$TMP";
-  return buildStructuredDdicDescriptor(target.type, target.name, description, packageName, input.ddic);
+  return {
+    source: buildStructuredDdicDescriptor(target.type, target.name, description, packageName, input.ddic),
+    ...explicit ? {} : { descriptionDefaultedTo: description }
+  };
 }
 function releaseClause(abapMode) {
   return "abap_write never releases a transport \u2014 releasing is a separate tool, abap_transport_release, which stays off unless " + (abapMode !== void 0 ? "ABAP_MODE=admin (ABAP_ALLOW_TRANSPORT_RELEASE is not read while ABAP_MODE is set)." : "ABAP_ALLOW_TRANSPORT_RELEASE is set.");
@@ -126732,6 +127283,7 @@ async function resolveWriteSource(conn, authorized, input) {
   );
 }
 async function abapWrite(conn, input, maxChars, gate, journal, transport, verifyWrites = "speculative", toolLabel2 = "abap_write") {
+  let ddicDescriptionDefaultNote;
   if (input.objects !== void 0) {
     if (input.dry_run) throw dryRunNotSupported("objects");
     const stray = [
@@ -126825,7 +127377,11 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
         "Drop `ddic` for a delete; there is no descriptor to build."
       );
     }
-    input = { ...input, source: resolveDdicStructuredSource(input, target) };
+    const resolved = resolveDdicStructuredSource(input, target);
+    input = { ...input, source: resolved.source };
+    if (resolved.descriptionDefaultedTo !== void 0) {
+      ddicDescriptionDefaultNote = `description defaulted to "${resolved.descriptionDefaultedTo}" (none was given).`;
+    }
   }
   if (isBridgeOnlyCreateType(input.type)) {
     if (input.dry_run) throw dryRunNotSupported("bridge", input.type);
@@ -127351,6 +127907,7 @@ ${renderInactive(activation.inactive)}`);
   const notes = [
     written.corrNrOverrode !== void 0 && written.corrNrSent !== void 0 ? corrNrOverriddenWriteNote(written.corrNrOverrode, written.corrNrSent, written.target.type, written.target.name) : transportNote(written.transport, gate.config?.abapMode)
   ];
+  if (ddicDescriptionDefaultNote !== void 0) notes.push(ddicDescriptionDefaultNote);
   if (written.processingTypeChanged) {
     notes.push(
       `Processing type set to ${written.processingType} via the ADT function-module descriptor (PUT under the same lock as the source). The descriptor PUT leaves an inactive version, which activation picks up.`
@@ -127565,6 +128122,62 @@ async function abapWriteBatchDelete(conn, entries, maxChars, gate, journal, tran
   });
   const pass1 = [];
   for (const w of wanted) {
+    const wType = w.type?.trim().toUpperCase();
+    if (wType !== void 0 && isBridgeOnlyCreateType(wType)) {
+      if (wType !== "TRAN/T") {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${w.name} (${wType}) cannot be deleted in a batch: only ordinary ADT-resolvable types and TRAN/T are supported in \`objects\`. Nothing in this batch was deleted.`,
+          { type: wType, name: w.name },
+          `Delete ${w.name} on its own with abap_write { mode: "delete", type: "${wType}", object: "${w.name}" } \u2014 or delete the remaining objects in a separate batch without it.`
+        );
+      }
+      const found = await verifyViaVitBridge(conn, "trant", w.name, "TRAN/T");
+      if (found.status === "confirmed-absent") {
+        pass1.push({ kind: "absent", name: w.name, type: "TRAN/T", uri: found.uri });
+        continue;
+      }
+      if (found.status === "indeterminate") {
+        throw new AbapError(
+          "SAFETY_DENIED",
+          `abapsmith could not confirm TRAN/T ${w.name}'s existence or its package before a delete, so it refuses the whole batch (${found.reason}).`,
+          { reason: "PACKAGE_UNKNOWN", object: w.name, type: "TRAN/T", uri: found.uri, cause: found.reason },
+          "Every delete is judged against the object's real package. Rather than guess, abapsmith stops here. Check the object exists and this connection can read it, then retry.",
+          { retryable: true }
+          // existence could not be confirmed, not denied — a healthy connection resolves it
+        );
+      }
+      const tstc = await lookupTransaction(conn, w.name);
+      if (tstc === void 0) {
+        pass1.push({ kind: "absent", name: w.name, type: "TRAN/T", uri: found.uri });
+        continue;
+      }
+      const resolved = serverPackage(found);
+      if (resolved === void 0) {
+        throw new AbapError(
+          "SAFETY_DENIED",
+          `abapsmith could not determine which package TRAN/T ${w.name} belongs to, so it refuses the whole batch: the VIT bridge read answered but carried no <adtcore:packageRef> element.`,
+          { reason: "PACKAGE_UNKNOWN", object: w.name, type: "TRAN/T", uri: found.uri }
+        );
+      }
+      const { corrNr, corrSource, transportInfo } = await resolveBridgeCreateCorr(
+        conn,
+        gate,
+        transport,
+        { name: w.name, type: "TRAN/T", uri: found.uri, packageName: resolved.name, op: "delete" },
+        void 0
+      );
+      pass1.push({
+        kind: "bridge-tran",
+        name: w.name,
+        uri: found.uri,
+        packageName: resolved,
+        ...corrNr !== void 0 ? { corrNr } : {},
+        ...corrSource !== void 0 ? { corrSource } : {},
+        ...transportInfo !== void 0 ? { transportInfo } : {}
+      });
+      continue;
+    }
     let a;
     try {
       a = await authorizeMutation(conn, gate, "delete", w);
@@ -127608,6 +128221,71 @@ async function abapWriteBatchDelete(conn, entries, maxChars, gate, journal, tran
     }
     if (sessionSpent) await renewSessionBetweenDeletes(conn);
     sessionSpent = true;
+    if (p.kind === "bridge-tran") {
+      try {
+        const deleted = await deleteTransactionViaBridge(conn, gate, {
+          tcode: p.name,
+          packageName: p.packageName,
+          ...p.corrNr !== void 0 ? { corrNr: p.corrNr } : {},
+          ...p.corrSource !== void 0 ? { corrSource: p.corrSource } : {}
+        });
+        let corrNrRecorded;
+        let corrNrHonoured;
+        if (p.transportInfo?.corrNr !== void 0) {
+          const readback = await readBackTransportEntry(conn, {
+            intended: p.transportInfo.corrNr,
+            entry: { pgmid: "R3TR", type: "TRAN", name: p.name },
+            lookup: { uri: p.uri, devclass: p.packageName.name }
+          });
+          if (readback.status === "confirmed-same") {
+            corrNrRecorded = readback.trkorr;
+            corrNrHonoured = true;
+          } else if (readback.status === "confirmed-other") {
+            corrNrRecorded = readback.trkorr;
+            corrNrHonoured = false;
+          }
+        }
+        const outcome = await verifyTransactionDeleted(conn, p.name);
+        if (outcome.status === "confirmed") {
+          outcomes.push({
+            name: p.name,
+            type: "TRAN/T",
+            uri: p.uri,
+            ok: false,
+            deleted: false,
+            error: {
+              code: "CHECK_FAILED",
+              message: `${CLASSIC_BODY_CLASS} reported success (the transcript carries ${deleted.transcript.tags.join(", ")}) but ${p.name} is STILL confirmed present at ${outcome.uri} (via ${outcome.via}) after delete.`
+            },
+            ...p.corrNr !== void 0 ? { corrNrSent: p.corrNr } : {},
+            ...corrNrRecorded !== void 0 ? { corrNrRecorded } : {},
+            ...corrNrHonoured !== void 0 ? { corrNrHonoured } : {}
+          });
+        } else {
+          outcomes.push({
+            name: p.name,
+            type: "TRAN/T",
+            uri: p.uri,
+            ok: true,
+            deleted: outcome.status === "confirmed-absent" ? true : "unverified",
+            ...p.corrNr !== void 0 ? { corrNrSent: p.corrNr } : {},
+            ...corrNrRecorded !== void 0 ? { corrNrRecorded } : {},
+            ...corrNrHonoured !== void 0 ? { corrNrHonoured } : {}
+          });
+        }
+      } catch (e) {
+        if (!isAbapError(e)) throw e;
+        outcomes.push({
+          name: p.name,
+          type: "TRAN/T",
+          uri: p.uri,
+          ok: false,
+          deleted: false,
+          error: { code: e.code, message: e.message }
+        });
+      }
+      continue;
+    }
     const { authorized: a, affects } = p;
     const t = a.target;
     const trOpts = transport ? { transport, gate, ...affects ? { affects } : {} } : { ...affects ? { affects } : {} };
@@ -127995,6 +128673,13 @@ async function abapBridgeCrud(conn, target, input, maxChars, gate, journal, tran
   const type = (input.type ?? "").trim().toUpperCase();
   assertGuardFlagsApplicable(type, input);
   const mode = input.mode ?? "write";
+  if ((type !== "TRAN/T" || mode === "update" || mode === "delete") && (input.kind !== void 0 || input.screen !== void 0 || input.target_transaction !== void 0 || input.skip_first_screen !== void 0 || input.parameters !== void 0 || input.variant !== void 0 || input.cross_client_variant !== void 0 || input.class !== void 0 || input.update_mode !== void 0)) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `\`kind\`, \`screen\`, \`target_transaction\`, \`skip_first_screen\`, \`parameters\`, \`variant\`, \`cross_client_variant\`, \`class\` and \`update_mode\` only apply to a TRAN/T create. Omit them for ${type || "this type"} mode="${mode}".`,
+      { type, mode }
+    );
+  }
   if (type === "TABL/DI") {
     if (mode === "update") {
       throw new AbapError(
@@ -128012,7 +128697,7 @@ async function abapBridgeCrud(conn, target, input, maxChars, gate, journal, tran
   if (type === "SHLP/DH") {
     return mode === "delete" ? abapDeleteSearchHelpViaBridge(conn, target, input, maxChars, gate, journal) : abapCreateSearchHelpViaBridge(conn, target, input, maxChars, gate, journal, transport);
   }
-  return mode === "delete" ? abapDeleteViaBridge(conn, target, input, maxChars, gate) : abapCreateViaBridge(conn, target, input, maxChars, gate, journal, transport);
+  return mode === "delete" ? abapDeleteViaBridge(conn, target, input, maxChars, gate, transport) : abapCreateViaBridge(conn, target, input, maxChars, gate, journal, transport);
 }
 async function resolveBridgeCreateCorr(conn, gate, transport, t, named) {
   if (isLocalPackageName(t.packageName)) {
@@ -128142,9 +128827,10 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal,
   const bad = (message2, hint) => {
     throw new AbapError("BAD_INPUT", message2, { object: target.name, type }, hint);
   };
-  if (input.source !== void 0 || input.edit !== void 0 || input.method !== void 0) {
+  const methodAllowed = type === "TRAN/T" && input.kind === "oo";
+  if (input.source !== void 0 || input.edit !== void 0 || !methodAllowed && input.method !== void 0) {
     bad(
-      `A ${label} (${type}) has no source: it is created from its definition, not from ABAP text. Omit \`source\`, \`edit\` and \`method\`.`
+      `A ${label} (${type}) has no source: it is created from its definition, not from ABAP text. Omit \`source\`, \`edit\`` + (methodAllowed ? "" : " and `method`") + "."
     );
   }
   if (input.format) bad(`A ${label} (${type}) has no source; \`format\` does not apply.`);
@@ -128163,11 +128849,27 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal,
   if (type === "TRAN/T" && (named !== void 0 || isLocalPackageName(packageName))) {
     assertTransactionCreateTarget(packageName, named);
   }
-  const description = input.description?.trim();
-  if (!description) {
-    bad(
-      `\`description\` is required to create a ${label} (${type}) \u2014 it is the object's short text (${type === "TRAN/T" ? "TSTCT-TTEXT" : "DD25V-DDTEXT"}), and the API has no default for it.`
-    );
+  const descriptionDefaulted = !input.description?.trim();
+  const description = input.description?.trim() || target.name.toUpperCase();
+  let transactionParams;
+  if (type === "TRAN/T") {
+    transactionParams = {
+      tcode: target.name,
+      program: input.program,
+      description,
+      packageName,
+      kind: input.kind,
+      screen: input.screen,
+      targetTransaction: input.target_transaction,
+      skipFirstScreen: input.skip_first_screen,
+      parameters: input.parameters,
+      variant: input.variant,
+      crossClientVariant: input.cross_client_variant,
+      className: input.class,
+      methodName: input.method,
+      updateMode: input.update_mode
+    };
+    assertTransactionKindParams(transactionParams);
   }
   gate.assert(
     "write",
@@ -128187,9 +128889,33 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal,
   const vitType = type === "VIEW/DV" ? "viewdv" : "trant";
   const objectUri = vitBridgeUri(vitType, target.name);
   let beforeCapture = "failed";
+  let tstcCrossCheckNote = "";
   if (journal) {
     const preCheck = await verifyViaVitBridge(conn, vitType, target.name, type);
-    if (preCheck.status === "confirmed") {
+    if (preCheck.status === "confirmed" && type === "TRAN/T") {
+      let tstc;
+      try {
+        tstc = await lookupTransaction(conn, target.name);
+      } catch (err) {
+        throw new AbapError(
+          "CHECK_FAILED",
+          `${label} ${target.name} already exists (confirmed at ${preCheck.uri}, via ${preCheck.via}). abap_write mode="write" creates a NEW ${label}; it does not overwrite one that is already there, and neither DDIC bridge FM has a modelled overwrite behaviour to fall back on; the TSTC cross-check failed: ${err instanceof Error ? err.message : String(err)}`,
+          { object: target.name, type, uri: preCheck.uri },
+          `Delete the existing ${label} first (abap_write mode="delete"), or pick a different name.`
+        );
+      }
+      if (tstc === void 0) {
+        beforeCapture = "confirmed-absent";
+        tstcCrossCheckNote = `The VIT bridge answered 200 for ${target.name} at ${preCheck.uri}, but TSTC has no row for it, so it is treated as absent and created (issue #201).`;
+      } else {
+        throw new AbapError(
+          "CHECK_FAILED",
+          `${label} ${target.name} already exists (confirmed at ${preCheck.uri}, via ${preCheck.via}; TSTC confirms a row (program ${tstc.program})). abap_write mode="write" creates a NEW ${label}; it does not overwrite one that is already there, and neither DDIC bridge FM has a modelled overwrite behaviour to fall back on.`,
+          { object: target.name, type, uri: preCheck.uri },
+          `Delete the existing ${label} first (abap_write mode="delete"), or pick a different name.`
+        );
+      }
+    } else if (preCheck.status === "confirmed") {
       throw new AbapError(
         "CHECK_FAILED",
         `${label} ${target.name} already exists (confirmed at ${preCheck.uri}, via ${preCheck.via}). abap_write mode="write" creates a NEW ${label}; it does not overwrite one that is already there, and neither DDIC bridge FM has a modelled overwrite behaviour to fall back on.`,
@@ -128276,20 +129002,55 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal,
       bad("`base_table` and `view_fields` are VIEW/DV fields; a transaction has no base table.");
     }
     if (input.activate === true) bad("A transaction has no activation step; omit `activate`.");
-    if (!input.program || !input.program.trim()) {
-      bad(
-        "`program` is required to create a transaction (TRAN/T): the EXISTING report program the transaction starts, e.g. ZTM_CARRIER_LIST. abapsmith checks it exists before creating the transaction."
-      );
-    }
-    const program = input.program.trim().toUpperCase();
-    const programTarget = await resolveWriteTarget(conn, { type: "PROG/P", name: program });
-    if (!programTarget.exists) {
-      throw new AbapError(
-        "NOT_FOUND",
-        `Program ${program} does not exist on ${conn.cfg.sid}, so a transaction cannot be created to start it. abapsmith checks this before creating a TRAN/T, rather than creating one that points nowhere and reporting success.`,
-        { object: target.name, type, program },
-        `Create the program first with abap_write (type="PROG/P"), or correct \`program\` if this was a typo.`
-      );
+    const params = transactionParams;
+    const kind = params.kind ?? "report";
+    let program;
+    let screen;
+    let targetTransaction;
+    let className;
+    if (kind === "report" || kind === "dialog") {
+      program = input.program.trim().toUpperCase();
+      const programTarget = await resolveWriteTarget(conn, { type: "PROG/P", name: program });
+      if (!programTarget.exists) {
+        throw new AbapError(
+          "NOT_FOUND",
+          `Program ${program} does not exist on ${conn.cfg.sid}, so a transaction cannot be created to start it. abapsmith checks this before creating a TRAN/T, rather than creating one that points nowhere and reporting success.`,
+          { object: target.name, type, program },
+          `Create the program first with abap_write (type="PROG/P"), or correct \`program\` if this was a typo.`
+        );
+      }
+      if (kind === "dialog") screen = input.screen.trim();
+    } else if (kind === "parameter" || kind === "variant") {
+      targetTransaction = input.target_transaction.trim().toUpperCase();
+      let tstc;
+      try {
+        tstc = await lookupTransaction(conn, targetTransaction);
+      } catch (err) {
+        throw new AbapError(
+          "CHECK_FAILED",
+          `Checking whether transaction ${targetTransaction} exists (TSTC) failed: ${err instanceof Error ? err.message : String(err)}`,
+          { object: target.name, type, targetTransaction }
+        );
+      }
+      if (tstc === void 0) {
+        throw new AbapError(
+          "NOT_FOUND",
+          `Transaction ${targetTransaction} does not exist on ${conn.cfg.sid}, so a parameter/variant transaction cannot call it.`,
+          { object: target.name, type, targetTransaction },
+          `Create ${targetTransaction} first, or correct \`target_transaction\` if this was a typo.`
+        );
+      }
+    } else {
+      className = input.class.trim().toUpperCase();
+      const classTarget = await resolveWriteTarget(conn, { type: "CLAS/OC", name: className });
+      if (!classTarget.exists) {
+        throw new AbapError(
+          "NOT_FOUND",
+          `Class ${className} does not exist on ${conn.cfg.sid}, so an OO transaction cannot call it.`,
+          { object: target.name, type, className },
+          `Create the class first with abap_write (type="CLAS/OC"), or correct \`class\` if this was a typo.`
+        );
+      }
     }
     bridgeClass = CLASSIC_BODY_CLASS;
     const { corrNr, corrSource, transportInfo: tranTransport } = await resolveBridgeCreateCorr(
@@ -128307,14 +129068,16 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal,
       beforeCapture,
       corrNr,
       () => createTransaction(conn, gate, {
-        ...common,
-        tcode: target.name,
+        ...params,
         program,
+        screen,
+        targetTransaction,
+        className,
         corrNr,
         ...corrSource !== void 0 ? { corrSource } : {}
       })
     ));
-    detail = `report transaction starting ${program} (dynpro 1000)`;
+    detail = kind === "report" ? `report transaction starting ${program} (dynpro 1000)` : kind === "dialog" ? `dialog transaction starting ${program} screen ${screen}` : kind === "parameter" ? `parameter transaction calling ${targetTransaction} (skip first screen: ${params.skipFirstScreen ? "yes" : "no"}) with ${params.parameters?.length ?? 0} parameter(s)` : kind === "variant" ? `variant transaction calling ${targetTransaction} with variant ${params.variant}` : `OO transaction calling ${className}=>${params.methodName} via OS_APPLICATION (update mode ${params.updateMode ?? "S"})`;
     const outcome = await verifyObjectCreated(conn, {
       vitType: "trant",
       objectName: target.name,
@@ -128362,6 +129125,8 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal,
     notes: [
       `Created by running the classic fluid tool's body class ${bridgeClass}, not over ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/classic-call.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
+      descriptionDefaulted ? `description defaulted to "${description}" (none was given).` : "",
+      tstcCrossCheckNote,
       ...bridgeTransportNotes(transportInfo, transport, gate, readback),
       verifyNote,
       bridgeReversalNote(entryId, beforeCapture, registration, label, type, target.name)
@@ -128369,7 +129134,7 @@ async function abapCreateViaBridge(conn, target, input, maxChars, gate, journal,
     maxChars
   });
 }
-async function abapDeleteViaBridge(conn, target, input, maxChars, gate) {
+async function abapDeleteViaBridge(conn, target, input, maxChars, gate, transport) {
   const type = (input.type ?? "").trim().toUpperCase();
   const cap = capabilitiesFor(type);
   const label = cap?.label ?? type;
@@ -128396,9 +129161,10 @@ async function abapDeleteViaBridge(conn, target, input, maxChars, gate) {
   if (input.software_component !== void 0 || input.package_type !== void 0 || input.transport_layer !== void 0) {
     bad("`software_component`, `package_type` and `transport_layer` are DEVC/K create fields only.");
   }
-  if (normalizeCorrNr(input.corr_nr) !== void 0) {
+  const named = normalizeCorrNr(input.corr_nr);
+  if (type === "VIEW/DV" && named !== void 0) {
     bad(
-      `\`corr_nr\` cannot be honoured for a ${label} delete: neither delete bridge takes a transport parameter (src/adt/view-delete.ts, src/adt/tran-delete.ts). None is needed either \u2014 the delete registers nothing in CTS, so it is judged as a local mutation and no transport allowlist blocks it.`,
+      `\`corr_nr\` cannot be honoured for a ${label} delete: the view delete bridge takes no transport parameter (src/adt/view-delete.ts). None is needed either \u2014 the delete registers nothing in CTS, so it is judged as a local mutation and no transport allowlist blocks it.`,
       'Retry without `corr_nr`. Any entry the object already had on a transport request survives this delete; use `abap_transport` operation: "removeObject" (transport, object, confirm) for that, which needs ABAP_MODE=admin.'
     );
   }
@@ -128421,6 +129187,16 @@ async function abapDeleteViaBridge(conn, target, input, maxChars, gate) {
       // existence could not be confirmed, not denied — a healthy connection resolves it
     );
   }
+  if (type === "TRAN/T") {
+    const tstc = await lookupTransaction(conn, target.name);
+    if (tstc === void 0) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `${label} ${target.name} does not exist, so there is nothing to delete (the VIT bridge answered 200 at ${found.uri}, but TSTC has no row for it).`,
+        { object: target.name, type, uri: found.uri }
+      );
+    }
+  }
   const resolved = serverPackage(found);
   if (resolved === void 0) {
     throw new AbapError(
@@ -128442,6 +129218,8 @@ async function abapDeleteViaBridge(conn, target, input, maxChars, gate) {
   const packageName = resolved.name;
   let deleted;
   let bridgeClass;
+  let transportInfo;
+  let readback;
   if (type === "VIEW/DV") {
     bridgeClass = CLASSIC_BODY_CLASS;
     deleted = await deleteClassicViewViaBridge(conn, gate, {
@@ -128451,13 +129229,30 @@ async function abapDeleteViaBridge(conn, target, input, maxChars, gate) {
     });
   } else {
     bridgeClass = CLASSIC_BODY_CLASS;
+    const { corrNr, corrSource, transportInfo: tranTransport } = await resolveBridgeCreateCorr(
+      conn,
+      gate,
+      transport,
+      { name: target.name, type: "TRAN/T", uri: found.uri, packageName, op: "delete" },
+      named
+    );
+    transportInfo = tranTransport;
     deleted = await deleteTransactionViaBridge(conn, gate, {
       tcode: target.name,
       packageName: resolved,
-      confirmInRoleMenu: input.confirm_in_role_menu
+      confirmInRoleMenu: input.confirm_in_role_menu,
+      ...corrNr !== void 0 ? { corrNr } : {},
+      ...corrSource !== void 0 ? { corrSource } : {}
     });
+    if (transportInfo?.corrNr !== void 0) {
+      readback = await readBackTransportEntry(conn, {
+        intended: transportInfo.corrNr,
+        entry: { pgmid: "R3TR", type: "TRAN", name: target.name },
+        lookup: { uri: found.uri, devclass: packageName }
+      });
+    }
   }
-  const outcome = await verifyObjectDeleted(conn, {
+  const outcome = type === "TRAN/T" ? await verifyTransactionDeleted(conn, target.name) : await verifyObjectDeleted(conn, {
     uri: vitBridgeUri(vitType, target.name),
     accept: VIT_STUB_ACCEPT,
     objectName: target.name,
@@ -128473,16 +129268,18 @@ async function abapDeleteViaBridge(conn, target, input, maxChars, gate) {
     );
   } else if (outcome.status === "confirmed-absent") {
     verified = true;
-    verifyNote = `Read back and confirmed absent at ${outcome.uri} (via ${outcome.via}) after delete.`;
+    verifyNote = outcome.via === "tstc" ? `Read back: the VIT bridge answered 200 but TSTC has no row for ${target.name} \u2014 confirmed absent (issue #201).` : `Read back and confirmed absent at ${outcome.uri} (via ${outcome.via}) after delete.`;
   } else {
     verified = false;
     verifyNote = `NOT independently confirmed absent: ${outcome.reason} abapsmith still reports the delete here, trusting the classrun transcript (the markers above) \u2014 but that is not the same confidence as a live read-back. See src/adt/write-verify.ts.`;
   }
+  const headerTransportInfo = bridgeTransportHeaderInfo(transportInfo, readback);
   return buildResponse({
     header: {
       system: conn.cfg.sid,
       object: `${type} ${target.name}`,
       package: packageName,
+      ...headerTransportInfo !== void 0 ? { transport: transportHeaderText(headerTransportInfo) } : {},
       mode: "delete-bridge",
       deleted: true,
       verified,
@@ -128494,7 +129291,8 @@ async function abapDeleteViaBridge(conn, target, input, maxChars, gate) {
       `Deleted by running the classic fluid tool's body class ${bridgeClass}, not over ADT REST \u2014 ${type} has no writable ADT collection at all (see this type's REGISTRY entry in src/adt/capabilities.ts).`,
       verifyNote,
       "NOT journalled: a bridge delete captures no before-image, so abap_journal mode=undo cannot restore this object. To bring it back, create it again with a fresh abap_write call.",
-      isLocalPackageName(packageName) ? "" : bridgeDeleteTransportEntryNote(label, target.name, packageName)
+      type === "VIEW/DV" && !isLocalPackageName(packageName) ? bridgeDeleteTransportEntryNote(label, target.name, packageName) : "",
+      ...type === "TRAN/T" ? bridgeTransportNotes(transportInfo, transport, gate, readback) : []
     ].filter((n) => n !== ""),
     maxChars
   });
@@ -128616,12 +129414,8 @@ async function abapCreateSearchHelpViaBridge(conn, target, input, maxChars, gate
     );
   }
   const shlp = input.shlp;
-  const description = input.description?.trim();
-  if (!description) {
-    bad(
-      `\`description\` is required to create a ${label} (${type}) \u2014 it is the object's short text (DD30V-DDTEXT), and the API has no default for it.`
-    );
-  }
+  const descriptionDefaulted = !input.description?.trim();
+  const description = input.description?.trim() || target.name.toUpperCase();
   const packageNameStr = target.packageName?.trim() || "$TMP";
   const named = normalizeCorrNr(input.corr_nr);
   if (named !== void 0 || isLocalPackageName(packageNameStr)) {
@@ -128727,6 +129521,7 @@ async function abapCreateSearchHelpViaBridge(conn, target, input, maxChars, gate
     notes: [
       `Created by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/classic-call.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
+      descriptionDefaulted ? `description defaulted to "${description}" (none was given).` : "",
       ...bridgeTransportNotes(transportInfo, transport, gate),
       verifyNote,
       entryId !== void 0 ? `Journalled as ${entryId}, but marked irreversible: SHLP/DH has no VIT-bridge type for abap_journal mode=undo to resolve it through (src/adt/undo.ts's vitTypeFor only covers VIEW/DV and TRAN/T), so undo refuses this entry rather than crash. Reverse by hand with abap_write { mode: "delete", type: "SHLP/DH" }.` : 'Not journalled (no journal was open). Reverse by hand with abap_write { mode: "delete", type: "SHLP/DH" }.',
@@ -129217,11 +130012,6 @@ async function abapCreateIndexViaBridge(conn, target, input, maxChars, gate, tra
       "A secondary index cannot be created without activating it: DD_INDEX_INTERFACE runs with ACTIVATE = 'X'. Omit `activate`."
     );
   }
-  if (!input.description?.trim()) {
-    bad(
-      `\`description\` is required to create a ${label} (${type}) \u2014 it is the index's short text (DD12V-DDTEXT), and the API has no default for it.`
-    );
-  }
   if (!input.base_table?.trim()) {
     bad(
       `\`base_table\` is required to create a ${label} (${type}): the existing table the index is built over, e.g. ZMCP_CARRIER.`
@@ -129232,8 +130022,9 @@ async function abapCreateIndexViaBridge(conn, target, input, maxChars, gate, tra
       `\`index_fields\` is required to create a ${label} (${type}): the base-table fields the index covers, in order, e.g. ["CARRIER_ID"]. There is no "all fields" default.`
     );
   }
-  const description = input.description.trim();
   const baseTable = input.base_table.trim();
+  const descriptionDefaulted = !input.description?.trim();
+  const description = input.description?.trim() || `${baseTable} index ${target.name}`;
   const indexFields = input.index_fields;
   const owner = await resolveIndexOwner(conn, baseTable);
   const requestedPackage = target.packageName?.trim().toUpperCase();
@@ -129301,6 +130092,7 @@ async function abapCreateIndexViaBridge(conn, target, input, maxChars, gate, tra
     notes: [
       `Created by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/index-create.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
+      descriptionDefaulted ? `description defaulted to "${description}" (none was given).` : "",
       ...bridgeTransportNotes(transportInfo, transport, gate, readback),
       created.verdict.verified ? `Independently verified with a fresh DD12V/DD17S catalog read after the bridge returned: ${created.verdict.statement}` : `NOT independently verified: the post-create catalog re-read did not run (${created.verdict.reason ?? "reason unknown"}). abapsmith reports created:true based only on the bridge's own transcript (the INDEX-ACTIVE and INDEX-FIELDS markers above, from its post-COMMIT WORK SELECT COUNT( * ) on DD12V and DD17S inside that same classrun execution) \u2014 that is all that is known here.`,
       `To read the index back independently at any time: abap_read {"object":"${baseTable}/${target.name}","type":"TABL/DI"}.`,
@@ -130375,6 +131167,7 @@ init_session();
 init_types();
 init_write_verify();
 init_capabilities();
+init_transports();
 function describeDeleteVerification(v) {
   const detail = v.status === "indeterminate" ? v.reason : `via ${v.via}`;
   return `${v.uri} (${detail})`;
@@ -130835,7 +131628,7 @@ function detectDrift(entry, action, now) {
     (action === "delete" ? "Deleting it now would silently destroy their change." : "Restoring the before-image now would silently destroy their change.")
   };
 }
-async function performBridgeCreateUndo(conn, gate, plan, onBeforeImage) {
+async function performBridgeCreateUndo(conn, gate, plan, onBeforeImage, transport) {
   const pkg = plan.bridgeCreateVerify && serverPackage(plan.bridgeCreateVerify);
   if (!pkg) {
     throw new AbapError(
@@ -130850,7 +131643,32 @@ async function performBridgeCreateUndo(conn, gate, plan, onBeforeImage) {
   if (type === "VIEW/DV") {
     await deleteClassicViewViaBridge(conn, gate, { viewName: plan.target.name, packageName: pkg });
   } else if (type === "TRAN/T") {
-    await deleteTransactionViaBridge(conn, gate, { tcode: plan.target.name, packageName: pkg });
+    if (isLocalPackageName(pkg.name)) {
+      await deleteTransactionViaBridge(conn, gate, { tcode: plan.target.name, packageName: pkg });
+    } else {
+      if (transport === void 0) {
+        throw new AbapError(
+          "TRANSPORT_ERROR",
+          `Undo of TRAN/T ${plan.target.name} needs a transport request, because package ${pkg.name} is not local ($-prefixed), but no transport manager was wired into this undo. Nothing was deleted.`,
+          { name: plan.target.name, type, packageName: pkg.name },
+          "This is an internal wiring failure in abapsmith, not a mistake in the request."
+        );
+      }
+      const preflightTarget = {
+        uri: plan.target.uri,
+        name: plan.target.name,
+        type: "TRAN/T",
+        packageName: pkg.name,
+        exists: true
+      };
+      const corr = await preflightPackageCorr(conn, preflightTarget, { transport, gate, op: "delete" });
+      await deleteTransactionViaBridge(conn, gate, {
+        tcode: plan.target.name,
+        packageName: pkg,
+        corrNr: corr.corrNr,
+        corrSource: corr.source
+      });
+    }
   } else {
     throw new AbapError(
       "SAFETY_DENIED",
@@ -130859,7 +131677,7 @@ async function performBridgeCreateUndo(conn, gate, plan, onBeforeImage) {
       "This is a bug in abapsmith's undo planning, not something to retry \u2014 please report it."
     );
   }
-  const outcome = await verifyObjectDeleted(conn, {
+  const outcome = type === "TRAN/T" ? await verifyTransactionDeleted(conn, plan.target.name) : await verifyObjectDeleted(conn, {
     uri: vitBridgeUri(vitTypeFor(type), plan.target.name),
     accept: VIT_STUB_ACCEPT,
     objectName: plan.target.name,
@@ -130998,7 +131816,7 @@ async function performUndo(conn, journal, entry, opts) {
         }),
         onError: "leave-pending"
       },
-      (onBeforeImage) => isBridgeOnlyCreateType(entry.object.type) ? performBridgeCreateUndo(conn, opts.gate, plan, onBeforeImage) : deleteObject(conn, authorized, { onBeforeImage, bridgeGate: opts.gate })
+      (onBeforeImage) => isBridgeOnlyCreateType(entry.object.type) ? performBridgeCreateUndo(conn, opts.gate, plan, onBeforeImage, opts.transport) : deleteObject(conn, authorized, { onBeforeImage, bridgeGate: opts.gate })
     );
     undoEntryId = entryId;
     if (res.deleted === false) {
@@ -131363,7 +132181,7 @@ function truncateDiffText(text5) {
   return `${cut}
 [diff truncated: ${cut.length} of ${text5.length} characters shown; detail="full" returns the complete images]`;
 }
-async function abapJournal(conn, input, maxChars, journal, gate) {
+async function abapJournal(conn, input, maxChars, journal, gate, transport) {
   const mode = input.mode ?? "list";
   const j = requireJournal(journal);
   if (mode === "list") {
@@ -131660,6 +132478,9 @@ async function abapJournal(conn, input, maxChars, journal, gate) {
     ...input.activate !== void 0 ? { activate: input.activate } : {},
     // A DEVC/K undo deletes through the classrun bridge, which gates itself.
     gate,
+    // TRAN/T undo of a transportable package resolves a request through this —
+    // see src/adt/undo.ts's UndoOptions.transport.
+    transport,
     // Re-authorise on the resolved object: only here is delete vs. write known.
     // gate.authorize both checks and mints the AuthorizedTarget proof that
     // writeObject/deleteObject require to run at all (Layer 2, src/mode.ts) —
@@ -131796,7 +132617,7 @@ function registerJournalTools(mcp, deps) {
           });
         }
         if (isUndo) await deps.ensureConnected();
-        const run = (conn) => abapJournal(conn, args, deps.cfg.maxResponseChars, deps.journal, deps.safety);
+        const run = (conn) => abapJournal(conn, args, deps.cfg.maxResponseChars, deps.journal, deps.safety, deps.transport);
         const res = isUndo ? await deps.pool.withWrite("abap_journal", undoGateKey, run) : await run(deps.pool.primary());
         return ok5(res.text);
       } catch (e) {
@@ -152705,7 +153526,7 @@ async function runCreateCustomizingRequest(conn, gate, plan, cfg) {
 init_safety();
 var IMG_MAX_ROWS = 50;
 var SM30_BYPASS_NOTE = "This write does not run the target view's own foreign-key checks, fixed-value checks, or table-maintenance-generator events \u2014 only the row data is written, so validation the SM30 dialog would have performed did not happen here.";
-function refuse(rule, reason) {
+function refuse2(rule, reason) {
   return { allowed: false, rule, reason };
 }
 var WRITABLE_DELIVERY_CLASSES = /* @__PURE__ */ new Set(["C", "G", "E"]);
@@ -152750,32 +153571,32 @@ function describeCccoractiv(raw) {
 }
 function evaluateImgWrite(probe3, req, cfg, opts) {
   if (cfg.productive === true || cfg.systemRole === "productive") {
-    return refuse(
+    return refuse2(
       "productive-system",
       "This system reports itself as productive. IMG customizing writes are refused on a productive system with no override \u2014 no flag or mode value changes this."
     );
   }
   if (cfg.writesLockedOut === true || cfg.writesLockedOut === void 0) {
     const evidence = cfg.lockoutReason ?? "No system-role probe has confirmed this system is non-productive yet.";
-    return refuse(
+    return refuse2(
       "write-lockout",
       `IMG customizing writes are locked out: ${evidence} No flag, allowlist or ABAP_MODE value overrides this \u2014 it clears only once the system-role probe proves the system non-productive.`
     );
   }
   if (cfg.readOnly === true) {
-    return refuse(
+    return refuse2(
       "read-only",
       "This server is running read-only, so no IMG customizing write can be made here. Ask the operator to enable writes if this system is meant to accept them."
     );
   }
   if (probe3.ambiguity !== void 0) {
-    return refuse(
+    return refuse2(
       "ambiguous-target",
       `This IMG activity resolved to more than one candidate: ${probe3.ambiguity} Pass the view or table name explicitly instead of the activity, so there is exactly one target to judge.`
     );
   }
   if (probe3.targetKind === "other") {
-    return refuse(
+    return refuse2(
       "target-kind",
       "This IMG activity resolves to a target this tool does not recognise as writable. Only a maintenance view, a view cluster or a transparent table can be written here."
     );
@@ -152784,10 +153605,10 @@ function evaluateImgWrite(probe3, req, cfg, opts) {
   const deliveryClass = table.deliveryClass.trim().toUpperCase();
   if (!WRITABLE_DELIVERY_CLASSES.has(deliveryClass)) {
     const reason = deliveryClass === "" ? `Table ${table.table}'s delivery class could not be determined, so this write is refused: only customizing tables (delivery class C, G or E) may be changed here.` : `Table ${table.table} has delivery class ${deliveryClass} (${DELIVERY_CLASS_DENIALS[deliveryClass] ?? "not a recognised customizing class"}), which this tool will not write to. Only delivery class C (customizing), G (customizing, protected against SAP overwrite) or E (control table, SAP and customer key ranges) may be written here.`;
-    return refuse("delivery-class", reason);
+    return refuse2("delivery-class", reason);
   }
   if (table.clientDependent === false && req.allowCrossClient !== true) {
-    return refuse(
+    return refuse2(
       "cross-client",
       `Table ${table.table} is client-independent: this change would affect every client on the system, not just the one you are logged into. Pass allow_cross_client: true once you have confirmed that is intended.`
     );
@@ -152796,16 +153617,16 @@ function evaluateImgWrite(probe3, req, cfg, opts) {
   if (denied2.denied) {
     const rule = denied2.rule;
     const detail = rule ? ` (${rule.kind} rule "${rule.value}"): ${rule.reason}` : ".";
-    return refuse(
+    return refuse2(
       "preview-deny-list",
       `Table ${table.table} is on the data-preview deny-list${detail} A table this server refuses to read is refused to write as well.`
     );
   }
   if (req.rows.length === 0) {
-    return refuse("row-count", "No rows were supplied, so there is nothing to write.");
+    return refuse2("row-count", "No rows were supplied, so there is nothing to write.");
   }
   if (req.rows.length > IMG_MAX_ROWS) {
-    return refuse(
+    return refuse2(
       "row-count",
       `${req.rows.length} rows were supplied, more than the ${IMG_MAX_ROWS}-row limit for one call. Split the change into batches of at most ${IMG_MAX_ROWS} rows.`
     );
@@ -152814,7 +153635,7 @@ function evaluateImgWrite(probe3, req, cfg, opts) {
     if (!field.key) continue;
     const dataType = field.dataType.trim().toUpperCase();
     if (!CHAR_LIKE_KEY_TYPES.has(dataType)) {
-      return refuse(
+      return refuse2(
         "key-field-type",
         `Key field ${field.field} on ${table.table} has data type ${field.dataType}, which is not one of the character-like types this tool can key on (CLNT, CHAR, NUMC, LANG, UNIT, CUKY, DATS, TIMS, ACCP). Maintain this table through a transaction that can handle a non-character key instead.`
       );
@@ -152822,7 +153643,7 @@ function evaluateImgWrite(probe3, req, cfg, opts) {
   }
   const cccoractiv = classifyCccoractiv(probe3.cccoractiv);
   if (cccoractiv === "blocked") {
-    return refuse(
+    return refuse2(
       "cccoractiv",
       'T000-CCCORACTIV = "2" for this client: changes to client-dependent customizing are not permitted in this client at all. This is a client setting (Client Change Options), not something a transport request or a flag on this call can override.'
     );
@@ -152841,7 +153662,7 @@ function evaluateImgWrite(probe3, req, cfg, opts) {
       corrNrResolution = "session";
     } else {
       const corrNrMissingMessage = `No corr_nr was supplied. A transport request is required here because ${table.clientDependent === false ? "the table is client-independent" : `automatic recording is not confirmed to be switched off for this client (T000-CCCORACTIV read as ${describeCccoractiv(probe3.cccoractiv)})`}.`;
-      if (req.mode !== "preview") return refuse("corr-nr-required", corrNrMissingMessage);
+      if (req.mode !== "preview") return refuse2("corr-nr-required", corrNrMissingMessage);
       notes.push(`Applying this change would refuse unless a transport request is supplied: ${corrNrMissingMessage}`);
     }
   }
@@ -152864,7 +153685,7 @@ function evaluateImgWrite(probe3, req, cfg, opts) {
     }
   }
   if (corrNrDeniedMessage) {
-    if (req.mode !== "preview") return refuse("corr-nr-not-allowed", corrNrDeniedMessage);
+    if (req.mode !== "preview") return refuse2("corr-nr-not-allowed", corrNrDeniedMessage);
     notes.push(`Applying this change would refuse: ${corrNrDeniedMessage}`);
   }
   if (namedCorrNr !== void 0 && corrNrDeniedMessage === void 0) {
@@ -152874,7 +153695,7 @@ function evaluateImgWrite(probe3, req, cfg, opts) {
   if (req.mode === "upsert" || req.mode === "delete") {
     const confirmed = (req.confirm ?? "").trim();
     if (confirmed.toUpperCase() !== baseTable.toUpperCase()) {
-      return refuse(
+      return refuse2(
         "confirm-mismatch",
         `To ${req.mode} rows in ${baseTable}, pass confirm: "${baseTable}" \u2014 the name of the base table that will actually change, not the IMG activity or the view you navigated through.`
       );
@@ -155425,33 +156246,6 @@ async function runUiPressBridge(conn, query, gate) {
     transcript,
     outputComplete: run.outputComplete,
     bodyBytes: run.bodyBytes
-  };
-}
-
-// src/adt/ui-tstc.ts
-init_catalog_select();
-function tstcKind(cinfo) {
-  switch (cinfo) {
-    case "00":
-      return "dialog transaction (classic dynpro; batch input / press applies)";
-    case "80":
-      return "report transaction (SUBMIT-driven; batch input does NOT apply)";
-    default:
-      return "unrecognised transaction kind - mechanism not confirmed, do not assume batch input applies";
-  }
-}
-async function lookupTransaction(conn, tcode) {
-  const result = await runCatalogSelect(conn, buildTransactionDetailQuery(tcode), 1);
-  const row2 = result.rows[0];
-  if (!row2) return void 0;
-  const cinfo = (row2.CINFO ?? "").trim();
-  return {
-    tcode: (row2.TCODE ?? tcode).trim(),
-    program: (row2.PGMNA ?? "").trim(),
-    dynpro: (row2.DYPNO ?? "").trim(),
-    cinfo,
-    kind: tstcKind(cinfo),
-    bdcApplies: cinfo === "00" ? true : cinfo === "80" ? false : void 0
   };
 }
 
@@ -160106,9 +160900,9 @@ function clampMaxVerdicts(requested) {
   if (n > ATC_MAX_VERDICTS) return ATC_MAX_VERDICTS;
   return n;
 }
-var VARIANT_RE = /^[A-Za-z_/][A-Za-z0-9_/-]{0,29}$/;
+var VARIANT_RE2 = /^[A-Za-z_/][A-Za-z0-9_/-]{0,29}$/;
 function assertVariantName(variant) {
-  if (typeof variant === "string" && VARIANT_RE.test(variant)) return;
+  if (typeof variant === "string" && VARIANT_RE2.test(variant)) return;
   throw new AbapError(
     "BAD_INPUT",
     `"${variant}" is not a usable ATC check variant name.`,

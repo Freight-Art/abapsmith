@@ -105,6 +105,31 @@
   `confirm_in_role_menu`. None of the three checks an SM01 transaction
   lock either way — abapsmith has not verified where this release records
   one, and makes no guess.
+  `TRAN/T` delete is transport-aware (#202), unlike `VIEW/DV`'s and
+  `SHLP/DH`'s: its bridge now passes the transport request to
+  `RPY_TRANSACTION_DELETE`, which registers it via `RS_CORR_INSERT` itself,
+  with the request-choice dialog suppressed, so the SAPLSTRD 0300 popup that
+  used to break a delete of a transportable-package transaction never
+  appears. Without `corr_nr` the request is picked the same way a create
+  picks one (the session resolver, under `ABAP_ALLOW_TRANSPORTS`); a named
+  `corr_nr` is judged under the normal transport allowlist rules, the same
+  as a create; a `corr_nr` named against a `$TMP` transaction is refused,
+  same as a create into a `$` package. `VIEW/DV` delete still takes no
+  `corr_nr` at all — its bridge has no transport parameter. Batch delete
+  (`objects` on `abap_write`) accepts `TRAN/T` entries the same way, one
+  bridge call per entry, not journalled; the other bridge-only types in a
+  batch (`VIEW/DV`, `SHLP/DH`, `TABL/DI`) are refused `BAD_INPUT` naming the
+  entry rather than a bare `UNSUPPORTED`.
+  `TRAN/T` create supports five shapes, chosen with `kind` (#214): `report`
+  (the default), `dialog`, `parameter`, `variant` and `oo` — see
+  `doc/CAPABILITIES/object-types.md` for what each needs. The one shape
+  this tool cannot create or retarget is an OO transaction WITHOUT the
+  transaction model (`TSTCP` `\CLASS=...\METHOD=...`, including a class
+  local to a program): `RPY_TRANSACTION_INSERT` has no branch for it, so it
+  stays read-only. `description` is now optional on a `TRAN/T` create — it
+  defaults to the object name — and capped at 36 characters (`TSTCT-TTEXT`),
+  refused with `BAD_INPUT` quoting 36 rather than the previous 37;
+  `mode="update"` still requires a description.
   All three update routes journal the pre-update rendered pseudo-DDL as a
   before-image (`beforeSource`, `src/tools/write.ts`), but the journal
   entry is written `irreversible: true`: it is kept for audit and manual

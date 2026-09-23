@@ -2155,8 +2155,11 @@ describe("tool surface", () => {
       | { properties?: Record<string, { description?: string }> }
       | undefined;
     const props = schema?.properties ?? {};
-    expect(props.description?.description).toContain("Required to create a TRAN/T");
-    expect(props.program?.description).toMatch(/TRAN\/T, required/);
+    expect(props.description?.description).toContain("Required for mode=update of");
+    expect(props.description?.description).toContain("TRAN/T, VIEW/DV, SHLP/DH");
+    // Issue #214: `program` is now kind-conditional (report/dialog only),
+    // not unconditionally "required" for every TRAN/T create.
+    expect(props.program?.description).toBe("TRAN/T kind=report|dialog: existing program.");
     // The bridge create runs now (RS_CORR_INSERT registers every package), so
     // these two are plain "what to pass", pinned verbatim — no "required" or
     // "refused" framing left to assert, since neither field's absence alone
@@ -2232,8 +2235,15 @@ describe("tool surface", () => {
       | { properties?: Record<string, { description?: string }> }
       | undefined;
     const props = schema?.properties ?? {};
-    expect(props.description?.description).toContain("Required to create a TRAN/T");
-    expect(props.description?.description).toContain("37");
+    // Issue #209: a missing description is no longer refused for a create —
+    // it defaults (object name, or `<table> index <id>` for TABL/DI) — so
+    // it is only REQUIRED for mode=update. Pin the whole string, including
+    // the now-36-char TRAN/T limit (TSTCT-TTEXT).
+    expect(props.description?.description).toBe(
+      "Short text for a create. Default: the object name (TABL/DI: `<table> index <id>`). Limit: " +
+        "36 chars for TRAN/T (TSTCT-TTEXT), 60 for DDIC types (DDTEXT). Required for mode=update of " +
+        "TRAN/T, VIEW/DV, SHLP/DH.",
+    );
     // corr_nr is OPTIONAL for every transportable create since #141 — the
     // bridge types (TRAN/T, VIEW/DV, SHLP/DH, TABL/DI) resolve one under
     // ABAP_ALLOW_TRANSPORTS exactly like the ADT-lock types, and under auto a

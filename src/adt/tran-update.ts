@@ -51,8 +51,8 @@ import { assertServerPackage, type ServerPackage } from "./resolved-package.js";
 // Parameters and limits
 // ---------------------------------------------------------------------------
 
-/** `TSTCT-TTEXT` is CHAR37 — same ceiling `./tran-create.ts` validates against. */
-const TTEXT_MAX_LENGTH = 37;
+/** `TSTCT-TTEXT` is CHAR80 on the system, but this bridge enforces a 36-character limit (issue #209) — same ceiling `./tran-create.ts` validates against. */
+const TTEXT_MAX_LENGTH = 36;
 
 /** `PROGNAME`/`TSTC-PGMNA` is CHAR40 — same ceiling `./tran-create.ts` validates against. */
 const PROGRAM_MAX_LENGTH = 40;

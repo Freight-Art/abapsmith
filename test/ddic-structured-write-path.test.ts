@@ -175,6 +175,35 @@ describe("abapWrite — `ddic` next to `source`", () => {
     expect(err.message).toMatch(/`source` and `ddic` cannot both be given/);
     expect(adt.calls).toHaveLength(0);
   });
+
+  // Issue #209: a `ddic` descriptor with no `description` no longer refuses
+  // — it defaults to the object's own (upper-cased) name, resolved by
+  // `resolveDdicStructuredSource` (src/tools/write.ts) before the descriptor
+  // is built, and the response notes what it used.
+  it("no `description` given: defaults to the object's own name, sends it in the descriptor, and notes it", async () => {
+    const before = buildStructuredDdicDescriptor("DTEL/DE", DTEL_NAME, "old", "$TMP", { shortLabel: "Old" });
+    const afterWrite = buildStructuredDdicDescriptor("DTEL/DE", DTEL_NAME, DTEL_NAME, "$TMP", LABELS);
+    const srv = toolServer(before, afterWrite);
+    const { conn, adt } = await connected(srv.route);
+
+    const result = await writeVia(conn, { description: undefined, ddic: LABELS });
+
+    const put = adt.calls.find((c) => c.method === "PUT" && c.url === DTEL_URI);
+    expect(put?.body).toContain(`adtcore:description="${DTEL_NAME}"`);
+    expect(result.text).toMatch(new RegExp(`description defaulted to "${DTEL_NAME}" \\(none was given\\)\\.`));
+  });
+
+  it("an explicit `description` is used as given and defaults no note", async () => {
+    const before = buildStructuredDdicDescriptor("DTEL/DE", DTEL_NAME, "old", "$TMP", { shortLabel: "Old" });
+    const srv = toolServer(before, generated());
+    const { conn, adt } = await connected(srv.route);
+
+    const result = await writeVia(conn, { ddic: LABELS });
+
+    const put = adt.calls.find((c) => c.method === "PUT" && c.url === DTEL_URI);
+    expect(put?.body).toContain(`adtcore:description="${DESCR}"`);
+    expect(result.text).not.toMatch(/description defaulted to/);
+  });
 });
 
 describe("abapWrite — VALUE_DISCARDED hint names adtcore:masterLanguage when only texts were dropped (#144)", () => {

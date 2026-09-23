@@ -92,17 +92,23 @@ const BRIDGE_NOTE = {
     "DDIF_VIEW_PUT again — REPLACES the whole definition, so an omitted field is dropped), " +
     "proven live 2026-09-12 (message D0322, field count 2 to 3).",
   "TRAN/T":
-    "creates a REPORT transaction (dynpro 1000) starting an existing program, via " +
-    "RPY_TRANSACTION_INSERT. Retargeting an EXISTING transaction to a different program is " +
-    "also supported now (`update_transaction`: RPY_TRANSACTION_DELETE then re-INSERT under " +
-    "one RS_CORR_INSERT registration, refused unless confirm_in_role_menu is passed when the " +
-    "tcode is already in a role menu; an SM01 lock is NOT checked either way, by design), " +
-    "proven live 2026-09-12 (message EU075, program confirmed changed on read-back). A " +
-    "transportable package requires corr_nr; a `$` package refuses one and registers with " +
-    "korrnum = space instead. RPY_TRANSACTION_INSERT's signature was read live on A4H " +
-    "2026-09-05: transport_number is optional and forwarded verbatim to RS_CORR_INSERT as " +
-    "korrnum, and suppress_corr_insert defaults to space so the registration always runs. No " +
-    "live create into a transportable package has been run.",
+    "creates a report (default, dynpro 1000), dialog (caller-chosen dynpro), parameter, " +
+    "variant, or OO transaction with a transaction model (the OS_APPLICATION form, stored as " +
+    "a parameter transaction with CLASS/METHOD/UPDATE_MODE TSTCP assignments) via " +
+    "RPY_TRANSACTION_INSERT; the underlying program/class/method the caller names is not " +
+    "created here, only checked to exist. The OO form with NO transaction model (TSTCP " +
+    "`\\CLASS=...\\METHOD=...`) has no SAP write API and stays read-only. Retargeting an " +
+    "EXISTING transaction to a different program is also supported now (`update_transaction`: " +
+    "RPY_TRANSACTION_DELETE then re-INSERT under one RS_CORR_INSERT registration, refused " +
+    "unless confirm_in_role_menu is passed when the tcode is already in a role menu; an SM01 " +
+    "lock is NOT checked either way, by design), proven live 2026-09-12 (message EU075, " +
+    "program confirmed changed on read-back). A transportable package requires corr_nr; a `$` " +
+    "package refuses one and registers with korrnum = space instead. RPY_TRANSACTION_INSERT's " +
+    "signature was read live on A4H 2026-09-05: transport_number is optional and forwarded " +
+    "verbatim to RS_CORR_INSERT as korrnum, and suppress_corr_insert defaults to space so the " +
+    "registration always runs. A create where the VIT bridge answers 200 for a name that TSTC " +
+    "has no row for is now treated as absent and created, instead of wrongly refused as " +
+    "already existing (issue #201).",
   "TABL/DI":
     "creates a secondary index on an existing table via DD_INDEX_INTERFACE (ACTION='I'); there " +
     "is no ADT-readable index route at all, so success is proven only by re-reading DD12V/DD17S " +
@@ -151,10 +157,13 @@ const BRIDGE_DELETE_NOTE = {
     "more roles' menus (AGR_TCODES) refuses the delete unless the caller passes " +
     "confirm_in_role_menu; an SM01 transaction lock is NOT checked either way. Live-verified " +
     "once, 2026-09-05: TRAN-DELETED / TRAN-GONE with a post-delete re-read proving absence. " +
-    "Whether RPY_TRANSACTION_DELETE itself calls RS_CORR_INSERT (the way RPY_TRANSACTION_" +
-    "INSERT does) is still unknown, so deleting a transaction out of a TRANSPORTABLE package " +
-    "may plausibly hit a headless-dynpro failure; no transport handling is attempted here " +
-    "either way.",
+    "Delete is now transport-aware (issue #202): a transaction in a transportable (non-$) " +
+    "package is registered via this module's own RS_CORR_INSERT call — the same way " +
+    "tran-update.ts's retarget registers one — before RPY_TRANSACTION_DELETE runs, with " +
+    "suppress_corr_insert/suppress_corr_check both 'X' since that registration already " +
+    "covers CTS; a local ($-prefixed) package still deletes with no transport at all. Only " +
+    "the $TMP path above has actually been run live; the transportable path runs the same FM " +
+    "sequence but has NOT itself been proven against a live system.",
   "DEVC/K":
     "runs over the same bridge (src/adt/package-delete.ts) the create uses, gated by the same " +
     "empty-package limit noted above; the create's journal entry no longer marks itself " +

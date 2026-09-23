@@ -53,9 +53,15 @@ import { createPackageViaBridge, tdevcDiscrepancies } from "../adt/package-creat
 import type { RunResult } from "../adt/run.js";
 import { serverPackage, type ServerPackage } from "../adt/resolved-package.js";
 import { isLocalPackageName } from "../adt/transports.js";
-import { assertTransactionCreateTarget, createTransaction } from "../adt/tran-create.js";
-import { deleteTransactionViaBridge } from "../adt/tran-delete.js";
+import {
+  assertTransactionCreateTarget,
+  assertTransactionKindParams,
+  createTransaction,
+  type TransactionParams,
+} from "../adt/tran-create.js";
+import { deleteTransactionViaBridge, verifyTransactionDeleted } from "../adt/tran-delete.js";
 import { assertTransactionUpdateTarget, updateTransaction } from "../adt/tran-update.js";
+import { lookupTransaction } from "../adt/ui-tstc.js";
 import { assertClassicViewCreateTarget, classicViewUri, createClassicView } from "../adt/view-create.js";
 import { deleteClassicViewViaBridge } from "../adt/view-delete.js";
 import { updateClassicView } from "../adt/view-update.js";
@@ -186,7 +192,10 @@ export const writeInputSchema = {
   method: z
     .string()
     .optional()
-    .describe("One method to replace; body in `source`."),
+    .describe(
+      "CLAS/OC: one method to replace; body in `source`. TRAN/T kind=oo: public method " +
+        "without mandatory parameters.",
+    ),
   // `source`/`edit`/`method` all apply to the include named here
   // (`resolveWriteTarget` builds `sourceUri` from it). Must be declared for
   // the same zod-strips-undeclared-keys reason as `edit`/`method` above — an
@@ -210,7 +219,11 @@ export const writeInputSchema = {
   description: z
     .string()
     .optional()
-    .describe("Required to create a TRAN/T. Max 37 chars."),
+    .describe(
+      "Short text for a create. Default: the object name (TABL/DI: `<table> index <id>`). Limit: " +
+        "36 chars for TRAN/T (TSTCT-TTEXT), 60 for DDIC types (DDTEXT). Required for mode=update of " +
+        "TRAN/T, VIEW/DV, SHLP/DH.",
+    ),
   // Structured create for the three XML-only DDIC types, so a
   // caller doesn't have to hand-compose the descriptor. Builder + grounding
   // citation live in src/adt/ddic-payload.ts (buildStructuredDdicDescriptor);
@@ -428,7 +441,47 @@ export const writeInputSchema = {
   program: z
     .string()
     .optional()
-    .describe("TRAN/T, required: existing SUBMIT-only report."),
+    .describe("TRAN/T kind=report|dialog: existing program."),
+  kind: z
+    .enum(["report", "dialog", "parameter", "variant", "oo"])
+    .optional()
+    .describe(
+      "TRAN/T create. report (default): program, dynpro 1000. dialog: program + screen. " +
+        "parameter: target_transaction + parameters (+ skip_first_screen). variant: " +
+        "target_transaction + variant. oo: class + method (+ update_mode), stored as an " +
+        "OS_APPLICATION transaction-model transaction.",
+    ),
+  screen: z.string().optional().describe("TRAN/T kind=dialog: 4-digit screen of program."),
+  target_transaction: z
+    .string()
+    .optional()
+    .describe("TRAN/T kind=parameter|variant: existing transaction to call."),
+  skip_first_screen: z
+    .boolean()
+    .optional()
+    .describe(
+      "TRAN/T kind=parameter: skip the called transaction's first screen. Default false.",
+    ),
+  parameters: z
+    .array(z.object({ field: z.string(), value: z.string() }).strict())
+    .optional()
+    .describe(
+      'TRAN/T kind=parameter: screen-field values, e.g. [{field:"VIEWNAME",value:"V_T001"},' +
+        '{field:"UPDATE",value:"X"}].',
+    ),
+  variant: z
+    .string()
+    .optional()
+    .describe("TRAN/T kind=variant: transaction variant (SHD0) of target_transaction."),
+  cross_client_variant: z
+    .boolean()
+    .optional()
+    .describe("TRAN/T kind=variant: variant is cross-client. Default false."),
+  class: z.string().optional().describe("TRAN/T kind=oo: global class."),
+  update_mode: z
+    .enum(["S", "A", "L"])
+    .optional()
+    .describe("TRAN/T kind=oo: S synchronous (default), A asynchronous, L local update."),
   confirm_in_use: z
     .boolean()
     .optional()
@@ -548,7 +601,13 @@ export function targetFromInput(input: WriteInput & { object: string }): WriteTa
  * flows through {@link assertDdicDescriptorShape} downstream exactly like any
  * other `source`, with no separate validation path.
  */
-function resolveDdicStructuredSource(input: WriteInputV2, target: WriteTarget): string {
+interface DdicStructuredSource {
+  source: string;
+  /** Set when `description` was empty/absent and defaulted to the object's own name (issue #209). */
+  descriptionDefaultedTo?: string;
+}
+
+function resolveDdicStructuredSource(input: WriteInputV2, target: WriteTarget): DdicStructuredSource {
   // An empty `source` is treated as absent: clients that always send the
   // field (`source: ""` next to `ddic`) are not asking for two descriptors.
   if (input.source !== undefined && input.source !== "") {
@@ -568,18 +627,15 @@ function resolveDdicStructuredSource(input: WriteInputV2, target: WriteTarget): 
       "Add `type`, or drop `ddic` and pass hand-composed XML via `source`.",
     );
   }
-  const description = target.description?.trim();
-  if (!description) {
-    throw new AbapError(
-      "BAD_INPUT",
-      `\`description\` is required to create a ${target.type} with \`ddic\` — it is the object's ` +
-        "short text, and the descriptor has no default for it.",
-      { name: target.name, type: target.type },
-      "Add `description`.",
-    );
-  }
+  const explicit = target.description?.trim();
+  // Issue #209: an absent description defaults to the object's own name rather than
+  // being refused.
+  const description = explicit || target.name.toUpperCase();
   const packageName = target.packageName?.trim() || "$TMP";
-  return buildStructuredDdicDescriptor(target.type, target.name, description, packageName, input.ddic!);
+  return {
+    source: buildStructuredDdicDescriptor(target.type, target.name, description, packageName, input.ddic!),
+    ...(explicit ? {} : { descriptionDefaultedTo: description }),
+  };
 }
 
 /**
@@ -1551,6 +1607,9 @@ export async function abapWrite(
    * "abap_write". */
   toolLabel: string = "abap_write",
 ): Promise<BuiltResponse> {
+  // Set by the `ddic` branch below when `description` was empty/absent and defaulted to
+  // the object's own name (issue #209); surfaced in the create/write response notes.
+  let ddicDescriptionDefaultNote: string | undefined;
   // ---- batch delete dispatch ---------------------------------------------
   //
   // `object`/`objects` are both plain-optional (not a `.refine()`-wrapped
@@ -1690,7 +1749,11 @@ export async function abapWrite(
         "Drop `ddic` for a delete; there is no descriptor to build.",
       );
     }
-    input = { ...input, source: resolveDdicStructuredSource(input, target) };
+    const resolved = resolveDdicStructuredSource(input, target);
+    input = { ...input, source: resolved.source };
+    if (resolved.descriptionDefaultedTo !== undefined) {
+      ddicDescriptionDefaultNote = `description defaulted to "${resolved.descriptionDefaultedTo}" (none was given).`;
+    }
   }
 
   // Hoisted ABOVE the delete branch, unlike DEVC/K's routing below, and for
@@ -2584,6 +2647,7 @@ export async function abapWrite(
       ? corrNrOverriddenWriteNote(written.corrNrOverrode, written.corrNrSent, written.target.type, written.target.name)
       : transportNote(written.transport, gate.config?.abapMode),
   ];
+  if (ddicDescriptionDefaultNote !== undefined) notes.push(ddicDescriptionDefaultNote);
   if (written.processingTypeChanged) {
     notes.push(
       `Processing type set to ${written.processingType} via the ADT function-module descriptor ` +
@@ -2963,8 +3027,10 @@ export interface ObjectDeleteOutcome {
   /** The number this object's DELETE actually sent as `corrNr`; absent when it sent none. */
   readonly corrNrSent?: string;
   /**
-   * The request the lock named, which is where CTS recorded the deletion — set whenever
-   * `corrNrSent` is set and the lock named a request, whether or not the two agree.
+   * Where CTS actually recorded the deletion — set whenever `corrNrSent` is set and that
+   * could be confirmed, whether or not it agrees with `corrNrSent`. Read off the ADT lock
+   * response for an ordinary delete; for a TRAN/T bridge delete (no lock response to read),
+   * `readBackTransportEntry` instead, same as {@link abapDeleteViaBridge}'s single-object route.
    */
   readonly corrNrRecorded?: string;
   /** `false` when `corrNrSent` and `corrNrRecorded` differ. The batch never names a `corr_nr` of its own, so this can only fire on auto-resolution. */
@@ -3076,9 +3142,91 @@ export async function abapWriteBatchDelete(
         authorized: AuthorizedTarget<MutatingOperation, ResolvedTarget>;
         affects?: EnhancedObjectRef;
       }
-    | { kind: "absent"; name: string; type: string; uri: string };
+    | { kind: "absent"; name: string; type: string; uri: string }
+    | {
+        kind: "bridge-tran";
+        name: string;
+        uri: string;
+        packageName: ServerPackage;
+        corrNr?: string;
+        corrSource?: "named" | "auto";
+        transportInfo?: TransportInfo;
+      };
   const pass1: Pass1Entry[] = [];
   for (const w of wanted) {
+    const wType = w.type?.trim().toUpperCase();
+    // Issue #202: TRAN/T has no writable ADT collection — `authorizeMutation` (via
+    // `resolveWriteTarget`'s `refuseUnwritableType`) would abort the WHOLE batch with
+    // UNSUPPORTED for it, same as it does for VIEW/DV, SHLP/DH and TABL/DI. TRAN/T is now
+    // deletable in a batch, resolved through the same VIT-bridge/package/corr route
+    // `abapDeleteViaBridge` uses for a single object; the other three bridge-only types
+    // stay refused, with a clearer BAD_INPUT pointing at the single-object route instead
+    // of the generic UNSUPPORTED `refuseUnwritableType` would throw.
+    if (wType !== undefined && isBridgeOnlyCreateType(wType)) {
+      if (wType !== "TRAN/T") {
+        throw new AbapError(
+          "BAD_INPUT",
+          `${w.name} (${wType}) cannot be deleted in a batch: only ordinary ADT-resolvable types ` +
+            "and TRAN/T are supported in `objects`. Nothing in this batch was deleted.",
+          { type: wType, name: w.name },
+          `Delete ${w.name} on its own with abap_write { mode: "delete", type: "${wType}", ` +
+            `object: "${w.name}" } — or delete the remaining objects in a separate batch without it.`,
+        );
+      }
+      const found = await verifyViaVitBridge(conn, "trant", w.name, "TRAN/T");
+      if (found.status === "confirmed-absent") {
+        pass1.push({ kind: "absent", name: w.name, type: "TRAN/T", uri: found.uri });
+        continue;
+      }
+      if (found.status === "indeterminate") {
+        throw new AbapError(
+          "SAFETY_DENIED",
+          `abapsmith could not confirm TRAN/T ${w.name}'s existence or its package before a ` +
+            `delete, so it refuses the whole batch (${found.reason}).`,
+          { reason: "PACKAGE_UNKNOWN", object: w.name, type: "TRAN/T", uri: found.uri, cause: found.reason },
+          "Every delete is judged against the object's real package. Rather than guess, abapsmith " +
+            "stops here. Check the object exists and this connection can read it, then retry.",
+          { retryable: true }, // existence could not be confirmed, not denied — a healthy connection resolves it
+        );
+      }
+      // Issue #201 (delete pre-check): the VIT bridge's stub can answer 200
+      // for a TRAN/T TSTC has no row for at all. Cross-check before
+      // resolving a package or a transport, so a phantom entry costs neither.
+      const tstc = await lookupTransaction(conn, w.name);
+      if (tstc === undefined) {
+        pass1.push({ kind: "absent", name: w.name, type: "TRAN/T", uri: found.uri });
+        continue;
+      }
+      const resolved = serverPackage(found);
+      if (resolved === undefined) {
+        throw new AbapError(
+          "SAFETY_DENIED",
+          `abapsmith could not determine which package TRAN/T ${w.name} belongs to, so it refuses ` +
+            "the whole batch: the VIT bridge read answered but carried no <adtcore:packageRef> element.",
+          { reason: "PACKAGE_UNKNOWN", object: w.name, type: "TRAN/T", uri: found.uri },
+        );
+      }
+      // Batch `objects` entries carry no `corr_nr` field of their own — always
+      // auto-resolved, the same route a caller-omitted corr_nr takes for a
+      // single-object TRAN/T delete.
+      const { corrNr, corrSource, transportInfo } = await resolveBridgeCreateCorr(
+        conn,
+        gate,
+        transport,
+        { name: w.name, type: "TRAN/T", uri: found.uri, packageName: resolved.name, op: "delete" },
+        undefined,
+      );
+      pass1.push({
+        kind: "bridge-tran",
+        name: w.name,
+        uri: found.uri,
+        packageName: resolved,
+        ...(corrNr !== undefined ? { corrNr } : {}),
+        ...(corrSource !== undefined ? { corrSource } : {}),
+        ...(transportInfo !== undefined ? { transportInfo } : {}),
+      });
+      continue;
+    }
     let a: AuthorizedTarget<MutatingOperation, ResolvedTarget>;
     try {
       a = await authorizeMutation(conn, gate, "delete", w);
@@ -3141,6 +3289,86 @@ export async function abapWriteBatchDelete(
     }
     if (sessionSpent) await renewSessionBetweenDeletes(conn);
     sessionSpent = true;
+
+    if (p.kind === "bridge-tran") {
+      // Mirrors abapDeleteViaBridge's TRAN/T branch: run the classic bridge delete, then
+      // read back through the VIT bridge before trusting the transcript. No
+      // `withJournalledMutation` here — a bridge delete captures no before-image, so
+      // this entry's `journalEntry` stays unset, same as the single-object route.
+      try {
+        const deleted = await deleteTransactionViaBridge(conn, gate, {
+          tcode: p.name,
+          packageName: p.packageName,
+          ...(p.corrNr !== undefined ? { corrNr: p.corrNr } : {}),
+          ...(p.corrSource !== undefined ? { corrSource: p.corrSource } : {}),
+        });
+        // Mirrors abapDeleteViaBridge: confirm which request CTS actually recorded the
+        // deletion under, since a bridge delete has no ADT lock response to read that off.
+        let corrNrRecorded: string | undefined;
+        let corrNrHonoured: boolean | undefined;
+        if (p.transportInfo?.corrNr !== undefined) {
+          const readback = await readBackTransportEntry(conn, {
+            intended: p.transportInfo.corrNr,
+            entry: { pgmid: "R3TR", type: "TRAN", name: p.name },
+            lookup: { uri: p.uri, devclass: p.packageName.name },
+          });
+          if (readback.status === "confirmed-same") {
+            corrNrRecorded = readback.trkorr;
+            corrNrHonoured = true;
+          } else if (readback.status === "confirmed-other") {
+            corrNrRecorded = readback.trkorr;
+            corrNrHonoured = false;
+          }
+        }
+        // Issue #201: the VIT bridge's stub can answer 200 for a TRAN/T that TSTC has
+        // no row for at all, so a bare 200 read-back is cross-checked against TSTC
+        // before it is trusted as "still there".
+        const outcome = await verifyTransactionDeleted(conn, p.name);
+        if (outcome.status === "confirmed") {
+          outcomes.push({
+            name: p.name,
+            type: "TRAN/T",
+            uri: p.uri,
+            ok: false,
+            deleted: false,
+            error: {
+              code: "CHECK_FAILED",
+              message:
+                `${CLASSIC_BODY_CLASS} reported success (the transcript carries ` +
+                `${deleted.transcript.tags.join(", ")}) but ${p.name} is STILL confirmed present ` +
+                `at ${outcome.uri} (via ${outcome.via}) after delete.`,
+            },
+            ...(p.corrNr !== undefined ? { corrNrSent: p.corrNr } : {}),
+            ...(corrNrRecorded !== undefined ? { corrNrRecorded } : {}),
+            ...(corrNrHonoured !== undefined ? { corrNrHonoured } : {}),
+          });
+        } else {
+          outcomes.push({
+            name: p.name,
+            type: "TRAN/T",
+            uri: p.uri,
+            ok: true,
+            deleted: outcome.status === "confirmed-absent" ? true : "unverified",
+            ...(p.corrNr !== undefined ? { corrNrSent: p.corrNr } : {}),
+            ...(corrNrRecorded !== undefined ? { corrNrRecorded } : {}),
+            ...(corrNrHonoured !== undefined ? { corrNrHonoured } : {}),
+          });
+        }
+      } catch (e) {
+        // A programmer error must still crash, not be folded into a per-object outcome.
+        if (!isAbapError(e)) throw e;
+        outcomes.push({
+          name: p.name,
+          type: "TRAN/T",
+          uri: p.uri,
+          ok: false,
+          deleted: false,
+          error: { code: e.code, message: e.message },
+        });
+      }
+      continue;
+    }
+
     const { authorized: a, affects } = p;
     const t = a.target;
     const trOpts = transport
@@ -3770,6 +3998,30 @@ async function abapBridgeCrud(
   const type = (input.type ?? "").trim().toUpperCase();
   assertGuardFlagsApplicable(type, input);
   const mode = input.mode ?? "write";
+  // Issue #214: `kind`/`screen`/`target_transaction`/`skip_first_screen`/`parameters`/
+  // `variant`/`cross_client_variant`/`class`/`update_mode` only mean anything for a
+  // TRAN/T create — refused here, zero-network, once for every other type/mode this
+  // dispatcher can route to, instead of repeating the field list in each sibling.
+  if (
+    (type !== "TRAN/T" || mode === "update" || mode === "delete") &&
+    (input.kind !== undefined ||
+      input.screen !== undefined ||
+      input.target_transaction !== undefined ||
+      input.skip_first_screen !== undefined ||
+      input.parameters !== undefined ||
+      input.variant !== undefined ||
+      input.cross_client_variant !== undefined ||
+      input.class !== undefined ||
+      input.update_mode !== undefined)
+  ) {
+    throw new AbapError(
+      "BAD_INPUT",
+      "`kind`, `screen`, `target_transaction`, `skip_first_screen`, `parameters`, `variant`, " +
+        "`cross_client_variant`, `class` and `update_mode` only apply to a TRAN/T create. Omit them " +
+        `for ${type || "this type"} mode="${mode}".`,
+      { type, mode },
+    );
+  }
   if (type === "TABL/DI") {
     if (mode === "update") {
       throw new AbapError(
@@ -3793,7 +4045,7 @@ async function abapBridgeCrud(
       : abapCreateSearchHelpViaBridge(conn, target, input, maxChars, gate, journal, transport);
   }
   return mode === "delete"
-    ? abapDeleteViaBridge(conn, target, input, maxChars, gate)
+    ? abapDeleteViaBridge(conn, target, input, maxChars, gate, transport)
     : abapCreateViaBridge(conn, target, input, maxChars, gate, journal, transport);
 }
 
@@ -4133,10 +4385,15 @@ async function abapCreateViaBridge(
     throw new AbapError("BAD_INPUT", message, { object: target.name, type }, hint);
   };
 
-  if (input.source !== undefined || input.edit !== undefined || input.method !== undefined) {
+  // `method` is refused here EXCEPT for TRAN/T kind=oo, where it is the OO method the
+  // transaction calls (TransactionParams.methodName below), not a source-edit field.
+  const methodAllowed = type === "TRAN/T" && input.kind === "oo";
+  if (input.source !== undefined || input.edit !== undefined || (!methodAllowed && input.method !== undefined)) {
     bad(
       `A ${label} (${type}) has no source: it is created from its definition, not from ABAP text. ` +
-        "Omit `source`, `edit` and `method`.",
+        "Omit `source`, `edit`" +
+        (methodAllowed ? "" : " and `method`") +
+        ".",
     );
   }
   if (input.format) bad(`A ${label} (${type}) has no source; \`format\` does not apply.`);
@@ -4167,12 +4424,34 @@ async function abapCreateViaBridge(
   if (type === "TRAN/T" && (named !== undefined || isLocalPackageName(packageName))) {
     assertTransactionCreateTarget(packageName, named);
   }
-  const description = input.description?.trim();
-  if (!description) {
-    bad(
-      `\`description\` is required to create a ${label} (${type}) — it is the object's short text ` +
-        `(${type === "TRAN/T" ? "TSTCT-TTEXT" : "DD25V-DDTEXT"}), and the API has no default for it.`,
-    );
+  // Issue #209: a create without `description` used to be refused; it now defaults to the
+  // object's own name (upper-cased) and the response notes say so.
+  const descriptionDefaulted = !input.description?.trim();
+  const description = input.description?.trim() || target.name.toUpperCase();
+
+  // Zero-network TRAN/T kind validation (issue #214): must run before the VIT
+  // pre-check below, the first network call in this function. Also replaces the old
+  // unconditional "program is required" check with a kind-aware one — report/dialog
+  // need `program`, parameter/variant need `target_transaction`, oo needs `class`+`method`.
+  let transactionParams: TransactionParams | undefined;
+  if (type === "TRAN/T") {
+    transactionParams = {
+      tcode: target.name,
+      program: input.program,
+      description,
+      packageName,
+      kind: input.kind,
+      screen: input.screen,
+      targetTransaction: input.target_transaction,
+      skipFirstScreen: input.skip_first_screen,
+      parameters: input.parameters,
+      variant: input.variant,
+      crossClientVariant: input.cross_client_variant,
+      className: input.class,
+      methodName: input.method,
+      updateMode: input.update_mode,
+    };
+    assertTransactionKindParams(transactionParams);
   }
 
   // Zero-network gate verdict BEFORE any request leaves (TRAN/T's program look-up,
@@ -4211,9 +4490,44 @@ async function abapCreateViaBridge(
   // accepts as authorising a later delete-shaped undo. Skipped entirely when the journal
   // is off: nothing downstream would use it, so there is no reason to pay for the read.
   let beforeCapture: BeforeImageCapture = "failed";
+  let tstcCrossCheckNote = "";
   if (journal) {
     const preCheck = await verifyViaVitBridge(conn, vitType, target.name, type);
-    if (preCheck.status === "confirmed") {
+    if (preCheck.status === "confirmed" && type === "TRAN/T") {
+      // Issue #201: the VIT bridge's stub can answer 200 for a TRAN/T that TSTC has no
+      // row for at all (a stale/generic stub response, not evidence of a real
+      // transaction). Cross-check against TSTC directly before refusing the create.
+      let tstc: Awaited<ReturnType<typeof lookupTransaction>>;
+      try {
+        tstc = await lookupTransaction(conn, target.name);
+      } catch (err) {
+        throw new AbapError(
+          "CHECK_FAILED",
+          `${label} ${target.name} already exists (confirmed at ${preCheck.uri}, via ${preCheck.via}). ` +
+            `abap_write mode="write" creates a NEW ${label}; it does not overwrite one that is already ` +
+            "there, and neither DDIC bridge FM has a modelled overwrite behaviour to fall back on" +
+            `; the TSTC cross-check failed: ${err instanceof Error ? err.message : String(err)}`,
+          { object: target.name, type, uri: preCheck.uri },
+          `Delete the existing ${label} first (abap_write mode="delete"), or pick a different name.`,
+        );
+      }
+      if (tstc === undefined) {
+        beforeCapture = "confirmed-absent";
+        tstcCrossCheckNote =
+          `The VIT bridge answered 200 for ${target.name} at ${preCheck.uri}, but TSTC has no row for ` +
+          "it, so it is treated as absent and created (issue #201).";
+      } else {
+        throw new AbapError(
+          "CHECK_FAILED",
+          `${label} ${target.name} already exists (confirmed at ${preCheck.uri}, via ${preCheck.via}; ` +
+            `TSTC confirms a row (program ${tstc.program})). abap_write mode="write" creates a NEW ` +
+            `${label}; it does not overwrite one that is already there, and neither DDIC bridge FM has ` +
+            "a modelled overwrite behaviour to fall back on.",
+          { object: target.name, type, uri: preCheck.uri },
+          `Delete the existing ${label} first (abap_write mode="delete"), or pick a different name.`,
+        );
+      }
+    } else if (preCheck.status === "confirmed") {
       throw new AbapError(
         "CHECK_FAILED",
         `${label} ${target.name} already exists (confirmed at ${preCheck.uri}, via ${preCheck.via}). ` +
@@ -4338,33 +4652,70 @@ async function abapCreateViaBridge(
       bad("`base_table` and `view_fields` are VIEW/DV fields; a transaction has no base table.");
     }
     if (input.activate === true) bad("A transaction has no activation step; omit `activate`.");
-    if (!input.program || !input.program.trim()) {
-      bad(
-        "`program` is required to create a transaction (TRAN/T): the EXISTING report program the " +
-          "transaction starts, e.g. ZTM_CARRIER_LIST. abapsmith checks it exists before creating the " +
-          "transaction.",
-      );
-    }
-    // `bad()` always throws; TS's narrowing doesn't follow it through a `const` function
-    // value — cast matches the `description as string` convention a few lines up.
-    const program = (input.program as string).trim().toUpperCase();
+    // `transactionParams`/`assertTransactionKindParams` above already validated, zero-network,
+    // that the fields this `kind` needs are present — this block only resolves/verifies the
+    // ones that need a network round trip.
+    const params = transactionParams as TransactionParams;
+    const kind = params.kind ?? "report";
 
-    // Closed defect: a transaction bound to an unchecked program used to be created
-    // unconditionally (the FM doesn't validate it either), so a typo landed as a
-    // working-looking `created: true` pointing at nothing. One real GET, reusing the
-    // same resolver every other write path uses — the ONE network call this function
-    // makes before generating or deploying a bridge class.
-    const programTarget = await resolveWriteTarget(conn, { type: "PROG/P", name: program });
-    if (!programTarget.exists) {
-      throw new AbapError(
-        "NOT_FOUND",
-        `Program ${program} does not exist on ${conn.cfg.sid}, so a transaction cannot be created ` +
-          "to start it. abapsmith checks this before creating a TRAN/T, rather than creating one " +
-          "that points nowhere and reporting success.",
-        { object: target.name, type, program },
-        `Create the program first with abap_write (type="PROG/P"), or correct `+
-          "\`program\` if this was a typo.",
-      );
+    let program: string | undefined;
+    let screen: string | undefined;
+    let targetTransaction: string | undefined;
+    let className: string | undefined;
+
+    if (kind === "report" || kind === "dialog") {
+      // Closed defect: a transaction bound to an unchecked program used to be created
+      // unconditionally (the FM doesn't validate it either), so a typo landed as a
+      // working-looking `created: true` pointing at nothing. One real GET, reusing the
+      // same resolver every other write path uses.
+      program = (input.program as string).trim().toUpperCase();
+      const programTarget = await resolveWriteTarget(conn, { type: "PROG/P", name: program });
+      if (!programTarget.exists) {
+        throw new AbapError(
+          "NOT_FOUND",
+          `Program ${program} does not exist on ${conn.cfg.sid}, so a transaction cannot be created ` +
+            "to start it. abapsmith checks this before creating a TRAN/T, rather than creating one " +
+            "that points nowhere and reporting success.",
+          { object: target.name, type, program },
+          `Create the program first with abap_write (type="PROG/P"), or correct ` +
+            "`program` if this was a typo.",
+        );
+      }
+      if (kind === "dialog") screen = (input.screen as string).trim();
+    } else if (kind === "parameter" || kind === "variant") {
+      targetTransaction = (input.target_transaction as string).trim().toUpperCase();
+      let tstc: Awaited<ReturnType<typeof lookupTransaction>>;
+      try {
+        tstc = await lookupTransaction(conn, targetTransaction);
+      } catch (err) {
+        throw new AbapError(
+          "CHECK_FAILED",
+          `Checking whether transaction ${targetTransaction} exists (TSTC) failed: ` +
+            `${err instanceof Error ? err.message : String(err)}`,
+          { object: target.name, type, targetTransaction },
+        );
+      }
+      if (tstc === undefined) {
+        throw new AbapError(
+          "NOT_FOUND",
+          `Transaction ${targetTransaction} does not exist on ${conn.cfg.sid}, so a parameter/variant ` +
+            "transaction cannot call it.",
+          { object: target.name, type, targetTransaction },
+          `Create ${targetTransaction} first, or correct \`target_transaction\` if this was a typo.`,
+        );
+      }
+    } else {
+      className = (input.class as string).trim().toUpperCase();
+      const classTarget = await resolveWriteTarget(conn, { type: "CLAS/OC", name: className });
+      if (!classTarget.exists) {
+        throw new AbapError(
+          "NOT_FOUND",
+          `Class ${className} does not exist on ${conn.cfg.sid}, so an OO transaction cannot call it.`,
+          { object: target.name, type, className },
+          `Create the class first with abap_write (type="CLAS/OC"), or correct \`class\` if this was ` +
+            "a typo.",
+        );
+      }
     }
 
     bridgeClass = CLASSIC_BODY_CLASS;
@@ -4386,14 +4737,27 @@ async function abapCreateViaBridge(
       corrNr,
       () =>
         createTransaction(conn, gate, {
-          ...common,
-          tcode: target.name,
+          ...params,
           program,
+          screen,
+          targetTransaction,
+          className,
           corrNr,
           ...(corrSource !== undefined ? { corrSource } : {}),
         }),
     ));
-    detail = `report transaction starting ${program} (dynpro 1000)`;
+    detail =
+      kind === "report"
+        ? `report transaction starting ${program} (dynpro 1000)`
+        : kind === "dialog"
+          ? `dialog transaction starting ${program} screen ${screen}`
+          : kind === "parameter"
+            ? `parameter transaction calling ${targetTransaction} (skip first screen: ` +
+              `${params.skipFirstScreen ? "yes" : "no"}) with ${params.parameters?.length ?? 0} parameter(s)`
+            : kind === "variant"
+              ? `variant transaction calling ${targetTransaction} with variant ${params.variant}`
+              : `OO transaction calling ${className}=>${params.methodName} via OS_APPLICATION ` +
+                `(update mode ${params.updateMode ?? "S"})`;
 
     // Same fix as VIEW/DV above: the transcript proves RPY_TRANSACTION_INSERT ran, not
     // that the row is still there. Read it back before saying `created: true`
@@ -4459,6 +4823,8 @@ async function abapCreateViaBridge(
       `Created by running the classic fluid tool's body class ${bridgeClass}, not over ADT REST: ` +
         `${cap?.bridgeCreate?.via ?? "see src/adt/classic-call.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
+      descriptionDefaulted ? `description defaulted to "${description}" (none was given).` : "",
+      tstcCrossCheckNote,
       ...bridgeTransportNotes(transportInfo, transport, gate, readback),
       verifyNote,
       bridgeReversalNote(entryId, beforeCapture, registration, label, type, target.name),
@@ -4473,8 +4839,17 @@ async function abapCreateViaBridge(
  *
  * Every create-only field is refused zero-network before any bridge class is generated —
  * there is nothing for `base_table`/`view_fields`/`program`/`description`/`activate`/
- * `source`/`edit`/`method`/`include`/`corr_nr`/`expect_etag`/`software_component`/
+ * `source`/`edit`/`method`/`include`/`expect_etag`/`software_component`/
  * `package_type`/`transport_layer`/`format` to mean on a delete.
+ *
+ * `corr_nr`: VIEW/DV's delete bridge (`src/adt/view-delete.ts`) still takes no transport
+ * parameter at all and refuses one zero-network here, as before. TRAN/T's delete bridge
+ * (`src/adt/tran-delete.ts`) is transport-aware (issue #202): a transportable package
+ * registers the delete via `RS_CORR_INSERT` before `RPY_TRANSACTION_DELETE` runs, so a
+ * `corr_nr` is resolved (not refused) the same way {@link abapCreateViaBridge}'s TRAN/T
+ * branch resolves one, through {@link resolveBridgeCreateCorr}; a local package still
+ * refuses one, enforced by `deleteTransactionViaBridge` itself once the real (server-read)
+ * package is known.
  *
  * `package` is NOT trusted from the caller for the gate: neither delete bridge can look its
  * object's own package up itself (both gate zero-network and say so in their own doc
@@ -4485,7 +4860,9 @@ async function abapCreateViaBridge(
  * and only ever checked for agreement, never substituted for or trusted over the server's
  * answer. That read is a deliberate, necessary exception to this function's otherwise
  * zero-network refusals: there is no way to know an existing object's real package without
- * asking the server.
+ * asking the server — and it is also why the `corr_nr`/local-package pairing for TRAN/T
+ * cannot be checked zero-network either (same precedent as `abapDeleteIndexViaBridge`'s
+ * `base_table`-dependent package read).
  *
  * Verified against a real read-back (`verifyObjectDeleted`) before the delete is reported
  * as done: a transcript claiming `*-GONE` is not proof, the same discipline the create
@@ -4498,6 +4875,7 @@ async function abapDeleteViaBridge(
   input: WriteInput,
   maxChars: number,
   gate: SafetyGate,
+  transport?: SessionTransport,
 ): Promise<BuiltResponse> {
   const type = (input.type ?? "").trim().toUpperCase();
   const cap = capabilitiesFor(type);
@@ -4536,11 +4914,15 @@ async function abapDeleteViaBridge(
   ) {
     bad("`software_component`, `package_type` and `transport_layer` are DEVC/K create fields only.");
   }
-  if (normalizeCorrNr(input.corr_nr) !== undefined) {
+  const named = normalizeCorrNr(input.corr_nr);
+  // Issue #202: VIEW/DV's delete bridge still takes no transport parameter at all, so
+  // `corr_nr` stays refused zero-network for it. TRAN/T's now does — resolved below,
+  // once the real package is known, instead of refused here.
+  if (type === "VIEW/DV" && named !== undefined) {
     bad(
-      `\`corr_nr\` cannot be honoured for a ${label} delete: neither delete bridge takes a transport ` +
-        "parameter (src/adt/view-delete.ts, src/adt/tran-delete.ts). None is needed either — the " +
-        "delete registers nothing in CTS, so it is judged as a local mutation and no transport " +
+      `\`corr_nr\` cannot be honoured for a ${label} delete: the view delete bridge takes no ` +
+        "transport parameter (src/adt/view-delete.ts). None is needed either — the delete " +
+        "registers nothing in CTS, so it is judged as a local mutation and no transport " +
         "allowlist blocks it.",
       "Retry without `corr_nr`. Any entry the object already had on a transport request survives " +
         'this delete; use `abap_transport` operation: "removeObject" (transport, object, confirm) ' +
@@ -4576,6 +4958,20 @@ async function abapDeleteViaBridge(
         "stops here. Check the object exists and this connection can read it, then retry.",
       { retryable: true }, // existence could not be confirmed, not denied — a healthy connection resolves it
     );
+  }
+  if (type === "TRAN/T") {
+    // Issue #201 (delete pre-check): a VIT-bridge 200 is not proof the
+    // transaction exists — TSTC is. Checked before any transport
+    // resolution, so a phantom delete costs no transport request.
+    const tstc = await lookupTransaction(conn, target.name);
+    if (tstc === undefined) {
+      throw new AbapError(
+        "NOT_FOUND",
+        `${label} ${target.name} does not exist, so there is nothing to delete (the VIT bridge ` +
+          `answered 200 at ${found.uri}, but TSTC has no row for it).`,
+        { object: target.name, type, uri: found.uri },
+      );
+    }
   }
   // `serverPackage` (src/adt/resolved-package.ts) is the only constructor for this branded
   // type — it can only be minted from a `confirmed` `VerifyOutcome`, so nothing downstream
@@ -4615,6 +5011,8 @@ async function abapDeleteViaBridge(
 
   let deleted: { run: RunResult; transcript: DdicTranscript };
   let bridgeClass: string;
+  let transportInfo: TransportInfo | undefined;
+  let readback: TrReadback | undefined;
 
   if (type === "VIEW/DV") {
     bridgeClass = CLASSIC_BODY_CLASS;
@@ -4628,19 +5026,46 @@ async function abapDeleteViaBridge(
     });
   } else {
     bridgeClass = CLASSIC_BODY_CLASS;
+    // Issue #202: same corr_nr resolution route abapCreateViaBridge's TRAN/T branch
+    // uses — a local package returns `named` unchecked (deleteTransactionViaBridge
+    // itself refuses a corr_nr against one), a transportable package resolves one
+    // under ABAP_ALLOW_TRANSPORTS via preflightPackageCorr.
+    const { corrNr, corrSource, transportInfo: tranTransport } = await resolveBridgeCreateCorr(
+      conn,
+      gate,
+      transport,
+      { name: target.name, type: "TRAN/T", uri: found.uri, packageName, op: "delete" },
+      named,
+    );
+    transportInfo = tranTransport;
     deleted = await deleteTransactionViaBridge(conn, gate, {
       tcode: target.name,
       packageName: resolved,
       confirmInRoleMenu: input.confirm_in_role_menu,
+      ...(corrNr !== undefined ? { corrNr } : {}),
+      ...(corrSource !== undefined ? { corrSource } : {}),
     });
+    if (transportInfo?.corrNr !== undefined) {
+      readback = await readBackTransportEntry(conn, {
+        intended: transportInfo.corrNr,
+        entry: { pgmid: "R3TR", type: "TRAN", name: target.name },
+        lookup: { uri: found.uri, devclass: packageName },
+      });
+    }
   }
 
-  const outcome = await verifyObjectDeleted(conn, {
-    uri: vitBridgeUri(vitType, target.name),
-    accept: VIT_STUB_ACCEPT,
-    objectName: target.name,
-    expectType: type,
-  });
+  // Issue #201: TRAN/T's VIT-bridge stub can answer 200 for a TCODE that never
+  // existed, so its post-delete read-back cross-checks TSTC directly; VIEW/DV has
+  // no such stand-in and keeps the plain read-back + repository-search verifier.
+  const outcome =
+    type === "TRAN/T"
+      ? await verifyTransactionDeleted(conn, target.name)
+      : await verifyObjectDeleted(conn, {
+          uri: vitBridgeUri(vitType, target.name),
+          accept: VIT_STUB_ACCEPT,
+          objectName: target.name,
+          expectType: type,
+        });
 
   let verified: boolean;
   let verifyNote: string;
@@ -4658,7 +5083,11 @@ async function abapDeleteViaBridge(
     );
   } else if (outcome.status === "confirmed-absent") {
     verified = true;
-    verifyNote = `Read back and confirmed absent at ${outcome.uri} (via ${outcome.via}) after delete.`;
+    verifyNote =
+      outcome.via === "tstc"
+        ? `Read back: the VIT bridge answered 200 but TSTC has no row for ${target.name} — confirmed ` +
+          "absent (issue #201)."
+        : `Read back and confirmed absent at ${outcome.uri} (via ${outcome.via}) after delete.`;
   } else {
     verified = false;
     verifyNote =
@@ -4667,11 +5096,13 @@ async function abapDeleteViaBridge(
       "as a live read-back. See src/adt/write-verify.ts.";
   }
 
+  const headerTransportInfo = bridgeTransportHeaderInfo(transportInfo, readback);
   return buildResponse({
     header: {
       system: conn.cfg.sid,
       object: `${type} ${target.name}`,
       package: packageName,
+      ...(headerTransportInfo !== undefined ? { transport: transportHeaderText(headerTransportInfo) } : {}),
       mode: "delete-bridge",
       deleted: true,
       verified,
@@ -4686,7 +5117,10 @@ async function abapDeleteViaBridge(
       verifyNote,
       "NOT journalled: a bridge delete captures no before-image, so abap_journal mode=undo cannot " +
         "restore this object. To bring it back, create it again with a fresh abap_write call.",
-      isLocalPackageName(packageName) ? "" : bridgeDeleteTransportEntryNote(label, target.name, packageName),
+      type === "VIEW/DV" && !isLocalPackageName(packageName)
+        ? bridgeDeleteTransportEntryNote(label, target.name, packageName)
+        : "",
+      ...(type === "TRAN/T" ? bridgeTransportNotes(transportInfo, transport, gate, readback) : []),
     ].filter((n) => n !== ""),
     maxChars,
   });
@@ -4923,13 +5357,10 @@ async function abapCreateSearchHelpViaBridge(
   // through a local `const` arrow function value — same cast `abapCreateViaBridge`
   // uses for `base_table`/`program` above.
   const shlp = input.shlp as NonNullable<WriteInput["shlp"]>;
-  const description = input.description?.trim();
-  if (!description) {
-    bad(
-      `\`description\` is required to create a ${label} (${type}) — it is the object's short text ` +
-        "(DD30V-DDTEXT), and the API has no default for it.",
-    );
-  }
+  // Issue #209: an absent description defaults to the object's own name rather than
+  // being refused; the response notes say so.
+  const descriptionDefaulted = !input.description?.trim();
+  const description = input.description?.trim() || target.name.toUpperCase();
 
   const packageNameStr = target.packageName?.trim() || "$TMP";
   const named = normalizeCorrNr(input.corr_nr);
@@ -5066,6 +5497,7 @@ async function abapCreateSearchHelpViaBridge(
       `Created by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ADT ` +
         `REST: ${cap?.bridgeCreate?.via ?? "see src/adt/classic-call.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
+      descriptionDefaulted ? `description defaulted to "${description}" (none was given).` : "",
       ...bridgeTransportNotes(transportInfo, transport, gate),
       verifyNote,
       entryId !== undefined
@@ -5857,12 +6289,6 @@ async function abapCreateIndexViaBridge(
         "ACTIVATE = 'X'. Omit `activate`.",
     );
   }
-  if (!input.description?.trim()) {
-    bad(
-      `\`description\` is required to create a ${label} (${type}) — it is the index's short text ` +
-        "(DD12V-DDTEXT), and the API has no default for it.",
-    );
-  }
   if (!input.base_table?.trim()) {
     bad(
       `\`base_table\` is required to create a ${label} (${type}): the existing table the index is ` +
@@ -5877,8 +6303,11 @@ async function abapCreateIndexViaBridge(
   }
   // `bad()` always throws, but TS's never-return narrowing doesn't follow a call
   // through a local `const` arrow function (same cast a few lines down for TRAN/T's `program`).
-  const description = (input.description as string).trim();
   const baseTable = (input.base_table as string).trim();
+  // Issue #209: an absent description defaults to `<table> index <id>` rather than
+  // being refused.
+  const descriptionDefaulted = !input.description?.trim();
+  const description = input.description?.trim() || `${baseTable} index ${target.name}`;
   const indexFields = input.index_fields as string[];
 
   // The one network read this function makes — see this function's doc comment.
@@ -5968,6 +6397,7 @@ async function abapCreateIndexViaBridge(
       `Created by running the classic fluid tool's body class ${CLASSIC_BODY_CLASS}, not over ` +
         `ADT REST: ${cap?.bridgeCreate?.via ?? "see src/adt/index-create.ts"}`,
       cap?.bridgeCreate?.limits ?? "",
+      descriptionDefaulted ? `description defaulted to "${description}" (none was given).` : "",
       ...bridgeTransportNotes(transportInfo, transport, gate, readback),
       created.verdict.verified
         ? `Independently verified with a fresh DD12V/DD17S catalog read after the bridge returned: ` +
