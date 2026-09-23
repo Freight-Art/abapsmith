@@ -46,14 +46,30 @@ export async function searchObjectsTolerant(
   conn: AbapConnection,
   query: string,
   maxResults: number,
+  objectType?: string,
 ): Promise<SearchResult[]> {
+  // A sub-typed objectType (e.g. "FUGR/F") must go out raw: the vendor
+  // library's searchObject strips everything after the "/" before it ever
+  // reaches the wire.
+  if (objectType?.includes("/")) {
+    const { body } = await conn.get("/sap/bc/adt/repository/informationsystem/search", {
+      headers: { Accept: "application/xml" },
+      qs: { operation: "quickSearch", query, maxResults: String(maxResults), objectType },
+    });
+    return parseObjectSearchXml(body);
+  }
   try {
-    return await conn.adt.searchObject(query, undefined, maxResults);
+    return await conn.adt.searchObject(query, objectType, maxResults);
   } catch (e) {
     if (!(e instanceof TypeError)) throw e;
     const { body } = await conn.get("/sap/bc/adt/repository/informationsystem/search", {
       headers: { Accept: "application/xml" },
-      qs: { operation: "quickSearch", query, maxResults: String(maxResults) },
+      qs: {
+        operation: "quickSearch",
+        query,
+        maxResults: String(maxResults),
+        ...(objectType !== undefined ? { objectType } : {}),
+      },
     });
     return parseObjectSearchXml(body);
   }

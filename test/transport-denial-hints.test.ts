@@ -38,11 +38,11 @@ const catchGate = (fn: () => void): AbapError => {
 };
 
 describe("transportAllowlistHint — one rule-specific, caller-side, terminal hint per allowlist shape", () => {
-  it("auto only: omit corr_nr; naming a request is refused regardless of which one", () => {
+  it("auto only: omit corr_nr; naming a request is accepted only for one this session created", () => {
     const h = transportAllowlistHint(["auto"]);
     expect(h).toMatch(/ABAP_ALLOW_TRANSPORTS=auto/);
     expect(h).toMatch(/Omit corr_nr/);
-    expect(h).toMatch(/refused regardless of which request/);
+    expect(h).toMatch(/accepted only when it is a request this session created/);
     expect(h).toMatch(/terminal/);
     expect(h).not.toMatch(ENVIRONMENT_EDIT);
   });
@@ -86,7 +86,7 @@ describe("SafetyGate step 10 — each denial rule carries its own hint and is te
     expect(e.details.rule).toBe("transport allowlist");
     expect(e.message).toMatch(new RegExp(`Transport ${OTHER} is not permitted`));
     expect(e.hint).toMatch(/Omit corr_nr/);
-    expect(e.hint).toMatch(/refused regardless of which request/);
+    expect(e.hint).toMatch(/accepted only when it is a request this session created/);
     expect(e.retryable).toBe(false);
     expect(e.hint).not.toMatch(ENVIRONMENT_EDIT);
   });

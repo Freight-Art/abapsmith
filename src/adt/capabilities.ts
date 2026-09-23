@@ -184,6 +184,14 @@ export interface CreateCapability {
    * tri-state value.
    */
   verified: true | false | "unverified";
+  /**
+   * Send the create POST outside the stateful session. The server keeps
+   * this type's create enqueue for the rest of a stateful session, so a
+   * LOCK right after the create in the same session is refused by our own
+   * user (#205, MSAG/N, live 2026-09-23); a stateless request releases it
+   * when the request ends.
+   */
+  statelessPost?: true;
 }
 
 export interface TypeCapabilities {
@@ -887,7 +895,7 @@ export const REGISTRY: Record<TypeCode, TypeCapabilities> = {
     // re-checked and unaffected). An earlier report asserted message classes "do
     // not create at all" — like DTEL/DE, that did not reproduce. Full
     // record: the git history.
-    create: { vendor: true, verified: true },
+    create: { vendor: true, verified: true, statelessPost: true },
     delete: true,
     activate: false,
   },

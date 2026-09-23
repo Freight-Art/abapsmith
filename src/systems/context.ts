@@ -226,33 +226,39 @@ export function createSystemContext(spec: SystemSpec, opts: SystemContextOptions
   // them), so there is deliberately no fallback here — see
   // the git history for the historical bug (an omitted
   // `allowTransports` silently re-widened an explicit deny-all).
-  const safety = new SafetyGate({
-    readOnly: cfg.readOnly,
-    allowPackages: cfg.allowPackages,
-    allowNamePrefixes: cfg.allowNamePrefixes,
-    allowTransports: cfg.allowTransports,
-    allowTransportRelease: cfg.allowTransportRelease,
-    allowTransportDelete: cfg.allowTransportDelete,
-    allowCascadeDelete: cfg.allowCascadeDelete,
-    allowServicePublish: cfg.allowServicePublish,
-    allowEnhancements: cfg.allowEnhancements,
-    enhanceTargets: cfg.enhanceTargets,
-    enhanceTargetPackages: cfg.enhanceTargetPackages,
-    originSystems: cfg.originSystems,
-    // This system's own SID, so the origin gate (SafetyGate.isLocalOrigin)
-    // recognises this system's own content as local without needing it
-    // repeated via ABAP_ORIGIN_SYSTEMS.
-    sid: cfg.sid,
-    // Operator additions to the frozen data-preview deny-list.
-    dataPreviewDenyTables: cfg.dataPreviewDenyTables,
-    // Tier-2 dump reads; registration-time counterpart is
-    // `capabilities.canReadDumpVariables` below (both read
-    // `cfg.allowDumpVariables`, deliberately not `readOnly`).
-    allowDumpVariables: cfg.allowDumpVariables,
-    // Not a capability — records WHICH MECHANISM decided every field above,
-    // so a refusal names the actual input rather than guessing legacy flags.
-    abapMode: cfg.abapMode,
-  });
+  // Bound after `transport` is constructed below — the gate is built before
+  // the resolver exists, so this hook reads the registry late via closure.
+  let transportRef: SessionTransport | undefined;
+  const safety = new SafetyGate(
+    {
+      readOnly: cfg.readOnly,
+      allowPackages: cfg.allowPackages,
+      allowNamePrefixes: cfg.allowNamePrefixes,
+      allowTransports: cfg.allowTransports,
+      allowTransportRelease: cfg.allowTransportRelease,
+      allowTransportDelete: cfg.allowTransportDelete,
+      allowCascadeDelete: cfg.allowCascadeDelete,
+      allowServicePublish: cfg.allowServicePublish,
+      allowEnhancements: cfg.allowEnhancements,
+      enhanceTargets: cfg.enhanceTargets,
+      enhanceTargetPackages: cfg.enhanceTargetPackages,
+      originSystems: cfg.originSystems,
+      // This system's own SID, so the origin gate (SafetyGate.isLocalOrigin)
+      // recognises this system's own content as local without needing it
+      // repeated via ABAP_ORIGIN_SYSTEMS.
+      sid: cfg.sid,
+      // Operator additions to the frozen data-preview deny-list.
+      dataPreviewDenyTables: cfg.dataPreviewDenyTables,
+      // Tier-2 dump reads; registration-time counterpart is
+      // `capabilities.canReadDumpVariables` below (both read
+      // `cfg.allowDumpVariables`, deliberately not `readOnly`).
+      allowDumpVariables: cfg.allowDumpVariables,
+      // Not a capability — records WHICH MECHANISM decided every field above,
+      // so a refusal names the actual input rather than guessing legacy flags.
+      abapMode: cfg.abapMode,
+    },
+    { sessionCreatedRequests: () => transportRef?.sessionCreatedRequests() ?? [] },
+  );
 
   // Registration-time tool filtering, computed once (not per-request) from
   // `Config` fields `SafetyGate.update()` never mutates — additive to, not a
@@ -274,6 +280,7 @@ export function createSystemContext(spec: SystemSpec, opts: SystemContextOptions
         { corr: { kind: "unresolved" } },
       ),
   });
+  transportRef = transport;
 
   // Hands the debugger the pool's one debug lease (`DEBUG_CONCURRENCY = 1`),
   // held for the whole session and released at terminate — this is what

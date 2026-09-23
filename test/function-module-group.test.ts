@@ -206,8 +206,9 @@ describe("abap_search mode=objects renders the recovered group", () => {
   // on the request's own type filter.
   function searchConnFor(rows: unknown[]): AbapConnection {
     return {
-      cfg: { sid: "A4H" },
+      cfg: { sid: "A4H", searchTimeoutMs: 60_000 },
       adt: { searchObject: async () => rows, usageReferences: async () => [] },
+      withRequestTimeout: async (_ms: number, fn: () => Promise<unknown>) => fn(),
     } as unknown as AbapConnection;
   }
 
@@ -232,7 +233,10 @@ describe("abap_search mode=objects renders the recovered group", () => {
       "adtcore:description": "Filler class row, only here to force a windowed response",
     }));
     const conn = searchConnFor([BUP_ROLES_GET_ALL_HIT, ...filler]);
-    const r = await abapSearch(conn, { query: "*", max: 100 }, 1000);
+    // #206: an untyped "*" is now refused BAD_INPUT before any request; the
+    // fake ignores the query text entirely, so any non-unspecific pattern
+    // still returns every fixture row.
+    const r = await abapSearch(conn, { query: "Z*", max: 100 }, 1000);
     expect(r.truncated).toBe(true);
     expect(r.text).toMatch(/\bBUDA\b/);
     expect(r.text).toMatch(/`group` is the function group/);

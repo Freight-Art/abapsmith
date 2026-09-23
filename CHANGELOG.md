@@ -12,6 +12,18 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.31] - 2026-09-23
+
+### Fixed
+
+- **`MSAG/N` create no longer reports `LOCKED` right after the object was created** (#205). The vendor create POST ran inside the stateful ADT session, and the server keeps a message class's create enqueue for the rest of that session, so the LOCK that followed was refused by our own connected user (`EU510`). Types whose registry entry carries `create.statelessPost` (today only `MSAG/N`) now send the create POST outside the stateful session, so the enqueue ends with the request; and for every created object, a LOCK right after create that is refused by the connected user's own enqueue is retried once in a fresh session (the write then reports the note "the lock was retried once in a fresh session"). A lock held by another user still surfaces `LOCKED` with `created: true`; a second write of an existing message class takes the update path (`created: false`), never `LOCKED`.
+- **`abap_search mode=objects` with a bare `"*"` and a type filter could take ~19 seconds and still return no matches** (#206). The request went out untyped and fetched `max × 10` rows of mixed type for the client to re-filter, so a broad wildcard scanned far more than needed and still often missed. A typed search now asks the server for `max` plus a margin (`max + max(10, ceil(max/2))`, capped at 1000) instead of `max × 10`, and an untyped search asks for exactly `max`; the request also now carries `objectType` — the type group (e.g. `CLAS`, `FUGR`) for a name pattern, or the full sub-type (e.g. `FUGR/F`, `TABL/DS`) when the query is a bare wildcard, which the server answers in well under a second (disclosed by a `TYPE-SCOPED LISTING` note, since those rows omit description and, for some types, package) — the client-side sub-type filter stays, since the server's own sub-type filter is not exact. The quick search now runs under its own per-request timeout (see `ABAP_SEARCH_TIMEOUT_MS` below, which counts toward the session-wait sizing like the other families), and an untyped query that is empty or only wildcards (`*`, `**`, `%`) is refused `BAD_INPUT` before any request — add a `type` or a name prefix such as `Z*`. Measured on A4H: `*` + `FUGR/F` max 3 went from ~19s and 0 matches to well under a second with 3 matches.
+- **A named `corr_nr` for a request created earlier in the same session was refused under `ABAP_ALLOW_TRANSPORTS=auto`** (#208). Under a list containing `auto`, any named request was refused outright regardless of which one — even a request this same session had just created, or one CTS already attributed to abapsmith for the package — so a caller that read a request back from an earlier write and named it on a later one was refused rather than honoured. A named `corr_nr` is now accepted under `auto` when it is (a) a request this session created (`abap_transport operation=create`, `abap_img_edit create_request`, or one created for a package by an earlier write in this session), or (b) on `abap_write`'s main path, a modifiable workbench request owned by the connected user carrying abapsmith's own session description for the same package — exactly the requests auto would choose itself. Anything else is still refused, and the refusal now lists the acceptable requests ("Acceptable: A4HK900200" or "none yet — omit corr_nr to have one created"). The safety gate's transport-allowlist check (check 7) takes an optional session-registry hook wired from `SessionTransport`, so a `source: "named"` request under a list containing `auto` passes only when it is pinned or in that registry; deny-all and pinned lists without `auto` are unchanged. Bridge creates (classic views, transactions, search helps, `TABL/DI`, packages) accept (a) but not (b), because their zero-wire pre-check runs before CTS is consulted.
+
+### Added
+
+- **`ABAP_SEARCH_TIMEOUT_MS` / `searchTimeoutMs`** (#206). Per-request HTTP timeout, ms, for `abap_search`'s repository quick search — default `60000`. Overrides `ABAP_TIMEOUT_MS` for that request family, the same pattern as `ABAP_BOPF_TIMEOUT_MS`/`ABAP_ACTIVATE_TIMEOUT_MS`/`ABAP_RUN_TIMEOUT_MS`; a timeout is reported as `TIMEOUT` naming this variable, and it counts toward the session-wait sizing alongside the other three.
+
 ## [0.6.30] - 2026-09-23
 
 ### Added
@@ -79,6 +91,7 @@ version was set to `0.3.0`, which is intended.
 ### Changed
 
 - **`abap_img_edit preview` now prints which request would be used** (#176): "Applying this change would record on <REQ> (<kind> request known to this session)" or "would create a new <kind> request ..." — and, as before, `preview` never creates one.
+
 ## [0.6.24] - 2026-09-22
 
 ### Added
@@ -111,6 +124,7 @@ version was set to `0.3.0`, which is intended.
 ### Fixed
 
 - **Function module create no longer collides with its own group's transport lock** (#171). A module create with no `package` used to resolve to `$TMP` and send the create POST with no `corrNr`; CTS refused it with 403 `CTS_WBO_API/019` — the group's generated `L<GROUP>UXX` include was already locked by the request the group itself was created in. The create path now reads the group's own `adtcore:packageRef` and uses that package: transportchecks answers `KORRFLAG X` with the locking request, the POST carries `corrNr=<that request>`, and the response's `transport:` line reports the request actually used, with `package_source: container` saying the package came from the group. A `package` that disagrees with the group's is refused `BAD_INPUT` — no move. A create that still hits `CTS_WBO_API/019` (e.g. a forced `corr_nr`) is now classified `TRANSPORT_LOCKED`, `details.classifiedBy: "cts-object-locked-in-other-request"`, with `details.holdingRequest`, `details.holdingUser`, `details.lockedObject`, and a hint naming the request to pass as `corr_nr`.
+
 ## [0.6.21] - 2026-09-22
 
 ### Added
