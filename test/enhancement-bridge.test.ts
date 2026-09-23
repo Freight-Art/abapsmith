@@ -23,7 +23,7 @@ import { fileURLToPath } from "node:url";
 import { promises as fs } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   HttpClient,
   HttpClientOptions,
@@ -33,6 +33,7 @@ import { HttpClientException } from "abap-adt-api/build/AdtHTTP.js";
 import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
 import { SafetyGate } from "../src/safety.js";
+import { SessionTransport } from "../src/adt/session-transport.js";
 import { ConfigSchema, type Config } from "../src/config.js";
 import { AbapError, isAbapError } from "../src/adt/errors.js";
 import {
@@ -629,12 +630,13 @@ describe("createEnhancementSpot", () => {
     expect(inner.calls.some((c) => c.url.startsWith("/sap/bc/adt/oo/classrun/"))).toBe(true);
   });
 
-  it("dispatches create_spot with the exact args, including corr_nr", async () => {
+  it("dispatches create_spot with the exact args, including corr_nr and activate", async () => {
     const args = {
       spot_name: "ZMCP_SPOT",
       description: "A spot",
       package_name: ENH_CREATE_PACKAGE,
       corr_nr: "",
+      activate: true,
     };
     const { conn, inner } = await connected(combine(...enhFluidRoutes("create_spot", { created: true })));
     await createEnhancementSpot(conn, allowingGate(), {
@@ -722,6 +724,90 @@ describe("createEnhancementSpot", () => {
     expect(err).toBeTruthy();
     expect(inner.calls.length).toBe(0);
   });
+
+  it("activate:false sends activate:false to the fluid body, skips the spot activation and returns no activation", async () => {
+    const activationCalls: HttpClientOptions[] = [];
+    const route = combine(
+      (o: HttpClientOptions) => {
+        if (o.url.includes("/sap/bc/adt/activation")) activationCalls.push(o);
+        return undefined;
+      },
+      ...enhFluidRoutes("create_spot", { created: true }),
+    );
+    const { conn, inner } = await connected(route);
+    const result = await createEnhancementSpot(conn, allowingGate(), {
+      spotName: "ZMCP_SPOT",
+      description: "A spot",
+      affects: AFFECTS,
+      activate: false,
+    });
+    expect(result.transcript.tags).toEqual(["SPOT-OBJECT-CREATED"]);
+    expect(result.activation).toBeUndefined();
+    // Fluid deploy path only (runtime class + body + invoker) — no explicit spot activation.
+    expect(activationCalls.length).toBe(3);
+    const args = {
+      spot_name: "ZMCP_SPOT",
+      description: "A spot",
+      package_name: ENH_CREATE_PACKAGE,
+      corr_nr: "",
+      activate: false,
+    };
+    expect(createdInvoker(inner, expectedInvokerName("create_spot", args))).toBe(true);
+  });
+
+  it("a transportable packageName resolves the request through the session transport and reports it", async () => {
+    const CREATED = "A4HK900123";
+    const PKG = "ZMCP_PKG";
+    const trCreate = vi.fn(async () => ({ trkorr: CREATED, path: `/com.sap.cts/object_record/${CREATED}` }));
+    const trRequirement = vi.fn(async (_conn: unknown, uri: string, devclass: string) => ({
+      uri,
+      operation: "I",
+      devclass,
+      candidates: [],
+      locks: [],
+      messages: [],
+      checkFailed: false,
+      raw: { result: "S", korrflag: "X", recording: "" },
+      kind: "transport-required",
+      mustSupplyCorrNr: true,
+      serverWouldFabricate: false,
+    }));
+    const transport = new SessionTransport({
+      allowTransports: ["auto"],
+      authorizeCreate: () =>
+        new SafetyGate({ readOnly: false, allowPackages: ["*"] }).authorize("transport", { name: PKG, packageName: PKG }, { corr: { kind: "unresolved" } }),
+      whoami: () => "DEVELOPER",
+      cts: { trCreate, trRequirement } as never,
+    });
+    const gate = new SafetyGate({
+      readOnly: false,
+      allowPackages: [ENH_CREATE_PACKAGE, ENH_BRIDGE_PACKAGE, PKG],
+      allowNamePrefixes: ["*"],
+      writesLockedOut: false,
+      allowEnhancements: true,
+      enhanceTargets: "customer",
+      originSystems: ["TST"],
+      allowTransports: ["auto"],
+    });
+    const { conn, inner } = await connected(combine(...enhFluidRoutes("create_spot", { created: true })));
+    const result = await createEnhancementSpot(conn, gate, {
+      spotName: "ZMCP_SPOT",
+      description: "A spot",
+      affects: AFFECTS,
+      packageName: PKG,
+      transport,
+    });
+    expect(trCreate).toHaveBeenCalledTimes(1);
+    expect(result.corr).toEqual({ corrNr: CREATED, source: "auto" });
+    const args = {
+      spot_name: "ZMCP_SPOT",
+      description: "A spot",
+      package_name: PKG,
+      corr_nr: CREATED,
+      activate: true,
+    };
+    expect(createdInvoker(inner, expectedInvokerName("create_spot", args))).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -748,7 +834,7 @@ describe("addBadiDefinition", () => {
     expect(String(interfacePut?.body)).toContain("INTERFACES if_badi_interface.");
   });
 
-  it("dispatches add_badi_def with the exact args, including corr_nr", async () => {
+  it("dispatches add_badi_def with the exact args, including corr_nr and activate", async () => {
     const args = {
       spot_name: "ZMCP_SPOT",
       badi_name: "ZMCP_BADI",
@@ -757,6 +843,7 @@ describe("addBadiDefinition", () => {
       short_text: "Test BAdI",
       package_name: ENH_CREATE_PACKAGE,
       corr_nr: "",
+      activate: true,
     };
     const route = combine(objectHappyPath(INTF_COLLECTION, "ZIF_MCP_BADI"), ...enhFluidRoutes("add_badi_def", { added: true }));
     const { conn, inner } = await connected(route);
@@ -768,6 +855,72 @@ describe("addBadiDefinition", () => {
       shortText: "Test BAdI",
       affects: AFFECTS,
     });
+    expect(createdInvoker(inner, expectedInvokerName("add_badi_def", args))).toBe(true);
+  });
+
+  it("a transportable packageName is gated against the BAdI the intent names, not the spot CTS records", async () => {
+    const CREATED = "A4HK900123";
+    const PKG = "ZMCP_PKG";
+    const trCreate = vi.fn(async () => ({ trkorr: CREATED, path: `/com.sap.cts/object_record/${CREATED}` }));
+    const trRequirement = vi.fn(async (_conn: unknown, uri: string, devclass: string) => ({
+      uri,
+      operation: "I",
+      devclass,
+      candidates: [],
+      locks: [],
+      messages: [],
+      checkFailed: false,
+      raw: { result: "S", korrflag: "X", recording: "" },
+      kind: "transport-required",
+      mustSupplyCorrNr: true,
+      serverWouldFabricate: false,
+    }));
+    const transport = new SessionTransport({
+      allowTransports: ["auto"],
+      authorizeCreate: () =>
+        new SafetyGate({ readOnly: false, allowPackages: ["*"] }).authorize("transport", { name: PKG, packageName: PKG }, { corr: { kind: "unresolved" } }),
+      whoami: () => "DEVELOPER",
+      cts: { trCreate, trRequirement } as never,
+    });
+    const gate = new SafetyGate({
+      readOnly: false,
+      allowPackages: [ENH_CREATE_PACKAGE, ENH_BRIDGE_PACKAGE, PKG],
+      allowNamePrefixes: ["*"],
+      writesLockedOut: false,
+      allowEnhancements: true,
+      enhanceTargets: "customer",
+      originSystems: ["TST"],
+      allowTransports: ["auto"],
+    });
+    const route = combine(objectHappyPath(INTF_COLLECTION, "ZIF_MCP_BADI"), ...enhFluidRoutes("add_badi_def", { added: true }));
+    const { conn, inner } = await connected(route);
+    const result = await addBadiDefinition(conn, gate, {
+      spotName: "ZMCP_SPOT",
+      badiName: "ZMCP_BADI",
+      interfaceName: "ZIF_MCP_BADI",
+      singleUse: true,
+      shortText: "Test BAdI",
+      affects: { ...AFFECTS, packageName: PKG },
+      packageName: PKG,
+      transport,
+    });
+    expect(result.corr).toEqual({ corrNr: CREATED, source: "auto" });
+    // One request for the spot; the marker interface write reuses it (no second trCreate).
+    expect(trCreate).toHaveBeenCalledTimes(1);
+    expect(trRequirement.mock.calls.map((c) => c[2])).toEqual([PKG, PKG]);
+    expect(
+      inner.calls.some((c) => c.url === `${INTF_COLLECTION}/zif_mcp_badi/source/main` && (c.method ?? "").toUpperCase() === "PUT"),
+    ).toBe(true);
+    const args = {
+      spot_name: "ZMCP_SPOT",
+      badi_name: "ZMCP_BADI",
+      interface_name: "ZIF_MCP_BADI",
+      single_use: true,
+      short_text: "Test BAdI",
+      package_name: PKG,
+      corr_nr: CREATED,
+      activate: true,
+    };
     expect(createdInvoker(inner, expectedInvokerName("add_badi_def", args))).toBe(true);
   });
 
@@ -909,7 +1062,7 @@ describe("createBadiImplementation", () => {
     expect(transcript.tags).toEqual(["ENHO-OBJECT-CREATED", "IMPL-ADDED", "BADI-NO-FILTERS"]);
   });
 
-  it("dispatches create_impl with the exact args, including corr_nr", async () => {
+  it("dispatches create_impl with the exact args, including corr_nr and activate", async () => {
     const args = {
       enh_name: "ZMCP_ENH_BADI",
       spot_name: "ZMCP_SPOT",
@@ -920,6 +1073,7 @@ describe("createBadiImplementation", () => {
       description: "Test implementation",
       package_name: ENH_CREATE_PACKAGE,
       corr_nr: "",
+      activate: true,
     };
     const route = combine(...enhFluidRoutes("create_impl", { created: true, impl_added: true, filter_check: "no_filters" }));
     const { conn, inner } = await connected(route);
@@ -1091,7 +1245,7 @@ describe("setFilterValues", () => {
     expect(hookFiredAfterNActivations, "onJointActivation must fire BEFORE the joint POST, after the fluid deploy path's own activations").toBe(3);
   });
 
-  it("dispatches set_filter_values with the exact args, including corr_nr", async () => {
+  it("dispatches set_filter_values with the exact args, including corr_nr and activate", async () => {
     const args = {
       enh_name: "ZMCP_ENH_BADI",
       impl_name: "ZMCP_IMPL",
@@ -1101,6 +1255,7 @@ describe("setFilterValues", () => {
       value: "ALPHA",
       package_name: ENH_CREATE_PACKAGE,
       corr_nr: "",
+      activate: true,
     };
     const { conn, inner } = await connected(combine(...enhFluidRoutes("set_filter_values", { replaced: true })));
     await setFilterValues(conn, allowingGate(), {
@@ -1344,7 +1499,7 @@ describe("addFilterDefinition", () => {
     expect(transcript.tags).toEqual(["FILTER-DEF-ADDED"]);
   });
 
-  it("dispatches add_filter_def with the exact args, including corr_nr", async () => {
+  it("dispatches add_filter_def with the exact args, including corr_nr and activate", async () => {
     const args = {
       spot_name: "ZMCP_SPOT",
       badi_name: "ZMCP_BADI",
@@ -1353,6 +1508,7 @@ describe("addFilterDefinition", () => {
       filter_text: "A filter",
       package_name: ENH_CREATE_PACKAGE,
       corr_nr: "",
+      activate: true,
     };
     const { conn, inner } = await connected(combine(...enhFluidRoutes("add_filter_def", { added: true })));
     await addFilterDefinition(conn, allowingGate(), {

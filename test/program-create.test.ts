@@ -244,15 +244,17 @@ describe("abapWrite — fixed_point_arithmetic/text_pool PROG/P-only gating (src
     expect(adt.calls.length).toBe(0);
   });
 
-  it("zero-network BAD_INPUT: text_pool with an explicit non-PROG/P type", async () => {
+  it("zero-network BAD_INPUT: text_pool with an explicit unsupported type names the supported types", async () => {
     const { conn, adt } = await connected(() => undefined);
     const input = WriteInput.parse({
-      object: "ZMCP_TEST_CLS",
-      type: "CLAS/OC",
+      object: "ZIF_TEST_INTF",
+      type: "INTF/OI",
       text_pool: { symbols: { "001": "hi" } },
     });
     const err = await catchErr(abapWrite(conn, input, 20_000, DEFAULT_GATE));
     expect(err.code).toBe("BAD_INPUT");
+    expect(err.message).toContain("PROG/P, CLAS/OC and FUGR/F");
+    expect(err.message).toContain("INTF/OI");
     expect(adt.calls.length).toBe(0);
   });
 

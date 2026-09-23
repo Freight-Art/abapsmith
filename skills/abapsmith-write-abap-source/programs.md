@@ -13,8 +13,11 @@ Read after `SKILL.md` when writing an executable program or a program include.
 - A new `PROG/P` is created with Fixed Point Arithmetic **on**
   (`abapsource:fixPointArithmetic="true"`) by default — opt out with
   `fixed_point_arithmetic: false` if the report genuinely needs it off.
-- The text pool (text symbols, selection texts) is written with
-  `abap_write`'s `text_pool` parameter, not with `source` — see
-  `doc/TOOLS/write-and-activate.md`.
+- The text pool (text symbols, selection texts, and `headings` — the list
+  header and up to four column headings, SE38 "List Headings") is written
+  with `abap_write`'s `text_pool` parameter, not with `source` — see
+  `doc/TOOLS/write-and-activate.md`. `CLAS/OC` and `FUGR/F` take
+  `text_pool` too: symbols only for a class, all three groups for a
+  function group.
 - `PROG/PT` is the program's GUI title (`SET TITLEBAR`, Menu Painter/SE41),
   not the text pool. It is not writable or readable here.

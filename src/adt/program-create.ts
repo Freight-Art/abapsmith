@@ -13,9 +13,9 @@ import type { GatedCorr, ResolvedTarget } from "./write.js";
 
 const PROGRAM_CREATE_COLLECTION = "/sap/bc/adt/programs/programs";
 
-/** `fixed_point_arithmetic`/`text_pool` apply to PROG/P only — shared refusal for both. */
+/** `fixed_point_arithmetic` applies to PROG/P only (text_pool has its own check in text-pool.ts). */
 export function assertProgramOnlyOption(
-  option: "fixed_point_arithmetic" | "text_pool",
+  option: "fixed_point_arithmetic",
   type: string | undefined,
   details: Record<string, unknown>,
 ): void {

@@ -61887,7 +61887,7 @@ var init_capabilities = __esm({
         label: "GUI title (titlebar)",
         unsupported: {
           reason: "GUI titles (SET TITLEBAR text) are program subobjects maintained in the classic Menu Painter (SE41) and are not reachable as ADT-writable objects on this release: no ADT discovery collection exists for them, PROG/PT is not a registered ADT object type, and the only route that answers a GET at all \u2014 the generic VIT bridge \u2014 returns a content-free stub for ANY key, including nonexistent title ids and even nonexistent program names (it does not validate existence, only echoes the requested key), and a 405 Method Not Allowed on every write verb, verified live with a valid CSRF token. Do not confuse this with the program's TEXT POOL (text symbols/selection texts) \u2014 a different, separate resource (ADT type PROG/PX) that IS writable; see the alternative.",
-          alternative: "GUI titles can only be edited in SE41 (or SE80's Menu Painter), both SAPGUI tools outside abapsmith's reach. There is no ABAP-code equivalent to fall back on the way PROG/PS and PROG/PC have their flow-logic/PAI-module escape hatch \u2014 SET TITLEBAR just names a titlebar id, it does not carry the title text itself. For text symbols and selection texts, use abap_write's text_pool parameter on the PROG/P object and read them back with abap_read \u2014 both go through the textelements resource, not PROG/PT."
+          alternative: "GUI titles can only be edited in SE41 (or SE80's Menu Painter), both SAPGUI tools outside abapsmith's reach. There is no ABAP-code equivalent to fall back on the way PROG/PS and PROG/PC have their flow-logic/PAI-module escape hatch \u2014 SET TITLEBAR just names a titlebar id, it does not carry the title text itself. For text symbols and selection texts, use abap_write's text_pool parameter on the PROG/P (or CLAS/OC / FUGR/F) object and read them back with abap_read \u2014 both go through the textelements resource, not PROG/PT."
         }
       },
       // Not in types.ts — see the module doc. A different shape of gap from
@@ -84856,6 +84856,7 @@ CLASS zcl_zmcp_fluid_enh IMPLEMENTATION.
     IF lv_corr_arg IS NOT INITIAL.
       lv_trkorr = lv_corr_arg.
     ENDIF.
+    DATA(lv_activate) = zcl_zmcp_fluid_rt=>b( 'activate' ).
 
     TRY.
         CASE iv_action.
@@ -84880,8 +84881,10 @@ CLASS zcl_zmcp_fluid_enh IMPLEMENTATION.
             lo_spot->if_enh_object_docu~set_shorttext( CONV #( lv_description ) ).
             lo_spot->if_enh_object~save( EXPORTING run_dark = abap_true
               CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
-            lo_spot->if_enh_object~activate( EXPORTING run_dark = abap_true
-              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            IF lv_activate = abap_true.
+              lo_spot->if_enh_object~activate( EXPORTING run_dark = abap_true
+                CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            ENDIF.
             lo_spot->if_enh_object~unlock( ).
             zcl_zmcp_fluid_rt=>out( '{"created":true}' ).
 
@@ -84910,8 +84913,10 @@ CLASS zcl_zmcp_fluid_enh IMPLEMENTATION.
             lo_def->add_badi_def( im_badi_def = ls_badi ).
             lo_spot->if_enh_object~save( EXPORTING run_dark = abap_true
               CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
-            lo_spot->if_enh_object~activate( EXPORTING run_dark = abap_true
-              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            IF lv_activate = abap_true.
+              lo_spot->if_enh_object~activate( EXPORTING run_dark = abap_true
+                CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            ENDIF.
             lo_spot->if_enh_object~unlock( ).
             zcl_zmcp_fluid_rt=>out( '{"added":true}' ).
 
@@ -84942,8 +84947,10 @@ CLASS zcl_zmcp_fluid_enh IMPLEMENTATION.
             lo_def->add_badi_def( im_badi_def = ls_badi ).
             lo_spot->if_enh_object~save( EXPORTING run_dark = abap_true
               CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
-            lo_spot->if_enh_object~activate( EXPORTING run_dark = abap_true
-              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            IF lv_activate = abap_true.
+              lo_spot->if_enh_object~activate( EXPORTING run_dark = abap_true
+                CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            ENDIF.
             lo_spot->if_enh_object~unlock( ).
             zcl_zmcp_fluid_rt=>out( '{"added":true}' ).
 
@@ -84983,8 +84990,10 @@ CLASS zcl_zmcp_fluid_enh IMPLEMENTATION.
             lo_impl->add_implementation( im_implementation = ls_impl ).
             lo_enh->if_enh_object~save( EXPORTING run_dark = abap_true
               CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
-            lo_enh->if_enh_object~activate( EXPORTING run_dark = abap_true
-              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            IF lv_activate = abap_true.
+              lo_enh->if_enh_object~activate( EXPORTING run_dark = abap_true
+                CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            ENDIF.
             lo_enh->if_enh_object~unlock( ).
 
             " Diagnostic only, mirrors legacy badiFilterCheckFragment: never fails create_impl.
@@ -85068,8 +85077,10 @@ CLASS zcl_zmcp_fluid_enh IMPLEMENTATION.
             lo_impl->add_implementation( im_implementation = ls_impl ).
             lo_obj->save( EXPORTING run_dark = abap_true
               CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
-            lo_obj->activate( EXPORTING run_dark = abap_true
-              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            IF lv_activate = abap_true.
+              lo_obj->activate( EXPORTING run_dark = abap_true
+                CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            ENDIF.
             lo_obj->unlock( ).
             zcl_zmcp_fluid_rt=>out( '{"replaced":true}' ).
 
@@ -85142,7 +85153,7 @@ var enhManifest = {
       targets: { object: "/spot_name", package: "/package_name", transport: "/corr_nr" },
       input: {
         type: "object",
-        required: ["spot_name", "description", "package_name", "corr_nr"],
+        required: ["spot_name", "description", "package_name", "corr_nr", "activate"],
         properties: {
           spot_name: { type: "string", maxLength: 30, description: "New spot's ENHNAME." },
           description: { type: "string", maxLength: 60, description: "Root object short text." },
@@ -85151,7 +85162,8 @@ var enhManifest = {
             type: "string",
             maxLength: 10,
             description: "Transport request. Empty string for a $ (local) package."
-          }
+          },
+          activate: { type: "boolean", description: "Activate after save; false leaves the spot inactive." }
         }
       },
       output: {
@@ -85167,7 +85179,16 @@ var enhManifest = {
       targets: { object: "/spot_name", package: "/package_name", transport: "/corr_nr" },
       input: {
         type: "object",
-        required: ["spot_name", "badi_name", "interface_name", "single_use", "short_text", "package_name", "corr_nr"],
+        required: [
+          "spot_name",
+          "badi_name",
+          "interface_name",
+          "single_use",
+          "short_text",
+          "package_name",
+          "corr_nr",
+          "activate"
+        ],
         properties: {
           spot_name: { type: "string", maxLength: 30 },
           badi_name: { type: "string", maxLength: 30 },
@@ -85179,7 +85200,8 @@ var enhManifest = {
             type: "string",
             maxLength: 10,
             description: "Transport request. Empty string for a $ (local) package."
-          }
+          },
+          activate: { type: "boolean", description: "Activate after save; false leaves the spot inactive." }
         }
       },
       output: {
@@ -85195,7 +85217,7 @@ var enhManifest = {
       targets: { object: "/spot_name", package: "/package_name", transport: "/corr_nr" },
       input: {
         type: "object",
-        required: ["spot_name", "badi_name", "filter_name", "filter_type", "package_name", "corr_nr"],
+        required: ["spot_name", "badi_name", "filter_name", "filter_type", "package_name", "corr_nr", "activate"],
         properties: {
           spot_name: { type: "string", maxLength: 30 },
           badi_name: { type: "string", maxLength: 30 },
@@ -85207,7 +85229,8 @@ var enhManifest = {
             type: "string",
             maxLength: 10,
             description: "Transport request. Empty string for a $ (local) package."
-          }
+          },
+          activate: { type: "boolean", description: "Activate after save; false leaves the spot inactive." }
         }
       },
       output: {
@@ -85232,7 +85255,8 @@ var enhManifest = {
           "active",
           "description",
           "package_name",
-          "corr_nr"
+          "corr_nr",
+          "activate"
         ],
         properties: {
           enh_name: { type: "string", maxLength: 30, description: "New implementation's ENHNAME." },
@@ -85247,7 +85271,8 @@ var enhManifest = {
             type: "string",
             maxLength: 10,
             description: "Transport request. Empty string for a $ (local) package."
-          }
+          },
+          activate: { type: "boolean", description: "Activate after save; false leaves the implementation inactive." }
         }
       },
       output: {
@@ -85275,7 +85300,8 @@ var enhManifest = {
           "compare",
           "value",
           "package_name",
-          "corr_nr"
+          "corr_nr",
+          "activate"
         ],
         properties: {
           enh_name: { type: "string", maxLength: 30, description: "Implementation's ENHNAME." },
@@ -85289,7 +85315,8 @@ var enhManifest = {
             type: "string",
             maxLength: 10,
             description: "Transport request. Empty string for a $ (local) package."
-          }
+          },
+          activate: { type: "boolean", description: "Activate after save; false leaves the implementation inactive." }
         }
       },
       output: {
@@ -112779,7 +112806,7 @@ async function preflightPackageCorr(conn, t, opts) {
   const named = normalizeCorrNr(opts.corrNr);
   opts.gate.assert(op, gateTarget, {
     corr: named === void 0 ? { kind: "unresolved" } : { kind: "transport", corrNr: named, source: "named" },
-    intent: void 0,
+    intent: opts.intent,
     phase: "preflight"
   });
   const res = await opts.transport.resolveForNewTransportable(
@@ -112805,7 +112832,7 @@ async function preflightPackageCorr(conn, t, opts) {
   try {
     opts.gate.assert(op, gateTarget, {
       corr: { kind: "transport", corrNr: res.corrNr, source },
-      intent: void 0
+      intent: opts.intent
     });
   } catch (err) {
     if (!(err instanceof AbapError) || !res.created) throw err;
@@ -126314,14 +126341,67 @@ init_types();
 // src/adt/text-pool.ts
 init_errors();
 init_session();
-var TEXTELEMENTS_COLLECTION = "/sap/bc/adt/textelements/programs";
+var TEXT_POOL_SPECS = {
+  "PROG/P": {
+    collection: "/sap/bc/adt/textelements/programs",
+    resourceType: "PROG/PX",
+    selections: true,
+    headings: true
+  },
+  "CLAS/OC": {
+    collection: "/sap/bc/adt/textelements/classes",
+    resourceType: "CLAS/OCX",
+    selections: false,
+    headings: false
+  },
+  "FUGR/F": {
+    collection: "/sap/bc/adt/textelements/functiongroups",
+    resourceType: "FUGR/PX",
+    selections: true,
+    headings: true
+  }
+};
+var TEXTELEMENTS_COLLECTION = TEXT_POOL_SPECS["PROG/P"].collection;
 var TEXTELEMENTS_ACCEPT = "application/vnd.sap.adt.textelements.v1+xml";
 var SYMBOLS_MEDIA_TYPE = "application/vnd.sap.adt.textelements.symbols.v1";
 var SELECTIONS_MEDIA_TYPE = "application/vnd.sap.adt.textelements.selections.v1";
+var HEADINGS_MEDIA_TYPE = "application/vnd.sap.adt.textelements.headings.v1";
 var SYMBOL_KEY_RE = /^[A-Z0-9]{1,3}$/;
 var SELECTION_NAME_RE = /^[A-Z0-9_]{1,8}$/;
-function textPoolUri(programName) {
-  return `${TEXTELEMENTS_COLLECTION}/${programName.toLowerCase()}`;
+function isTextPoolType(type) {
+  return type !== void 0 && Object.hasOwn(TEXT_POOL_SPECS, type);
+}
+function assertTextPoolType(type, details) {
+  if (isTextPoolType(type)) return;
+  throw new AbapError(
+    "BAD_INPUT",
+    "`text_pool` applies to PROG/P, CLAS/OC and FUGR/F only, not " + (type ?? "an unknown type") + ".",
+    details
+  );
+}
+function assertTextPoolShape(type, pool, details) {
+  const spec = TEXT_POOL_SPECS[type];
+  if (spec.selections) return;
+  if (pool.selectionTexts !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `\`text_pool.selection_texts\` applies to PROG/P and FUGR/F only: a ${type} text pool has text symbols only.`,
+      details
+    );
+  }
+  if (pool.headings !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `\`text_pool.headings\` applies to PROG/P and FUGR/F only: a ${type} text pool has text symbols only.`,
+      details
+    );
+  }
+}
+function textPoolUri(name, type = "PROG/P") {
+  return `${TEXT_POOL_SPECS[type].collection}/${name.toLowerCase()}`;
+}
+function textPoolResourceType(type) {
+  return TEXT_POOL_SPECS[type].resourceType;
 }
 function buildSymbolsBody(symbols) {
   const entries = Object.entries(symbols).map(([rawKey, text5]) => {
@@ -126367,6 +126447,43 @@ function buildSelectionsBody(selectionTexts) {
 `;
   }).join("");
 }
+function buildHeadingsBody(headings) {
+  const listHeader = headings.listHeader ?? "";
+  if (listHeader.length > 70) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `List header must be at most 70 characters, got ${listHeader.length}.`,
+      { length: listHeader.length }
+    );
+  }
+  const columnHeaders = headings.columnHeaders ?? [];
+  if (columnHeaders.length > 4) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `At most 4 column headers are allowed, got ${columnHeaders.length}.`,
+      { count: columnHeaders.length }
+    );
+  }
+  const cols = [];
+  for (let i = 0; i < 4; i++) {
+    const text5 = columnHeaders[i] ?? "";
+    if (text5.length > 132) {
+      throw new AbapError(
+        "BAD_INPUT",
+        `Column header ${i + 1}: text must be at most 132 characters, got ${text5.length}.`,
+        { index: i + 1, length: text5.length }
+      );
+    }
+    cols.push(text5);
+  }
+  return `listHeader=${listHeader}
+
+columnHeader_1=${cols[0]}
+columnHeader_2=${cols[1]}
+columnHeader_3=${cols[2]}
+columnHeader_4=${cols[3]}
+`;
+}
 function parseSymbols(body) {
   const out = {};
   for (const line2 of body.split(/\r\n|\r|\n/)) {
@@ -126390,23 +126507,54 @@ function parseSelections(body) {
   }
   return out;
 }
+function parseHeadings(body) {
+  let listHeader;
+  const columns = ["", "", "", ""];
+  for (const line2 of body.split(/\r\n|\r|\n/)) {
+    if (line2.trim() === "") continue;
+    const idx2 = line2.indexOf("=");
+    if (idx2 < 0) continue;
+    const key = line2.slice(0, idx2);
+    const text5 = line2.slice(idx2 + 1);
+    if (key === "listHeader") {
+      if (text5 !== "") listHeader = text5;
+      continue;
+    }
+    const m = /^columnHeader_([1-4])$/.exec(key);
+    if (m && m[1] !== void 0) columns[Number(m[1]) - 1] = text5;
+  }
+  while (columns.length > 0 && columns[columns.length - 1] === "") columns.pop();
+  const out = {};
+  if (listHeader !== void 0) out.listHeader = listHeader;
+  if (columns.length > 0) out.columnHeaders = columns;
+  return out;
+}
+function countHeadings(h) {
+  const listCount = h.listHeader !== void 0 && h.listHeader !== "" ? 1 : 0;
+  const colCount = (h.columnHeaders ?? []).filter((c) => c !== "").length;
+  return listCount + colCount;
+}
 async function writeTextPool(conn, authorized, pool, opts) {
   if (authorized.op !== "write") {
     throw new AbapError("BAD_INPUT", `Text pool write needs a write authorization, got "${authorized.op}".`);
   }
   const name = authorized.target.name;
-  const uri = textPoolUri(name);
+  const type = authorized.target.type;
+  assertTextPoolType(type, { type, name });
+  assertTextPoolShape(type, pool, { type, name });
+  const uri = textPoolUri(name, type);
   let masterLanguage = "EN";
   try {
     const descriptor = await conn.get(uri, { headers: { Accept: TEXTELEMENTS_ACCEPT } });
     const m = /adtcore:masterLanguage="([^"]*)"/.exec(descriptor.body);
     if (m && m[1] !== void 0) masterLanguage = m[1];
   } catch (e) {
-    throw translateAdtError(e, { operation: "write", uri, name, type: "PROG/P" });
+    throw translateAdtError(e, { operation: "write", uri, name, type });
   }
-  const language = conn.cfg.language || masterLanguage || "EN";
+  const language = masterLanguage || "EN";
   const symbolsBody = pool.symbols ? buildSymbolsBody(pool.symbols) : void 0;
   const selectionsBody = pool.selectionTexts ? buildSelectionsBody(pool.selectionTexts) : void 0;
+  const headingsBody = pool.headings ? buildHeadingsBody(pool.headings) : void 0;
   await conn.withStatefulSession(async (session) => {
     const lock = await session.lock(uri);
     const corrNr = opts.corrNr ?? lock.corrNr;
@@ -126425,36 +126573,74 @@ async function writeTextPool(conn, authorized, pool, opts) {
           body: selectionsBody
         });
       }
+      if (headingsBody !== void 0) {
+        await conn.put(`${uri}/source/headings`, {
+          headers: { "Content-Type": HEADINGS_MEDIA_TYPE, Accept: HEADINGS_MEDIA_TYPE },
+          qs: { lockHandle: lock.handle, ...corrNr ? { corrNr } : {} },
+          body: headingsBody
+        });
+      }
     } catch (e) {
-      throw translateAdtError(e, { operation: "write", uri, name, type: "PROG/P" });
+      throw translateAdtError(e, { operation: "write", uri, name, type });
     } finally {
       await session.unlock(uri);
     }
   });
   let activation;
   if (opts.activate) {
-    activation = await activateObject(conn, { name, uri, type: "PROG/PX" });
+    activation = await activateObject(conn, { name, uri, type: textPoolResourceType(type) });
   }
   return {
+    type,
     symbols: pool.symbols ? Object.keys(pool.symbols).length : 0,
     selectionTexts: pool.selectionTexts ? Object.keys(pool.selectionTexts).length : 0,
+    ...pool.headings ? { headings: countHeadings(pool.headings) } : {},
     language,
     activation
   };
 }
-async function readTextPool(conn, programName) {
-  const uri = textPoolUri(programName);
+function textPoolWriteSummary(r) {
+  if (r.type === "CLAS/OC") return `symbols ${r.symbols} (${r.language})`;
+  const headingsPart = r.headings !== void 0 ? `, headings ${r.headings}` : "";
+  return `symbols ${r.symbols}, selection_texts ${r.selectionTexts}${headingsPart} (${r.language})`;
+}
+async function readTextPool(conn, name, type = "PROG/P") {
+  const spec = TEXT_POOL_SPECS[type];
+  const uri = textPoolUri(name, type);
   const symbolsRes = await conn.get(`${uri}/source/symbols`, { headers: { Accept: SYMBOLS_MEDIA_TYPE } });
-  const selectionsRes = await conn.get(`${uri}/source/selections`, { headers: { Accept: SELECTIONS_MEDIA_TYPE } });
   const symbols = parseSymbols(symbolsRes.body);
-  const selectionTexts = parseSelections(selectionsRes.body);
-  if (Object.keys(symbols).length === 0 && Object.keys(selectionTexts).length === 0) return void 0;
-  return { symbols, selectionTexts };
+  let selectionTexts = {};
+  if (spec.selections) {
+    const selectionsRes = await conn.get(`${uri}/source/selections`, { headers: { Accept: SELECTIONS_MEDIA_TYPE } });
+    selectionTexts = parseSelections(selectionsRes.body);
+  }
+  let headings = {};
+  if (spec.headings) {
+    const headingsRes = await conn.get(`${uri}/source/headings`, { headers: { Accept: HEADINGS_MEDIA_TYPE } });
+    headings = parseHeadings(headingsRes.body);
+  }
+  if (Object.keys(symbols).length === 0 && Object.keys(selectionTexts).length === 0 && countHeadings(headings) === 0) {
+    return void 0;
+  }
+  return { symbols, selectionTexts, headings };
 }
 
 // src/tools/write-text-pool.ts
-var TEXT_POOL_JOURNAL_NOTE = "The text pool write is journalled as an irreversible update entry on the PROG/PX textelements resource (history only): abap_journal mode=undo cannot restore the previous texts.";
+var TEXT_POOL_JOURNAL_NOTE = "The text pool write is journalled as an irreversible update entry on the object's textelements resource (PROG/PX, CLAS/OCX or FUGR/PX; history only): abap_journal mode=undo cannot restore the previous texts.";
+function toTextPoolInput(tp) {
+  const headings = tp.headings ? {
+    ...tp.headings.list_header !== void 0 ? { listHeader: tp.headings.list_header } : {},
+    ...tp.headings.column_headers !== void 0 ? { columnHeaders: tp.headings.column_headers } : {}
+  } : void 0;
+  return {
+    ...tp.symbols !== void 0 ? { symbols: tp.symbols } : {},
+    ...tp.selection_texts !== void 0 ? { selectionTexts: tp.selection_texts } : {},
+    ...headings !== void 0 ? { headings } : {}
+  };
+}
 async function writeTextPoolJournalled(conn, journal, authorized, pool, opts) {
+  const type = authorized.target.type;
+  assertTextPoolType(type, { type, name: authorized.target.name });
   const { result, settle } = await withJournalledMutation(
     journal,
     {
@@ -126462,8 +126648,8 @@ async function writeTextPoolJournalled(conn, journal, authorized, pool, opts) {
         operation: "update",
         object: journalRef({
           name: authorized.target.name,
-          type: "PROG/PX",
-          uri: textPoolUri(authorized.target.name),
+          type: textPoolResourceType(type),
+          uri: textPoolUri(authorized.target.name, type),
           packageName: authorized.target.packageName,
           description: `text pool of ${authorized.target.name}`
         }),
@@ -126919,9 +127105,13 @@ var writeInputSchema = {
   ),
   text_pool: external_exports.object({
     symbols: external_exports.record(external_exports.string(), external_exports.string()).optional(),
-    selection_texts: external_exports.record(external_exports.string(), external_exports.string()).optional()
+    selection_texts: external_exports.record(external_exports.string(), external_exports.string()).optional(),
+    headings: external_exports.object({
+      list_header: external_exports.string().optional(),
+      column_headers: external_exports.array(external_exports.string()).max(4).optional()
+    }).strict().optional()
   }).strict().optional().describe(
-    "PROG/P only. Text symbols and selection texts to write to the program's text pool after the source; allowed without `source` on an existing program."
+    "PROG/P, CLAS/OC or FUGR/F. Text symbols (all three), and selection texts and list headings (PROG/P and FUGR/F only), written to the object's text pool after the source; allowed without `source` on an existing object. Each group given replaces that group entirely."
   ),
   // `edit`/`method` must be declared here: zod strips undeclared keys before
   // the callback sees them, so an undeclared `method` silently fell through
@@ -127871,9 +128061,10 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
     });
   }
   if (input.text_pool !== void 0 && input.type !== void 0) {
-    assertProgramOnlyOption("text_pool", requestedSpec?.type, {
-      type: requestedSpec?.type ?? input.type
-    });
+    const requestedType = requestedSpec?.type;
+    const textPoolDetails = { type: requestedType ?? input.type };
+    assertTextPoolType(requestedType, textPoolDetails);
+    assertTextPoolShape(requestedType, toTextPoolInput(input.text_pool), textPoolDetails);
   }
   if (input.source === void 0 && input.edit === void 0 && input.method === void 0 && input.text_pool === void 0) {
     throw new AbapError(
@@ -127891,16 +128082,16 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
     });
   }
   if (input.text_pool !== void 0) {
-    assertProgramOnlyOption("text_pool", authorized.target.type, {
-      type: authorized.target.type,
-      name: authorized.target.name
-    });
+    const resolvedType = authorized.target.type;
+    const textPoolDetails = { type: resolvedType, name: authorized.target.name };
+    assertTextPoolType(resolvedType, textPoolDetails);
+    assertTextPoolShape(resolvedType, toTextPoolInput(input.text_pool), textPoolDetails);
   }
   if (input.source === void 0 && input.edit === void 0 && input.method === void 0) {
     if (!authorized.target.exists) {
       throw new AbapError(
         "BAD_INPUT",
-        "text_pool without source needs an existing program; pass source to create it.",
+        "text_pool without source needs an existing object; pass source to create it.",
         { name: authorized.target.name }
       );
     }
@@ -127910,14 +128101,14 @@ async function abapWrite(conn, input, maxChars, gate, journal, transport, verify
       conn,
       journal,
       authorized,
-      { symbols: textPool.symbols, selectionTexts: textPool.selection_texts },
+      toTextPoolInput(textPool),
       { activate: activateTextPool, corrNr }
     );
     return buildResponse({
       header: {
         system: conn.cfg.sid,
         object: `${authorized.target.type} ${authorized.target.name}`,
-        text_pool: `symbols ${poolResult.symbols}, selection_texts ${poolResult.selectionTexts} (${poolResult.language})`,
+        text_pool: textPoolWriteSummary(poolResult),
         text_pool_activated: poolResult.activation?.activated ? "yes" : "no"
       },
       notes: [TEXT_POOL_JOURNAL_NOTE],
@@ -128355,7 +128546,7 @@ ${renderInactive(activation.inactive)}`);
         conn,
         journal,
         authorized,
-        { symbols: input.text_pool.symbols, selectionTexts: input.text_pool.selection_texts },
+        toTextPoolInput(input.text_pool),
         { activate: wantActivate, corrNr }
       );
       notes.push(TEXT_POOL_JOURNAL_NOTE);
@@ -128387,7 +128578,7 @@ ${renderInactive(activation.inactive)}`);
       check: propertiesShape ? "n/a (XML descriptor \u2014 validated by the server on write)" : check2.ok ? "clean" : `${check2.errors} error(s), ${check2.warnings} warning(s)`,
       activated: activation ? activation.activated : activationSuppressed ? "n/a (always active)" : "skipped",
       ...input.text_pool !== void 0 ? {
-        text_pool: textPoolResult ? `symbols ${textPoolResult.symbols}, selection_texts ${textPoolResult.selectionTexts} (${textPoolResult.language})` : `FAILED \u2014 ${textPoolFailure}`,
+        text_pool: textPoolResult ? textPoolWriteSummary(textPoolResult) : `FAILED \u2014 ${textPoolFailure}`,
         ...textPoolResult ? { text_pool_activated: textPoolResult.activation?.activated ? "yes" : "no" } : {}
       } : {},
       verify: verifyMode === "speculative" ? readBackActive ? "confirmed \u2014 read back after activation" : readBackPresent ? "read back after activation \u2014 NOT reported active" : (
@@ -137184,6 +137375,13 @@ function renderTextPool(pool) {
     parts.push("selection_texts:");
     for (const name of selectionNames) parts.push(`  ${name}  ${pool.selectionTexts[name]}`);
   }
+  if (countHeadings(pool.headings) > 0) {
+    parts.push("headings:");
+    if (pool.headings.listHeader !== void 0) parts.push(`  list_header  ${pool.headings.listHeader}`);
+    (pool.headings.columnHeaders ?? []).forEach((text5, i) => {
+      if (text5 !== "") parts.push(`  column_header_${i + 1}  ${text5}`);
+    });
+  }
   return parts.join("\n");
 }
 function buildSourceResponse(parts, etag, forceIncomplete = false) {
@@ -138891,9 +139089,9 @@ async function abapRead(conn, input, maxChars, gate) {
     }
   }
   const textPoolSections = [];
-  if (obj.type === "PROG/P" && wholeObjectRead && firstPage) {
+  if (isTextPoolType(obj.type) && wholeObjectRead && firstPage) {
     try {
-      const pool = await readTextPool(conn, obj.name);
+      const pool = await readTextPool(conn, obj.name, obj.type);
       if (pool) textPoolSections.push({ title: "TEXT POOL", content: renderTextPool(pool) });
     } catch {
     }
@@ -158644,9 +158842,14 @@ async function deleteEnhancementObject(conn, gate, target, opts) {
   };
 }
 
+// src/tools/enh.ts
+init_transports();
+
 // src/adt/enhancement-bridge.ts
 init_errors();
+init_safety();
 init_session();
+init_transports();
 init_enhancement_templates();
 var ENH_CREATE_PACKAGE = "$TMP";
 var BRIDGE_CLASS = {
@@ -158753,7 +158956,7 @@ async function writeActivateRunBridge(conn, gate, className, source, description
   });
   return executeBridge(conn, gate, deployed);
 }
-async function runEnhAction(conn, gate, action, args) {
+async function runEnhAction(conn, gate, action, args, corrSource) {
   const fr = await dispatch2(
     { conn, cfg: conn.cfg, gate, tools: ENH_TOOLS },
     // `caller` names the MCP-facing identity (abap_enh + the operation the
@@ -158761,7 +158964,7 @@ async function runEnhAction(conn, gate, action, args) {
     // action name for all five reroutes) so a FLUID_API_DISABLED refusal
     // names abap_enh, not the internal fluid tool id "enh" dispatch() runs
     // this as under the hood.
-    { tool: enhManifest.id, action, args, caller: { tool: "abap_enh", action } }
+    { tool: enhManifest.id, action, args, caller: { tool: "abap_enh", action }, corrSource }
   );
   if (typeof fr.result !== "object" || fr.result === null || Array.isArray(fr.result)) {
     throw new AbapError(
@@ -158784,18 +158987,51 @@ async function runEnhAction(conn, gate, action, args) {
   };
   return { result, run };
 }
-async function ensureMarkerInterface(conn, gate, interfaceName) {
+async function resolveEnhCorr(conn, gate, intent, t, transport, named, activate) {
+  const local = isLocalPackageName(t.packageName);
+  if (local && named !== void 0) {
+    throw new AbapError(
+      "BAD_INPUT",
+      `package ${t.packageName} is local; a transport request does not apply.`,
+      { field: "corr_nr", packageName: t.packageName, corrNr: named }
+    );
+  }
+  const preflight2 = named === void 0 ? { kind: "unresolved" } : { kind: "transport", corrNr: named, source: "named" };
+  gate.assertIntent(intent, { op: "write", corr: preflight2, phase: "preflight" });
+  if (activate) gate.assertIntent(intent, { op: "activate", corr: preflight2, phase: "preflight" });
+  if (local) return { corrNr: "" };
+  if (transport === void 0) {
+    if (named !== void 0) {
+      gate.assertIntent(intent, { op: "write", corr: { kind: "transport", corrNr: named, source: "named" } });
+      return { corrNr: named, corrSource: "named" };
+    }
+    throw new AbapError(
+      "TRANSPORT_ERROR",
+      `${t.name} needs a transport request (package ${t.packageName} is not local), but no transport manager is wired into this call. This is an internal wiring failure in abapsmith, not a mistake in the request.`,
+      { name: t.name, type: t.type, packageName: t.packageName }
+    );
+  }
+  const corr = await preflightPackageCorr(
+    conn,
+    { uri: t.uri, name: intent.enhancementName, type: t.type, packageName: t.packageName, exists: t.exists },
+    { transport, gate, corrNr: named, intent }
+  );
+  return { corrNr: corr.corrNr, corrSource: corr.source };
+}
+async function ensureMarkerInterface(conn, gate, interfaceName, packageName, transport, corr) {
   const name = assertEnhIdentifier(interfaceName, "interfaceName");
   const authorized = await authorizeMutation(conn, gate, "write", {
     type: "INTF/OI",
     name,
-    packageName: ENH_CREATE_PACKAGE,
+    packageName,
     description: "abapsmith BAdI marker interface (H21)"
   });
   if (!authorized.target.exists) {
+    const transportOpts = transport !== void 0 ? { transport, gate, ...corr?.source === "named" ? { corrNr: corr.corrNr } : {} } : {};
     await writeObject(conn, authorized, {
       source: markerInterfaceSource(name),
-      onBeforeImage: NO_JOURNAL
+      onBeforeImage: NO_JOURNAL,
+      ...transportOpts
     });
   }
   gate.assert("activate", {
@@ -158857,80 +159093,138 @@ function implUri(enhName) {
 }
 async function createEnhancementSpot(conn, gate, params) {
   const spotName = assertEnhIdentifier(params.spotName, "spotName");
-  const intent = enhancementIntentFor(
-    { name: spotName, type: "ENHS/XS", packageName: ENH_CREATE_PACKAGE },
-    params.affects
+  const packageName = (params.packageName ?? ENH_CREATE_PACKAGE).trim().toUpperCase();
+  const named = normalizeCorrNr(params.corrNr);
+  const activate = params.activate ?? true;
+  const intent = enhancementIntentFor({ name: spotName, type: "ENHS/XS", packageName }, params.affects);
+  const resolved = await resolveEnhCorr(
+    conn,
+    gate,
+    intent,
+    { name: spotName, type: "ENHS/XS", uri: spotUri(spotName), packageName, exists: false },
+    params.transport,
+    named,
+    activate
   );
-  gate.assertIntent(intent, { op: "write" });
-  gate.assertIntent(intent, { op: "activate" });
-  const { result, run } = await runEnhAction(conn, gate, "create_spot", {
-    spot_name: spotName,
-    description: params.description,
-    package_name: ENH_CREATE_PACKAGE,
-    corr_nr: ""
-  });
+  const { result, run } = await runEnhAction(
+    conn,
+    gate,
+    "create_spot",
+    {
+      spot_name: spotName,
+      description: params.description,
+      package_name: packageName,
+      corr_nr: resolved.corrNr,
+      activate
+    },
+    resolved.corrSource
+  );
   const transcript = {
     tags: result.created === true ? ["SPOT-OBJECT-CREATED"] : [],
     raw: JSON.stringify(result)
   };
   assertEnhTranscript(transcript, ["SPOT-OBJECT-CREATED"], `Creating enhancement spot ${spotName}`);
-  const activation = await activateObject(conn, { name: spotName, uri: spotUri(spotName) });
-  return { run, transcript, activation };
+  const activation = activate ? await activateObject(conn, { name: spotName, uri: spotUri(spotName) }) : void 0;
+  return {
+    run,
+    transcript,
+    ...activation !== void 0 ? { activation } : {},
+    ...resolved.corrSource !== void 0 ? { corr: { corrNr: resolved.corrNr, source: resolved.corrSource } } : {}
+  };
 }
 async function addBadiDefinition(conn, gate, params) {
   const spotName = assertEnhIdentifier(params.spotName, "spotName");
   const badiName = assertEnhIdentifier(params.badiName, "badiName");
   const interfaceName = assertEnhIdentifier(params.interfaceName, "interfaceName");
-  const intent = enhancementIntentFor(
-    { name: badiName, type: "ENHS/XS", packageName: ENH_CREATE_PACKAGE },
-    { ...params.affects, spotName }
+  const packageName = (params.packageName ?? ENH_CREATE_PACKAGE).trim().toUpperCase();
+  const named = normalizeCorrNr(params.corrNr);
+  const activate = params.activate ?? true;
+  const intent = enhancementIntentFor({ name: badiName, type: "ENHS/XS", packageName }, { ...params.affects, spotName });
+  const resolved = await resolveEnhCorr(
+    conn,
+    gate,
+    intent,
+    { name: spotName, type: "ENHS/XS", uri: spotUri(spotName), packageName, exists: true },
+    params.transport,
+    named,
+    activate
   );
-  gate.assertIntent(intent, { op: "write" });
-  gate.assertIntent(intent, { op: "activate" });
-  await ensureMarkerInterface(conn, gate, interfaceName);
-  const { result, run } = await runEnhAction(conn, gate, "add_badi_def", {
-    spot_name: spotName,
-    badi_name: badiName,
-    interface_name: interfaceName,
-    single_use: params.singleUse,
-    short_text: params.shortText,
-    package_name: ENH_CREATE_PACKAGE,
-    corr_nr: ""
-  });
+  await ensureMarkerInterface(
+    conn,
+    gate,
+    interfaceName,
+    packageName,
+    params.transport,
+    resolved.corrSource !== void 0 ? { corrNr: resolved.corrNr, source: resolved.corrSource } : void 0
+  );
+  const { result, run } = await runEnhAction(
+    conn,
+    gate,
+    "add_badi_def",
+    {
+      spot_name: spotName,
+      badi_name: badiName,
+      interface_name: interfaceName,
+      single_use: params.singleUse,
+      short_text: params.shortText,
+      package_name: packageName,
+      corr_nr: resolved.corrNr,
+      activate
+    },
+    resolved.corrSource
+  );
   const transcript = {
     tags: result.added === true ? ["BADI-DEF-ADDED"] : [],
     raw: JSON.stringify(result)
   };
   assertEnhTranscript(transcript, ["BADI-DEF-ADDED"], `Adding BAdI definition ${badiName} to spot ${spotName}`);
-  const activation = await activateObject(conn, { name: spotName, uri: spotUri(spotName) });
-  return { run, transcript, activation };
+  const activation = activate ? await activateObject(conn, { name: spotName, uri: spotUri(spotName) }) : void 0;
+  return {
+    run,
+    transcript,
+    ...activation !== void 0 ? { activation } : {},
+    ...resolved.corrSource !== void 0 ? { corr: { corrNr: resolved.corrNr, source: resolved.corrSource } } : {}
+  };
 }
 async function addFilterDefinition(conn, gate, params) {
   const spotName = assertEnhIdentifier(params.spotName, "spotName");
   const badiName = assertEnhIdentifier(params.badiName, "badiName");
-  const intent = enhancementIntentFor(
-    { name: badiName, type: "ENHS/XS", packageName: ENH_CREATE_PACKAGE },
-    { ...params.affects, spotName }
+  const packageName = (params.packageName ?? ENH_CREATE_PACKAGE).trim().toUpperCase();
+  const named = normalizeCorrNr(params.corrNr);
+  const activate = params.activate ?? true;
+  const intent = enhancementIntentFor({ name: badiName, type: "ENHS/XS", packageName }, { ...params.affects, spotName });
+  const resolved = await resolveEnhCorr(
+    conn,
+    gate,
+    intent,
+    { name: spotName, type: "ENHS/XS", uri: spotUri(spotName), packageName, exists: true },
+    params.transport,
+    named,
+    activate
   );
-  gate.assertIntent(intent, { op: "write" });
-  gate.assertIntent(intent, { op: "activate" });
   const args = {
     spot_name: spotName,
     badi_name: badiName,
     filter_name: params.filterName,
     filter_type: params.filterType,
-    package_name: ENH_CREATE_PACKAGE,
-    corr_nr: ""
+    package_name: packageName,
+    corr_nr: resolved.corrNr
   };
   if (params.filterText !== void 0) args.filter_text = params.filterText;
-  const { result, run } = await runEnhAction(conn, gate, "add_filter_def", args);
+  args.activate = activate;
+  const { result, run } = await runEnhAction(conn, gate, "add_filter_def", args, resolved.corrSource);
   const transcript = {
     tags: result.added === true ? ["FILTER-DEF-ADDED"] : [],
     raw: JSON.stringify(result)
   };
   assertEnhTranscript(transcript, ["FILTER-DEF-ADDED"], `Adding filter definition ${params.filterName} to ${badiName}`);
-  const activation = await activateObject(conn, { name: spotName, uri: spotUri(spotName) });
-  return { run, transcript, activation };
+  const activation = activate ? await activateObject(conn, { name: spotName, uri: spotUri(spotName) }) : void 0;
+  return {
+    run,
+    transcript,
+    ...activation !== void 0 ? { activation } : {},
+    ...resolved.corrSource !== void 0 ? { corr: { corrNr: resolved.corrNr, source: resolved.corrSource } } : {}
+  };
 }
 async function implementingClassExists(conn, className) {
   try {
@@ -158946,23 +159240,37 @@ async function createBadiImplementation(conn, gate, params) {
   const spotName = assertEnhIdentifier(params.spotName, "spotName");
   const badiName = assertEnhIdentifier(params.badiName, "badiName");
   const implClass = assertEnhIdentifier(params.implClass, "implClass");
-  const intent = enhancementIntentFor(
-    { name: enhName, type: "ENHO/XH", packageName: ENH_CREATE_PACKAGE },
-    { ...params.affects, spotName }
+  const packageName = (params.packageName ?? ENH_CREATE_PACKAGE).trim().toUpperCase();
+  const named = normalizeCorrNr(params.corrNr);
+  const activate = params.activate ?? true;
+  const intent = enhancementIntentFor({ name: enhName, type: "ENHO/XH", packageName }, { ...params.affects, spotName });
+  const resolved = await resolveEnhCorr(
+    conn,
+    gate,
+    intent,
+    { name: enhName, type: "ENHO/XH", uri: implUri(enhName), packageName, exists: false },
+    params.transport,
+    named,
+    activate
   );
-  gate.assertIntent(intent, { op: "write" });
-  gate.assertIntent(intent, { op: "activate" });
-  const { result, run } = await runEnhAction(conn, gate, "create_impl", {
-    enh_name: enhName,
-    spot_name: spotName,
-    badi_name: badiName,
-    impl_name: params.implName,
-    impl_class: implClass,
-    active: params.active,
-    description: params.description,
-    package_name: ENH_CREATE_PACKAGE,
-    corr_nr: ""
-  });
+  const { result, run } = await runEnhAction(
+    conn,
+    gate,
+    "create_impl",
+    {
+      enh_name: enhName,
+      spot_name: spotName,
+      badi_name: badiName,
+      impl_name: params.implName,
+      impl_class: implClass,
+      active: params.active,
+      description: params.description,
+      package_name: packageName,
+      corr_nr: resolved.corrNr,
+      activate
+    },
+    resolved.corrSource
+  );
   const tags = [];
   if (result.created === true) tags.push("ENHO-OBJECT-CREATED");
   if (result.impl_added === true) tags.push("IMPL-ADDED");
@@ -158971,38 +159279,65 @@ async function createBadiImplementation(conn, gate, params) {
   else if (result.filter_check === "inconclusive") tags.push("BADI-FILTER-CHECK-INCONCLUSIVE");
   const transcript = { tags, raw: JSON.stringify(result) };
   assertEnhTranscript(transcript, ["ENHO-OBJECT-CREATED", "IMPL-ADDED"], `Creating BAdI implementation ${enhName}`);
-  const activation = await activateObject(conn, { name: enhName, uri: implUri(enhName) });
+  const activation = activate ? await activateObject(conn, { name: enhName, uri: implUri(enhName) }) : void 0;
   const exists = await implementingClassExists(conn, implClass);
-  return { run, transcript, activation, implClass: { name: implClass, exists } };
+  return {
+    run,
+    transcript,
+    ...activation !== void 0 ? { activation } : {},
+    implClass: { name: implClass, exists },
+    ...resolved.corrSource !== void 0 ? { corr: { corrNr: resolved.corrNr, source: resolved.corrSource } } : {}
+  };
 }
 async function setFilterValues(conn, gate, params) {
   const enhName = assertEnhIdentifier(params.enhName, "enhName");
   const spotName = assertEnhIdentifier(params.spotName, "spotName");
-  const intent = enhancementIntentFor(
-    { name: enhName, type: "ENHO/XH", packageName: ENH_CREATE_PACKAGE },
-    { ...params.affects, spotName }
+  const packageName = (params.packageName ?? ENH_CREATE_PACKAGE).trim().toUpperCase();
+  const named = normalizeCorrNr(params.corrNr);
+  const activate = params.activate ?? true;
+  const intent = enhancementIntentFor({ name: enhName, type: "ENHO/XH", packageName }, { ...params.affects, spotName });
+  const resolved = await resolveEnhCorr(
+    conn,
+    gate,
+    intent,
+    { name: enhName, type: "ENHO/XH", uri: implUri(enhName), packageName, exists: true },
+    params.transport,
+    named,
+    activate
   );
-  gate.assertIntent(intent, { op: "write" });
-  gate.assertIntent(intent, { op: "activate" });
-  const { result, run } = await runEnhAction(conn, gate, "set_filter_values", {
-    enh_name: enhName,
-    impl_name: params.implName,
-    filter_name: params.filterName,
-    filter_type: params.filterType,
-    compare: params.compare,
-    value: params.value,
-    package_name: ENH_CREATE_PACKAGE,
-    corr_nr: ""
-  });
+  const { result, run } = await runEnhAction(
+    conn,
+    gate,
+    "set_filter_values",
+    {
+      enh_name: enhName,
+      impl_name: params.implName,
+      filter_name: params.filterName,
+      filter_type: params.filterType,
+      compare: params.compare,
+      value: params.value,
+      package_name: packageName,
+      corr_nr: resolved.corrNr,
+      activate
+    },
+    resolved.corrSource
+  );
   const transcript = {
     tags: result.replaced === true ? ["IMPL-REPLACED"] : [],
     raw: JSON.stringify(result)
   };
   assertEnhTranscript(transcript, ["IMPL-REPLACED"], `Setting filter values on implementation ${enhName}`);
+  if (!activate) {
+    return {
+      run,
+      transcript,
+      ...resolved.corrSource !== void 0 ? { corr: { corrNr: resolved.corrNr, source: resolved.corrSource } } : {}
+    };
+  }
   const jointAuthorized = gate.authorizeIntent(
     "activate",
     intent,
-    { name: enhName, packageName: ENH_CREATE_PACKAGE, type: "ENHO/XH" }
+    { name: enhName, packageName, type: "ENHO/XH" }
   );
   const jointActivation = await activateSpotAndImplementation(
     conn,
@@ -159017,7 +159352,12 @@ async function setFilterValues(conn, gate, params) {
     what: `H23 joint activation of spot ${spotName} + implementation ${enhName} after a filter change`,
     name: enhName
   });
-  return { run, transcript, jointActivation };
+  return {
+    run,
+    transcript,
+    jointActivation,
+    ...resolved.corrSource !== void 0 ? { corr: { corrNr: resolved.corrNr, source: resolved.corrSource } } : {}
+  };
 }
 async function exerciseBadi(conn, gate, params) {
   const badiName = assertEnhIdentifier(params.badiName, "badiName");
@@ -159234,6 +159574,15 @@ var ENH_CREATE_OPERATIONS = [
   "set_filter_values",
   "exercise"
 ];
+var ENH_FLUID_OPS = ["create_spot", "add_badi_def", "add_filter_def", "create_impl", "set_filter_values"];
+var AFFECTS_REQUIRED_OPS = [
+  "create_impl",
+  "set_filter_values",
+  "exercise",
+  "write_description",
+  "delete",
+  "set_impl_active"
+];
 var ENH_HOOK_OPERATIONS = ["discover_hook_anchors", "create_hook"];
 var ENH_DELETE_OPERATIONS = ["delete"];
 var ENH_ACTIVATION_OPERATIONS = ["set_impl_active"];
@@ -159245,7 +159594,10 @@ var enhInputSchema = {
     ...ENH_DELETE_OPERATIONS,
     ...ENH_ACTIVATION_OPERATIONS
   ]).optional().describe(
-    'Default "write_description". Six create ops: always $TMP, always activate. discover_hook_anchors: read-only. delete needs ABAP_ALLOW_ENHANCEMENT_DELETE=true, irreversible; set_impl_active: reversible.'
+    `Default "write_description". The five fluid ops (create_spot, add_badi_def, add_filter_def, create_impl, set_filter_values) take package (default $TMP), corr_nr and activate (default true). exercise creates nothing of the caller's own (its bridge class lives in $ABAPSMITH_FLUID_API). create_hook lands in $TMP. discover_hook_anchors: read-only. delete needs ABAP_ALLOW_ENHANCEMENT_DELETE=true, irreversible; set_impl_active: reversible.`
+  ),
+  package: external_exports.string().optional().describe(
+    "Target package for the five fluid ops only (create_spot, add_badi_def, add_filter_def, create_impl, set_filter_values). Default $TMP; trimmed and uppercased. Given on any other operation: BAD_INPUT."
   ),
   type: external_exports.enum(ENHANCEMENT_WRITE_TYPES).optional().describe("Required for write_description/delete; unused otherwise."),
   name: external_exports.string().describe(
@@ -159260,11 +159612,15 @@ var enhInputSchema = {
     packageName: external_exports.string().describe("Affected object package."),
     masterSystem: external_exports.string().optional().describe("SID if foreign; omit if local."),
     spotName: external_exports.string().optional().describe("Spot name, if reached via one.")
-  }).optional().describe("Object affected; required except discover_hook_anchors."),
-  corr_nr: external_exports.string().optional().describe("Transport request (write_description/delete/set_impl_active only)."),
+  }).optional().describe(
+    `Object affected. create_spot: optional, defaults to the spot itself. add_badi_def/add_filter_def: optional, defaults to the spot itself. create_hook: optional, derived from spec.hostName when omitted (one GET; NOT_FOUND if the host does not exist). REQUIRED (BAD_INPUT if omitted): ${AFFECTS_REQUIRED_OPS.join(", ")}. discover_hook_anchors: never used.`
+  ),
+  corr_nr: external_exports.string().optional().describe(
+    "write_description/delete/set_impl_active: transport request, unchanged. Five fluid ops: the transport for a transportable (non-$) package; with a local package this is BAD_INPUT. Omitted with a transportable package is resolved by the session resolver under ABAP_ALLOW_TRANSPORTS=auto."
+  ),
   expect_etag: external_exports.string().optional().describe("Refuse if etag differs (write_description/delete/set_impl_active only)."),
   activate: external_exports.boolean().optional().describe(
-    "write_description only: activate after a changed write. create_hook uses spec.activate; set_impl_active always activates."
+    "write_description: activate after a changed write (input.activate === true). Five fluid ops: default true; false saves without activating, leaving the object inactive. create_hook uses spec.activate (default false); set_impl_active always activates."
   )
 };
 var EnhInput = external_exports.object(enhInputSchema);
@@ -159278,11 +159634,46 @@ function requireAffects(input, operation) {
   if (!a) {
     throw new AbapError(
       "BAD_INPUT",
-      `operation:"${operation}" requires affects (the object this enhancement changes the behaviour of).`,
-      { operation }
+      `operation:"${operation}" requires affects (the object this enhancement changes the behaviour of). Operations that require it: ${AFFECTS_REQUIRED_OPS.join(", ")}. create_spot, add_badi_def and add_filter_def default to the spot; create_hook derives it from spec.hostName.`,
+      { operation, requiredFor: AFFECTS_REQUIRED_OPS }
     );
   }
   return { name: a.name, packageName: a.packageName, masterSystem: a.masterSystem, spotName: a.spotName };
+}
+function affectsOrDefault(input, fallback) {
+  const a = input.affects;
+  return a ? { name: a.name, packageName: a.packageName, masterSystem: a.masterSystem, spotName: a.spotName } : fallback;
+}
+function resolveFluidPackage(input) {
+  const packageName = (input.package ?? "$TMP").trim().toUpperCase();
+  const named = normalizeCorrNr(input.corr_nr);
+  const activate = input.activate ?? true;
+  if (isLocalPackageName(packageName) && named !== void 0) {
+    throw new AbapError("BAD_INPUT", `package ${packageName} is local; a transport request does not apply.`, {
+      field: "corr_nr",
+      packageName,
+      corrNr: named
+    });
+  }
+  return { packageName, named, activate };
+}
+function fluidPreflightCorr(named) {
+  return named === void 0 ? { kind: "unresolved" } : { kind: "transport", corrNr: named, source: "named" };
+}
+function fluidLeadNotes(packageName, activate, corr, name, type, affects) {
+  const notes = [`Package ${packageName}.`];
+  if (corr) {
+    notes.push(
+      `Recorded in transport request ${corr.corrNr} (${corr.source === "auto" ? "auto-resolved by the session" : "named by the caller"}).`
+    );
+  }
+  if (!activate) {
+    const ref2 = `object:"${name}", type:"${type}"`;
+    notes.push(
+      `Created inactive (activate:false): review with abap_read(${ref2}, enhancements:true), then abap_activate(${ref2}, affects:${JSON.stringify(affects)}).`
+    );
+  }
+  return notes;
 }
 function buildEnhResponse(write, activation, maxChars) {
   const notes = [];
@@ -159511,10 +159902,8 @@ function parseExerciseParams(spec) {
     };
   });
 }
-function buildEnhCreateResponse(operation, objectName, run, transcript, postActivation2, maxChars, extraNotes, activationTarget) {
-  const notes = [
-    `Landed in ${ENH_CREATE_PACKAGE} \u2014 the only package this codebase's non-atomic multi-step enhancement create has been proven safe in.`
-  ];
+function buildEnhCreateResponse(operation, objectName, run, transcript, postActivation2, maxChars, leadNotes, extraNotes, activationTarget) {
+  const notes = [...leadNotes];
   if (postActivation2) {
     if (operation === "set_filter_values") {
       notes.push(
@@ -159549,18 +159938,20 @@ function buildEnhCreateResponse(operation, objectName, run, transcript, postActi
 async function runEnhCreateOperation(deps, operation, input) {
   const name = input.name;
   const spec = input.spec;
-  const affects = requireAffects(input, operation);
   const gateKey = enhGateKey(name);
   const maxChars = deps.cfg.maxResponseChars;
   switch (operation) {
     case "create_spot": {
       const spotName = name;
       const description = requireSpecStr(spec, "description", operation);
-      const intent = enhancementIntentFor({ name: spotName, type: "ENHS/XS", packageName: ENH_CREATE_PACKAGE }, affects);
-      deps.safety.assertIntent(intent, { op: "write", phase: "preflight" });
-      deps.safety.assertIntent(intent, { op: "activate", phase: "preflight" });
+      const { packageName, named, activate } = resolveFluidPackage(input);
+      const affects = affectsOrDefault(input, { name: spotName, packageName });
+      const intent = enhancementIntentFor({ name: spotName, type: "ENHS/XS", packageName }, affects);
+      const preflightCorr2 = fluidPreflightCorr(named);
+      deps.safety.assertIntent(intent, { op: "write", corr: preflightCorr2, phase: "preflight" });
+      if (activate) deps.safety.assertIntent(intent, { op: "activate", corr: preflightCorr2, phase: "preflight" });
       await deps.ensureConnected();
-      const { run, transcript, activation } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
+      const { run, transcript, activation, corr } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
         const { result, settle } = await withJournalledMutation(
           deps.journal,
           {
@@ -159571,7 +159962,7 @@ async function runEnhCreateOperation(deps, operation, input) {
                   name: spotName,
                   type: "ENHS/XS",
                   uri: spotUri(spotName),
-                  packageName: ENH_CREATE_PACKAGE,
+                  packageName,
                   description
                 }),
                 affects
@@ -159584,19 +159975,34 @@ async function runEnhCreateOperation(deps, operation, input) {
           },
           async (onBeforeImage) => {
             await onBeforeImage(void 0);
-            return createEnhancementSpot(conn, deps.safety, { spotName, description, affects });
+            return createEnhancementSpot(conn, deps.safety, {
+              spotName,
+              description,
+              affects,
+              packageName,
+              corrNr: named,
+              transport: deps.transport,
+              activate
+            });
           }
         );
         await settle({
           outcome: "succeeded",
-          activation: { attempted: true, activated: result.activation.activated }
+          activation: { attempted: activate, activated: result.activation?.activated ?? false }
         });
         return result;
       });
-      return buildEnhCreateResponse(operation, spotName, run, transcript, activation, maxChars, void 0, {
-        name: spotName,
-        type: "ENHS/XS"
-      });
+      return buildEnhCreateResponse(
+        operation,
+        spotName,
+        run,
+        transcript,
+        activation,
+        maxChars,
+        fluidLeadNotes(packageName, activate, corr, spotName, "ENHS/XS", affects),
+        void 0,
+        { name: spotName, type: "ENHS/XS" }
+      );
     }
     case "add_badi_def": {
       const spotName = name;
@@ -159604,20 +160010,20 @@ async function runEnhCreateOperation(deps, operation, input) {
       const interfaceName = requireSpecStr(spec, "interfaceName", operation);
       const singleUse = requireSpecBool(spec, "singleUse", operation);
       const shortText = requireSpecStr(spec, "shortText", operation);
-      const intent = enhancementIntentFor(
-        { name: badiName, type: "ENHS/XS", packageName: ENH_CREATE_PACKAGE },
-        { ...affects, spotName }
-      );
-      deps.safety.assertIntent(intent, { op: "write", phase: "preflight" });
-      deps.safety.assertIntent(intent, { op: "activate", phase: "preflight" });
+      const { packageName, named, activate } = resolveFluidPackage(input);
+      const affects = affectsOrDefault(input, { name: spotName, packageName, spotName });
+      const intent = enhancementIntentFor({ name: badiName, type: "ENHS/XS", packageName }, affects);
+      const preflightCorr2 = fluidPreflightCorr(named);
+      deps.safety.assertIntent(intent, { op: "write", corr: preflightCorr2, phase: "preflight" });
+      if (activate) deps.safety.assertIntent(intent, { op: "activate", corr: preflightCorr2, phase: "preflight" });
       await deps.ensureConnected();
-      const { run, transcript, activation } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
+      const { run, transcript, activation, corr } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
         const { result, settle } = await withJournalledMutation(
           deps.journal,
           {
             begin: () => ({
               operation: "update",
-              object: { ...journalRef({ name: spotName, type: "ENHS/XS", uri: spotUri(spotName), packageName: ENH_CREATE_PACKAGE }), affects },
+              object: { ...journalRef({ name: spotName, type: "ENHS/XS", uri: spotUri(spotName), packageName }), affects },
               existedBefore: true,
               beforeCapture: "failed",
               irreversible: true,
@@ -159627,12 +160033,23 @@ async function runEnhCreateOperation(deps, operation, input) {
           },
           async (onBeforeImage) => {
             await onBeforeImage(void 0);
-            return addBadiDefinition(conn, deps.safety, { spotName, badiName, interfaceName, singleUse, shortText, affects });
+            return addBadiDefinition(conn, deps.safety, {
+              spotName,
+              badiName,
+              interfaceName,
+              singleUse,
+              shortText,
+              affects,
+              packageName,
+              corrNr: named,
+              transport: deps.transport,
+              activate
+            });
           }
         );
         await settle({
           outcome: "succeeded",
-          activation: { attempted: true, activated: result.activation.activated }
+          activation: { attempted: activate, activated: result.activation?.activated ?? false }
         });
         return result;
       });
@@ -159643,6 +160060,7 @@ async function runEnhCreateOperation(deps, operation, input) {
         transcript,
         activation,
         maxChars,
+        fluidLeadNotes(packageName, activate, corr, spotName, "ENHS/XS", affects),
         [
           `To call this BAdI from ABAP: DATA lo TYPE REF TO ${badiName}. GET BADI lo. \u2014 type the handle against the DEFINITION name (${badiName}, this call's own badiName), never against interfaceName (${interfaceName}) or spotName. Typing it against the interface fails to COMPILE, with the exact message "<handle> is not a valid BAdI handle here." \u2014 see the badi skill.`
         ],
@@ -159657,20 +160075,20 @@ async function runEnhCreateOperation(deps, operation, input) {
       const filterName = requireSpecStr(spec, "filterName", operation);
       const filterType = requireSpecStr(spec, "filterType", operation);
       const filterText = specStr(spec, "filterText");
-      const intent = enhancementIntentFor(
-        { name: badiName, type: "ENHS/XS", packageName: ENH_CREATE_PACKAGE },
-        { ...affects, spotName }
-      );
-      deps.safety.assertIntent(intent, { op: "write", phase: "preflight" });
-      deps.safety.assertIntent(intent, { op: "activate", phase: "preflight" });
+      const { packageName, named, activate } = resolveFluidPackage(input);
+      const affects = affectsOrDefault(input, { name: spotName, packageName, spotName });
+      const intent = enhancementIntentFor({ name: badiName, type: "ENHS/XS", packageName }, affects);
+      const preflightCorr2 = fluidPreflightCorr(named);
+      deps.safety.assertIntent(intent, { op: "write", corr: preflightCorr2, phase: "preflight" });
+      if (activate) deps.safety.assertIntent(intent, { op: "activate", corr: preflightCorr2, phase: "preflight" });
       await deps.ensureConnected();
-      const { run, transcript, activation } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
+      const { run, transcript, activation, corr } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
         const { result, settle } = await withJournalledMutation(
           deps.journal,
           {
             begin: () => ({
               operation: "update",
-              object: { ...journalRef({ name: spotName, type: "ENHS/XS", uri: spotUri(spotName), packageName: ENH_CREATE_PACKAGE }), affects },
+              object: { ...journalRef({ name: spotName, type: "ENHS/XS", uri: spotUri(spotName), packageName }), affects },
               existedBefore: true,
               beforeCapture: "failed",
               irreversible: true,
@@ -159680,19 +160098,37 @@ async function runEnhCreateOperation(deps, operation, input) {
           },
           async (onBeforeImage) => {
             await onBeforeImage(void 0);
-            return addFilterDefinition(conn, deps.safety, { spotName, badiName, filterName, filterType, filterText, affects });
+            return addFilterDefinition(conn, deps.safety, {
+              spotName,
+              badiName,
+              filterName,
+              filterType,
+              filterText,
+              affects,
+              packageName,
+              corrNr: named,
+              transport: deps.transport,
+              activate
+            });
           }
         );
         await settle({
           outcome: "succeeded",
-          activation: { attempted: true, activated: result.activation.activated }
+          activation: { attempted: activate, activated: result.activation?.activated ?? false }
         });
         return result;
       });
-      return buildEnhCreateResponse(operation, filterName, run, transcript, activation, maxChars, void 0, {
-        name: spotName,
-        type: "ENHS/XS"
-      });
+      return buildEnhCreateResponse(
+        operation,
+        filterName,
+        run,
+        transcript,
+        activation,
+        maxChars,
+        fluidLeadNotes(packageName, activate, corr, spotName, "ENHS/XS", affects),
+        void 0,
+        { name: spotName, type: "ENHS/XS" }
+      );
     }
     case "create_impl": {
       const enhName = name;
@@ -159702,21 +160138,27 @@ async function runEnhCreateOperation(deps, operation, input) {
       const implClass = requireSpecStr(spec, "implClass", operation);
       const active = requireSpecBool(spec, "active", operation);
       const description = requireSpecStr(spec, "description", operation);
-      const intent = enhancementIntentFor(
-        { name: enhName, type: "ENHO/XH", packageName: ENH_CREATE_PACKAGE },
-        { ...affects, spotName }
-      );
-      deps.safety.assertIntent(intent, { op: "write", phase: "preflight" });
-      deps.safety.assertIntent(intent, { op: "activate", phase: "preflight" });
+      const affects = requireAffects(input, operation);
+      const { packageName, named, activate } = resolveFluidPackage(input);
+      const intent = enhancementIntentFor({ name: enhName, type: "ENHO/XH", packageName }, { ...affects, spotName });
+      const preflightCorr2 = fluidPreflightCorr(named);
+      deps.safety.assertIntent(intent, { op: "write", corr: preflightCorr2, phase: "preflight" });
+      if (activate) deps.safety.assertIntent(intent, { op: "activate", corr: preflightCorr2, phase: "preflight" });
       await deps.ensureConnected();
-      const { run, transcript, activation, implClass: implClassCheck } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
+      const {
+        run,
+        transcript,
+        activation,
+        implClass: implClassCheck,
+        corr
+      } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
         const { result, settle } = await withJournalledMutation(
           deps.journal,
           {
             begin: () => ({
               operation: "create",
               object: {
-                ...journalRef({ name: enhName, type: "ENHO/XH", uri: implUri(enhName), packageName: ENH_CREATE_PACKAGE, description }),
+                ...journalRef({ name: enhName, type: "ENHO/XH", uri: implUri(enhName), packageName, description }),
                 affects
               },
               existedBefore: false,
@@ -159727,12 +160169,25 @@ async function runEnhCreateOperation(deps, operation, input) {
           },
           async (onBeforeImage) => {
             await onBeforeImage(void 0);
-            return createBadiImplementation(conn, deps.safety, { enhName, spotName, badiName, implName, implClass, active, description, affects });
+            return createBadiImplementation(conn, deps.safety, {
+              enhName,
+              spotName,
+              badiName,
+              implName,
+              implClass,
+              active,
+              description,
+              affects,
+              packageName,
+              corrNr: named,
+              transport: deps.transport,
+              activate
+            });
           }
         );
         await settle({
           outcome: "succeeded",
-          activation: { attempted: true, activated: result.activation.activated }
+          activation: { attempted: activate, activated: result.activation?.activated ?? false }
         });
         return result;
       });
@@ -159757,7 +160212,16 @@ async function runEnhCreateOperation(deps, operation, input) {
           `Could not check whether implementing class ${implClass} exists (the check did not complete). create_impl never creates it \u2014 unlike SE19 \u2014 so confirm it with abap_read(object:"${implClass}", type:"CLAS/OC") and create it if it is missing.`
         );
       }
-      return buildEnhCreateResponse(operation, enhName, run, transcript, activation, maxChars, createImplNotes);
+      return buildEnhCreateResponse(
+        operation,
+        enhName,
+        run,
+        transcript,
+        activation,
+        maxChars,
+        fluidLeadNotes(packageName, activate, corr, enhName, "ENHO/XH", affects),
+        createImplNotes
+      );
     }
     case "set_filter_values": {
       const enhName = name;
@@ -159767,21 +160231,21 @@ async function runEnhCreateOperation(deps, operation, input) {
       const filterType = requireSpecStr(spec, "filterType", operation);
       const compare = requireSpecStr(spec, "compare", operation);
       const value = requireSpecStr(spec, "value", operation);
-      const intent = enhancementIntentFor(
-        { name: enhName, type: "ENHO/XH", packageName: ENH_CREATE_PACKAGE },
-        { ...affects, spotName }
-      );
-      deps.safety.assertIntent(intent, { op: "write", phase: "preflight" });
-      deps.safety.assertIntent(intent, { op: "activate", phase: "preflight" });
+      const affects = requireAffects(input, operation);
+      const { packageName, named, activate } = resolveFluidPackage(input);
+      const intent = enhancementIntentFor({ name: enhName, type: "ENHO/XH", packageName }, { ...affects, spotName });
+      const preflightCorr2 = fluidPreflightCorr(named);
+      deps.safety.assertIntent(intent, { op: "write", corr: preflightCorr2, phase: "preflight" });
+      if (activate) deps.safety.assertIntent(intent, { op: "activate", corr: preflightCorr2, phase: "preflight" });
       await deps.ensureConnected();
-      const { run, transcript, jointActivation } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
+      const { run, transcript, jointActivation, corr } = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
         let jointSettle;
         const { result, settle } = await withJournalledMutation(
           deps.journal,
           {
             begin: () => ({
               operation: "update",
-              object: { ...journalRef({ name: enhName, type: "ENHO/XH", uri: implUri(enhName), packageName: ENH_CREATE_PACKAGE }), affects },
+              object: { ...journalRef({ name: enhName, type: "ENHO/XH", uri: implUri(enhName), packageName }), affects },
               existedBefore: true,
               beforeCapture: "failed",
               irreversible: true,
@@ -159797,7 +160261,7 @@ async function runEnhCreateOperation(deps, operation, input) {
                 begin: () => ({
                   operation: "activate",
                   object: {
-                    ...journalRef({ name: spotName, type: "ENHS/XS", uri: spotUri(spotName), packageName: ENH_CREATE_PACKAGE }),
+                    ...journalRef({ name: spotName, type: "ENHS/XS", uri: spotUri(spotName), packageName }),
                     affects
                   },
                   existedBefore: true,
@@ -159807,6 +160271,7 @@ async function runEnhCreateOperation(deps, operation, input) {
                   tool: "abap_enh"
                 })
               },
+              // activate:false: setFilterValues skips the joint activation, so jointSettle is a no-op.
               async (onJoint) => setFilterValues(conn, deps.safety, {
                 enhName,
                 spotName,
@@ -159816,6 +160281,10 @@ async function runEnhCreateOperation(deps, operation, input) {
                 compare,
                 value,
                 affects,
+                packageName,
+                corrNr: named,
+                transport: deps.transport,
+                activate,
                 onJointActivation: () => onJoint(void 0)
               })
             );
@@ -159825,15 +160294,23 @@ async function runEnhCreateOperation(deps, operation, input) {
         );
         await jointSettle?.({
           outcome: "succeeded",
-          activation: { attempted: true, activated: result.jointActivation.activated }
+          activation: { attempted: activate, activated: result.jointActivation?.activated ?? false }
         });
         await settle({
           outcome: "succeeded",
-          activation: { attempted: true, activated: result.jointActivation.activated }
+          activation: { attempted: activate, activated: result.jointActivation?.activated ?? false }
         });
         return result;
       });
-      return buildEnhCreateResponse(operation, enhName, run, transcript, jointActivation, maxChars);
+      return buildEnhCreateResponse(
+        operation,
+        enhName,
+        run,
+        transcript,
+        jointActivation,
+        maxChars,
+        fluidLeadNotes(packageName, activate, corr, enhName, "ENHO/XH", affects)
+      );
     }
     case "exercise": {
       const badiName = name;
@@ -159848,6 +160325,7 @@ async function runEnhCreateOperation(deps, operation, input) {
         );
       }
       const params = parseExerciseParams(spec);
+      const affects = requireAffects(input, operation);
       const intent = enhancementIntentFor({ name: badiName, type: "ENHO/XH", packageName: ENH_CREATE_PACKAGE }, affects);
       deps.safety.assertIntent(intent, { op: "execute", phase: "preflight" });
       await deps.ensureConnected();
@@ -159856,7 +160334,9 @@ async function runEnhCreateOperation(deps, operation, input) {
         gateKey,
         (conn) => exerciseBadi(conn, deps.safety, { badiName, methodName, filterName, filterValue, params, affects })
       );
-      return buildEnhCreateResponse(operation, badiName, run, transcript, void 0, maxChars);
+      return buildEnhCreateResponse(operation, badiName, run, transcript, void 0, maxChars, [
+        `Bridge class landed in ${FLUID_PACKAGE} \u2014 exercise creates nothing of the caller's own, only a throwaway invoker there.`
+      ]);
     }
   }
 }
@@ -159926,7 +160406,6 @@ async function runEnhHookOperation(deps, operation, input) {
       {}
     );
   }
-  const affects = requireAffects(input, operation);
   if (deps.cfg.allowEnhancements !== true || deps.cfg.allowSourcePlugins !== true) {
     const missing = [
       ...deps.cfg.allowEnhancements !== true ? ["allowEnhancements"] : [],
@@ -159944,12 +160423,30 @@ async function runEnhHookOperation(deps, operation, input) {
       why.remediation
     );
   }
-  const intent = enhancementIntentFor({ name, type: "ENHO/XHH", packageName: ENH_CREATE_PACKAGE }, affects);
-  deps.safety.assertIntent(intent, { op: "write", phase: "preflight" });
-  if (activate) {
-    deps.safety.assertIntent(intent, { op: "activate", phase: "preflight" });
+  const assertHookIntent = (a) => {
+    const intent = enhancementIntentFor({ name, type: "ENHO/XHH", packageName: ENH_CREATE_PACKAGE }, a);
+    deps.safety.assertIntent(intent, { op: "write", phase: "preflight" });
+    if (activate) deps.safety.assertIntent(intent, { op: "activate", phase: "preflight" });
+  };
+  let affects;
+  if (input.affects) {
+    affects = requireAffects(input, operation);
+    assertHookIntent(affects);
+    await deps.ensureConnected();
+  } else {
+    await deps.ensureConnected();
+    affects = await deps.pool.withRead("abap_enh", async (conn) => {
+      const resolved = await resolveWriteTarget(conn, { type: host.type, name: host.name }, "write");
+      if (!resolved.exists) {
+        throw new AbapError("NOT_FOUND", `create_hook: host ${host.name} (${host.type}) does not exist.`, {
+          name: host.name,
+          type: host.type
+        });
+      }
+      return { name: resolved.name.toUpperCase(), packageName: resolved.packageName, masterSystem: resolved.masterSystem };
+    });
+    assertHookIntent(affects);
   }
-  await deps.ensureConnected();
   const gateKey = enhGateKey(name);
   const hookUri = buildEnhancementUri(ENHOXHH_COLLECTION, name.trim().toLowerCase());
   const result = await deps.pool.withWrite("abap_enh", gateKey, async (conn) => {
@@ -160092,6 +160589,13 @@ function registerEnhancementTools(mcp, deps) {
       try {
         const input = args;
         const operation = input.operation ?? "write_description";
+        if (input.package !== void 0 && !ENH_FLUID_OPS.includes(operation)) {
+          throw new AbapError(
+            "BAD_INPUT",
+            `operation:"${operation}" does not take package \u2014 only ${ENH_FLUID_OPS.join(", ")} do.`,
+            { operation, field: "package" }
+          );
+        }
         if (operation === "discover_hook_anchors" || operation === "create_hook") {
           const text5 = await runEnhHookOperation(deps, operation, input);
           return ok17(text5);

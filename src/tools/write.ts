@@ -128,8 +128,8 @@ import type {
   WriteTarget,
 } from "../adt/write.js";
 import { assertProgramOnlyOption } from "../adt/program-create.js";
-import type { TextPoolWriteResult } from "../adt/text-pool.js";
-import { TEXT_POOL_JOURNAL_NOTE, writeTextPoolJournalled } from "./write-text-pool.js";
+import { assertTextPoolShape, assertTextPoolType, textPoolWriteSummary, type TextPoolWriteResult } from "../adt/text-pool.js";
+import { TEXT_POOL_JOURNAL_NOTE, toTextPoolInput, writeTextPoolJournalled } from "./write-text-pool.js";
 import { buildResponse, stripPartialEtag, type BuiltResponse } from "../compact.js";
 import type { Config, VerifyWritesMode } from "../config.js";
 import type { BeforeImageCapture, Journal } from "../journal.js";
@@ -175,12 +175,21 @@ export const writeInputSchema = {
     .object({
       symbols: z.record(z.string(), z.string()).optional(),
       selection_texts: z.record(z.string(), z.string()).optional(),
+      headings: z
+        .object({
+          list_header: z.string().optional(),
+          column_headers: z.array(z.string()).max(4).optional(),
+        })
+        .strict()
+        .optional(),
     })
     .strict()
     .optional()
     .describe(
-      "PROG/P only. Text symbols and selection texts to write to the program's text pool after " +
-        "the source; allowed without `source` on an existing program.",
+      "PROG/P, CLAS/OC or FUGR/F. Text symbols (all three), and selection texts and list " +
+        "headings (PROG/P and FUGR/F only), written to the object's text pool after the source; " +
+        "allowed without `source` on an existing object. Each group given replaces that group " +
+        "entirely.",
     ),
   // `edit`/`method` must be declared here: zod strips undeclared keys before
   // the callback sees them, so an undeclared `method` silently fell through
@@ -2041,19 +2050,20 @@ export async function abapWrite(
     return await abapCreatePackage(conn, target, input, maxChars, gate, trOpts, journal);
   }
 
-  // `fixed_point_arithmetic`/`text_pool` apply to PROG/P only. Checked here,
-  // zero-network, when `type` was given; checked again below against the
-  // resolved target for the (usual) case where an existing object's real
-  // type is only known once resolved.
+  // `fixed_point_arithmetic` applies to PROG/P only; `text_pool` to PROG/P,
+  // CLAS/OC or FUGR/F. Checked here, zero-network, when `type` was given;
+  // checked again below against the resolved target for the (usual) case
+  // where an existing object's real type is only known once resolved.
   if (input.fixed_point_arithmetic !== undefined && input.type !== undefined) {
     assertProgramOnlyOption("fixed_point_arithmetic", requestedSpec?.type, {
       type: requestedSpec?.type ?? input.type,
     });
   }
   if (input.text_pool !== undefined && input.type !== undefined) {
-    assertProgramOnlyOption("text_pool", requestedSpec?.type, {
-      type: requestedSpec?.type ?? input.type,
-    });
+    const requestedType = requestedSpec?.type;
+    const textPoolDetails = { type: requestedType ?? input.type };
+    assertTextPoolType(requestedType, textPoolDetails);
+    assertTextPoolShape(requestedType, toTextPoolInput(input.text_pool), textPoolDetails);
   }
 
   // Zero-network refusal for a genuinely empty call (none of source/edit/
@@ -2088,21 +2098,21 @@ export async function abapWrite(
     });
   }
   if (input.text_pool !== undefined) {
-    assertProgramOnlyOption("text_pool", authorized.target.type, {
-      type: authorized.target.type,
-      name: authorized.target.name,
-    });
+    const resolvedType = authorized.target.type;
+    const textPoolDetails = { type: resolvedType, name: authorized.target.name };
+    assertTextPoolType(resolvedType, textPoolDetails);
+    assertTextPoolShape(resolvedType, toTextPoolInput(input.text_pool), textPoolDetails);
   }
 
   // `text_pool` with no source/edit/method: write only the text pool of an
-  // existing PROG/P, leaving its ABAP source untouched (issue #182). Reached
+  // existing object, leaving its ABAP source untouched (issue #182). Reached
   // only when `text_pool` is set — the empty-call refusal above already
   // covers the case where nothing at all was given.
   if (input.source === undefined && input.edit === undefined && input.method === undefined) {
     if (!authorized.target.exists) {
       throw new AbapError(
         "BAD_INPUT",
-        "text_pool without source needs an existing program; pass source to create it.",
+        "text_pool without source needs an existing object; pass source to create it.",
         { name: authorized.target.name },
       );
     }
@@ -2113,14 +2123,14 @@ export async function abapWrite(
       conn,
       journal,
       authorized,
-      { symbols: textPool.symbols, selectionTexts: textPool.selection_texts },
+      toTextPoolInput(textPool),
       { activate: activateTextPool, corrNr },
     );
     return buildResponse({
       header: {
         system: conn.cfg.sid,
         object: `${authorized.target.type} ${authorized.target.name}`,
-        text_pool: `symbols ${poolResult.symbols}, selection_texts ${poolResult.selectionTexts} (${poolResult.language})`,
+        text_pool: textPoolWriteSummary(poolResult),
         text_pool_activated: poolResult.activation?.activated ? "yes" : "no",
       },
       notes: [TEXT_POOL_JOURNAL_NOTE],
@@ -2973,7 +2983,7 @@ export async function abapWrite(
         conn,
         journal,
         authorized,
-        { symbols: input.text_pool.symbols, selectionTexts: input.text_pool.selection_texts },
+        toTextPoolInput(input.text_pool),
         { activate: wantActivate, corrNr },
       );
       notes.push(TEXT_POOL_JOURNAL_NOTE);
@@ -3014,7 +3024,7 @@ export async function abapWrite(
       ...(input.text_pool !== undefined
         ? {
             text_pool: textPoolResult
-              ? `symbols ${textPoolResult.symbols}, selection_texts ${textPoolResult.selectionTexts} (${textPoolResult.language})`
+              ? textPoolWriteSummary(textPoolResult)
               : `FAILED — ${textPoolFailure}`,
             ...(textPoolResult
               ? { text_pool_activated: textPoolResult.activation?.activated ? "yes" : "no" }
