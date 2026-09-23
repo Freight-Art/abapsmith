@@ -209,17 +209,23 @@ const CSRF_FETCH = "fetch";
 const LOGON_ENDPOINT = "/sap/bc/adt/compatibility/graph";
 
 /**
- * D5(b) — connection-lifetime ceiling on logon-endpoint requests reached OUTSIDE
- * a budgeted `request()` call (`requestContext` has no store): `connect()`'s
+ * D5(b) — sliding-window ceiling on logon-endpoint requests reached OUTSIDE a
+ * budgeted `request()` call (`requestContext` has no store): `connect()`'s
  * `client.login()`, `dropSession()`'s re-logon, and direct `conn.adt.*` calls
- * were previously unbounded here. A local pre-wire refusal, mirroring
- * `RequestBudget.exceeded()`. 5 is generous headroom for legitimate
- * dropSession()/keepalive calls over one connection's life, not a trap.
+ * are unbounded here otherwise. A local pre-wire refusal, mirroring
+ * `RequestBudget.exceeded()`: unbudgeted logon-endpoint requests are refused
+ * locally once {@link LOGON_CEILING_PER_WINDOW} of them have already flown
+ * within the last {@link LOGON_CEILING_WINDOW_MS} on this connection. This is
+ * the hard safety cap, alongside `RequestBudget` (one logon per logical
+ * request) and the `AuthCircuitBreaker` — together the three bound how often
+ * this connection can hit the logon endpoint from any path.
  *
  * Counts logons only: `dropSession()` presents no credential (`_request()`,
  * not `login()`) and is not charged against this ceiling.
  */
-const LOGON_ENDPOINT_LIFETIME_CEILING = 5;
+export const LOGON_CEILING_PER_WINDOW = 5;
+/** The sliding window {@link LOGON_CEILING_PER_WINDOW} is measured over. */
+export const LOGON_CEILING_WINDOW_MS = 10 * 60_000;
 
 /**
  * Where a stale CSRF token is re-fetched. `X-CSRF-Token: Fetch` on a GET
@@ -266,7 +272,28 @@ export class RequestBudget {
   private logons = 0;
   private resends = 0;
 
+  /** First ICMENOSESSION seen outside a stateful session, recorded so `attempt()` can try one recovery logon+resend instead of `markDead` on the spot. Set once; later losses in the same request are ignored here (they fall through to `markDead` in `noteWireResponse`). */
+  sessionLoss: { reason: string; generation: number } | undefined;
+  /** Whether `attempt()` already spent its one recovery attempt for `sessionLoss`. */
+  recoveryAttempted = false;
+  /**
+   * Set once the recovery logon in `attempt()`'s catch succeeds: a new
+   * session provably exists from that point on, so `request()`'s own
+   * catch-all (which promotes an unresolved `sessionLoss` to `markDead` for
+   * every OTHER call inside this budget that saw the same timeout, e.g. a
+   * CSRF resend racing the same ICMENOSESSION) must not kill a connection
+   * that already has a fresh session under it.
+   */
+  recovered = false;
+
   constructor(private readonly url: string) {}
+
+  /** Records the first session loss for this request. Returns true if this call recorded it, false if one was already recorded (caller should fall back to `markDead`). */
+  noteSessionLoss(reason: string, generation: number): boolean {
+    if (this.sessionLoss) return false;
+    this.sessionLoss = { reason, generation };
+    return true;
+  }
 
   /** One logon per logical request. The second one throws instead of flying. */
   spendLogon(): void {
@@ -459,20 +486,52 @@ export class AbapConnection {
    * requests that proceed are charged — a refusal (ceiling or
    * `RequestBudget.spendLogon()`) never reaches the endpoint and must not
    * inflate this count; its ordinal is reported separately as `details.attempted`.
-   * LIFETIME, not reset on revival: it IS the bound on how often a connection
-   * can be revived ({@link LOGON_ENDPOINT_LIFETIME_CEILING}).
+   * LIFETIME, not reset on revival, and never pruned — this is the
+   * "how many logons has this connection ever done" measurement tests read
+   * via `logonEndpointRequests`, distinct from the sliding-window count
+   * {@link LOGON_CEILING_PER_WINDOW} actually enforces.
    */
   private logonEndpointRequestCount = 0;
   /**
-   * Latched the first time {@link LOGON_ENDPOINT_LIFETIME_CEILING} refuses a
-   * request. Never cleared — the ceiling only grows, so once tripped it stays
-   * tripped. Exists because since a refused attempt is uncharged, "count ===
-   * ceiling" is ambiguous between "5th logon flew, SAP rejected it" and "6th was
-   * refused locally" (D5c); `connectUnderLock()`'s catch reads this flag instead.
+   * `this.now()` timestamps of every UNBUDGETED logon-endpoint request
+   * charged (not refused) — the data {@link LOGON_CEILING_PER_WINDOW}'s
+   * sliding window is measured against. Pruned of entries older than
+   * {@link LOGON_CEILING_WINDOW_MS} before every check, so unlike
+   * `logonEndpointRequestCount` this one can shrink: a connection that has
+   * been quiet can log on again.
    */
-  private logonCeilingRefused = false;
+  private unbudgetedLogonAtMs: number[] = [];
+  /**
+   * Set on the most recent local logon-ceiling refusal (`noteWireRequest()`'s
+   * throw); `undefined` while no refusal is pending. Exists because since a
+   * refused attempt is uncharged, "count === ceiling" is ambiguous between
+   * "5th logon flew, SAP rejected it" and "6th was refused locally" (D5c);
+   * `connectUnderLock()`'s catch reads this instead. CLEARED at the start of
+   * each `connectUnderLock()` login attempt — the window slides, so once it
+   * has moved on a later `connect()` must be able to succeed rather than
+   * staying latched forever the way the old lifetime ceiling did.
+   */
+  private logonCeilingRefusal: { retryAfterSeconds: number; attempted: number } | undefined;
   /** True only for the duration of `dropSession()`'s wire call — tells `noteWireRequest()` this logon-endpoint hit is a drop, not a logon. */
   private droppingSession = false;
+
+  /**
+   * Reads {@link logonCeilingRefusal} through an indirection. `connectUnderLock()`
+   * clears that field unconditionally near its top, then reads it again after
+   * `await this.logon()` — without this method call in between, TS's control
+   * flow analysis persists the "just cleared to `undefined`" narrowing straight
+   * through the `await` (it does not know `logon()` can reach `noteWireRequest()`
+   * and set it again) and collapses the later read to `never`.
+   */
+  private readLogonCeilingRefusal(): { retryAfterSeconds: number; attempted: number } | undefined {
+    return this.logonCeilingRefusal;
+  }
+  /**
+   * Coalesces concurrent logons into one `client.login()` call: whoever finds
+   * this set awaits it instead of starting a second one. `undefined` while no
+   * logon is in flight. See `logon()`.
+   */
+  private logonInFlight: Promise<void> | undefined;
 
   /** The clock. Injected only by tests; `Date.now` everywhere else. */
   private readonly now: () => number;
@@ -502,26 +561,35 @@ export class AbapConnection {
   private deferredDeath: { reason: string; generation: number } | undefined;
   /**
    * F1b — which incarnation of the ABAP session this connection is on. Advanced
-   * in exactly one place: the top of `connectUnderLock()`, after the
-   * already-connected early return and before `login()`. Starts at 0 so a
+   * in exactly one place: the top of `logon()`, on every actual
+   * `client.login()` call it starts (never on a coalesced await of one
+   * already in flight) — reached both from `connectUnderLock()`, after the
+   * already-connected early return and before the login itself, and from
+   * `attempt()`'s auto-logon. Starts at 0 so a
    * connection that never calls `connect()` (auto-logon via `attempt()`) still
    * has its deaths honoured (`0 < 0` is false). Named apart from the
    * `generation` getter because TS forbids a getter/field name clash.
    *
-   * Counts connect ATTEMPTS, not session incarnations — `dropSession()`,
-   * `withFreshSession()` and `attempt()`'s auto-logon mint/destroy real sessions
-   * without touching this counter, and a refused `connect()` advances it having
-   * minted nothing. This is sound anyway, because the only question it answers
-   * is "does this response belong to the session live NOW", which can only be
-   * got wrong if a session is destroyed/minted *while a request is in flight* —
-   * and every dispatch, `dropSession()`/`withFreshSession()`, and auto-logon all
-   * run under the same exclusive `SessionLock` hold, so that never happens.
-   * Live-tested: 8 concurrent `conn.get()` calls on a never-connected connection
-   * against A4H all took the `freshLogon` branch for one memoised
-   * `AdtHTTP.login()`; `logonEndpointRequests === 1`, not 8 (see
-   * the git history for the full trace, including the
-   * `overlappingDispatches` counter that makes the exclusivity measured, not
-   * merely asserted).
+   * Counts real logons — every actual `client.login()` call this connection
+   * starts, whether reached via `connect()`/`connectUnderLock()` or via
+   * `attempt()`'s auto-logon — because a login clears the vendor cookie jar
+   * and mints a new SAP session, which is exactly what a generation boundary
+   * means. `dropSession()` and `withFreshSession()` mint/destroy real
+   * sessions without a `client.login()` call, so without touching this
+   * counter either; a refused `connect()` (e.g. the logon ceiling) likewise
+   * does not advance it, having started no login. This is sound anyway,
+   * because the only question it answers is "does this response belong to
+   * the session live NOW", which can only be got wrong if a session is
+   * destroyed/minted *while a request is in flight* — and every dispatch,
+   * `dropSession()`/`withFreshSession()`, and `logon()` all run under the
+   * same exclusive `SessionLock` hold, so that never happens.
+   * Live-tested: 8 concurrent `conn.get()` calls on a never-connected
+   * connection against A4H all took the `freshLogon` branch and coalesced
+   * onto one `logon()` call (itself layered over `AdtHTTP`'s own memoised
+   * `login()`); `logonEndpointRequests === 1`, not 8, and `currentGeneration`
+   * advanced by exactly 1 (see the git history for the full trace, including
+   * the `overlappingDispatches` counter that makes the exclusivity measured,
+   * not merely asserted).
    */
   private currentGeneration = 0;
   /**
@@ -814,6 +882,20 @@ export class AbapConnection {
     return this.logonEndpointRequestCount;
   }
 
+  /** Charged, unbudgeted logons still inside {@link LOGON_CEILING_WINDOW_MS}, after pruning. What {@link LOGON_CEILING_PER_WINDOW} is actually compared against. */
+  get logonsInWindow(): number {
+    this.pruneLogonWindow();
+    return this.unbudgetedLogonAtMs.length;
+  }
+
+  /** Drops `unbudgetedLogonAtMs` entries older than {@link LOGON_CEILING_WINDOW_MS}. Called before every read of that array so it stays a true sliding window. */
+  private pruneLogonWindow(): void {
+    const cutoff = this.now() - LOGON_CEILING_WINDOW_MS;
+    while ((this.unbudgetedLogonAtMs[0] ?? Infinity) < cutoff) {
+      this.unbudgetedLogonAtMs.shift();
+    }
+  }
+
   /** Called by the guard for every request past the breaker, before dispatch: counts logons and refuses a second one inside a single logical request. */
   private noteWireRequest(url: string): void {
     // F1b — THE DISPATCH INSTANT; must stay here. GuardedHttpClient.request()
@@ -856,33 +938,45 @@ export class AbapConnection {
       return;
     }
     // D5(b): no active budget to enforce the one-logon rule locally — bound the
-    // unbudgeted path instead. See {@link LOGON_ENDPOINT_LIFETIME_CEILING}. The
-    // check runs BEFORE the charge: a refused attempt never reaches the
-    // endpoint, so charging it would bill traffic that never happened. `>=`
-    // rather than `>` keeps the boundary where it was: five may fly, the sixth is refused.
-    if (this.logonEndpointRequestCount >= LOGON_ENDPOINT_LIFETIME_CEILING) {
+    // unbudgeted path instead with a sliding window. See
+    // {@link LOGON_CEILING_PER_WINDOW}. The check runs BEFORE the charge: a
+    // refused attempt never reaches the endpoint, so charging it would bill
+    // traffic that never happened. `>=` rather than `>` keeps the boundary
+    // where it was: five may fly within the window, the sixth is refused.
+    this.pruneLogonWindow();
+    if (this.unbudgetedLogonAtMs.length >= LOGON_CEILING_PER_WINDOW) {
+      const now = this.now();
+      // Non-null: the `>= LOGON_CEILING_PER_WINDOW` check above guarantees at least one entry.
+      const oldestInWindow = this.unbudgetedLogonAtMs[0] as number;
+      const retryAfterSeconds = Math.max(1, Math.ceil((oldestInWindow + LOGON_CEILING_WINDOW_MS - now) / 1000));
+      const attempted = this.logonEndpointRequestCount + 1;
       // Local state the library cannot rewrite — `connectUnderLock()`'s catch needs this after `fromException` destroys the error.
-      this.logonCeilingRefused = true;
+      this.logonCeilingRefusal = { retryAfterSeconds, attempted };
       throw new AbapError(
-        "ADT_ERROR",
-        `Refused logon-endpoint request #${this.logonEndpointRequestCount + 1} to ` +
-          `${LOGON_ENDPOINT}: this connection may reach the logon endpoint at most ` +
-          `${LOGON_ENDPOINT_LIFETIME_CEILING} times outside a budgeted request().`,
+        "LOGON_CEILING",
+        `Refused logon-endpoint request #${attempted} to ${LOGON_ENDPOINT}: this ` +
+          `connection may reach the logon endpoint at most ${LOGON_CEILING_PER_WINDOW} ` +
+          `times per ${LOGON_CEILING_WINDOW_MS / 60_000} minutes outside a budgeted ` +
+          `request(); a new logon is allowed in ${retryAfterSeconds} s.`,
         {
           operation: "request",
           url: LOGON_ENDPOINT,
           reason: "logon-ceiling-exceeded",
-          limit: LOGON_ENDPOINT_LIFETIME_CEILING,
-          // Ordinal of the refused attempt (6th), not the charged count — this one is not charged.
-          attempted: this.logonEndpointRequestCount + 1,
+          limit: LOGON_CEILING_PER_WINDOW,
+          windowSeconds: LOGON_CEILING_WINDOW_MS / 1000,
+          attempted,
+          retryAfterSeconds,
         },
-        "This is an abapsmith bug, not a SAP one: some path outside the budgeted " +
-          "request() wrapper kept logging on. The request was refused locally rather " +
-          "than spending another attempt against the 5-attempt user lock.",
+        "This is NOT an authentication failure: the request was refused locally and " +
+          "the SAP user lock counter was never touched. Concurrent tool calls are the " +
+          "usual cause: calls to one server share a small session pool and are " +
+          "serialized, so firing them in parallel costs extra logons without making " +
+          `them faster. Wait ${retryAfterSeconds} s and retry sequentially.`,
       );
     }
     // Charged only now: the request is handed to the transport on the same tick, so this counts requests that flew, not ones merely asked for.
     this.logonEndpointRequestCount++;
+    this.unbudgetedLogonAtMs.push(this.now());
   }
 
   // ------------------------------------------------------------ liveness ---
@@ -1072,6 +1166,26 @@ export class AbapConnection {
       this.deferredDeath ??= { reason, generation };
       return;
     }
+    // Issue #203: ICMENOSESSION outside a stateful session (no locks, no
+    // server-side conversation state to lose) is recoverable — a fresh logon
+    // mints a session just as good as the one that timed out. Hand it to the
+    // budget instead of killing the connection; `attempt()`'s catch spends one
+    // logon and one resend on it. Only the FIRST loss per logical request is
+    // deferred this way (`noteSessionLoss` returns false on a second one, e.g.
+    // the recovery resend itself timing out), and only for a response that
+    // still belongs to the CURRENT generation and an active budget — anything
+    // else falls straight through to `markDead` below, unchanged.
+    if (settled === "thrown" && kind === "session-timeout" && generation >= this.currentGeneration) {
+      const budget = this.requestContext.getStore()?.budget;
+      if (
+        budget &&
+        this.activeSession === undefined &&
+        !this.client.httpClient.isStateful &&
+        budget.noteSessionLoss(reason, generation)
+      ) {
+        return;
+      }
+    }
     this.markDead(reason, generation);
   }
 
@@ -1129,7 +1243,7 @@ export class AbapConnection {
     // permanent for the process, and remembered per credential fingerprint —
     // bad credentials cost at most one logon attempt ever; (2) session death
     // never touches the breaker (`classifyAuthFailure` excludes it); (3) the
-    // per-connection {@link LOGON_ENDPOINT_LIFETIME_CEILING} bounds unbudgeted
+    // per-connection {@link LOGON_CEILING_PER_WINDOW} bounds unbudgeted
     // logons locally. Nothing in this class calls `connect()` by itself —
     // reviving is always caller-initiated (see `onDead()`).
     this.assertBreakerClosed();
@@ -1139,6 +1253,33 @@ export class AbapConnection {
     // the check and both log on. The `connected` re-check moves INSIDE the hold
     // so the second caller returns `info()` after the wait, having issued zero requests.
     return await this.lock.runExclusive("connect", () => this.connectUnderLock());
+  }
+
+  /**
+   * Issue #204 item 1 — the single place `client.login()` is ever called from
+   * this class. Coalesces concurrent callers (`connectUnderLock()` and
+   * `attempt()`'s auto-logon alike) onto ONE `client.login()`: whoever finds
+   * `logonInFlight` already set just awaits it instead of starting a second
+   * logon. `AdtHTTP.login()` has its own internal `loginPromise` memoization
+   * too, but that alone was not enough here — before this method existed,
+   * `connectUnderLock()` incremented `currentGeneration` unconditionally at
+   * its own top regardless of whether the wire call it was about to make got
+   * deduplicated by the library, so a concurrent `connectUnderLock()` and
+   * `attempt()` auto-logon could advance the generation twice for one actual
+   * new SAP session. Advancing it HERE, only for the call that actually starts
+   * a `client.login()`, keeps `currentGeneration` counting real logons (see
+   * its doc comment).
+   */
+  private async logon(): Promise<void> {
+    if (this.logonInFlight) {
+      await this.logonInFlight;
+      return;
+    }
+    this.currentGeneration++;
+    this.logonInFlight = this.client.login().finally(() => {
+      this.logonInFlight = undefined;
+    });
+    await this.logonInFlight;
   }
 
   /** The body of {@link connect}, run with the session to itself. */
@@ -1155,14 +1296,13 @@ export class AbapConnection {
     // death landing DURING this logon is recorded on the current generation
     // rather than swallowed as stale, so the re-check below sees it.
     //
-    // F1b — THE ONE AND ONLY generation increment. Here, behind the `connected`
-    // early return and before `login()`: behind the guard so it only advances
-    // while this connection believes it holds no session; before `login()`
-    // because SAP can answer a logon with an ICM `ICMENOSESSION` page while
-    // `login()` still resolves, and that death belongs to the NEW generation;
-    // at attempt start (not success) so two consecutive `connect()` calls where
-    // the first fails still leave the second on a fresh generation.
-    this.currentGeneration++;
+    // F1b — the generation increment itself now lives in `logon()` (behind its
+    // own coalescing, so N concurrent callers advance it once, not N times) —
+    // see `currentGeneration`'s doc comment. Cleared here, before the login
+    // attempt: the window `logonCeilingRefusal` reports slides over time, so a
+    // stale refusal from a PREVIOUS `connectUnderLock()` attempt must not leak
+    // into this one's catch and be misread as this attempt's own outcome.
+    this.logonCeilingRefusal = undefined;
     // Phase timing (opt-in, `ABAP_TIMING_DEBUG`); unread on any throw below —
     // a failed connect's phase split is not a cost anyone is tracking.
     const timed = timingDebugEnabled();
@@ -1174,7 +1314,7 @@ export class AbapConnection {
     // diagnoses (see `latchedByThisAttempt` below).
     const latchedBeforeThisAttempt = this.breaker.isTripped;
     try {
-      await this.client.login();
+      await this.logon();
     } catch (e) {
       // Re-raise a PRE-EXISTING latch as itself (`assertBreakerClosed()`). But
       // ONLY a pre-existing one: when THIS attempt's own rejected logon set the
@@ -1196,57 +1336,78 @@ export class AbapConnection {
         this.breaker.isTripped &&
         (trip?.status === 401 || trip?.status === 403);
       if (!latchedByThisAttempt) this.assertBreakerClosed();
-      // A LOCAL refusal is not an authentication failure. `LOGON_ENDPOINT_LIFETIME_CEILING`
-      // refuses the 6th unbudgeted logon-endpoint request before it reaches the
-      // wire — nothing sent, no credential rejected, `login/fails_to_user_lock`
-      // untouched. Wrapping it as `AUTH_FAILED` told the operator the opposite
-      // of the truth (STOP AND DO NOT RETRY vs. "fix the caller that kept
-      // logging on"). Live-observed on A4H, 2026-08-03 — see
-      // the git history.
+      // A LOCAL refusal is not an authentication failure. `LOGON_CEILING_PER_WINDOW`
+      // refuses the 6th unbudgeted logon-endpoint request within
+      // `LOGON_CEILING_WINDOW_MS` before it reaches the wire — nothing sent, no
+      // credential rejected, `login/fails_to_user_lock` untouched. Wrapping it
+      // as `AUTH_FAILED` told the operator the opposite of the truth (STOP AND
+      // DO NOT RETRY vs. "retry sequentially once the window slides").
+      // Live-observed on A4H, 2026-08-03 — see the git history.
       //
-      // Tested on our own `logonCeilingRefused` state rather than the error's
+      // Tested on our own `logonCeilingRefusal` state rather than the error's
       // shape, for the same `fromException`-rewriting reason as above (it used
       // to be `logonEndpointRequestCount > CEILING`, which worked only because
       // a refused attempt was charged — itself the accounting bug).
+      const refusal = this.readLogonCeilingRefusal();
       if (
-        this.logonCeilingRefused ||
+        refusal ||
         (e instanceof AbapError && e.details.reason === "logon-ceiling-exceeded")
       ) {
-        // D3 — close the state discontinuity at its source. Past this point
-        // this object can never connect again (the ceiling is a lifetime count
-        // no revival resets, and `logonCeilingRefused` is checked first here),
-        // so `markDead()` says so — otherwise `isDead` stayed `false` and
-        // `AdtSessionPool.isSlotDead` (pool.ts) kept re-seating this corpse as
-        // primary forever, bricking the process even after the appliance
-        // recovered. `markDead()` (not a new predicate) routes through the
-        // existing death machinery (`onDead` -> re-seat, `server.ts`'s
-        // `watchPrimary`) unchanged. Placed here rather than at
-        // `noteWireRequest` (documented pure accounting, no side effects) —
-        // this site runs once `login()` has settled. Costs nothing on the
-        // wire: `dropSlot` skips `shutdown()` for an already-dead slot.
+        // Falls back to a fresh computation only when `instanceof` matched but
+        // our own state didn't (e.g. a rewritten error crossed some boundary
+        // that cleared it first) — the window has not moved since the guard's
+        // own throw a moment ago, so recomputing from `unbudgetedLogonAtMs`
+        // gives the same answer.
+        const retryAfterSeconds =
+          refusal?.retryAfterSeconds ??
+          Math.max(
+            1,
+            Math.ceil(
+              ((this.unbudgetedLogonAtMs[0] ?? this.now()) + LOGON_CEILING_WINDOW_MS - this.now()) / 1000,
+            ),
+          );
+        const attempted = refusal?.attempted ?? this.logonEndpointRequestCount + 1;
+        // D3 — close the state discontinuity at its source: past this point the
+        // ceiling refused this attempt entirely, so nothing changed session-
+        // side, but the caller still needs a terminal answer for THIS attempt
+        // rather than a silent retry loop. `markDead()` (not a new predicate)
+        // routes through the existing death machinery (`onDead` -> re-seat,
+        // `server.ts`'s `watchPrimary`) unchanged; a LATER `connect()`, once the
+        // window has slid, clears this same death record as usual. Placed here
+        // rather than at `noteWireRequest` (documented pure accounting, no side
+        // effects) — this site runs once `login()` has settled. Costs nothing
+        // on the wire: `dropSlot` skips `shutdown()` for an already-dead slot.
         this.markDead(
-          `Refused locally by the logon-endpoint lifetime ceiling ` +
-            `(${LOGON_ENDPOINT_LIFETIME_CEILING}): this connection can never log on again. ` +
-            "Nothing was sent and no credential was rejected.",
+          `Refused locally by the logon ceiling (${LOGON_CEILING_PER_WINDOW} logons per ` +
+            `${LOGON_CEILING_WINDOW_MS / 60_000} minutes on this connection); a new logon ` +
+            `is allowed in ${retryAfterSeconds} s.`,
         );
-        if (e instanceof AbapError && e.details.reason === "logon-ceiling-exceeded") throw e;
+        // Always synthesized fresh, never `throw e` — even now that `AbapError`
+        // survives `fromException` intact (see its `typeID` getter), `e`'s own
+        // message is `noteWireRequest`'s wire-level wording ("Refused
+        // logon-endpoint request #N..."), not this method's "Could not connect
+        // to ..." / "refused locally" wording other code (and tests) key off.
         throw new AbapError(
-          "ADT_ERROR",
+          "LOGON_CEILING",
           `Could not connect to ${stripUrlCredentials(this.cfg.url)}: refused locally after ` +
             `${this.logonEndpointRequestCount} logon-endpoint requests (ceiling ` +
-            `${LOGON_ENDPOINT_LIFETIME_CEILING}). Nothing was sent; no credential was rejected.`,
+            `${LOGON_CEILING_PER_WINDOW} per ${LOGON_CEILING_WINDOW_MS / 60_000} minutes). ` +
+            `Nothing was sent; no credential was rejected; a new logon is allowed in ` +
+            `${retryAfterSeconds} s.`,
           {
             url: stripUrlCredentials(this.cfg.url),
             user: this.cfg.user,
             reason: "logon-ceiling-exceeded",
-            limit: LOGON_ENDPOINT_LIFETIME_CEILING,
-            // Matches the guard's own refusal ordinal — refusals are free, so
-            // the count itself stops at the ceiling.
-            attempted: this.logonEndpointRequestCount + 1,
+            limit: LOGON_CEILING_PER_WINDOW,
+            windowSeconds: LOGON_CEILING_WINDOW_MS / 1000,
+            attempted,
+            retryAfterSeconds,
           },
-          "This is an abapsmith bug, not a SAP one, and NOT an authentication " +
-            "failure: the user lock counter was never touched. Do not treat it as a " +
-            "401. Find the path that kept logging on outside a budgeted request().",
+          "This is NOT an authentication failure: the request was refused locally and " +
+            "the SAP user lock counter was never touched. Concurrent tool calls are the " +
+            "usual cause: calls to one server share a small session pool and are " +
+            "serialized, so firing them in parallel costs extra logons without making " +
+            `them faster. Wait ${retryAfterSeconds} s and retry sequentially.`,
         );
       }
       // `cfg.url` may carry userinfo credentials — redact for the message that
@@ -1890,7 +2051,21 @@ export class AbapConnection {
     // `login()` and `refreshCsrfToken()` are inside and stay budgeted;
     // `connect()`'s `login()`, `probeT000()`, `dropSession()` and direct
     // `conn.adt.*` are outside and stay unbudgeted.
-    return await this.requestContext.run({ budget }, () => this.attempt(url, config, budget));
+    try {
+      return await this.requestContext.run({ budget }, () => this.attempt(url, config, budget));
+    } catch (e) {
+      // Issue #203 — a deferred `budget.sessionLoss` is only promoted to
+      // `markDead` by `attempt()`'s own catch for the ONE dispatch it wraps.
+      // Any OTHER transport call sharing this budget (e.g. `refreshCsrfToken()`'s
+      // resend racing the same ICMENOSESSION) can hit `noteWireResponse`,
+      // record the loss, return without killing the connection, and then
+      // throw its own error straight out of `request()` — leaving a session
+      // loss that was never acted on and a connection still reporting alive
+      // on a stale session. Catch-all: promote it here if nothing already did.
+      const loss = budget.sessionLoss;
+      if (loss && !budget.recovered && !this.isDead) this.markDead(loss.reason, loss.generation);
+      throw e;
+    }
   }
 
   /** One logical request: optional autologin, one send, at most one recovery. */
@@ -1905,11 +2080,41 @@ export class AbapConnection {
     // on if we hold no token. Reproduced here rather than inherited, since
     // inheriting means inheriting the retry bolted to it too.
     const freshLogon = !http.loggedin;
-    if (freshLogon) await this.client.login();
+    if (freshLogon) await this.logon();
 
     try {
       return await this.noRetryTransport()._request(url, config);
     } catch (e) {
+      // Issue #203 — `noteWireResponse` deferred a session-timeout it saw on
+      // THIS dispatch to `budget.sessionLoss` instead of calling `markDead`,
+      // because it happened outside a stateful session (no server-side
+      // conversation state to lose) — recoverable by one fresh logon. Handle
+      // it before CSRF handling below, which is a different failure entirely.
+      const loss = budget.sessionLoss;
+      if (loss && !budget.recoveryAttempted) {
+        budget.recoveryAttempted = true;
+        // A fresh logon already failed to establish a session, or the breaker
+        // is latched — a second logon attempt is not recovery, it is a retry
+        // against a system already saying no. Promote the deferred loss to a
+        // real death instead of looping.
+        if (freshLogon || this.breaker.isTripped) {
+          this.markDead(loss.reason, loss.generation);
+          throw e;
+        }
+        this.log(
+          "[abapsmith] the ABAP session no longer exists (ICMENOSESSION) outside " +
+            "a stateful session; logging on once more and resending " + url,
+        );
+        budget.spendResend();
+        await this.logon();
+        // A new session provably exists from here on — a later non-session
+        // failure of the resend (or of any other call sharing this budget)
+        // must not be blamed on the session that already died and was
+        // already replaced. See `recovered`'s doc comment.
+        budget.recovered = true;
+        return await this.noRetryTransport()._request(url, config);
+      }
+
       if (!isCsrfError(e) || this.breaker.isTripped) throw e;
 
       // A token minted milliseconds ago and immediately refused is not stale —
