@@ -16,19 +16,15 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { AbapConnection } from "../adt/connection.js";
 import { AbapError } from "../adt/errors.js";
 import { renderMessages } from "../adt/activate.js";
-import {
-  classIncludeActionBlocker,
-  deleteEvidenceBlocker,
-  enhancementUndoBlocked,
-  packageRecreateBlocker,
-  performUndo,
-  planUndo,
-  plannedAction,
-} from "../adt/undo.js";
+import { localUndoBlocker, performUndo, planUndo, plannedAction } from "../adt/undo.js";
+import { specialUndoKind } from "../adt/undo-special.js";
+import { enhancementIntentFor } from "../adt/write.js";
+import { precedingWriteEntry } from "../undoability.js";
 import { specFromUri } from "../adt/types.js";
 import type { SessionPool } from "../adt/pool.js";
 import type { SessionTransport } from "../adt/session-transport.js";
 import type { Config } from "../config.js";
+import type { AbapMode } from "../mode.js";
 import { buildResponse, sliceLines, type BuiltResponse } from "../compact.js";
 import { diffSources, renderHunks } from "../diff.js";
 import { STALE_PENDING_MS, type Journal, type JournalEntry, type JournalImagePart } from "../journal.js";
@@ -100,6 +96,15 @@ export const SHOW_DIFF_MAX_CHARS = 2_000;
 
 const shortId = (id: string) => id;
 
+/** `undo_blocker` cell in `mode=list`: full reason lives in `mode=show`. */
+const UNDO_BLOCKER_LIST_MAX_CHARS = 160;
+
+function truncateBlocker(text: string | undefined): string {
+  if (!text) return "";
+  if (text.length <= UNDO_BLOCKER_LIST_MAX_CHARS) return text;
+  return `${text.slice(0, UNDO_BLOCKER_LIST_MAX_CHARS)}… (mode=show for the full reason)`;
+}
+
 function row(e: JournalEntry): Record<string, string> {
   const flags = [e.undoneBy ? "undone" : e.undoOf ? "is-undo" : undefined, e.reconciled ? "reconciled" : undefined]
     .filter(Boolean)
@@ -113,12 +118,16 @@ function row(e: JournalEntry): Record<string, string> {
     // undo only ever deletes when beforeCapture is "confirmed-absent".
     capture: e.beforeCapture,
     outcome: e.outcome,
+    // Undecided/absent means this entry predates undoability tracking (Phase 1) — not the
+    // same thing as "no" (a live check may still refuse either way).
+    undoable: e.undoable === undefined ? "unknown (written before this version)" : e.undoable ? "yes" : "no",
+    undo_blocker: truncateBlocker(e.undoBlocker),
     actor: e.actor ?? "",
     flags,
   };
 }
 
-const LIST_COLUMNS = ["id", "when", "op", "object", "existed", "capture", "outcome", "flags"];
+const LIST_COLUMNS = ["id", "when", "op", "object", "existed", "capture", "outcome", "undoable", "undo_blocker", "flags"];
 /** `actor` spliced in before `flags` — only shown when the page has one to show. */
 const LIST_COLUMNS_WITH_ACTOR = LIST_COLUMNS.flatMap((c) => (c === "flags" ? ["actor", "flags"] : c));
 
@@ -158,11 +167,12 @@ const PART_COLUMNS = ["object", "include", "existed", "capture", "bytes"];
 const PART_COLUMNS_WITH_PACKAGE = PART_COLUMNS.flatMap((c) => (c === "object" ? ["object", "package"] : c));
 
 /**
- * Journalled but not undoable, decided without a connection. Mirrors
- * `undoBlocker()` / `deleteEvidenceBlocker()` in adt/undo.ts for the *listing*
- * view only — the real check happens against live server state.
+ * Journalled but not undoable, decided without a connection (`journal.list`
+ * is a local read). Mirrors `localUndoBlocker()` in adt/undo.ts — the same
+ * structural chain `planUndo` runs, minus the live system check — for the
+ * *listing/show* view only; the real check re-reads the live server.
  */
-function undoHint(e: JournalEntry): string {
+async function undoHint(e: JournalEntry, journal: Journal): Promise<string> {
   if (e.operation === "transport-release") {
     return "RELEASED TRANSPORT — refused: a released transport cannot be recalled; create a corrective transport instead";
   }
@@ -175,34 +185,65 @@ function undoHint(e: JournalEntry): string {
   if (e.operation.startsWith("transport-")) {
     return "refused: transport requests are not undone automatically; use abap_transport to reverse this manually";
   }
-  if (e.operation === "activate") return "activation — nothing to reverse";
+  if (e.operation === "activate") {
+    // Mirrors planUndo/performUndo's own resolution (adt/undo.ts): an
+    // activate entry has no before-image of its own — undo replays the
+    // preceding write entry for the same object instead.
+    const pw = precedingWriteEntry(await journal.list({}), e);
+    if (!pw) {
+      return (
+        "activation — undo goes to the preceding write entry for this object, but this " +
+        "journal has none; refused"
+      );
+    }
+    if (pw.undoneBy) {
+      return `activation — undo goes to the preceding write entry (${pw.id}), already undone by ${pw.undoneBy}`;
+    }
+    return (
+      `activation — undo replays the preceding write entry (${pw.id}: ${pw.operation} ` +
+      `${pw.object.type} ${pw.object.name}), not the activation itself`
+    );
+  }
   if (e.undoneBy) return `already undone by ${e.undoneBy}`;
-  // Must precede the branches below: undoBlocker() (adt/undo.ts) refuses
-  // ENHO/ENHS entries unconditionally, even under force=true — this keeps
-  // that refusal visible in the list view, not just in `show`.
   if (e.irreversible) {
     return "IRREVERSIBLE — refused: recorded for history only, no mechanism can undo it";
   }
+  const blocked = localUndoBlocker(e);
   const action = plannedAction(e);
+  if (blocked) {
+    const verb = action === "delete" ? "DELETE" : action === "recreate" ? "RE-CREATE" : "restore";
+    return `undo would ${verb} this object, and WILL BE REFUSED: ${blocked}`;
+  }
+  // Special kinds (adt/undo-special.ts): the local chain above already
+  // passed, but each still needs live gates this listing cannot check.
+  const kind = specialUndoKind(e);
+  if (kind === "text-pool") {
+    return (
+      "undo restores the previous text pool (symbols/selections/headings) verbatim, " +
+      "drift-checked against the recorded after-image"
+    );
+  }
+  if (kind === "bopf-model") {
+    return (
+      "undo PUTs the previous BOPF model XML back and re-activates, drift-checked against " +
+      "the recorded after-image"
+    );
+  }
+  if (kind === "enh-delete") {
+    return (
+      "undo would DELETE this enhancement object — allowed only if a where-used check finds " +
+      "nothing referencing it, it is not an active BAdI implementation, and enhancement " +
+      "delete is enabled"
+    );
+  }
+  if (kind === "enh-impl-active") {
+    return "undo sets this BAdI implementation's active flag back to what it was before this change";
+  }
   if (action === "delete") {
-    // Checked first: an include-scoped delete/recreate refusal
-    // (classIncludeActionBlocker, adt/undo.ts) is unconditional and not
-    // forceable, unlike deleteEvidenceBlocker below — promising a plain
-    // DELETE here for an entry undo will actually refuse would be a lie.
-    const includeRefusal = classIncludeActionBlocker(e, action);
-    if (includeRefusal) return `undo would DELETE this object, and WILL BE REFUSED: ${includeRefusal}`;
-    const refusal = deleteEvidenceBlocker(e);
-    return refusal
-      ? `undo would DELETE this object, and WILL BE REFUSED: ${refusal}`
-      : "undo would DELETE this object (abapsmith created it, and confirmed it was absent first)";
+    return "undo would DELETE this object (abapsmith created it, and confirmed it was absent first)";
   }
   if (action === "recreate") {
-    const includeRefusal = classIncludeActionBlocker(e, action);
-    if (includeRefusal) return `undo would RE-CREATE this object, and WILL BE REFUSED: ${includeRefusal}`;
-    const refusal = packageRecreateBlocker(e);
-    return refusal
-      ? `undo would RE-CREATE this object, and WILL BE REFUSED: ${refusal}`
-      : "undo would RE-CREATE this object from the before-image";
+    return "undo would RE-CREATE this object from the before-image";
   }
   return "undo would restore the previous source";
 }
@@ -337,6 +378,10 @@ export async function abapJournal(
   journal?: Journal,
   gate?: SafetyGate,
   transport?: SessionTransport,
+  // Threaded straight into UndoOptions.enhancement (adt/undo.ts): absent
+  // means enh-delete undo is refused before any mutation, same as calling
+  // abap_enh op=delete_object with the capability off.
+  enhancement?: { allowEnhancementDelete: boolean; abapMode?: AbapMode },
 ): Promise<BuiltResponse> {
   const mode = input.mode ?? "list";
   const j = requireJournal(journal);
@@ -653,7 +698,7 @@ export async function abapJournal(
               : "not recorded (the entry predates provenance tracking), so `existedBefore` " +
                 "is unverified."),
     );
-    notes.push(undoHint(entry));
+    notes.push(await undoHint(entry, j));
     const cls = classWarning(entry);
     if (cls) notes.push(cls);
     if (entry.irreversible) {
@@ -680,6 +725,11 @@ export async function abapJournal(
         existedBefore: entry.existedBefore,
         beforeCapture: entry.beforeCapture,
         beforeKind: entry.beforeKind,
+        // Absent (`undefined`) means this entry predates undoability tracking
+        // (Phase 1) — distinct from `false`, and shown in full here, not truncated
+        // like the `undo_blocker` list column.
+        undoable: entry.undoable,
+        undoBlocker: entry.undoBlocker,
         outcome: entry.outcome,
         reconciled: entry.reconciled?.at,
         error: entry.error,
@@ -737,6 +787,9 @@ export async function abapJournal(
     // TRAN/T undo of a transportable package resolves a request through this —
     // see src/adt/undo.ts's UndoOptions.transport.
     transport,
+    // Absent (no config threaded through) means an enh-delete undo is
+    // refused with a clear reason before any mutation — see UndoOptions.
+    ...(enhancement ? { enhancement } : {}),
     // Re-authorise on the resolved object: only here is delete vs. write known.
     // gate.authorize both checks and mints the AuthorizedTarget proof that
     // writeObject/deleteObject require to run at all (Layer 2, src/mode.ts) —
@@ -882,7 +935,10 @@ export async function abapJournal(
 export async function undoPreflightTarget(
   journal: Journal | undefined,
   input: { mode?: string; entry?: string; object?: string },
-): Promise<{ op: "write" | "delete"; name: string; packageName?: string; type?: string } | undefined> {
+): Promise<
+  | { op: "write" | "delete"; name: string; packageName?: string; type?: string; entry: JournalEntry }
+  | undefined
+> {
   if ((input.mode ?? "list") !== "undo") return undefined;
   if (!journal || !journal.enabled) return undefined;
   let entry: JournalEntry | undefined;
@@ -892,11 +948,24 @@ export async function undoPreflightTarget(
     entry = list.find((e) => e.operation !== "activate" && !e.undoneBy);
   }
   if (!entry) return undefined; // the tool body produces the precise error
+  // An activate entry has no before-image of its own: planUndo/performUndo
+  // (adt/undo.ts) resolve it to the preceding write entry for the same
+  // object and run the blocker chain + authorisation against THAT entry —
+  // this preflight must resolve the same way, or it would run
+  // localUndoBlocker/plannedAction directly on an "activate" entry, which
+  // adt/undo.ts's own comments say never to do.
+  let effective = entry;
+  if (entry.operation === "activate") {
+    const pw = precedingWriteEntry(await journal.list({}), entry);
+    if (!pw || pw.undoneBy) return undefined; // performUndo produces the precise refusal
+    effective = pw;
+  }
   return {
-    op: plannedAction(entry) === "delete" ? "delete" : "write",
-    name: entry.object.name,
-    packageName: entry.object.package,
-    type: entry.object.type,
+    op: plannedAction(effective) === "delete" ? "delete" : "write",
+    name: effective.object.name,
+    packageName: effective.object.package,
+    type: effective.object.type,
+    entry: effective,
   };
 }
 
@@ -907,7 +976,7 @@ export interface JournalToolDeps {
   readonly safety: SafetyGate;
   readonly ensureConnected: () => Promise<void>;
   readonly errorResult: (e: unknown) => CallToolResult;
-  readonly cfg: Pick<Config, "maxResponseChars">;
+  readonly cfg: Pick<Config, "maxResponseChars" | "allowEnhancementDelete" | "abapMode">;
   readonly journal: Journal;
   readonly transport?: SessionTransport;
 }
@@ -928,10 +997,12 @@ export function registerJournalTools(mcp: McpServer, deps: JournalToolDeps): voi
       description:
         "History and undo for writes abapsmith made. Parameters: mode (list|show|undo|reconcile, " +
         "default list), entry, object, detail, limit, session, force, activate, outcome, reason. Common " +
-        "calls: mode=list (recent writes with entry ids); mode=show entry=<id> (one entry with " +
-        "its before-image; detail=full for the complete images); mode=undo entry=<id> " +
-        "activate=true (revert it — refuses on drift, delete-gate, or an enhancement object; " +
-        "see abapsmith-recover-a-bad-write); mode=reconcile entry=<id> outcome=<succeeded|failed> " +
+        "calls: mode=list (recent writes with entry ids, each row's `undoable` column and " +
+        "truncated `undo_blocker` say up front whether an undo is expected to work); " +
+        "mode=show entry=<id> (one entry with its before-image, and the full undo_blocker " +
+        "reason if any; detail=full for the complete images); mode=undo entry=<id> " +
+        "activate=true (revert it — refuses on drift or a delete-gate; see " +
+        "abapsmith-recover-a-bad-write); mode=reconcile entry=<id> outcome=<succeeded|failed> " +
         "reason=<text> (close a stranded `pending` entry — journal bookkeeping only, nothing is " +
         "sent to SAP).",
       inputSchema: journalInputSchema,
@@ -949,28 +1020,58 @@ export function registerJournalTools(mcp: McpServer, deps: JournalToolDeps): voi
           const t = await undoPreflightTarget(deps.journal, a);
           // Costs no request either — same rule as writeGateKey.
           undoGateKey = t?.name ? t.name.trim().toUpperCase() : undefined;
-          // ENHO/ENHS entries are refused unconditionally by undoBlocker() in
-          // performUndo. Checking here (same wording, zero-network) avoids the
-          // generic gate call's misleading "affects" refusal shadowing this
-          // purpose-built one — see the git history.
-          const blocked = t ? enhancementUndoBlocked(t.type ?? "", t.op, t.name) : undefined;
-          if (blocked) {
-            throw new AbapError(
-              "UNSUPPORTED",
-              blocked,
-              { entry: a.entry, object: t?.name ?? a.object },
-              "There is no override for this refusal. Reverse the change deliberately through " +
-                "the ABAP enhancement UI instead.",
-            );
+          if (t) {
+            // Same structural chain planUndo runs (localUndoBlocker, adt/undo.ts),
+            // resolved against the effective entry (the preceding write entry, for
+            // an activate entry) — a zero-network refusal for anything performUndo
+            // would refuse anyway: irreversible entries, unsupported enhancement
+            // shapes, missing delete evidence, a stored not-undoable flag, etc.
+            const blocked = localUndoBlocker(t.entry);
+            if (blocked) {
+              throw new AbapError(
+                "BAD_INPUT",
+                blocked,
+                { entry: a.entry, object: t.name },
+                "Nothing was changed on the server, and force=true will not change that.",
+              );
+            }
+            const kind = specialUndoKind(t.entry);
+            if (kind === "enh-delete" || kind === "enh-impl-active") {
+              // The generic gate call below only knows name/type/package — an
+              // enhancement object's authorisation is decided by what it
+              // AFFECTS, not by its own (often generated) name. Missing
+              // `affects` is refused, not silently generic-checked, since a
+              // generic check here would be checking the wrong thing.
+              const affects = t.entry.object.affects;
+              if (!affects) {
+                throw new AbapError(
+                  "BAD_INPUT",
+                  `${t.entry.object.type} ${t.entry.object.name} has no recorded "affects" ` +
+                    "target — this undo cannot be authorised.",
+                  { entry: a.entry, object: t.name },
+                  "This entry predates `affects` tracking, or was journalled incorrectly. " +
+                    "There is no override.",
+                );
+              }
+              const intent = enhancementIntentFor(
+                { name: t.entry.object.name, type: t.entry.object.type, packageName: t.entry.object.package },
+                affects,
+              );
+              deps.safety.assertIntent(intent, { op: kind === "enh-delete" ? "delete" : "write", phase: "preflight" });
+            } else {
+              deps.safety.assert(t.op, { name: t.name, packageName: t.packageName, type: t.type }, { phase: "final" });
+            }
+          } else {
+            deps.safety.assert("write", { name: a.object ?? "" }, { phase: "preflight" });
           }
-          deps.safety.assert(t?.op ?? "write", t ? { name: t.name, packageName: t.packageName, type: t.type } : { name: a.object ?? "" }, {
-            phase: t ? "final" : "preflight",
-          });
         }
         // list/show/reconcile never touch the network: they work with the system down.
         if (isUndo) await deps.ensureConnected();
         const run = (conn: AbapConnection) =>
-          abapJournal(conn, args as JournalInput, deps.cfg.maxResponseChars, deps.journal, deps.safety, deps.transport);
+          abapJournal(conn, args as JournalInput, deps.cfg.maxResponseChars, deps.journal, deps.safety, deps.transport, {
+            allowEnhancementDelete: deps.cfg.allowEnhancementDelete === true,
+            abapMode: deps.cfg.abapMode,
+          });
         // Only undo leases a slot — list/show/reconcile put zero requests on the wire
         // and must keep working with the system down / all slots held.
         const res = isUndo
