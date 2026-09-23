@@ -232,6 +232,20 @@ describe("abapSearch inactive=true", () => {
     const err = await catchAbapAsync(() => abapSearch(conn, {}, 4000));
     expect(err.code).toBe("BAD_INPUT");
   });
+  it("max: discloses the rows it cuts on a TRUNCATED body line and in the header", async () => {
+    const conn = await connWithTwoEntries();
+    const res = await abapSearch(conn, { inactive: true, packages: ["ZAS_PKG213"], max: 1 }, 4000);
+    expect(res.text).toContain("count: 1");
+    expect(res.text).toContain("truncated_by_max: true");
+    expect(res.text).toContain("--- TRUNCATED --- 1 of 2 inactive object(s) not shown (display cap max=1)");
+  });
+
+  it("prints no TRUNCATED line when every row fits", async () => {
+    const conn = await connWithTwoEntries();
+    const res = await abapSearch(conn, { inactive: true, packages: ["ZAS_PKG213"] }, 4000);
+    expect(res.text).not.toContain("--- TRUNCATED ---");
+    expect(res.text).not.toContain("truncated_by_max");
+  });
 });
 
 // -------------------------------------------------------- handler level ---

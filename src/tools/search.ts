@@ -270,9 +270,15 @@ export async function abapSearchInactive(
   });
 
   const rows = filtered.slice(0, max);
-  const truncatedByMax = filtered.length > rows.length;
+  const droppedByCap = filtered.length - rows.length;
+  // Disclosed in the body (not just notes) so it survives char-budget cuts.
+  const capLine =
+    droppedByCap > 0
+      ? `--- TRUNCATED --- ${droppedByCap} of ${filtered.length} inactive object(s) not shown ` +
+        `(display cap max=${max}). Raise \`max\` to see them.`
+      : undefined;
 
-  const body = rows.length
+  const table = rows.length
     ? textTable(
         rows.map((e) => ({
           TYPE: e.type,
@@ -284,6 +290,7 @@ export async function abapSearchInactive(
         ["TYPE", "NAME", "PACKAGE", "USER", "STATE"],
       )
     : `No inactive objects of ${user} in ${packages.join(", ")}.`;
+  const body = capLine ? `${table}\n${capLine}` : table;
 
   return buildResponse({
     header: {
@@ -295,7 +302,7 @@ export async function abapSearchInactive(
       user,
       count: rows.length,
       truncated_by_subpackage_cap: subpackageCapHit || undefined,
-      truncated_by_max: truncatedByMax || undefined,
+      truncated_by_max: droppedByCap > 0 || undefined,
     },
     body,
     bodyLabel: "RESULTS",
@@ -304,7 +311,6 @@ export async function abapSearchInactive(
       ...(subpackageCapHit
         ? ["Sub-package walk cut at its cap — some sub-packages may not have been scanned."]
         : []),
-      ...(truncatedByMax ? [`Showing ${max} of ${filtered.length}.`] : []),
     ],
     hints: rows.length
       ? [
