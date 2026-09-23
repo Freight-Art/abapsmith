@@ -1277,9 +1277,11 @@ describe("connect() revives a dead connection — and cannot become a logon stor
 
   it("the per-connection logon ceiling bounds repeated revivals, locally", async () => {
     // The third bound: `connect()`'s login runs with no RequestBudget, so
-    // `noteWireRequest()` applies LOGON_ENDPOINT_LIFETIME_CEILING (5). The 6th
-    // is refused BEFORE dispatch, so it never reaches the wire.
-    const { conn, adt } = await connected(GENERIC_OK);
+    // `noteWireRequest()` applies the logon ceiling (5 per sliding window).
+    // The 6th within the window is refused BEFORE dispatch, so it never
+    // reaches the wire.
+    const c = clock();
+    const { conn, adt } = await connected(GENERIC_OK, { now: c.now });
     expect(conn.logonEndpointRequests).toBe(1);
 
     for (let i = 0; i < 4; i++) {
@@ -1296,5 +1298,12 @@ describe("connect() revives a dead connection — and cannot become a logon stor
 
     expect(conn.requestCount).toBe(requestsBefore);
     expect(adt.labels.filter((l) => l.includes("/compatibility/graph"))).toHaveLength(graphBefore);
+
+    // The bound is a SLIDING WINDOW, not a lifetime cap: once the oldest
+    // logons in it have aged out past 10 minutes, a new logon is allowed
+    // again and actually reaches the wire.
+    c.advance(600_001);
+    await expect(conn.connect()).resolves.toBeTruthy();
+    expect(adt.labels.filter((l) => l.includes("/compatibility/graph")).length).toBe(graphBefore + 1);
   });
 });
