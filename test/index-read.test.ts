@@ -25,6 +25,7 @@ import {
   readTableIndexes,
   renderIndexSection,
   renderSecondaryIndex,
+  renderSecondaryIndexList,
   verifySecondaryIndex,
 } from "../src/adt/index-read.js";
 
@@ -354,5 +355,56 @@ describe("renderSecondaryIndex", () => {
     expect(rendered.meta.fields).toBe(1);
     expect(rendered.hashInput).toContain("REL");
     expect(rendered.hashInput).toContain("REIO_ID");
+  });
+});
+
+// ============================================================= readSecondaryIndex — indexes ===
+
+describe("readSecondaryIndex returns every index of the table alongside the one asked for (captures 858/859)", () => {
+  it("names both P2 and REL in `indexes` while `index` is the one asked for", async () => {
+    const { conn } = queueConn([DD12V_BDSLORE10, DD17S_BDSLORE10]);
+    const { index, indexes } = await readSecondaryIndex(conn, "BDSLORE10", "REL");
+    expect(index?.id).toBe("REL");
+    expect(indexes.map((i) => i.id)).toEqual(["P2", "REL"]);
+  });
+});
+
+describe("readSecondaryIndex for an unknown id still lists the existing indexes", () => {
+  it("returns index: undefined but indexes: [P2, REL] for BDSLORE10/Z09", async () => {
+    const { conn } = queueConn([DD12V_BDSLORE10, DD17S_BDSLORE10]);
+    const { index, indexes } = await readSecondaryIndex(conn, "BDSLORE10", "Z09");
+    expect(index).toBeUndefined();
+    expect(indexes.map((i) => i.id)).toEqual(["P2", "REL"]);
+  });
+});
+
+// ============================================================= renderSecondaryIndexList ===
+
+describe("renderSecondaryIndexList renders one define-index block per index plus the SECONDARY INDEXES section", () => {
+  it("BDSLORE10 (P2, REL): ddl carries both define-index blocks, section content lists both, meta counts them", async () => {
+    const { conn } = queueConn([DD12V_BDSLORE10, DD17S_BDSLORE10]);
+    const { indexes } = await readTableIndexes(conn, "BDSLORE10");
+    const rendered = renderSecondaryIndexList("BDSLORE10", indexes);
+
+    expect(rendered.ddl).toContain("define index p2 on bdslore10");
+    expect(rendered.ddl).toContain("define index rel on bdslore10");
+    expect(rendered.sections[0]?.title).toBe("SECONDARY INDEXES");
+    expect(rendered.sections[0]?.content).toContain("P2");
+    expect(rendered.sections[0]?.content).toContain("REL");
+    expect(rendered.sections[0]?.content).toContain("UNIQUE");
+    expect(rendered.meta.indexes).toBe(2);
+    expect(rendered.meta.table).toBe("BDSLORE10");
+
+    const dropped = renderSecondaryIndexList("BDSLORE10", indexes.filter((i) => i.id !== "REL"));
+    expect(dropped.hashInput).not.toBe(rendered.hashInput);
+  });
+});
+
+describe("renderSecondaryIndexList with no index is a definitive empty listing, not an error", () => {
+  it('renderSecondaryIndexList("TADIR", []): meta.indexes 0, ddl and section say "no secondary index"', () => {
+    const rendered = renderSecondaryIndexList("TADIR", []);
+    expect(rendered.meta.indexes).toBe(0);
+    expect(rendered.ddl).toContain("TADIR has no secondary index");
+    expect(rendered.sections[0]?.content).toMatch(/no secondary index/);
   });
 });

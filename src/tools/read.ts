@@ -33,7 +33,7 @@ import { fetchDdicXml, readDdic, type DdicRender } from "../adt/ddic.js";
 import { capabilitiesFor, NON_READABLE_TYPES, PROPERTIES_SHAPE_TYPES } from "../adt/capabilities.js";
 import { AbapError } from "../adt/errors.js";
 import { readAuthorizationObject, renderAuthorizationObject, SUSO_WHERE_USED_NOTE } from "../adt/suso-read.js";
-import { readSecondaryIndex, renderSecondaryIndex } from "../adt/index-read.js";
+import { readSecondaryIndex, readTableIndexes, renderSecondaryIndex, renderSecondaryIndexList } from "../adt/index-read.js";
 import {
   readBadiImplementation,
   readEnhancementSpot,
@@ -156,7 +156,7 @@ export const readInputSchema = {
     .describe(
       "ADT type to disambiguate. DEVC/K: package listing (types/depth filter it). SUSO/B: renders the " +
         "object's DEFINITION (fields, permitted activities) from the catalog — NOT who holds it, no " +
-        "AGR_*/UST* table is read. TABL/DI: <TABLE>/<INDEX> catalog render. " +
+        "AGR_*/UST* table is read. TABL/DI: <TABLE>/<INDEX> renders one index, bare <TABLE> lists them all. " +
         `Not readable: ${NON_READABLE_TYPES.join(" ")}.`,
     ),
   method: z.string().optional().describe("Only this method/component."),
@@ -2594,26 +2594,47 @@ async function readCatalogObject(
     );
   }
 
-  // TABL/DI: <TABLE>/<INDEX>, the same parented form the create takes.
+  // TABL/DI: <TABLE>/<INDEX> renders one index, bare <TABLE> lists them all.
   const parts = input.object.split("/");
-  if (parts.length !== 2 || parts[0]!.trim() === "" || parts[1]!.trim() === "") {
+  const trimmedParts = parts.map((p) => p.trim());
+  const isListRoute = trimmedParts.length === 1 && trimmedParts[0] !== "";
+  const isSingleIndexRoute = trimmedParts.length === 2 && trimmedParts[0] !== "" && trimmedParts[1] !== "";
+  if (!isListRoute && !isSingleIndexRoute) {
     throw new AbapError(
       "BAD_INPUT",
       `"${input.object}" is not a valid ${code} name: expected ${catalogRead.nameForm}.`,
       { object: input.object, type: code },
-      'Name it as <TABLE>/<INDEX>, e.g. "ZTAB/Z01". Not sure of the index id? ' +
-        'abap_read {"object":"<TABLE>","type":"TABL/DT"} shows the table\'s own structure.',
+      'Name one index as <TABLE>/<INDEX>, e.g. "ZTAB/Z01", or give the bare table name to list every ' +
+        'secondary index: abap_read {"object":"ZTAB","type":"TABL/DI"}.',
     );
   }
+
+  if (isListRoute) {
+    const table = parts[0]!.trim().toUpperCase();
+    const { indexes, notes } = await readTableIndexes(conn, table);
+    const rendered = renderSecondaryIndexList(table, indexes);
+    rendered.notes.push(...notes);
+    const hints = [
+      `abap_read {"object":"${table}/<INDEX>","type":"TABL/DI"} renders one index on its own.`,
+      `abap_read {"object":"${table}","type":"TABL/DT"} shows the table's own structure.`,
+    ];
+    return buildDdicLikeResponse(rendered, { ...header, object: `${code} ${table}` }, input.offset, input.limit, hints, maxChars);
+  }
+
   const [table, indexId] = parts as [string, string];
-  const hint = `abap_read {"object":"${table.trim().toUpperCase()}","type":"TABL/DT"} to see the table's own structure.`;
-  const { index, notes } = await readSecondaryIndex(conn, table, indexId);
+  const TABLE = table.trim().toUpperCase();
+  const ID = indexId.trim().toUpperCase();
+  const hint = `abap_read {"object":"${TABLE}","type":"TABL/DI"} lists every secondary index of the table; ` +
+    `abap_read {"object":"${TABLE}","type":"TABL/DT"} shows its structure.`;
+  const { index, indexes, notes } = await readSecondaryIndex(conn, table, indexId);
   if (index === undefined) {
+    const existing = indexes.map((i) => i.id);
     throw new AbapError(
       "NOT_FOUND",
-      `Table ${table.trim().toUpperCase()} has no secondary index ${indexId.trim().toUpperCase()} in DD12V ` +
-        "on this system — this is a definitive empty result (HTTP 200, 0 rows), not a refused read.",
-      { table: table.trim().toUpperCase(), index: indexId.trim().toUpperCase() },
+      `Table ${TABLE} has no secondary index ${ID} in DD12V on this system — ` +
+        (existing.length > 0 ? `its secondary indexes are ${existing.join(", ")}` : "it has no secondary index at all") +
+        ` (definitive empty result: HTTP 200, 0 rows for ${ID}, not a refused read).`,
+      { table: TABLE, index: ID, existing },
       hint,
     );
   }
