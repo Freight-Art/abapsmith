@@ -66,10 +66,10 @@
  *
  * `mode=activate` writes one `operation: "activate"` journal entry PER
  * OBJECT (single or batch), on disk before the request goes out. `mode=check`
- * writes nothing. These entries are HISTORY, not undo — `undoBlocker()`
- * (src/adt/undo.ts) refuses `operation: "activate"` by name (ADT has no
- * deactivate operation), and entries carry `irreversible: true` for every
- * presentation path. See `journalActivations` for the entry shape and
+ * writes nothing. An activate entry's undo delegates to the preceding
+ * create/update/delete entry for the same object (`writeTimeUndoability`,
+ * src/undoability.ts) — refused when there is none, or it was already
+ * undone. See `journalActivations` for the entry shape and
  * `abapActivateBatch` for why a batch is N entries rather than one.
  *
  * Full historical rationale: the git history
@@ -250,11 +250,11 @@ interface JournalledActivation<T> {
  * entry is the caller's to decide via `onThrow` — it defaults to every entry
  * `failed`, correct only when the call really is all-or-nothing.
  *
- * Entry shape: `irreversible: true` because ADT has no deactivate operation
- * at all (`undoBlocker()`, src/adt/undo.ts, already refuses by name — this
- * flag instead drives *presentation* paths like `abap_journal mode=show`'s
- * banner). `beforeCapture: "unknown"` with `existedBefore: true`: existence
- * IS verified (`assertActivatable`'s metadata GET), but there is no
+ * Entry shape: no `irreversible` flag — `writeTimeUndoability` (src/undoability.ts)
+ * delegates an `operation: "activate"` entry's undo to the preceding
+ * create/update/delete on the same object, so undo of THIS entry re-runs
+ * that write's undo. `beforeCapture: "unknown"` with `existedBefore: true`:
+ * existence IS verified (`assertActivatable`'s metadata GET), but there is no
  * before-image to capture since activation changes no source — `"unknown"`
  * avoids `begin()`'s default `"failed"`, which would wrongly imply a read
  * was attempted. Full rationale: the git history
@@ -296,7 +296,6 @@ async function journalActivations<T>(
           beforeCapture: "unknown",
           systemKey: systemKey(conn.cfg),
           ...(item.corrNr !== undefined ? { corrNr: item.corrNr } : {}),
-          irreversible: true,
           // Also recorded for `abap_do action=activate`, which is a facade
           // that reshapes its args into `ActivateInput` and calls this
           // function — the tool that actually ran, not the caller's dialect.
@@ -1646,12 +1645,13 @@ export function registerActivateTools(mcp: McpServer, deps: ActivateToolDeps): v
       inputSchema: activateInputSchema,
       /**
        * `destructiveHint: true` — a judgement call (MCP doesn't formally
-       * define the hint as "irreversible"). Evidence: `undoBlocker`
-       * (src/adt/undo.ts) refuses every `activate` entry outright, and
-       * activating REPLACES the active version with no earlier state to
-       * return to. `abap_write` gets `destructiveHint: true` despite being
-       * MORE reversible (journalled, undo-able) — leaving this at `false`
-       * would invert that signal. See archive for full citations.
+       * define the hint as "irreversible"). Evidence: activating REPLACES
+       * the active version, and undo of the `activate` entry itself only
+       * succeeds by delegating to the preceding write for the same object
+       * (`writeTimeUndoability`, src/undoability.ts) — refused outright when
+       * there is none. `abap_write` gets `destructiveHint: true` despite
+       * being MORE reversible (journalled, undo-able) — leaving this at
+       * `false` would invert that signal. See archive for full citations.
        */
       annotations: { readOnlyHint: false, destructiveHint: true },
     },

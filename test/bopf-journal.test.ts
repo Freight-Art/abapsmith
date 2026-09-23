@@ -246,6 +246,15 @@ describe("abap_bopf_edit create_bo — the write journal", () => {
       expect(entry.existedBefore).toBe(false);
       expect(entry.beforeCapture).toBe("confirmed-absent");
       expect(entry.irreversible).toBe(true);
+      // Issue #200: create_bo is atomic (one POST, no previous model to go
+      // back to) — irreversible AND undoable:false. The caller-supplied
+      // undoBlocker (rule 1) wins over the generic BOPF rule-6 text, so this
+      // is the exact literal passed at journal.begin() in src/tools/bopf.ts.
+      expect(entry.undoable).toBe(false);
+      expect(entry.undoBlocker).toBe(
+        "BOPF create runs several non-atomic requests with no server-side rollback, so undo " +
+          "cannot reverse it. Delete the business object with abap_bopf_delete.",
+      );
 
       // journalEntryId regression: must not leak via structuredContent
       // (an MCP client that prefers it over content would show the caller
@@ -323,7 +332,7 @@ describe("abap_bopf_edit create_bo — the write journal", () => {
 });
 
 describe("abap_bopf_edit (general edit) — the write journal", () => {
-  it("records an update entry: existedBefore true, captured, before-image is the pre-write XML, irreversible", async () => {
+  it("records an update entry: existedBefore true, captured, before-image is the pre-write XML, beforeKind bopf-model, undoable true, no irreversible (issue #200)", async () => {
     await withJournal(async (journal) => {
       const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
       const { conn } = await wired({ routes: [store.route] });
@@ -346,7 +355,12 @@ describe("abap_bopf_edit (general edit) — the write journal", () => {
       expect(entry.object.type).toBe("BOBF");
       expect(entry.existedBefore).toBe(true);
       expect(entry.beforeCapture).toBe("captured");
-      expect(entry.irreversible).toBe(true);
+      // Issue #200: a captured update to the BO's own model IS undoable —
+      // no more blanket `irreversible: true` for this operation.
+      expect(entry.irreversible).toBeUndefined();
+      expect(entry.beforeKind).toBe("bopf-model");
+      expect(entry.undoable).toBe(true);
+      expect(entry.undoBlocker).toBe("");
       // The before-image is the byte-exact document that stood before this
       // write — the same document `add_node`'s own byte-exact-shape test
       // (test/bopf-tools.test.ts) proves the PUT body was spliced from.
@@ -404,7 +418,7 @@ describe("abap_bopf_edit (general edit) — the write journal", () => {
 });
 
 describe("abap_bopf_delete — the write journal", () => {
-  it("records a delete entry: existedBefore true, captured, before-image is the model just read, irreversible", async () => {
+  it("records a delete entry: existedBefore true, captured, before-image is the model just read, irreversible and undoable false (issue #200)", async () => {
     await withJournal(async (journal) => {
       const store = bopfStore({ zbopf_prb1: FX_JUST_CREATED });
       const { conn } = await wired({ routes: [store.route] });
@@ -428,6 +442,15 @@ describe("abap_bopf_delete — the write journal", () => {
       expect(entry.existedBefore).toBe(true);
       expect(entry.beforeCapture).toBe("captured");
       expect(entry.irreversible).toBe(true);
+      // Issue #200: a captured model is on disk, but delete has no undo path
+      // (deleting a BO is not what abap_bopf_edit's model-update captures).
+      // The caller-supplied undoBlocker (rule 1) wins over the generic BOPF
+      // rule-6 text, so this is the exact literal from src/tools/bopf.ts.
+      expect(entry.undoable).toBe(false);
+      expect(entry.undoBlocker).toBe(
+        "BOPF delete cannot be reversed: recreating a business object from its model is " +
+          "non-atomic. Recreate it with abap_bopf_edit.",
+      );
       expect(await journal.beforeImage(entry)).toBe(FX_JUST_CREATED);
 
       // journalEntryId regression — see the "create_bo" block's identical assertion above.
@@ -489,9 +512,11 @@ describe("abap_bopf_delete — the write journal", () => {
 // create is refused outright") — and that catch-all now intercepts a
 // BOPF entry BEFORE `planUndo` ever reaches `resolveWriteTarget`. The old
 // resolveWriteTarget-throws mechanism is not wrong, exactly — it is simply
-// unreachable for BOPF now, dead code from this call site's point of view,
-// because every BOPF entry always sets `irreversible: true` and the generic
-// check wins first. This is the regression test for the design
+// unreachable for a BOPF entry marked `irreversible: true`, dead code from
+// this call site's point of view. (Not every BOPF entry any more: an
+// `update` with `beforeKind: "bopf-model"` and `beforeCapture: "captured"`
+// now has a real undo via the `bopf-model` special kind, src/adt/undo-special.ts.
+// `create`, which this test uses, still has none.) This is the regression test for the design
 // `irreversible: true` relies on today: prove the refusal is real (an
 // `undoable: false` plan, zero network requests), not merely asserted by the
 // flag.
@@ -655,6 +680,13 @@ describe("createServer wires the journal into the BOPF tools", () => {
         expect(entry.object.package).toBe("$TMP");
         expect(entry.outcome).toBe("succeeded");
         expect(entry.irreversible).toBe(true);
+        // Issue #200: create_bo's caller-supplied undoBlocker (rule 1) wins,
+        // same literal as the create_bo unit test above.
+        expect(entry.undoable).toBe(false);
+        expect(entry.undoBlocker).toBe(
+          "BOPF create runs several non-atomic requests with no server-side rollback, so undo " +
+            "cannot reverse it. Delete the business object with abap_bopf_delete.",
+        );
       } finally {
         srv.connection.dispose();
       }

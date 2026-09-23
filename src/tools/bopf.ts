@@ -1867,8 +1867,7 @@ function refuseDuplicateChild(tokens: readonly Token[], input: BopfEditInput, se
     "BAD_INPUT",
     `${input.operation} "${name}" on ${input.bo} node "${sel.node}": a ${CHILD_KIND_LABEL[kind]} of that name ` +
       `already exists there. ${input.operation} is not an upsert — proceeding would create a second element ` +
-      `named "${name}". BOPF writes are journalled but irreversible, so the duplicate could not be undone ` +
-      `afterward. Use set_${suffix}_fields to change the existing one, or remove_${suffix} first.`,
+      `named "${name}". Use set_${suffix}_fields to change the existing one, or remove_${suffix} first.`,
     { operation: input.operation, bo: input.bo, node: sel.node, name, kind, existing },
   );
 }
@@ -2778,10 +2777,12 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
     };
     // `existedBefore: false`/`beforeCapture: "confirmed-absent"`: `run` only
     // returns normally when the server accepted a genuine CREATE (including
-    // both `recovered: true` paths below). `irreversible: true`: BOPF undo
-    // is refused by `undoBlocker()`'s catch-all (`src/adt/undo.ts`) before
-    // it matters that `resolveWriteTarget` would also reject BOPF_TYPE — see
-    // doc/JOURNAL/undo-and-recovery.md's "Undo semantics" table.
+    // both `recovered: true` paths below). `irreversible: true` regardless of
+    // that confirmed-absent evidence: unlike a single-request enhancement
+    // create, BOPF create runs several non-atomic requests with no
+    // server-side rollback, so there is no undo to run even for a
+    // confirmed-fresh object — see doc/JOURNAL/undo-and-recovery.md's "Undo
+    // semantics" table.
     //
     // `withJournalledMutation` wraps `pool.withWrite` (not the reverse) so a
     // `SESSION_DEAD` from the write can be recovered on a DIFFERENT pool
@@ -2804,6 +2805,9 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
           existedBefore: false,
           beforeCapture: "confirmed-absent" as const,
           irreversible: true,
+          undoBlocker:
+            "BOPF create runs several non-atomic requests with no server-side rollback, so undo " +
+            "cannot reverse it. Delete the business object with abap_bopf_delete.",
           // Without `systemKey`, `systemMismatchBlocker` (adt/undo.ts) can't
           // do its strong SID+origin+client compare and falls back to
           // SID-only, which can't tell apart two boxes sharing a SID.
@@ -3117,7 +3121,10 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
       } else {
         // `beforeSource` is the post-lock XML putModel hands `mutate`
         // (fresher than `initial`), matching enh.ts's post-lock precedent.
-        // `irreversible: true` — same undoBlocker() reasoning as create_bo.
+        // `beforeKind: "bopf-model"` — undo PUTs this XML back via putModel
+        // and re-activates (writeTimeUndoability, src/undoability.ts); no
+        // `irreversible` flag, unlike create_bo/delete: a captured model
+        // update is the one BOPF mutation undo can actually reverse.
         //
         // `mutate` can fire more than once per call (`withRelockRetry`
         // reruns rebuild -> mutate on retry), but `onBeforeImage` must fire
@@ -3140,7 +3147,7 @@ export async function runBopfEdit(deps: BopfRunDeps, args: unknown): Promise<Bop
               existedBefore: true,
               beforeCapture: "captured" as const,
               beforeSource: xml,
-              irreversible: true,
+              beforeKind: "bopf-model" as const,
               systemKey: systemKey(conn.cfg),
               tool: "abap_bopf_edit",
             }),
@@ -3950,8 +3957,10 @@ export async function runBopfDelete(deps: BopfRunDeps, args: unknown): Promise<B
       // `currentModelRead` above (taken moments earlier) is the freshest
       // capture point — an accepted, documented staleness, not a silent gap.
       // `existedBefore: true` because the read above only got here by
-      // succeeding. `irreversible: true` — same undoBlocker() reasoning as
-      // create_bo/update. No retry loop here, so no `fired` guard needed.
+      // succeeding. `irreversible: true`: recreating a business object from
+      // its captured model is a non-atomic sequence of requests, same as
+      // create_bo — there is no undo that puts a deleted BO back. No retry
+      // loop here, so no `fired` guard needed.
       const { result: delResult, entryId, settle } = await withJournalledMutation(
         deps.journal,
         {
@@ -3967,6 +3976,9 @@ export async function runBopfDelete(deps: BopfRunDeps, args: unknown): Promise<B
             beforeCapture: "captured" as const,
             beforeSource: currentModelRead.xml,
             irreversible: true,
+            undoBlocker:
+              "BOPF delete cannot be reversed: recreating a business object from its model is " +
+              "non-atomic. Recreate it with abap_bopf_edit.",
             systemKey: systemKey(conn.cfg),
             tool: "abap_bopf_delete",
             // Only present when at least one target was requested —

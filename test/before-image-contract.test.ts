@@ -859,7 +859,7 @@ describe("enhancement writes are structurally exempt from the delete-evidence qu
     // delete-evidence message — the two are unrelated, and this is the one
     // assertion that would fail if a future refactor accidentally merged or
     // reordered the two checks.
-    expect(plan.blocker).toMatch(/Undo of enhancement objects is refused outright/);
+    expect(plan.blocker).toMatch(/Undo of an enhancement update is not supported/);
     expect(plan.blocker).not.toMatch(/positive evidence/);
     expect(plan.blocker).not.toContain("beforeCapture=");
   });

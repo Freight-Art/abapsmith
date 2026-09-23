@@ -36,6 +36,7 @@ import { AbapError } from "./adt/errors.js";
 import { canonicalSource, contentHash } from "./compact.js";
 import { currentMcpSession, mcpSessionActor } from "./mcp-session.js";
 import { withFileLock } from "./state-dir.js";
+import { deleteEvidenceBlockerText, precedingWriteEntry, writeTimeUndoability } from "./undoability.js";
 
 export type JournalOperation =
   | "create"
@@ -51,6 +52,16 @@ export type JournalOperation =
   | "service-publish"
   | "service-unpublish";
 export type JournalOutcome = "pending" | "succeeded" | "failed";
+
+/**
+ * What `JournalEntry.before`/`JournalBeginInput.beforeSource` actually holds,
+ * when it is not the object's own source (issue #200 widens this from just
+ * `"package-metadata"`): `"text-pool"` — a `textPoolImage()` snapshot (see
+ * src/adt/text-pool.ts); `"bopf-model"` — a BOPF model XML; `"enh-impl-active"`
+ * — the enhancement implementation XML read before a set_impl_active flip.
+ * Any of these must never be replayed through the ordinary write path.
+ */
+export type JournalBeforeKind = "package-metadata" | "text-pool" | "bopf-model" | "enh-impl-active";
 
 /**
  * Mirrors `EnhancedObjectRef` (src/adt/write.ts) field-for-field, restated
@@ -233,10 +244,23 @@ export interface JournalEntry {
   beforeCapture: BeforeImageCapture;
   /** Server source immediately before the mutation. Absent iff !existedBefore. */
   before?: JournalImage;
-  /** Set when `before` is not the object's source but its metadata document — must never be replayed through the write path. */
-  beforeKind?: "package-metadata";
+  /** See `JournalBeforeKind` — must never be replayed through the ordinary write path. */
+  beforeKind?: JournalBeforeKind;
   /** What we intended to leave behind. Absent for a delete. */
   after?: JournalImage;
+  /**
+   * Can this entry ever be undone, and if not, why — decided once, at
+   * `begin()` time, by `writeTimeUndoability()` (src/undoability.ts).
+   * Always written for a new entry; absent only on entries written before
+   * this field existed (see `doc/JOURNAL/undo-and-recovery.md`).
+   */
+  undoable?: boolean;
+  /** Why `undoable` is `false`. `""` when `undoable` is `true`. */
+  undoBlocker?: string;
+  /** set_impl_active entries only: the `<enho:badiImplementation>` name that was flipped. */
+  implName?: string;
+  /** Set when a create's `settle()` upgraded `beforeCapture` from an HTTP 201 + Location. */
+  createEvidence?: string;
   /**
    * Additional SAP objects touched by the SAME logical operation as
    * `object`/`before`/`after`, beyond the primary one (e.g. a throwaway
@@ -307,35 +331,40 @@ export interface JournalEntry {
    */
   trSource?: JournalTrSource;
   /**
-   * Marks an entry that can never be undone by ANY mechanism. Absent (not
-   * `false`) for everything else. Seven producers, each recording something
-   * abapsmith positively refuses to reverse:
+   * Marks an entry that can never be undone by ANY mechanism, regardless of
+   * what `writeTimeUndoability()` (src/undoability.ts) would otherwise say.
+   * Absent (not `false`) for everything else. Producers, each recording
+   * something abapsmith positively refuses to reverse:
    *
    *  - `transport-release` (src/tools/transport.ts): ADT has no "un-release".
-   *  - Activation entries (src/tools/activate.ts): `operation: "activate"`
-   *    is refused by name — ADT has no deactivate operation either.
-   *  - Enhancement create/update/delete (src/tools/enh.ts): `undoBlocker()`
-   *    (src/adt/undo.ts) refuses `ENHO/XH`, `ENHO/XHH` and `ENHS/XS`
-   *    unconditionally.
-   *  - BOPF writes (src/tools/bopf.ts): no BOPF-specific check in
-   *    `undoBlocker()` either, so every BOPF entry falls through to its
-   *    generic `irreversible` catch-all. `DEVC/K` package creates used to
-   *    fall through the same catch-all — fixed by giving a package a real
-   *    delete/undo path, so its create no longer sets this flag.
-   *  - `abap_ui` press entries (src/tools/ui.ts): BDCDATA script runs have
-   *    no undo path; falls through to the same generic catch-all as BOPF.
    *  - `service-publish`/`service-unpublish` (src/tools/service.ts):
-   *    `undoBlocker()` (src/adt/undo.ts) refuses both unconditionally —
    *    publishing changes the system's runtime surface, not an object's
    *    source, so there is no before-image to write back; the compensating
    *    action (`unpublish` for `publish`, and vice versa) is a deliberate,
    *    separately confirmed call, not an automatic undo.
+   *  - `abap_ui` press entries (src/tools/ui.ts): BDCDATA script runs have
+   *    no undo path.
+   *  - BOPF create/delete (src/tools/bopf.ts): only a BOPF model UPDATE with
+   *    a captured before-image has an undo — create/delete do not.
+   *  - Enhancement `add_*`/`set_filter_values`/`write_description`/delete
+   *    (src/tools/enh.ts): only enhancement create_* (undo deletes the
+   *    object, confirmed-absent only) and `set_impl_active` (undo restores
+   *    the previous active flag) have an undo — everything else here stays
+   *    irreversible.
    *
-   * The entry is still written — the before-image is worth having even when
-   * undo is refused. Full rationale (including the phantom-object and
-   * TADIR/E071-residue findings behind the enhancement refusal) is archived
-   * in the git history. See also doc/JOURNAL/undo-and-recovery.md's "Undo
-   * semantics" table.
+   * Since this issue (#200), `operation: "activate"` is no longer marked
+   * irreversible by name: it delegates to the preceding write for the same
+   * object (see `writeTimeUndoability()`'s activate rule) and is undoable
+   * exactly when that write is. Text pool writes and BOPF model updates are
+   * likewise no longer unconditionally irreversible — see
+   * `JournalBeforeKind` ("text-pool"/"bopf-model") and
+   * `writeTimeUndoability()`.
+   *
+   * The entry is still written even when this flag is set — the
+   * before-image is worth having even when undo is refused. Full rationale
+   * (including the phantom-object and TADIR/E071-residue findings behind the
+   * enhancement refusal) is archived in the git history. See also
+   * doc/JOURNAL/undo-and-recovery.md's "Undo semantics" table.
    */
   irreversible?: boolean;
 }
@@ -377,8 +406,8 @@ export interface JournalBeginInput {
    */
   beforeCapture?: BeforeImageCapture;
   beforeSource?: string;
-  /** Set when `beforeSource` is not the object's source but its metadata document — must never be replayed through the write path. */
-  beforeKind?: "package-metadata";
+  /** See `JournalBeforeKind` — must never be replayed through the ordinary write path. */
+  beforeKind?: JournalBeforeKind;
   afterSource?: string;
   beforeServerEtag?: string;
   /** `systemKey()` of the live connection. Recorded verbatim; never defaulted. */
@@ -391,6 +420,15 @@ export interface JournalBeginInput {
   trSource?: JournalTrSource;
   /** See `JournalEntry.irreversible`. */
   irreversible?: boolean;
+  /**
+   * A caller-supplied reason that forces `undoable: false` on this entry,
+   * fed to `writeTimeUndoability()` as `ctx.callerBlocker`. Narrowing only —
+   * a caller can make an entry not undoable, never make it undoable when
+   * the static policy would refuse it.
+   */
+  undoBlocker?: string;
+  /** set_impl_active entries only: see `JournalEntry.implName`. */
+  implName?: string;
   /**
    * Additional objects touched by this same operation — see
    * `JournalEntry.parts`. Each element follows the same before/after-capture
@@ -420,6 +458,14 @@ export interface JournalFinishPatch {
    * entry.
    */
   partsAfterSource?: Record<number, string>;
+  /**
+   * HTTP evidence that a create's object did not exist before it: the
+   * response the create itself got. `settle()` uses this to upgrade
+   * `beforeCapture` to `"confirmed-absent"` for an entry that otherwise has
+   * no positive evidence of prior absence — see `settleInner()`. Ignored
+   * outside that exact case; never stored on the entry itself.
+   */
+  createdFresh?: { status: number; location: string };
 }
 
 /**
@@ -1183,6 +1229,7 @@ export class Journal {
       ...(input.corrNr ? { corrNr: input.corrNr } : {}),
       ...(input.trSource ? { trSource: input.trSource } : {}),
       ...(input.irreversible ? { irreversible: input.irreversible } : {}),
+      ...(input.implName ? { implName: input.implName } : {}),
     };
 
     // Claim the id BEFORE the first byte hits the disk. From here until the
@@ -1251,6 +1298,28 @@ export class Journal {
         }
         entry.parts = parts;
       }
+
+      // Decided once, here — after the before-image is fully settled (so
+      // `entry.before?.blob` reflects reality) but before the index line
+      // lands, so every entry on disk carries its own answer. `precedingWrite`
+      // only matters for `activate` — read failure means it stays undefined,
+      // which `writeTimeUndoability()`'s activate rule treats as "no earlier
+      // write", i.e. fail closed.
+      let precedingWrite: JournalEntry | undefined;
+      if (input.operation === "activate") {
+        try {
+          const all = Array.from((await this.readAll()).values());
+          precedingWrite = precedingWriteEntry(all, entry);
+        } catch {
+          precedingWrite = undefined;
+        }
+      }
+      const { undoable, undoBlocker } = writeTimeUndoability(entry, {
+        callerBlocker: input.undoBlocker,
+        precedingWrite,
+      });
+      entry.undoable = undoable;
+      entry.undoBlocker = undoBlocker;
 
       await this.append(entry);
     } catch (e) {
@@ -1347,6 +1416,37 @@ export class Journal {
     if (patch.error !== undefined) record.error = patch.error;
     if (patch.activation !== undefined) record.activation = patch.activation;
     if (patch.corrNr !== undefined) record.corrNr = patch.corrNr;
+
+    // An HTTP 201 + Location is positive evidence the object did not exist
+    // before this create — upgrade beforeCapture after the fact, exactly
+    // once, only for a create that had no such evidence already. Recompute
+    // undoable/undoBlocker only when the CURRENT refusal is exactly the
+    // missing-absence-evidence one writeTimeUndoability() itself would
+    // produce for the old beforeCapture — that is the one reason this new
+    // evidence can change. Any other refusal (a caller blocker, irreversible,
+    // an enhancement/BOPF/text-pool/class-include rule, …) is left alone.
+    if (
+      patch.createdFresh &&
+      patch.outcome === "succeeded" &&
+      existing.operation === "create" &&
+      !existing.existedBefore &&
+      existing.beforeCapture !== "confirmed-absent" &&
+      existing.beforeCapture !== "captured" &&
+      patch.createdFresh.status === 201 &&
+      patch.createdFresh.location.trim() !== ""
+    ) {
+      record.beforeCapture = "confirmed-absent";
+      record.createEvidence = `HTTP 201 Created, Location ${patch.createdFresh.location}`;
+      if (
+        existing.undoable === false &&
+        existing.undoBlocker === deleteEvidenceBlockerText(existing.object.name, existing.beforeCapture)
+      ) {
+        const upgraded: JournalEntry = { ...existing, beforeCapture: "confirmed-absent" };
+        const { undoable, undoBlocker } = writeTimeUndoability(upgraded, {});
+        record.undoable = undoable;
+        record.undoBlocker = undoBlocker;
+      }
+    }
 
     try {
       if (patch.afterSource !== undefined) {

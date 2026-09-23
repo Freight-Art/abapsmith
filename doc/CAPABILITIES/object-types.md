@@ -306,7 +306,13 @@ The `Object` column values are the registry `label` fields, unreworded.
   `allowEnhancementDelete` configuration, and a delete is refused outright
   when any BAdI implementation involved is still active. Reading `ENHO/XH`
   and `ENHS/XS` needs `enhancements: true`. Every enhancement mutation is
-  journalled irreversible and undo refuses it unconditionally, with no
+  journalled. `create_spot`, `create_impl`, and `create_hook` are undoable
+  — undo deletes the object, but only when the before-state was
+  confirmed-absent, guarded by a where-used check and an
+  active-implementation check — and `set_impl_active` is undoable directly
+  (it records the implementation's previous active state). `add_badi_def`,
+  `add_filter_def`, `set_filter_values`, `write_description`, and
+  enhancement `delete` stay `undoable: false` unconditionally, with no
   `force` override.
 - `ENHO/XHH` create is restricted to a `PROG/P` host by literal string
   equality. Hook anchors on a class are discoverable, but creating a hook

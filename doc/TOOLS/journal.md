@@ -25,7 +25,9 @@ Common calls:
 - `mode=show entry=<id>` — one entry with its before-image (`detail=full`
   for the complete images).
 - `mode=undo entry=<id> activate=true` — revert it (refuses on drift, the
-  delete-gate, or an enhancement object; see `abapsmith-recover-a-bad-write`).
+  delete-gate, a stored `undoable: false`, or a live check the entry's kind
+  still runs — dependency, active-implementation, or none-to-undo; see
+  `abapsmith-recover-a-bad-write`).
 - `mode=reconcile entry=<id> outcome=<succeeded|failed> reason=<text>` —
   close a stranded `pending` entry; journal bookkeeping only, nothing is
   sent to SAP.
@@ -36,7 +38,10 @@ accepted parameters (`mode`, `entry`, `detail`, `object`, `limit`,
 `operation`/`action` → `mode`, `id` → `entry`, `target`/`name` → `object`.
 
 `list` columns: `id`, `when`, `op`, `object`, `existed`, `capture`,
-`outcome`, `flags`. `flags` includes `reconciled` for an entry closed by hand.
+`outcome`, `undoable`, `undo_blocker`, `flags`. `undoable` is `yes`/`no`/
+`unknown (written before this version)`; `undo_blocker` is the reason
+`undoable` is `no`, blank otherwise. `flags` includes `reconciled` for an
+entry closed by hand.
 
 `mode=show` defaults to `detail=summary`: the header (object, type,
 operation, request, timestamp, before/after sizes, diff sizes
@@ -50,9 +55,19 @@ after-image yet (a `pending` write), the summary says so and points to
 `mode=undo`/`mode=reconcile` act on are unchanged by `detail`.
 
 Notes: transport-release entries are never undoable. Other transport-*
-entries are not auto-undoable. Activate entries have nothing to reverse.
-Enhancement objects (`ENHO/XH`, `ENHO/XHH`, `ENHS/XS`) are **never**
-undoable, even with `force:true` — this is a hard rule, not a default.
+entries are not auto-undoable. An `activate` entry has nothing of its own
+to reverse — undoing it instead undoes the latest earlier succeeded write
+entry for the same object, restoring and re-activating; refused, with the
+reason, when no such entry exists or it was already undone. Enhancement
+objects (`ENHO/XH`, `ENHO/XHH`, `ENHS/XS`) are undoable only for
+`create_spot`/`create_impl`/`create_hook` (deletes the object, when the
+before-state was confirmed-absent, guarded by a where-used check and an
+active-implementation check) and `set_impl_active` (sets the previous
+active state back); `add_badi_def`, `add_filter_def`, `set_filter_values`,
+`write_description`, and enhancement `delete` stay **never** undoable,
+even with `force:true`. Undo is always fail-closed: a stored
+`undoable: false` is always refused, and a stored `true` never skips a
+live check (system, drift, existence, dependency).
 
 **Class sub-includes.** A `CLAS/OC` write that targets `include=`
 `definitions`/`implementations`/`macros`/`testclasses` now addresses that
