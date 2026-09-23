@@ -368,7 +368,7 @@ function searchConn(handlers: {
   usageReferences?: () => Promise<unknown[]>;
 }): AbapConnection {
   return {
-    cfg: { sid: "A4H" },
+    cfg: { sid: "A4H", searchTimeoutMs: 60_000 },
     adt: {
       searchObject: handlers.searchObject ?? (async () => []),
     },
@@ -380,6 +380,7 @@ function searchConn(handlers: {
       const rows = await (handlers.usageReferences ?? (async () => []))();
       return { body: usageReferencesXml(rows as Record<string, unknown>[]), headers: {} };
     },
+    withRequestTimeout: async (_ms: number, fn: () => Promise<unknown>) => fn(),
   } as unknown as AbapConnection;
 }
 
@@ -416,20 +417,20 @@ describe("abap_search discloses how many rows its local type filter dropped", ()
   });
 
   it("does not claim zero matches means zero objects when the fetch window was not full", async () => {
-    // type given, max=47 -> fetchMax = min(1000, 47*10) = 470; 47 rows back is well under that.
+    // #206: type given, max=47 -> fetchMax = min(1000, 47 + max(10, ceil(47/2)=24)) = 71; 47 rows back is well under that.
     const r = await abapSearch(
       searchConn({ searchObject: async () => HITS.slice(3) }),
       { query: "Z*", type: "CLAS/OC", max: 47 },
       20_000,
     );
     expect(r.text).not.toBe("(no matches)");
-    expect(r.text).toMatch(/window \(max=470\) was not full/);
+    expect(r.text).toMatch(/window \(max=71\) was not full/);
     expect(r.text).toMatch(/every object of any type matching this pattern/);
     expect(r.text).not.toMatch(/NOT proof that none exist/);
   });
 
   it("still warns a zero-row result is not proof none exist when the fetch window came back full", async () => {
-    // type given, max=2 -> fetchMax = min(1000, 2*10) = 20; return exactly 20 non-matching rows.
+    // #206: type given, max=2 -> fetchMax = min(1000, 2 + max(10, ceil(2/2)=1)) = 12; 20 non-matching rows still fills (and overfills) that.
     const FULL_WINDOW = Array.from({ length: 20 }, (_, i) => ({
       "adtcore:type": "PROG/P",
       "adtcore:name": `ZFULL_${i}`,

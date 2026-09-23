@@ -1337,13 +1337,35 @@ displayed row has a parent container in its ADT URI — a FUGR/FF function
 module or a FUGR/I function-group include — in which case a fifth `group`
 column is added, and the response carries a hint that `group` is the
 function group the row lives in while `package` remains the row's own
-package, not its group. A bare `"*"` query is accepted under `mode=objects`,
-with or without `type`, and returns rows within the same fetch window as
-any other query (typed: `10 × max`, capped at 1000) — the type filter is
-applied by this tool after the fetch, not by the server, so the window
-disclosure applies the same way. An object name that isn't plain text — whitespace-padded or
+package, not its group. An object name that isn't plain text — whitespace-padded or
 numeric-looking, e.g. a WDCC/YG row named `00` — is returned verbatim as a
 string rather than coerced to a number.
+
+**`mode=objects` fetch window, `objectType` and the search timeout** (#206):
+a typed `mode=objects` search used to fetch `max × 10` rows of mixed type
+and rely entirely on a client-side filter — on a broad wildcard under a
+type filter this could take ~19 seconds and still miss the match. It now
+asks the server for `max` plus a margin — `max + max(10, ceil(max/2))`,
+capped at 1000 — instead of `max × 10`; an untyped search asks for exactly
+`max`. The request also now carries `objectType`: the type GROUP (e.g.
+`CLAS`, `FUGR`) when `query` is a name pattern, or the full sub-type (e.g.
+`FUGR/F`, `TABL/DS`) when `query` is a bare wildcard — the server answers
+that type-scoped listing in well under a second, but the rows it returns
+omit `description` (and, for some types, `package`), disclosed by a
+`TYPE-SCOPED LISTING` note in the response. The client-side sub-type
+filter still runs either way: the server's own sub-type filter is not
+exact, and captures 818/819 show it can still leak sibling sub-types
+through. A bare `"*"` (or `"**"`/`"%"`, or an empty string) with no `type`
+is refused `BAD_INPUT` before any request — `mode=objects` has no package
+scope to bound it, so it would run into the timeout instead of finishing;
+add a `type` (e.g. `"CLAS/OC"` or `"FUGR/F"`) or narrow the pattern to a
+name prefix such as `"Z*"`. The quick search itself now runs under its own
+per-request timeout, `ABAP_SEARCH_TIMEOUT_MS` (config `searchTimeoutMs`,
+default `60000`) — see
+[doc/CONFIGURATION/connection.md](../CONFIGURATION/connection.md) — and a
+timeout is reported as `TIMEOUT` naming that variable. Measured on A4H:
+`query="*"`, `type="FUGR/F"`, `max=3` went from ~19s with 0 matches to
+well under a second with 3 matches.
 
 ### mode=source: line-wise source-text scan
 

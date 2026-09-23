@@ -1,29 +1,30 @@
 /**
  * Per-family client-side request timeouts (issue #154).
  *
- * `timeoutMs` (`ABAP_TIMEOUT_MS`) stays the default for every request. Three
+ * `timeoutMs` (`ABAP_TIMEOUT_MS`) stays the default for every request. Four
  * operations regularly run longer than that on a live system — BOPF
- * create_bo/activate, DDIC activation, and abap_run classruns — so each gets
- * its own configurable ceiling instead of forcing one number to fit all of
- * them.
+ * create_bo/activate, DDIC activation, abap_run classruns, and abap_search's
+ * repository quick search — so each gets its own configurable ceiling
+ * instead of forcing one number to fit all of them.
  */
 import type { Config } from "../config.js";
 import { AbapError } from "./errors.js";
 import { adtExceptionInfo } from "./session.js";
 import { isTimeoutError } from "./source.js";
 
-export type TimeoutFamily = "bopf" | "activate" | "run";
+export type TimeoutFamily = "bopf" | "activate" | "run" | "search";
 
 /** The env var that configures each family's timeout — for messages/hints. */
 export const TIMEOUT_ENV_VAR: Readonly<Record<TimeoutFamily, string>> = {
   bopf: "ABAP_BOPF_TIMEOUT_MS",
   activate: "ABAP_ACTIVATE_TIMEOUT_MS",
   run: "ABAP_RUN_TIMEOUT_MS",
+  search: "ABAP_SEARCH_TIMEOUT_MS",
 };
 
 /** This family's configured timeout, in milliseconds. */
 export function familyTimeoutMs(
-  cfg: Pick<Config, "bopfTimeoutMs" | "activateTimeoutMs" | "runTimeoutMs">,
+  cfg: Pick<Config, "bopfTimeoutMs" | "activateTimeoutMs" | "runTimeoutMs" | "searchTimeoutMs">,
   family: TimeoutFamily,
 ): number {
   switch (family) {
@@ -33,6 +34,8 @@ export function familyTimeoutMs(
       return cfg.activateTimeoutMs;
     case "run":
       return cfg.runTimeoutMs;
+    case "search":
+      return cfg.searchTimeoutMs;
   }
 }
 
@@ -43,9 +46,9 @@ export function familyTimeoutMs(
  * request can finish.
  */
 export function longestRequestTimeoutMs(
-  cfg: Pick<Config, "timeoutMs" | "bopfTimeoutMs" | "activateTimeoutMs" | "runTimeoutMs">,
+  cfg: Pick<Config, "timeoutMs" | "bopfTimeoutMs" | "activateTimeoutMs" | "runTimeoutMs" | "searchTimeoutMs">,
 ): number {
-  return Math.max(cfg.timeoutMs, cfg.bopfTimeoutMs, cfg.activateTimeoutMs, cfg.runTimeoutMs);
+  return Math.max(cfg.timeoutMs, cfg.bopfTimeoutMs, cfg.activateTimeoutMs, cfg.runTimeoutMs, cfg.searchTimeoutMs);
 }
 
 /**

@@ -49,8 +49,9 @@ const PROG_FUGR_HITS = loadObjectReferences("824-p4-quicksearch-prog-rs-star.xml
 
 function searchConn(searchObject: (q: string, group?: string, max?: number) => Promise<unknown[]>): AbapConnection {
   return {
-    cfg: { sid: "A4H" },
+    cfg: { sid: "A4H", searchTimeoutMs: 60_000 },
     adt: { searchObject, usageReferences: async () => [] },
+    withRequestTimeout: async (_ms: number, fn: () => Promise<unknown>) => fn(),
   } as unknown as AbapConnection;
 }
 
