@@ -419,7 +419,7 @@ describe("issue #141: under ABAP_ALLOW_TRANSPORTS=auto every bridge create resol
       expect(e.details.rule, c.type).toBe("transport allowlist");
       expect(e.retryable, c.type).toBe(false);
       expect(e.hint, c.type).toMatch(/Omit corr_nr/);
-      expect(e.hint, c.type).toMatch(/refused regardless of which request/);
+      expect(e.hint, c.type).toMatch(/accepted only when it is a request this session created/);
       expect(e.hint, c.type).toMatch(/terminal/);
       expect(trCreate, c.type).not.toHaveBeenCalled();
       expect(classic.deployed().length, c.type).toBe(0);
