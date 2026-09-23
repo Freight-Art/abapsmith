@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.30] - 2026-09-23
+
 ### Added
 
 - **`abap_write` TRAN/T create gets a `kind` parameter** (#214). `kind` is `report` (default; `program`, dynpro 1000), `dialog` (`program` + `screen`, 4-digit), `parameter` (`target_transaction`, `parameters` — array of `{field, value}` — and `skip_first_screen`), `variant` (`target_transaction`, `variant`, optional `cross_client_variant`), or `oo` (`class`, `method`, optional `update_mode` S|A|L). `oo` is stored the way SE93 stores an OO transaction WITH the transaction model: a parameter transaction on `OS_APPLICATION` (`TSTCP` `/*OS_APPLICATION CLASS=...;METHOD=...;UPDATE_MODE=...;`). An OO transaction WITHOUT the transaction model (`TSTCP` `\CLASS=...\METHOD=...`, including local classes in a program) has no SAP API — `RPY_TRANSACTION_INSERT` has no OO branch — and stays read-only. The field each kind requires (`program` for report/dialog, `target_transaction` for parameter/variant, `class` for oo) is checked before the bridge runs; a missing one is refused zero-network with `BAD_INPUT` naming the field. `abap_read type=TRAN/T` now reports `KIND`, `TARGET`, `SKIP FIRST SCREEN`, the parameter list, `VARIANT`/`CROSS-CLIENT`, and `CLASS`/`METHOD`/`UPDATE MODE`/`TRANSACTION MODEL`, decoding every `TSTCP` encoding SE93 writes. `mode="update"` still retargets report transactions only. Verified on A4H: `kind=parameter` (a transaction on SM30 with `skip_first_screen`) and `kind=oo` (a class method transaction on `ZCL_AS_T201=>RUN`) created in a transportable package and read back by `abap_read` with the fields above; `kind=dialog` and `kind=variant` are covered by offline tests only.
