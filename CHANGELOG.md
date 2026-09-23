@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.28] - 2026-09-23
+
 ### Fixed
 
 - **A FUGR/FF create whose source PUT is rejected no longer leaves the next call `SESSION_DEAD`** (#203). The compensating DELETE ran in the stateful session and the call returned without ending it, so the vendor client kept the `sap-contextid`; the next call's existence probe of the deleted module answered 404 with `sap-contextid=0`, which the vendor client ignores on error responses, and the request after it was answered `400 ICMENOSESSION` and marked the connection dead. The rollback now ends the session with `dropSession()` right after the compensating DELETE, and a stateless request answered `400 ICMENOSESSION` inside a budgeted request is recovered by one re-logon and one resend instead of failing the call; a second consecutive one is still reported as `SESSION_DEAD`.
