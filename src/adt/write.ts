@@ -2017,6 +2017,7 @@ export async function preflightPackageCorr(
     corrNr?: string;
     /** The mutation being gated — `"write"` (create) unless a bridge delete says otherwise. */
     op?: "write" | "delete";
+    intent?: EnhancementIntent;
   },
 ): Promise<{ corrNr: string; source: "named" | "auto" }> {
   const op = opts.op ?? "write";
@@ -2042,7 +2043,7 @@ export async function preflightPackageCorr(
       named === undefined
         ? { kind: "unresolved" }
         : { kind: "transport", corrNr: named, source: "named" },
-    intent: undefined,
+    intent: opts.intent,
     phase: "preflight",
   });
 
@@ -2079,7 +2080,7 @@ export async function preflightPackageCorr(
   try {
     opts.gate.assert(op, gateTarget, {
       corr: { kind: "transport", corrNr: res.corrNr, source },
-      intent: undefined,
+      intent: opts.intent,
     });
   } catch (err) {
     if (!(err instanceof AbapError) || !res.created) throw err;

@@ -17,8 +17,8 @@
  * the limitation lives here as documentation instead. The legacy
  * (non-fluid) `abap_enh` tool remains the way to exercise a BAdI.
  *
- * package_name and corr_nr are REQUIRED (not optional) on every mutating
- * action here, matching `classic.ts`'s convention exactly. Declaring
+ * package_name, corr_nr and activate are REQUIRED (not optional) on every
+ * mutating action here, matching `classic.ts`'s convention exactly. Declaring
  * `targets.transport` while leaving `corr_nr` optional in the input schema
  * was a lie the dispatch gate caught at runtime: `resolveTargetString`
  * throws BAD_INPUT the instant a caller omits it, so the field was never
@@ -95,6 +95,7 @@ CLASS zcl_zmcp_fluid_enh IMPLEMENTATION.
     IF lv_corr_arg IS NOT INITIAL.
       lv_trkorr = lv_corr_arg.
     ENDIF.
+    DATA(lv_activate) = zcl_zmcp_fluid_rt=>b( 'activate' ).
 
     TRY.
         CASE iv_action.
@@ -119,8 +120,10 @@ CLASS zcl_zmcp_fluid_enh IMPLEMENTATION.
             lo_spot->if_enh_object_docu~set_shorttext( CONV #( lv_description ) ).
             lo_spot->if_enh_object~save( EXPORTING run_dark = abap_true
               CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
-            lo_spot->if_enh_object~activate( EXPORTING run_dark = abap_true
-              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            IF lv_activate = abap_true.
+              lo_spot->if_enh_object~activate( EXPORTING run_dark = abap_true
+                CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            ENDIF.
             lo_spot->if_enh_object~unlock( ).
             zcl_zmcp_fluid_rt=>out( '{"created":true}' ).
 
@@ -149,8 +152,10 @@ CLASS zcl_zmcp_fluid_enh IMPLEMENTATION.
             lo_def->add_badi_def( im_badi_def = ls_badi ).
             lo_spot->if_enh_object~save( EXPORTING run_dark = abap_true
               CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
-            lo_spot->if_enh_object~activate( EXPORTING run_dark = abap_true
-              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            IF lv_activate = abap_true.
+              lo_spot->if_enh_object~activate( EXPORTING run_dark = abap_true
+                CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            ENDIF.
             lo_spot->if_enh_object~unlock( ).
             zcl_zmcp_fluid_rt=>out( '{"added":true}' ).
 
@@ -181,8 +186,10 @@ CLASS zcl_zmcp_fluid_enh IMPLEMENTATION.
             lo_def->add_badi_def( im_badi_def = ls_badi ).
             lo_spot->if_enh_object~save( EXPORTING run_dark = abap_true
               CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
-            lo_spot->if_enh_object~activate( EXPORTING run_dark = abap_true
-              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            IF lv_activate = abap_true.
+              lo_spot->if_enh_object~activate( EXPORTING run_dark = abap_true
+                CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            ENDIF.
             lo_spot->if_enh_object~unlock( ).
             zcl_zmcp_fluid_rt=>out( '{"added":true}' ).
 
@@ -222,8 +229,10 @@ CLASS zcl_zmcp_fluid_enh IMPLEMENTATION.
             lo_impl->add_implementation( im_implementation = ls_impl ).
             lo_enh->if_enh_object~save( EXPORTING run_dark = abap_true
               CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
-            lo_enh->if_enh_object~activate( EXPORTING run_dark = abap_true
-              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            IF lv_activate = abap_true.
+              lo_enh->if_enh_object~activate( EXPORTING run_dark = abap_true
+                CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            ENDIF.
             lo_enh->if_enh_object~unlock( ).
 
             " Diagnostic only, mirrors legacy badiFilterCheckFragment: never fails create_impl.
@@ -307,8 +316,10 @@ CLASS zcl_zmcp_fluid_enh IMPLEMENTATION.
             lo_impl->add_implementation( im_implementation = ls_impl ).
             lo_obj->save( EXPORTING run_dark = abap_true
               CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
-            lo_obj->activate( EXPORTING run_dark = abap_true
-              CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            IF lv_activate = abap_true.
+              lo_obj->activate( EXPORTING run_dark = abap_true
+                CHANGING devclass = lv_pkg trkorr = lv_trkorr ).
+            ENDIF.
             lo_obj->unlock( ).
             zcl_zmcp_fluid_rt=>out( '{"replaced":true}' ).
 
@@ -382,7 +393,7 @@ export const enhManifest: FluidManifest = {
       targets: { object: "/spot_name", package: "/package_name", transport: "/corr_nr" },
       input: {
         type: "object",
-        required: ["spot_name", "description", "package_name", "corr_nr"],
+        required: ["spot_name", "description", "package_name", "corr_nr", "activate"],
         properties: {
           spot_name: { type: "string", maxLength: 30, description: "New spot's ENHNAME." },
           description: { type: "string", maxLength: 60, description: "Root object short text." },
@@ -392,6 +403,7 @@ export const enhManifest: FluidManifest = {
             maxLength: 10,
             description: "Transport request. Empty string for a $ (local) package.",
           },
+          activate: { type: "boolean", description: "Activate after save; false leaves the spot inactive." },
         },
       },
       output: {
@@ -409,7 +421,16 @@ export const enhManifest: FluidManifest = {
       targets: { object: "/spot_name", package: "/package_name", transport: "/corr_nr" },
       input: {
         type: "object",
-        required: ["spot_name", "badi_name", "interface_name", "single_use", "short_text", "package_name", "corr_nr"],
+        required: [
+          "spot_name",
+          "badi_name",
+          "interface_name",
+          "single_use",
+          "short_text",
+          "package_name",
+          "corr_nr",
+          "activate",
+        ],
         properties: {
           spot_name: { type: "string", maxLength: 30 },
           badi_name: { type: "string", maxLength: 30 },
@@ -422,6 +443,7 @@ export const enhManifest: FluidManifest = {
             maxLength: 10,
             description: "Transport request. Empty string for a $ (local) package.",
           },
+          activate: { type: "boolean", description: "Activate after save; false leaves the spot inactive." },
         },
       },
       output: {
@@ -437,7 +459,7 @@ export const enhManifest: FluidManifest = {
       targets: { object: "/spot_name", package: "/package_name", transport: "/corr_nr" },
       input: {
         type: "object",
-        required: ["spot_name", "badi_name", "filter_name", "filter_type", "package_name", "corr_nr"],
+        required: ["spot_name", "badi_name", "filter_name", "filter_type", "package_name", "corr_nr", "activate"],
         properties: {
           spot_name: { type: "string", maxLength: 30 },
           badi_name: { type: "string", maxLength: 30 },
@@ -450,6 +472,7 @@ export const enhManifest: FluidManifest = {
             maxLength: 10,
             description: "Transport request. Empty string for a $ (local) package.",
           },
+          activate: { type: "boolean", description: "Activate after save; false leaves the spot inactive." },
         },
       },
       output: {
@@ -477,6 +500,7 @@ export const enhManifest: FluidManifest = {
           "description",
           "package_name",
           "corr_nr",
+          "activate",
         ],
         properties: {
           enh_name: { type: "string", maxLength: 30, description: "New implementation's ENHNAME." },
@@ -492,6 +516,7 @@ export const enhManifest: FluidManifest = {
             maxLength: 10,
             description: "Transport request. Empty string for a $ (local) package.",
           },
+          activate: { type: "boolean", description: "Activate after save; false leaves the implementation inactive." },
         },
       },
       output: {
@@ -524,6 +549,7 @@ export const enhManifest: FluidManifest = {
           "value",
           "package_name",
           "corr_nr",
+          "activate",
         ],
         properties: {
           enh_name: { type: "string", maxLength: 30, description: "Implementation's ENHNAME." },
@@ -538,6 +564,7 @@ export const enhManifest: FluidManifest = {
             maxLength: 10,
             description: "Transport request. Empty string for a $ (local) package.",
           },
+          activate: { type: "boolean", description: "Activate after save; false leaves the implementation inactive." },
         },
       },
       output: {
