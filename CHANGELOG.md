@@ -12,6 +12,12 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.39] - 2026-09-23
+
+### Tests
+
+- Raise unit-test coverage of footprint, CDS lineage and enhancement-write to about 99% of lines; two skipped tests document bug #232 (#231)
+
 ## [0.6.38] - 2026-09-23
 
 ### Removed
