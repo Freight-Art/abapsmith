@@ -140,22 +140,22 @@ function journalVocabulary(): string[] {
 /**
  * The string literals `captureOf()` can return, read out of src/tools/write-notes.ts.
  *
- * Same reason as above: `captureOf` is module-private (it is an implementation
- * detail of `abapWrite`, and exporting it purely to test it would be the tail
- * wagging the dog), so its *behaviour* is driven end-to-end below and its
+ * Same reason as above: `captureOf` is an implementation detail of `abapWrite`
+ * (exported from write-notes.ts only so write.ts can import it; importing it
+ * purely to test it would be the tail wagging the dog), so its *behaviour* is driven end-to-end below and its
  * *alphabet* is read here. Between the two, a new emitted value cannot slip past.
  */
 function producerVocabulary(): string[] {
-  const src = readSrc("src/tools/write.ts");
+  const src = readSrc("src/tools/write-notes.ts");
   const at = src.indexOf("function captureOf(");
   expect(
     at,
-    "src/tools/write.ts no longer contains `function captureOf(` — the producer half of " +
+    "src/tools/write-notes.ts no longer contains `function captureOf(` — the producer half of " +
       "the before-image contract has moved or been renamed. Point this parser at its new " +
       "home; do not delete the check.",
   ).toBeGreaterThanOrEqual(0);
   const close = src.indexOf("\n}", at);
-  expect(close, "could not find the end of captureOf() in src/tools/write.ts").toBeGreaterThan(at);
+  expect(close, "could not find the end of captureOf() in src/tools/write-notes.ts").toBeGreaterThan(at);
   const body = stripLineComments(src.slice(at, close));
   const returns = [...body.matchAll(/\breturn\b([^;]*);/g)].flatMap((m) =>
     [...m[1]!.matchAll(/"([^"]+)"/g)].map((q) => q[1]!),
