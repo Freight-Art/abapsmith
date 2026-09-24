@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.41] - 2026-09-24
+
 ### Changed
 
 - Internal refactor: `src/tools/write.ts` (6,828 lines) is split into cohesive `src/tools/write-*.ts` modules (schema, response notes, source resolution, classrun-bridge create/delete/update/index/search-help handlers, package create, batch delete). No behaviour change: the `abap_write` schema, description and every response string are unchanged, and `tools/list` output is byte-identical.
