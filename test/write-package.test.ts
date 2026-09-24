@@ -306,7 +306,7 @@ describe("createPackage — DEVC/K (request bytes are real; the SERVER RESPONSE 
 
     expect(err.code).toBe("TRANSPORT_ERROR");
     // `createPackage` creates LOCAL packages only, so
-    // reaching this guard with non-LOCAL means src/tools/write.ts failed to
+    // reaching this guard with non-LOCAL means src/tools/write-package.ts failed to
     // route to the classrun bridge — an internal routing failure, not
     // something the caller can fix.
     expect(err.message).toMatch(/creates LOCAL packages only/);
@@ -347,7 +347,7 @@ describe("createPackage — DEVC/K (request bytes are real; the SERVER RESPONSE 
     expect(err.message).toMatch(/CTS answers "local"/);
     // This throw was reworded again: now that a non-LOCAL create routes
     // to the classrun bridge before `createPackage` is ever reached, hitting
-    // this guard means the router in src/tools/write.ts failed to send it
+    // this guard means the router in src/tools/write-package.ts failed to send it
     // there — an internal routing defect, not something caller-fixable.
     expect(err.message).toMatch(/internal routing failure/);
     // Regression guard: the OLD hint told the caller to pass corr_nr —
@@ -556,7 +556,7 @@ describe("createPackage — DEVC/K (request bytes are real; the SERVER RESPONSE 
 
 /**
  * `abap_write`'s empty-`software_component` guard is DUPLICATED at the tool
- * layer (`abapCreatePackage` in src/tools/write.ts), ahead of
+ * layer (`abapCreatePackage` in src/tools/write-package.ts), ahead of
  * `authorizeMutation`, so it can refuse with zero network requests. That
  * duplicate guard used to carry its own, older hint text — a caller going
  * through the real MCP entry point (`abapWrite`) never saw the corrNr fix
@@ -832,7 +832,7 @@ describe("deleteObject — DEVC/K via the classrun bridge", () => {
 
   // A package has no source, but its metadata document IS readable at its
   // own URI — the same GET `resolveWriteTarget` already makes. `captureOf`
-  // (src/tools/write.ts) now records `beforeCapture: "captured"` /
+  // (src/tools/write-notes.ts) now records `beforeCapture: "captured"` /
   // `beforeKind: "package-metadata"` for it, and the note says the metadata
   // was journalled, not that undo re-creates the package.
   it("a DEVC/K delete journals the package's own metadata as its before-image, and the note doesn't claim undo re-creates it", async () => {

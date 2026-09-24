@@ -19,7 +19,7 @@
  * fails `sy-subrc=1` / `TR022`; clearing the lock
  * (`TRINT_READ_REQUEST`/`TR_DELETE_COMM_OBJECT_KEYS`/`COMMIT WORK`) is a
  * transport mechanism, deliberately NOT implemented here. NO TRANSPORT
- * HANDLING either way: `abapDeleteViaBridge` (`src/tools/write.ts`)
+ * HANDLING either way: `abapDeleteViaBridge` (`src/tools/write-bridge.ts`)
  * refuses any `corr_nr` outright, so a locked view can't be fully removed
  * by this path. `abap-view.ts`'s `delete_view` method's last step names
  * the TR022 case instead of claiming nothing happened.

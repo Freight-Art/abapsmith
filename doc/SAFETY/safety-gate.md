@@ -71,7 +71,7 @@ the resolver, creating a request, and only then reaching the gate; issue
 #141 was the bridge creates demanding a named request under `auto`, which
 this same check then refused. The classic-bridge creates (`VIEW/DV`,
 `TRAN/T`, `SHLP/DH`, `TABL/DI`, `DEVC/K`) now follow that order
-(`resolveBridgeCreateCorr` / `bridgePreflightCorr` in `src/tools/write.ts`,
+(`resolveBridgeCreateCorr` / `bridgePreflightCorr` in `src/tools/write-bridge-common.ts`,
 `preflightPackageCorr` in `src/adt/write.ts`).
 
 The second gate layer those creates pass through is `dispatch()`'s own

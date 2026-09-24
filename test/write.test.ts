@@ -1527,7 +1527,7 @@ describe("ENHANCEABLE_TYPES / isEnhanceableType", () => {
  * not the one member of it found by hand.
  *
  * Demonstrated red against the pre-fix code by temporarily deleting the
- * `affects` field from `writeInputSchema` in src/tools/write.ts and
+ * `affects` field from `writeInputSchema` in src/tools/write-schema.ts and
  * re-running this file: this test failed alongside the five Blocker-A tests
  * above, with the assertion message correctly naming `ENHO/XHH` as the
  * type with no schema path. Restored before commit.
@@ -2734,7 +2734,7 @@ describe("a no-op write reports transport status honestly, not as local", () => 
  * `abap_transport_release`'s gate actually requires (`admin`). Under
  * ABAP_MODE=edit that rendered the self-refuting "stays off unless
  * ABAP_MODE=edit". Pinned via `abap_write`, the public path that composes
- * the note (transportNote is private to src/tools/write.ts).
+ * the note (transportNote is private to src/tools/write-notes.ts).
  */
 describe("abap_write: the transport note names the REQUIRED mode, not the current one", () => {
   const fakeReq = (overrides: Partial<TrRequirement> = {}): TrRequirement =>
@@ -5541,7 +5541,7 @@ describe("transport pre-flight URI, per write shape", () => {
  * who dutifully sends `view_fields` for an undeclared `view_fields` gets a
  * parsed input with no `view_fields` at all, and the create refuses as though
  * the caller had omitted it. Two shipped `abap_write` defects had exactly that
- * root cause (`edit`/`method`, per src/tools/write.ts's own comment on the
+ * root cause (`edit`/`method`, per src/tools/write-schema.ts's own comment on the
  * subject — and `affects`, pinned by the describe block above).
  * An undeclared field is invisible, never noisy, which is precisely why it
  * needs a test and not a code review.
@@ -5556,7 +5556,7 @@ describe("transport pre-flight URI, per write shape", () => {
 describe("invariant: no REGISTRY type may declare `bridgeCreate` without a routing path away from ADT REST and a schema field for every input its create requires (VIEW/DV, TRAN/T)", () => {
   /**
    * The `writeInputSchema` keys each bridge create genuinely requires — the
-   * ones `abapCreateViaBridge` (src/tools/write.ts) reads and refuses without.
+   * ones `abapCreateViaBridge` (src/tools/write-bridge.ts) reads and refuses without.
    * `object`/`type` select the create at all, `description` is the object's
    * short text (DD25V-DDTEXT / TSTCT-TTEXT) and is refused when blank,
    * `package` is DEVCLASS, and the rest are the per-type inputs the ABAP API
@@ -5585,7 +5585,7 @@ describe("invariant: no REGISTRY type may declare `bridgeCreate` without a routi
     // refused when absent, exactly like theirs — listed here as the field
     // that selects the create's target package, not as a hard BAD_INPUT
     // gate). `shlp` is the type-specific field abapCreateSearchHelpViaBridge
-    // (src/tools/write.ts) refuses the create without — its DD30V/DD32P/
+    // (src/tools/write-bridge-shlp.ts) refuses the create without — its DD30V/DD32P/
     // DD31V/DD33V definition.
     "SHLP/DH": ["object", "type", "description", "package", "shlp"],
   };
@@ -5952,7 +5952,7 @@ describe("BRIDGE_DELETABLE_TYPES / isBridgeDeletableType", () => {
  * check would then fail. The `mode:"delete"` case below is the one exception:
  * a delete now genuinely reads the object first (there is no way to
  * know an existing object's real package without asking the server — see
- * `abapDeleteViaBridge`'s doc comment in src/tools/write.ts), so "zero
+ * `abapDeleteViaBridge`'s doc comment in src/tools/write-bridge.ts), so "zero
  * requests" is no longer the claim there. What still must hold, and what a
  * half-built bridge class left behind would violate (this repo cannot clean
  * that up), is "no MUTATING request" — no bridge-class deploy, no
@@ -6103,7 +6103,7 @@ describe("abap_write → bridge creation (VIEW/DV, TRAN/T): routing and zero-net
  * downgraded to a create. `abapWrite` now gates `mode:"update"` zero-network, offline, for
  * every type outside `BRIDGE_UPDATE_TYPES`, using the exact wording `abapUpdateViaBridge`
  * itself throws for the same situation (see `bridgeUpdateNotSupported`/`isBridgeUpdateType`
- * in src/tools/write.ts) — one message, not two variants depending on which gate caught it.
+ * in src/tools/write-bridge-update.ts) — one message, not two variants depending on which gate caught it.
  */
 describe("abap_write: mode='update' on a non-bridge type is refused BAD_INPUT, offline, before the generic write path can misread it (issue #83)", () => {
   const offline = null as unknown as AbapConnection;
@@ -6292,7 +6292,7 @@ describe("abap_write → bridge creation: DEFECT 1 closed for VIEW/DV (create ru
  * `abapsmith` never checked, and (the DEFECT 1 shape, applied here) used to
  * report `created: true` off the classrun transcript alone, with no read-back
  * proving the transaction row was actually still there afterward. Both halves
- * are closed in `abapCreateViaBridge` (src/tools/write.ts): a real
+ * are closed in `abapCreateViaBridge` (src/tools/write-bridge.ts): a real
  * `resolveWriteTarget(conn, {type:"PROG/P", ...})` GET before any ABAP is
  * generated, and a real `verifyViaVitBridge` GET after the classrun bridge
  * reports success.
@@ -6945,7 +6945,7 @@ describe("abap_write: DDLS/DF sqlViewName is checked against the SAME namespace 
 // section — schema/dispatch level first (zero-network refusals), then an
 // end-to-end tier exercising real (faked-HTTP) multi-object deletes. Delete's
 // execution semantics diverge from activation's on purpose (see
-// `abapWriteBatchDelete`'s doc comment in src/tools/write.ts): there is no
+// `abapWriteBatchDelete`'s doc comment in src/tools/write-batch-delete.ts): there is no
 // server-side batch endpoint, so this is a client-side loop, and it continues
 // past a per-object failure instead of aborting the rest of the set.
 // =============================================================================
@@ -7926,7 +7926,7 @@ describe("registerWriteTools: batch delete — isError on the envelope, not just
 });
 
 /**
- * `SHLP/DH` delete's existence probe (`abapDeleteSearchHelpViaBridge`, `src/tools/write.ts`)
+ * `SHLP/DH` delete's existence probe (`abapDeleteSearchHelpViaBridge`, `src/tools/write-bridge-shlp.ts`)
  * used to go through `probeSearchHelp` — ACTIVE-only, via `readSearchHelp(conn, name)` with
  * no `includeInactive` option. A search help left behind by a create that PUT but never
  * activated has DD30L rows with `AS4LOCAL='N'` only (no active row at all): the active-only
@@ -7934,7 +7934,7 @@ describe("registerWriteTools: batch delete — isError on the envelope, not just
  * even though the bridge's own `delete_search_help` (`src/adt/shlp-delete.ts`) removes both
  * DDIC states and the TADIR entry regardless of which one is active. Issue #83.
  *
- * `probeSearchHelpAnyState` (`src/tools/write.ts`) is the fix: `readSearchHelp(conn, name,
+ * `probeSearchHelpAnyState` (`src/tools/write-bridge-common.ts`) is the fix: `readSearchHelp(conn, name,
  * undefined, { includeInactive: true })`, used ONLY by the delete path (pre-delete existence
  * check and post-delete "still there?" check) — the create path's "already exists" probe and
  * the update path's existence probe both keep `probeSearchHelp`, unchanged.

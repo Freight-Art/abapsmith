@@ -2930,7 +2930,7 @@ describe("undo-of-create probe: DEVC/K package existence via repository search, 
 
   /**
    * Deliberately NOT `irreversible: true`, and deliberately NO `afterSource`
-   * — production `DEVC/K` creates (`abapCreatePackage`, src/tools/write.ts)
+   * — production `DEVC/K` creates (`abapCreatePackage`, src/tools/write-package.ts)
    * set neither: `settle()` is called with `activation: { attempted: false }`
    * and no `afterSource`, because a package has no source to capture. This
    * entry models that faithfully rather than an idealised one `detectDrift`
@@ -3591,7 +3591,7 @@ describe("undo of a TRAN/T bridge create now performs the delete via the DDIC br
 
   // Issue #202 made TRAN/T delete transport-aware: a non-local package needs
   // a `corrNr`. `performBridgeCreateUndo` (src/adt/undo.ts) now resolves one
-  // the same way `resolveBridgeCreateCorr` (src/tools/write.ts) does for an
+  // the same way `resolveBridgeCreateCorr` (src/tools/write-bridge-common.ts) does for an
   // ordinary delete — but only when a `SessionTransport` is wired into the
   // undo (`UndoOptions.transport`). With none wired, this fails closed: no
   // wire request beyond the planning reads, same as `resolveBridgeCreateCorr`
@@ -3713,7 +3713,7 @@ describe("undo of a TRAN/T bridge create now performs the delete via the DDIC br
  * entry with `journal.begin({...})` — a HYPOTHESIS about what `abap_write`
  * records for a package create — then feeds that hand-built entry to
  * `planUndo`/`performUndo`. None of them would notice if `abapCreatePackage`
- * (src/tools/write.ts) ever started recording something different. This
+ * (src/tools/write-package.ts) ever started recording something different. This
  * block drives the real `abapWrite` create path instead, reads back the
  * entry production actually wrote, and undoes THAT.
  */

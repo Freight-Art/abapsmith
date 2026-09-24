@@ -178,7 +178,7 @@ describe("abapWrite — `ddic` next to `source`", () => {
 
   // Issue #209: a `ddic` descriptor with no `description` no longer refuses
   // — it defaults to the object's own (upper-cased) name, resolved by
-  // `resolveDdicStructuredSource` (src/tools/write.ts) before the descriptor
+  // `resolveDdicStructuredSource` (src/tools/write-schema.ts) before the descriptor
   // is built, and the response notes what it used.
   it("no `description` given: defaults to the object's own name, sends it in the descriptor, and notes it", async () => {
     const before = buildStructuredDdicDescriptor("DTEL/DE", DTEL_NAME, "old", "$TMP", { shortLabel: "Old" });

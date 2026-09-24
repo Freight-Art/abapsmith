@@ -558,9 +558,10 @@ const SHLP_NAME_MAX_LEN = 30;
  * value against {@link SHLP_NAME_MAX_LEN} — both are ABAP object/parameter
  * names (DD04L-SHLPNAME, DD04L-SHLPFIELD), so this follows the same
  * trim-then-uppercase convention other DDIC/CTS identifiers get elsewhere in
- * this codebase (e.g. `program.trim().toUpperCase()` for TRAN/T's `program`
- * and `resolveShlpPackage`'s package-name normalisation, both in
- * src/tools/write.ts) rather than sending the value byte-for-byte as given.
+ * this codebase (e.g. `program.trim().toUpperCase()` for TRAN/T's `program`,
+ * src/tools/write-bridge.ts and src/tools/write-bridge-update.ts, and
+ * `resolveShlpPackage`'s package-name normalisation, src/tools/write-bridge-common.ts)
+ * rather than sending the value byte-for-byte as given.
  * Refuses rather than truncates on overflow — silently cutting the value down
  * would send something other than what the caller asked for, the exact class
  * of silent corruption this module's own header comment warns about.

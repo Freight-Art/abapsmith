@@ -216,7 +216,7 @@ function assertTargetsAgainstGate(
   // `corr: "local"` only binds for a builtin tool — a plugin manifest cannot self-declare its
   // way past the transport allowlist by claiming an action registers nothing in CTS.
   // Likewise `corrSource: "auto"`: only a builtin caller (the classic bridge modules, after
-  // `resolveBridgeCreateCorr` in src/tools/write.ts resolved AND gate-judged the request as
+  // `resolveBridgeCreateCorr` in src/tools/write-bridge-common.ts resolved AND gate-judged the request as
   // auto-selected) may report the resolved request with that provenance; everything else
   // keeps the legacy shape, where a non-blank `corrNr` is judged as caller-NAMED.
   const autoCorrNr = corrSource === "auto" && origin === "builtin" ? normalizeCorrNr(resolvedTransport) : undefined;

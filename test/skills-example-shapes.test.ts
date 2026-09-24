@@ -9,7 +9,7 @@
  * `abap_write { ... }` / `abap_read { ... }` worked example out of the
  * skill prose and asserts every field name it names is a real key on that
  * tool's actual exported zod schema — `WriteInput`/`ReadInput`
- * (`src/tools/write.ts` / `src/tools/read.ts`). `Object.keys(schema.shape)`
+ * (`src/tools/write-schema.ts` / `src/tools/read.ts`). `Object.keys(schema.shape)`
  * gives the true field set — not a hand-maintained list that could drift
  * from the real schema.
  *

@@ -2,7 +2,7 @@
  * `SHLP/DH` delete — journal contract, offline with a fake `HttpClient`
  * injected through `ConnectionOptions.httpClient`, same harness idiom as
  * `test/write-bridge-crud.test.ts` (VIEW/DV / TRAN/T bridge CRUD): real
- * production code (`abapWrite` -> `src/tools/write.ts`'s
+ * production code (`abapWrite` -> `src/tools/write-bridge-shlp.ts`'s
  * `abapDeleteSearchHelpViaBridge`) drives a fake socket, plus the real
  * fluid `classic`-tool deploy/classrun fake from
  * `test/helpers/fluid-classic-fake.ts` and a real in-memory-backed
@@ -298,7 +298,7 @@ describe("SHLP/DH delete's pre-delete read does not fabricate absence", () => {
         freestyleCalls++;
         if (freestyleCalls === 1) return resp(200, T000_NONPRODUCTIVE, DATAPREVIEW_XML);
         // The DD30L header query itself fails — an authorisation error, not
-        // an absence. catalogProbe()/probeSearchHelp() (src/tools/write.ts)
+        // an absence. catalogProbe()/probeSearchHelp() (src/tools/write-bridge-common.ts)
         // must let this propagate, never swallow it into `undefined`.
         throw new HttpClientException(
           "Request failed with status code 403",

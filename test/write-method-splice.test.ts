@@ -16,7 +16,7 @@
  * the splice never executed, and SAP's two errors are just the first statement
  * of each payload read as an object header.
  *
- * Cause: `writeInputSchema` (src/tools/write.ts) declared no `method` key. The
+ * Cause: `writeInputSchema` (src/tools/write-schema.ts) declared no `method` key. The
  * MCP SDK validates arguments against that shape and passes the PARSED object
  * on, and zod strips undeclared keys — so `{object, method, source}` reached
  * `resolveWriteSource` as `{object, source}` and took the whole-object-rewrite
