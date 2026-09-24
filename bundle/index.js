@@ -61731,7 +61731,7 @@ var init_capabilities = __esm({
         activate: true,
         namePrefixes: ["EZ", "EY"]
       },
-      // DEVC/K is created by abapCreatePackage (src/tools/write.ts), a separate
+      // DEVC/K is created by abapCreatePackage (src/tools/write-package.ts), a separate
       // code path that never touches createNewObject or this gate at all
       // (routed the same way VIEW/DV/TRAN/T bypass to the classrun bridge) — so
       // VERIFIED_CREATABLE_TYPES never gates package creation either way.
