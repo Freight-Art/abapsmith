@@ -12,6 +12,12 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.40] - 2026-09-24
+
+### Fixed
+
+- **`abap_read view="footprint"` now reports dynamic `UPDATE (tab)` and `DELETE FROM (tab)` writes** (#232). Both patterns put a word boundary right after the closing `)` of the dynamic table token, so a statement such as `UPDATE (gv_tab) SET ...` or `DELETE FROM (gv_tab) WHERE ...` never matched and the write was silently dropped. They now match and are reported as unresolved writes, like dynamic `INSERT` and `MODIFY` already were. The dynamic token also now accepts a structure component, field symbol or attribute (`(ls_cfg-tabname)`, `(<lv_tab>)`, `(me->mv_tab)`) in every Open SQL write form; static table names resolve as before.
+
 ## [0.6.39] - 2026-09-23
 
 ### Tests

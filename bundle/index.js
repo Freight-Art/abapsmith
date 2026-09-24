@@ -140250,25 +140250,25 @@ function classifyStatement(t) {
     const rep = m[1];
     return /^\(/.test(rep) ? { kind: "submit", unresolved: rep.toUpperCase() } : { kind: "submit", detail: rep.toUpperCase() };
   }
-  m = /^INSERT\s+INTO\s+([A-Za-z0-9_/()]+)\s+VALUES\b/i.exec(t);
+  m = /^INSERT\s+INTO\s+(\([^()\s]+\)|[A-Za-z0-9_/]+)\s+VALUES\b/i.exec(t);
   if (m) return { kind: "insert", ...tableOrDynamic(m[1]) };
   if (/^INSERT\s+(INITIAL\s+LINE|LINES\s+OF)\b/i.test(t)) return void 0;
-  m = /^INSERT\s+(\([A-Za-z0-9_]+\)|[A-Za-z0-9_/]+)\s+FROM\b/i.exec(t);
+  m = /^INSERT\s+(\([^()\s]+\)|[A-Za-z0-9_/]+)\s+FROM\b/i.exec(t);
   if (m) return { kind: "insert", ...tableOrDynamic(m[1]) };
   if (/^INSERT\s+\S+\s+INTO\b/i.test(t)) return void 0;
   if (!/^UPDATE\s+TASK\b/i.test(t)) {
-    m = /^UPDATE\s+(\([A-Za-z0-9_]+\)|[A-Za-z0-9_/]+)\b/i.exec(t);
+    m = /^UPDATE\s+(\([^()\s]+\)|[A-Za-z0-9_/]+)(?![A-Za-z0-9_/])/i.exec(t);
     if (m) return { kind: "update", ...tableOrDynamic(m[1]) };
   }
   if (/^MODIFY\s+TABLE\s+/i.test(t)) return void 0;
   if (/^MODIFY\b/i.test(t) && /\b(INDEX|TRANSPORTING)\b/i.test(t)) return void 0;
-  m = /^MODIFY\s+(\([A-Za-z0-9_]+\)|[A-Za-z0-9_/]+)\s+FROM\b/i.exec(t);
+  m = /^MODIFY\s+(\([^()\s]+\)|[A-Za-z0-9_/]+)\s+FROM\b/i.exec(t);
   if (m) return { kind: "modify", ...tableOrDynamic(m[1]) };
-  m = /^DELETE\s+FROM\s+(\([A-Za-z0-9_]+\)|[A-Za-z0-9_/]+)\b/i.exec(t);
+  m = /^DELETE\s+FROM\s+(\([^()\s]+\)|[A-Za-z0-9_/]+)(?![A-Za-z0-9_/])/i.exec(t);
   if (m) return { kind: "delete", ...tableOrDynamic(m[1]) };
   if (/^DELETE\s+TABLE\s+/i.test(t)) return void 0;
   if (/^DELETE\s+ADJACENT\s+DUPLICATES\b/i.test(t)) return void 0;
-  m = /^DELETE\s+(\([A-Za-z0-9_]+\)|[A-Za-z0-9_/]+)\s+FROM\b/i.exec(t);
+  m = /^DELETE\s+(\([^()\s]+\)|[A-Za-z0-9_/]+)\s+FROM\b/i.exec(t);
   if (m) return { kind: "delete", ...tableOrDynamic(m[1]) };
   if (/^DELETE\s+\S+\s+(INDEX|WHERE)\b/i.test(t)) return void 0;
   return void 0;

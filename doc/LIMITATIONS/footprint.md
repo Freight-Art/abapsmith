@@ -50,12 +50,14 @@ not a compiler, not a data-flow analysis, and not a call graph.
   footprint call this out for BOPF specifically; it applies equally, and is
   recorded here, for `EXEC SQL` and ADBC.
 
-- **One statement per source line, not per logical ABAP statement.** A
-  multi-line `CALL FUNCTION` whose parameter list continues onto following
-  lines is still recognised — the keyword and target are already on the
-  opening line — but a statement whose *keyword or target itself* splits
-  across lines is not. No fixture exercises that split, and the scanner
-  does not attempt to join continuation lines before matching.
+- **A dynamic table name is reported, not resolved.** `UPDATE (lv_tab) …`,
+  `DELETE FROM (lv_tab) …`, `INSERT (lv_tab) FROM …`, `INSERT INTO (lv_tab)
+  VALUES …`, `MODIFY (lv_tab) FROM …` and `DELETE (lv_tab) FROM …` are listed
+  as writes with the parenthesised token as the unresolved target; the token
+  may be a variable, a structure component, a field symbol or an attribute. A
+  statement is matched after its lines are joined up to the terminating
+  period, so a keyword and its target may sit on different lines. Chained
+  statements (`UPDATE: …`) are not split at commas and are not recognised.
 
 Evidence: the statement classifier's recognised forms and their exact
 matching order are exercised end to end against capture 983's real source

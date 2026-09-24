@@ -1,7 +1,7 @@
 /**
  * Coverage-focused tests for src/adt/footprint.ts, beyond the primary
  * live-fixture suite in test/footprint.test.ts: classifyStatement shapes not
- * exercised by fixture 983 (EXEC SQL, ADBC, BOPF, dynamic DELETE/MODIFY/
+ * exercised by fixture 983 (EXEC SQL, ADBC, BOPF, dynamic UPDATE/DELETE/MODIFY/
  * INSERT INTO...VALUES/SUBMIT), the tokenizer's odd-input handling,
  * buildReadCall's per-type include tagging, buildFootprint's include
  * resolution for every FOOTPRINT_TYPES member (including catch paths and
@@ -123,15 +123,13 @@ describe("scanFootprint: Open SQL shapes not in fixture 983", () => {
     expect(o?.unresolved).toBe("(GV_TAB)");
   });
 
-  // Bug: footprint.ts:303 ends with a bare `\b` after `)`, so a dynamic UPDATE never matches.
-  it.skip("UPDATE (dynamic tab) SET ... is a DB write with unresolved set", () => {
+  it("UPDATE (dynamic tab) SET ... is a DB write with unresolved set", () => {
     const [o] = scanFootprint("UPDATE (GV_TAB) SET X = 1.", "main", OBJ_983);
     expect(o?.kind).toBe("update");
     expect(o?.unresolved).toBe("(GV_TAB)");
   });
 
-  // Bug: footprint.ts:312, same bare `\b` after `)`; a dynamic DELETE FROM never matches.
-  it.skip("DELETE FROM (dynamic tab) WHERE ... is a DB write with unresolved set", () => {
+  it("DELETE FROM (dynamic tab) WHERE ... is a DB write with unresolved set", () => {
     const [o] = scanFootprint("DELETE FROM (GV_TAB) WHERE X = 1.", "main", OBJ_983);
     expect(o?.kind).toBe("delete");
     expect(o?.unresolved).toBe("(GV_TAB)");
@@ -141,6 +139,71 @@ describe("scanFootprint: Open SQL shapes not in fixture 983", () => {
     const [o] = scanFootprint("DELETE (GV_TAB) FROM WA.", "main", OBJ_983);
     expect(o?.kind).toBe("delete");
     expect(o?.unresolved).toBe("(GV_TAB)");
+  });
+
+  it("UPDATE (dynamic tab) FROM <wa> is a DB write with unresolved set", () => {
+    const [o] = scanFootprint("UPDATE (GV_TAB) FROM WA.", "main", OBJ_983);
+    expect(o?.kind).toBe("update");
+    expect(o?.unresolved).toBe("(GV_TAB)");
+  });
+
+  it("UPDATE (dynamic tab) FROM TABLE <itab> is a DB write", () => {
+    const [o] = scanFootprint("UPDATE (GV_TAB) FROM TABLE GT_ROWS.", "main", OBJ_983);
+    expect(o?.kind).toBe("update");
+    expect(o?.unresolved).toBe("(GV_TAB)");
+  });
+
+  it("DELETE FROM (dynamic tab) with nothing after the table is a DB write", () => {
+    const [o] = scanFootprint("DELETE FROM (GV_TAB).", "main", OBJ_983);
+    expect(o?.kind).toBe("delete");
+    expect(o?.unresolved).toBe("(GV_TAB)");
+  });
+
+  it("lower-case dynamic UPDATE and DELETE FROM are uppercased in unresolved", () => {
+    const source = "update (gv_tab) set x = 1.\ndelete from (gv_tab) where x = 1.";
+    const occurrences = scanFootprint(source, "main", OBJ_983);
+    expect(occurrences.map((o) => o.kind)).toEqual(["update", "delete"]);
+    expect(occurrences[0]?.unresolved).toBe("(GV_TAB)");
+    expect(occurrences[1]?.unresolved).toBe("(GV_TAB)");
+  });
+
+  it("dynamic UPDATE split across lines is still one DB write", () => {
+    const source = ["UPDATE", "  (GV_TAB)", "  SET X = 1."].join("\n");
+    const occurrences = scanFootprint(source, "main", OBJ_983);
+    expect(occurrences).toHaveLength(1);
+    expect(occurrences[0]?.kind).toBe("update");
+    expect(occurrences[0]?.unresolved).toBe("(GV_TAB)");
+    expect(occurrences[0]?.line).toBe(1);
+  });
+
+  it.each([
+    ["UPDATE (LS_CFG-TABNAME) SET X = 1.", "update", "(LS_CFG-TABNAME)"],
+    ["DELETE FROM (<LV_TAB>) WHERE X = 1.", "delete", "(<LV_TAB>)"],
+    ["MODIFY (ME->MV_TAB) FROM WA.", "modify", "(ME->MV_TAB)"],
+    ["INSERT (LS_CFG-TABNAME) FROM TABLE GT_ROWS.", "insert", "(LS_CFG-TABNAME)"],
+    ["INSERT INTO (<LV_TAB>) VALUES WA.", "insert", "(<LV_TAB>)"],
+    ["DELETE (LS_CFG-TABNAME) FROM WA.", "delete", "(LS_CFG-TABNAME)"],
+  ])("a dynamic token naming a structure component, field symbol or attribute is unresolved: %s", (src, kind, unresolved) => {
+    const [o] = scanFootprint(src, "main", OBJ_983);
+    expect(o?.kind).toBe(kind);
+    expect(o?.unresolved).toBe(unresolved);
+    expect(o?.table).toBeUndefined();
+  });
+
+  it("static UPDATE and DELETE FROM still resolve the table name", () => {
+    const [u] = scanFootprint("UPDATE ZTAB1 SET X = 1.", "main", OBJ_983);
+    expect(u?.kind).toBe("update");
+    expect(u?.table).toBe("ZTAB1");
+    expect(u?.unresolved).toBeUndefined();
+
+    const [d] = scanFootprint("DELETE FROM /ABC/TAB WHERE X = 1.", "main", OBJ_983);
+    expect(d?.kind).toBe("delete");
+    expect(d?.table).toBe("/ABC/TAB");
+    expect(d?.unresolved).toBeUndefined();
+  });
+
+  it("UPDATE TASK is not a database write", () => {
+    expect(scanFootprint("UPDATE TASK LOCAL.", "main", OBJ_983)).toHaveLength(0);
   });
 });
 

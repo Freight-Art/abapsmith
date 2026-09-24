@@ -279,6 +279,7 @@ function classifyStatement(t: string): Classification | undefined {
   // fixture 983's shapes only:
   //   - `INSERT <tab> FROM <wa|TABLE itab>.`      -> DB write
   //   - `INSERT INTO <tab> VALUES ...`            -> DB write
+  //   - `UPDATE <tab|(dyn)> ...` (not `UPDATE TASK`) -> DB write
   //   - `INSERT INITIAL LINE INTO ...` / `INSERT LINES OF ...` -> itab, excluded
   //   - `INSERT <wa> INTO [TABLE] <itab>.`        -> itab, excluded (INTO
   //     immediately follows the inserted item, not the table name)
@@ -292,28 +293,28 @@ function classifyStatement(t: string): Classification | undefined {
   // A DELETE shaped some other way is left unclassified rather than guessed
   // at — silence, not a wrong answer.
 
-  m = /^INSERT\s+INTO\s+([A-Za-z0-9_/()]+)\s+VALUES\b/i.exec(t);
+  m = /^INSERT\s+INTO\s+(\([^()\s]+\)|[A-Za-z0-9_/]+)\s+VALUES\b/i.exec(t);
   if (m) return { kind: "insert", ...tableOrDynamic(m[1] as string) };
   if (/^INSERT\s+(INITIAL\s+LINE|LINES\s+OF)\b/i.test(t)) return undefined;
-  m = /^INSERT\s+(\([A-Za-z0-9_]+\)|[A-Za-z0-9_/]+)\s+FROM\b/i.exec(t);
+  m = /^INSERT\s+(\([^()\s]+\)|[A-Za-z0-9_/]+)\s+FROM\b/i.exec(t);
   if (m) return { kind: "insert", ...tableOrDynamic(m[1] as string) };
   if (/^INSERT\s+\S+\s+INTO\b/i.test(t)) return undefined;
 
   if (!/^UPDATE\s+TASK\b/i.test(t)) {
-    m = /^UPDATE\s+(\([A-Za-z0-9_]+\)|[A-Za-z0-9_/]+)\b/i.exec(t);
+    m = /^UPDATE\s+(\([^()\s]+\)|[A-Za-z0-9_/]+)(?![A-Za-z0-9_/])/i.exec(t);
     if (m) return { kind: "update", ...tableOrDynamic(m[1] as string) };
   }
 
   if (/^MODIFY\s+TABLE\s+/i.test(t)) return undefined;
   if (/^MODIFY\b/i.test(t) && /\b(INDEX|TRANSPORTING)\b/i.test(t)) return undefined;
-  m = /^MODIFY\s+(\([A-Za-z0-9_]+\)|[A-Za-z0-9_/]+)\s+FROM\b/i.exec(t);
+  m = /^MODIFY\s+(\([^()\s]+\)|[A-Za-z0-9_/]+)\s+FROM\b/i.exec(t);
   if (m) return { kind: "modify", ...tableOrDynamic(m[1] as string) };
 
-  m = /^DELETE\s+FROM\s+(\([A-Za-z0-9_]+\)|[A-Za-z0-9_/]+)\b/i.exec(t);
+  m = /^DELETE\s+FROM\s+(\([^()\s]+\)|[A-Za-z0-9_/]+)(?![A-Za-z0-9_/])/i.exec(t);
   if (m) return { kind: "delete", ...tableOrDynamic(m[1] as string) };
   if (/^DELETE\s+TABLE\s+/i.test(t)) return undefined;
   if (/^DELETE\s+ADJACENT\s+DUPLICATES\b/i.test(t)) return undefined;
-  m = /^DELETE\s+(\([A-Za-z0-9_]+\)|[A-Za-z0-9_/]+)\s+FROM\b/i.exec(t);
+  m = /^DELETE\s+(\([^()\s]+\)|[A-Za-z0-9_/]+)\s+FROM\b/i.exec(t);
   if (m) return { kind: "delete", ...tableOrDynamic(m[1] as string) };
   if (/^DELETE\s+\S+\s+(INDEX|WHERE)\b/i.test(t)) return undefined;
 
