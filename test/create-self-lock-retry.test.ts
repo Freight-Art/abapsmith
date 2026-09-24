@@ -340,7 +340,7 @@ describe("MSAG/N create and the server's own enqueue (#205)", () => {
 
     // Fallback (per this test's assignment): MSAG/N is NOT among the
     // `mode:"update"`-capable bridge types (VIEW/DV, TRAN/T, SHLP/DH —
-    // src/tools/write.ts's `BRIDGE_UPDATE_TYPES`), so `abap_write
+    // src/tools/write-bridge-update.ts's `BRIDGE_UPDATE_TYPES`), so `abap_write
     // mode="update"` on it is refused BAD_INPUT before any network call.
     const { conn: conn2, adt: adt2 } = await connected(() => undefined);
     const e = await catchErr(

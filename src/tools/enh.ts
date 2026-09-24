@@ -319,7 +319,7 @@ function resolveFluidPackage(input: EnhInput): { packageName: string; named: str
   return { packageName, named, activate };
 }
 
-/** Mirrors bridgePreflightCorr (src/tools/write.ts): the zero-network SafetyCorr shape for a preflight assert. */
+/** Mirrors bridgePreflightCorr (src/tools/write-bridge-common.ts): the zero-network SafetyCorr shape for a preflight assert. */
 function fluidPreflightCorr(named: string | undefined): SafetyCorr {
   return named === undefined ? { kind: "unresolved" } : { kind: "transport", corrNr: named, source: "named" };
 }

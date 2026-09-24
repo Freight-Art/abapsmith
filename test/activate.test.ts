@@ -1367,7 +1367,7 @@ describe("abapActivate — no `source`", () => {
 
 /**
  * The same defect `targetFromInput` fixed in `abap_write` (see its long comment
- * in src/tools/write.ts), still live in this tool until now: `abapActivate`
+ * in src/tools/write-schema.ts), still live in this tool until now: `abapActivate`
  * parsed the object ref HINTLESS and kept only `parsed.name`, so for a
  * container-parented type the group was stripped off the name and then thrown
  * away. Found on A4H while verifying the new `FUGR/F` capability:

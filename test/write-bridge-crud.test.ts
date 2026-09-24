@@ -18,7 +18,7 @@
  * bridge module (`src/adt/view-delete.ts`, `src/adt/tran-delete.ts`) can look
  * its object's own package up itself, so a caller who names a permissive
  * package must not be able to slip a delete past `assertBridgeMutation`'s
- * allowlist — see src/tools/write.ts's `abapDeleteViaBridge` doc comment for
+ * allowlist — see src/tools/write-bridge.ts's `abapDeleteViaBridge` doc comment for
  * the full argument. If that check is ever weakened back to trusting the
  * caller's `package`, the test below named "does NOT let a caller's
  * disagreeing `package` reach the delete bridge" must fail with a thrown
@@ -519,7 +519,7 @@ describe("abapCreateViaBridge — corr_nr/package pairing, now that the VIEW/DV 
     expect(adt.calls.length).toBeGreaterThan(0);
   });
 
-  // `bridgeReversalNote` (src/tools/write.ts) is shared by both bridge-create
+  // `bridgeReversalNote` (src/tools/write-bridge-common.ts) is shared by both bridge-create
   // types — asserted here on TRAN/T; the describe above covers VIEW/DV's
   // create running for every package, not this note's exact wording.
   it("the create-response closing note states abapsmith can REACH this type via bridge (not that delete is proven), and that create is still not journalled", async () => {

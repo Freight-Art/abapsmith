@@ -5,7 +5,7 @@
  * note's claim "That is the number this write sent, after the safety gate
  * approved it" — false: T1 was never sent, T2 was, and CTS ignored it. This
  * file pins the TOOL layer's fix (`abapWrite`/`abapWriteBatchDelete`,
- * src/tools/write.ts): the `corr_nr_honoured: false` header field, the
+ * src/tools/write.ts and src/tools/write-batch-delete.ts): the `corr_nr_honoured: false` header field, the
  * replacement note text (`corrNrNotHonouredNote`), and the batch body's
  * per-object suffix. It deliberately does NOT cover `src/adt/write.ts`'s
  * own refusal (`corrNrNotHonoured`, thrown before anything is deleted when

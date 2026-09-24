@@ -8,7 +8,7 @@
  * change could leave. VIEW/DV additionally resolved (and so could CREATE) a
  * request BEFORE the gate verdict, leaking an empty request on refusal.
  *
- * After: all four share `resolveBridgeCreateCorr` (src/tools/write.ts) →
+ * After: all four share `resolveBridgeCreateCorr` (src/tools/write-bridge-common.ts) →
  * `preflightPackageCorr` (src/adt/write.ts): a zero-network gate verdict on
  * the caller's own arguments first, then the session resolver's
  * adopt-else-create route (the one the ADT-lock types take) anchored on the

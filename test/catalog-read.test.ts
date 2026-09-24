@@ -279,7 +279,7 @@ describe("readSearchHelp", () => {
   });
 
   it("NOT_FOUND (DD30L returned no row) — the exact contract catalogProbe() in src/tools/write.ts keys off", async () => {
-    // src/tools/write.ts's catalogProbe() treats ONLY an AbapError with code
+    // src/tools/write-bridge-common.ts's catalogProbe() treats ONLY an AbapError with code
     // === "NOT_FOUND" as "confirmed absent" and rethrows every other code —
     // so a NOT_FOUND here is a cross-module contract, not an incidental
     // choice, and this test pins the code specifically (not just "it threw").

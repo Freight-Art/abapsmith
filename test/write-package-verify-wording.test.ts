@@ -1,6 +1,6 @@
 /**
  * `DEVC/K` create-via-classrun-bridge's post-create verification wording
- * (src/tools/write.ts, the `verifyViaRepositorySearch` call right after
+ * (src/tools/write-package.ts, the `verifyViaRepositorySearch` call right after
  * `createPackageViaBridge` succeeds). Offline, with a fake `HttpClient`
  * injected through `ConnectionOptions.httpClient` — same harness idiom as
  * test/write-package.test.ts, reimplemented locally (self-contained) rather

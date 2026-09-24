@@ -92,7 +92,7 @@ const adt = vi.hoisted(() => ({
   createPackageViaBridge: vi.fn(),
   /** Pure comparison over plain data; the real one is exercised in test/package-create.test.ts. */
   tdevcDiscrepancies: vi.fn(() => [] as string[]),
-  // `objects` batch-delete form (src/tools/write.ts) — same reasoning as
+  // `objects` batch-delete form (src/tools/write-schema.ts) — same reasoning as
   // `MAX_ACTIVATION_BATCH` below: none of the existing tests in this file
   // exercise the batch path (they're all single-`object` gate-wiring tests),
   // but the module imports both unconditionally, and `MAX_DELETE_BATCH` is
@@ -191,7 +191,7 @@ vi.mock("../src/adt/write.js", async (importActual) => ({
   // caught the way test/write-type-first.test.ts exercises directly.
   refuseUnwritableType: (await importActual<typeof import("../src/adt/write.js")>()).refuseUnwritableType,
 }));
-// The DEVC/K classrun bridge. Faked whole: `src/tools/write.ts`
+// The DEVC/K classrun bridge. Faked whole: `src/tools/write-package.ts`
 // imports both of these unconditionally at module scope, so they must exist,
 // and a tool-surface test has no business driving a real bridge deploy.
 vi.mock("../src/adt/package-create.js", () => ({
@@ -1152,7 +1152,7 @@ describe("abap_write → package creation (DEVC/K)", () => {
   /**
    * Base args for a package create: `object` is the NEW package, `package` is
    * its SUPERpackage (per the schema description on `writeInputSchema.package`
-   * in src/tools/write.ts: "For a new DEVC/K this is the superpackage.").
+   * in src/tools/write-schema.ts: "For a new DEVC/K this is the superpackage.").
    *
    * `software_component` is `"LOCAL"` here on purpose — it is the
    * only discriminator between the two create routes, and these tests cover
@@ -1218,7 +1218,7 @@ describe("abap_write → package creation (DEVC/K)", () => {
   });
 
   /**
-   * `targetFromInput` (src/tools/write.ts) maps the caller's `package` straight
+   * `targetFromInput` (src/tools/write-schema.ts) maps the caller's `package` straight
    * onto `target.packageName` with no DEVC/K special-casing — so the OUTGOING
    * call to `authorizeMutation` still carries the superpackage under the name
    * `packageName`. What matters is what the GATE does with it once resolved:

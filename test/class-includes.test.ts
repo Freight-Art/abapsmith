@@ -357,7 +357,7 @@ describe("omitting `include` means the main source, at every layer", () => {
 // EXPECTED TO FAIL until the two tool-schema branches for include support land:
 //
 //   * `abap_write`'s schema gaining an optional `include`
-//     (src/tools/write.ts) and `targetFromInput` forwarding it.
+//     (src/tools/write-schema.ts) and `targetFromInput` forwarding it.
 //   * `abap_read`'s `include` being routed into the SOURCE read path rather
 //     than being refused unless `view=` was also given (src/tools/read.ts).
 //

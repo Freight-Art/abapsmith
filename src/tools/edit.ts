@@ -1,6 +1,6 @@
 /**
  * `abap_write`'s edit primitive: exact-substring matcher/splicer, no ADT or
- * network dependency. `resolveWriteSource` (`src/tools/write.ts`) is the only
+ * network dependency. `resolveWriteSource` (`src/tools/write-source.ts`) is the only
  * caller and owns everything wire-shaped.
  *
  * Matching is exact-substring — no regex, case-folding, or whitespace

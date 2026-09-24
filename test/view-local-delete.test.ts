@@ -1,6 +1,6 @@
 /**
  * Pins the LOCAL-package (`$TMP`) shape of the VIEW/DV bridge delete/undo
- * round trip. `abapDeleteViaBridge` (src/tools/write.ts) and
+ * round trip. `abapDeleteViaBridge` (src/tools/write-bridge.ts) and
  * `resolveBridgeCreateUndo`/`performBridgeCreateUndo` (src/adt/undo.ts) both
  * resolve a VIEW/DV's package by reading it back through the VIT bridge
  * (`vitBridgeUri("viewdv", name)`), never from the caller's/journal's

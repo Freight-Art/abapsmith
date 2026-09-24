@@ -1271,7 +1271,7 @@ async function performBridgeCreateUndo(
     } else {
       // Issue #202 made TRAN/T delete transport-aware: a non-local package
       // needs a corrNr. Fail closed if no transport manager is wired — same
-      // rule resolveBridgeCreateCorr (src/tools/write.ts) applies for a
+      // rule resolveBridgeCreateCorr (src/tools/write-bridge-common.ts) applies for a
       // caller with no named corrNr.
       if (transport === undefined) {
         throw new AbapError(

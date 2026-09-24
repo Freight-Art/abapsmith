@@ -865,7 +865,7 @@ export interface MethodSource {
   /**
    * ADT-reported range for the implementation block (see `SourceRange` for
    * coordinate semantics). Safe to render; NOT safe to slice a separately
-   * fetched text with unverified — `spliceMethodBlock` in src/tools/write.ts
+   * fetched text with unverified — `spliceMethodBlock` in src/tools/write-source.ts
    * re-derives the block from the bytes it rewrites and uses this only as a
    * cross-check. When `foundOn` is set the range is in THAT object's source.
    */

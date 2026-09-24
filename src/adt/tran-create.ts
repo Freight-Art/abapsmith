@@ -23,7 +23,7 @@
  * The other OO form (no transaction model, TSTCP `\CLASS=...\METHOD=...`)
  * has no SAP API and is read-only. None of these check that the underlying
  * program/class/method exists (that check, where it exists at all, lives one
- * layer up, in `src/tools/write.ts`'s `abapCreateViaBridge`, before this
+ * layer up, in `src/tools/write-bridge.ts`'s `abapCreateViaBridge`, before this
  * module is ever called — see `src/adt/write-verify.ts`'s module doc for
  * why).
  *

@@ -1,7 +1,7 @@
 /**
  * Read-back confirmation for a bridge write's resolved transport request.
  *
- * `resolveBridgeCreateCorr` (`src/tools/write.ts`) picks a `corrNr` before the
+ * `resolveBridgeCreateCorr` (`src/tools/write-bridge-common.ts`) picks a `corrNr` before the
  * write happens; it never confirms CTS actually recorded the object there.
  * This module does that confirmation, after the fact, for the classic-bridge
  * creates (`VIEW/DV`, `TRAN/T`, `TABL/DI`) that have no ADT lock response to

@@ -151,7 +151,7 @@ function assertCorrNr(value: string): string {
  * be TRKORR-shaped ({@link isTrkorr}). It does NOT require a `corrNr` for a
  * transportable package — {@link validate} owns that invariant, since the
  * caller may resolve one after this runs. `abapCreateViaBridge`
- * (`src/tools/write.ts`) calls this before its pre-create read, so a bad
+ * (`src/tools/write-bridge.ts`) calls this before its pre-create read, so a bad
  * pair fails before any ADT traffic.
  */
 export function assertClassicViewCreateTarget(

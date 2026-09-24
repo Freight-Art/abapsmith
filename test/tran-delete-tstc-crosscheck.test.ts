@@ -6,7 +6,7 @@
  * never proof a transaction exists or still exists. `verifyTransactionDeleted`
  * (src/adt/tran-delete.ts) cross-checks TSTC after a VIT-confirmed post-delete
  * read-back; `abapDeleteViaBridge`'s single-object path and
- * `abapWriteBatchDelete`'s pass-1 loop (src/tools/write.ts) both cross-check TSTC
+ * `abapWriteBatchDelete`'s pass-1 loop (src/tools/write-batch-delete.ts) both cross-check TSTC
  * BEFORE a delete is even attempted, so a phantom entry costs no package
  * resolution or transport request. Same harness idiom as
  * test/write-bridge-crud.test.ts: REAL production code drives a fake HttpClient.

@@ -131,7 +131,7 @@
   refused with `BAD_INPUT` quoting 36 rather than the previous 37;
   `mode="update"` still requires a description.
   All three update routes journal the pre-update rendered pseudo-DDL as a
-  before-image (`beforeSource`, `src/tools/write.ts`), but the journal
+  before-image (`beforeSource`, `src/tools/write-bridge-update.ts`), but the journal
   entry is written `irreversible: true`: it is kept for audit and manual
   comparison only, not automatic undo — `abap_journal mode=undo` refuses
   an irreversible entry outright, even with `force=true`
@@ -216,7 +216,7 @@
   `AS4LOCAL = 'A'` predicate before this round and now take a state
   argument, and `readSearchHelp` (`src/adt/catalog-read.ts`) gained an
   `{ includeInactive }` option that falls back to the `'N'` version and
-  reports `meta.versionState`; the delete path in `src/tools/write.ts`
+  reports `meta.versionState`; the delete path in `src/tools/write-bridge-shlp.ts`
   probes with that option, so a failed create's leftover can be deleted
   instead of being refused `NOT_FOUND`. The create/update "already exists"
   probe deliberately stays active-only, and so does `abap_read` — an
@@ -272,14 +272,15 @@
   `lo_package->delete( )` over the same classrun bridge the create uses
   (`src/adt/package-delete.ts`), and the create's
   journal entry no longer sets `irreversible: true`
-  (`src/adt/package-create.ts`, `src/tools/write.ts`). The delete only ever
+  (`src/adt/package-create.ts`, `src/tools/write-package.ts`). The delete only ever
   succeeds on a package with no sub-packages and no TADIR objects besides its
   own `R3TR DEVC` row — checked inside the bridge before `DELETE` is called.
   A non-empty package is refused, with everything it still contains listed in
   the error, no matter how many rows; abapsmith never deletes a package's
   contents on the caller's behalf, so there is no cascade.
   `abap_write`'s tool description and the `software_component` / `base_table`
-  / `program` field descriptions say so up front (`src/tools/write.ts`); the
+  / `program` field descriptions say so up front (`src/tools/write.ts` for the tool
+  description, `src/tools/write-schema.ts` for the field descriptions); the
   registry documents it structurally too (`BRIDGE_DELETABLE_TYPES`,
   `src/adt/capabilities.ts`).
 - **A delete is refused, pre-lock, when the `corr_nr` you name is not the

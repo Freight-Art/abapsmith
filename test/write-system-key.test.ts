@@ -4,8 +4,9 @@
  * `entry.systemKey === live.key` match and always fell back to the weak,
  * SID-only `system` comparison — even on a live connection with `systemKey`
  * available the whole time. `src/tools/transport.ts` and `src/tools/activate.ts`
- * already set it; `src/tools/write.ts`'s three `withJournalledMutation` call
- * sites (create/update, delete, package-create) did not.
+ * already set it; `src/tools/write.ts`'s (create/update, delete) and
+ * `src/tools/write-package.ts`'s (package-create) `withJournalledMutation` call
+ * sites did not.
  *
  * This is a single, narrow seam test, in the spirit of
  * `test/before-image-contract.test.ts`'s harness (reused here in trimmed
@@ -15,8 +16,9 @@
  * `systemKey(conn.cfg)` for the exact `conn` the write went out on, matching
  * the helper `src/adt/undo.ts` uses to build `live.key`.
  *
- * Covers the create/update call site directly. The delete and package-create
- * call sites in src/tools/write.ts use the identical `systemKey: systemKey(
+ * Covers the create/update call site directly. The delete call site in
+ * src/tools/write.ts and the package-create call sites in
+ * src/tools/write-package.ts use the identical `systemKey: systemKey(
  * conn.cfg)` expression (see the git history) — not independently
  * re-tested here, since a second harness proving the same one-line expression
  * twice would not catch anything this one does not.

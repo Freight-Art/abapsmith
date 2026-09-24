@@ -414,7 +414,7 @@ describe("honest gate refusals — the second gate runs, and runs FIRST (zero-ne
     const offline = null as unknown as AbapConnection;
     const transport = new SessionTransport({ allowTransports: ["A4HK900001"] });
     const gate = new SafetyGate({ readOnly: false, allowPackages: ["ZTM"], allowTransports: ["A4HK900001"] });
-    // Shaped like the real caller's target (src/tools/write.ts, DEVC/K
+    // Shaped like the real caller's target (src/tools/write-package.ts, DEVC/K
     // create): `superPackage` is what the gate judges a package CREATE's
     // container by, and `exists: false` marks it as a create. Without them
     // the pre-resolution gate would read a ROOT create and refuse on the

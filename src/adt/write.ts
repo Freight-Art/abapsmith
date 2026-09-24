@@ -587,7 +587,7 @@ export function isPackageType(type: string | undefined): boolean {
 
 /**
  * Cap on `abap_write`'s `objects` (batch delete) — see that schema field's
- * doc comment in `src/tools/write.ts`. Deliberately NOT derived from
+ * doc comment in `src/tools/write-schema.ts`. Deliberately NOT derived from
  * `MAX_ACTIVATION_BATCH` (50) — that number proved unsound (DDIC
  * mass activation fans out server-side regardless of client throttling).
  * Delete has no equivalent fan-out hazard (no batch-delete endpoint exists;

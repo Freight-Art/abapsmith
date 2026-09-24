@@ -421,7 +421,7 @@ export async function abapActivate(
   verifyWrites?: VerifyWritesMode,
 ): Promise<BuiltResponse> {
   // Hinted parse + explicit `containerName`, as `targetFromInput` does in
-  // tools/write.ts — the hintless version bit this tool live for
+  // tools/write-schema.ts — the hintless version bit this tool live for
   // container-parented types (FUGR/FF, FUGR/I); see archive for the incident.
   const mode = input.mode ?? "activate";
 
