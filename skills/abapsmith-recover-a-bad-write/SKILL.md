@@ -71,9 +71,19 @@ nothing more.
 `beforeCapture` is `confirmed-absent`. `captured`, `failed` and `unknown` all refuse
 — **not overridable by `force`**.
 
-**Enhancement objects** (`ENHO/*`, `ENHS/*`). Refused unconditionally, both
-directions. Real hazards behind this: undeletable phantom objects, TADIR/E071 rows
-surviving a "successful" 200 delete. No flag manufactures the missing evidence.
+**Enhancement objects** (`ENHO/*`, `ENHS/*`). Mixed. Undo of a `create_spot` /
+`create_impl` / `create_hook` entry deletes the object, but only when the
+before-state was confirmed-absent (a 404 read before the create, not a guess),
+and only after a where-used check finds nothing referencing it and no active
+BAdI implementation blocks it — either one refuses, named, and a failed
+where-used call refuses too (fail closed). Requires enhancement delete to be
+enabled (`ABAP_MODE=admin` or `ABAP_ALLOW_ENHANCEMENT_DELETE`). A
+`set_impl_active` entry records the implementation's previous active state,
+so undo sets it back directly. `add_badi_def`, `add_filter_def`,
+`set_filter_values`, `write_description`, and enhancement `delete` stay
+refused unconditionally, both directions — real hazards behind that: an
+undeletable phantom object, TADIR/E071 rows surviving a "successful" 200
+delete. No flag manufactures missing evidence.
 
 **`transport-release`.** Marked `irreversible`. Never undoable by any mechanism,
 `force` included. Other `transport-*` entries are not auto-undone either — reverse
@@ -104,8 +114,9 @@ them by hand through the transport actions.
 
 ## `force` and `activate`
 
-`force: true` only defeats a **drift** refusal. It never defeats the delete-gate, the
-irreversible entries, or the enhancement refusal.
+`force: true` only defeats a **drift** refusal. It never defeats the delete-gate, a
+stored `undoable: false` entry, or the live checks an enhancement or `activate`
+undo still runs (where-used, active implementation, or no preceding write to undo).
 
 `activate` defaults to `true`. Set `false` to leave the object inactive after the
 restore.

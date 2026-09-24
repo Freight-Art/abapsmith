@@ -1,17 +1,18 @@
 /**
  * `registerJournalTools`'s `mode=undo` branch (src/tools/journal.ts) used to
- * call the generic `deps.safety.assert(...)` gate BEFORE checking
- * `enhancementUndoBlocked()` — so an undo of any enhancement-type journal
+ * call the generic `deps.safety.assert(...)` gate BEFORE checking the
+ * enhancement-specific refusal — so an undo of any enhancement-type journal
  * entry (ENHO/XH, ENHO/XHH, ENHS/XS) reached the intent-based gate's "no
  * intent" branch at `phase:"final"` first, and got the confusing, misapplied
  * "supply `affects`"
  * refusal (a parameter `abap_journal` does not have and never reads) instead
- * of the purpose-built, unconditional H7/H8/H26-H28 refusal `undoBlocker()`
- * exists to give. The fix reorders the two checks: `enhancementUndoBlocked()`
- * runs first (it is zero-network, same as the gate call it now precedes), so
- * the refusal that actually applies is the one the caller sees.
+ * of the purpose-built, unconditional refusal `localUndoBlocker()` (which
+ * wraps `undoBlocker()` among others, src/adt/undo.ts) exists to give. The
+ * fix reorders the two checks: `localUndoBlocker()` runs first (it is
+ * zero-network, same as the gate call it now precedes), so the refusal that
+ * actually applies is the one the caller sees.
  *
- * `test/undo.test.ts` already pins `enhancementUndoBlocked`/`undoBlocker`
+ * `test/undo.test.ts` already pins `localUndoBlocker`/`undoBlocker`
  * directly at the unit level. This file is the missing layer: it exercises
  * the real `registerJournalTools()` MCP tool registration (previously
  * uncovered by any test — confirmed by grepping test/ for
@@ -80,7 +81,11 @@ const begin = async (object: JournalObjectRef, over: Partial<JournalBeginInput> 
     ...over,
   });
   if (!entry) throw new Error("begin() returned undefined, but this journal is enabled");
-  return entry;
+  // localUndoBlocker's first check (undoBlocker) refuses ANY pending entry
+  // before it ever reaches the enhancement-specific rule this file tests —
+  // finish it so the pending check does not mask what is under test here.
+  await journal.finish(entry.id, { outcome: "succeeded" });
+  return (await journal.get(entry.id))!;
 };
 
 /** Same shape as test/activate-affects-preflight.test.ts's `harnessWithCounter`. */
@@ -128,14 +133,14 @@ const permissiveGate = () =>
   });
 
 describe("registerJournalTools mode=undo: enhancement-undo refusal wins over the generic intent-based gate call", () => {
-  it("undoing an ENHO/XH entry is UNSUPPORTED with the H7/H8/H26-H28 wording — never SAFETY_DENIED, never 'supply `affects`', never INTERNAL_GATE_MISUSE", async () => {
+  it("undoing an ENHO/XH entry is BAD_INPUT with localUndoBlocker's wording — never SAFETY_DENIED, never 'supply `affects`', never INTERNAL_GATE_MISUSE", async () => {
     const entry = await begin(enhoRef);
     const { call, calls } = harnessWithCounter(permissiveGate());
 
     const text = await call({ mode: "undo", entry: entry.id });
 
-    expect(text).toMatch(/UNSUPPORTED/);
-    expect(text).toMatch(/refused outright|Undoing this entry would DELETE/);
+    expect(text).toMatch(/BAD_INPUT/);
+    expect(text).toMatch(/Undo of an enhancement update is not supported/);
     expect(text).not.toMatch(/SAFETY_DENIED/);
     expect(text).not.toMatch(/supply `affects`/);
     expect(text).not.toMatch(/INTERNAL_GATE_MISUSE/);
@@ -150,8 +155,8 @@ describe("registerJournalTools mode=undo: enhancement-undo refusal wins over the
 
     const text = await call({ mode: "undo", entry: entry.id });
 
-    expect(text).toMatch(/UNSUPPORTED/);
-    expect(text).toMatch(/refused outright/);
+    expect(text).toMatch(/BAD_INPUT/);
+    expect(text).toMatch(/Undo of an enhancement update is not supported/);
     expect(calls()).toBe(0);
   });
 

@@ -208,7 +208,9 @@ describe("CHARACTERISATION: which connection-write modules are journal-linked to
     // `JOURNAL_RE`. Nothing on that path journals this lookup, and nothing
     // should; `test/journal-contract.test.ts` lists it under
     // NOT_REPOSITORY_MUTATIONS.
-    expect(unlinked()).toEqual(["adt/atc.ts", "adt/element-info.ts", "debug/transport.ts"]);
+    // `adt/element-info.ts` is no longer unlinked: `src/adt/undo-special.ts`
+    // now imports it and is itself soaked in journal references (#200).
+    expect(unlinked()).toEqual(["adt/atc.ts", "debug/transport.ts"]);
   });
 });
 
@@ -218,8 +220,9 @@ describe("THE INVARIANT — pinned to the current known-bad set, not to []", () 
     // `test/journal-contract.test.ts`'s KNOWN_GAPS gives for its own, tighter
     // heuristic). Shrinks → update this list, that is the gap closing.
     // Reaching [] here is the goal, not a reason to delete the test.
-    // `adt/element-info.ts` is read-only (see the characterisation block above).
-    const KNOWN_UNLINKED = ["adt/atc.ts", "adt/element-info.ts", "debug/transport.ts"];
+    // `adt/element-info.ts` dropped out: it is now imported by
+    // `src/adt/undo-special.ts` (#200), which mentions the journal.
+    const KNOWN_UNLINKED = ["adt/atc.ts", "debug/transport.ts"];
     expect(
       unlinked(),
       "These modules issue conn.put/post/del/raw and neither they nor any module that " +

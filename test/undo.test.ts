@@ -815,7 +815,7 @@ describe("performing the undo", () => {
     await journal.finish(e!.id, { outcome: "succeeded" });
 
     const err = await catchErr(performUndo(conn, journal, (await journal.get(e!.id))!, ALLOW));
-    expect(err.message).toMatch(/no deactivate operation|nothing to reverse/i);
+    expect(err.message).toMatch(/No earlier write entry/i);
   });
 
   /**
@@ -1083,7 +1083,7 @@ describe("safety gate", () => {
     // The pre-flight target comes out of the LOCAL journal — that is what makes
     // a zero-call refusal possible at all.
     const t = await undoPreflightTarget(journal, { mode: "undo", entry: entry.id });
-    expect(t).toEqual({ op: "write", name: REPORT, packageName: "$TMP", type: "PROG/P" });
+    expect(t).toEqual({ op: "write", name: REPORT, packageName: "$TMP", type: "PROG/P", entry });
 
     const boom = exploding();
     const err = await catchErr(
@@ -2520,19 +2520,27 @@ describe("stranded pending entries", () => {
 });
 
 /**
- * Undo of an enhancement-type entry is refused outright.
+ * Undo of an enhancement-type entry.
  *
- * Before real TypeSpec rows were registered for the three enhancement types
- * (ENHO/XH, ENHO/XHH, ENHS/XS), `targetFromEntry` fell back to a fabricated,
- * generic `TypeSpec` for any unrecognised type — including these three — and
- * `undoBlocker` had no enhancement-specific check at all, so undo would have
- * gone on to *attempt* a restore/delete against a fabricated, source-shaped
- * target. That fixed the fabricated *spec*, but `targetFromEntry`'s
- * `sourceUri` fallback (`{uri}/source/main`) is still actively wrong for
- * ENHO/XH and ENHS/XS, neither of which has a `/source/main` on this
- * release. `undoBlocker` now refuses every enhancement entry before a target
- * is ever needed, so these tests pin both halves: the refusal fires, and it
- * fires with zero network calls, for every operation shape.
+ * Update/delete-shaped entries (restore, undo-of-delete) are still refused
+ * unconditionally by `undoBlocker`'s generic enhancement message — only
+ * `create_spot`/`create_impl`/`create_hook` (undo = delete) and
+ * `set_impl_active` (undo = flip the flag back) have an undo at all
+ * (src/undoability.ts rule 5, src/adt/undo.ts's `undoBlocker`).
+ *
+ * A create-shaped entry (`existedBefore: false`, `beforeCapture:
+ * "confirmed-absent"`) is DIFFERENT now: it is no longer refused by name.
+ * `specialUndoKind` routes it to the real `enh-delete` plan
+ * (src/adt/undo-special.ts), which reads the live object and runs a
+ * where-used check before agreeing to delete it — so it costs real network
+ * calls, and a plan/perform can now succeed. The tests below that exercise
+ * this path use the plain per-file fake server, which has no route for an
+ * enhancement URI (it falls through to a bare `200 ""`), so the read itself
+ * fails and the plan is blocked fail-closed on "could not verify existence"
+ * — exercising the fail-closed read-failure branch of `enh-delete`, not the
+ * success path. Full success/where-used/active-implementation coverage is
+ * in test/undo-enh-delete.test.ts and test/undo-special-restore.test.ts,
+ * which build proper enhancement-XML fakes.
  */
 describe("enhancement undo refusals", () => {
   const enhoXhRef = (name = "ZBADI_IMPL") => ({
@@ -2555,13 +2563,13 @@ describe("enhancement undo refusals", () => {
     package: "$TMP",
   });
 
-  it("refuses undo-of-create against a BAdI implementation with the sharp DELETE message, zero requests", async () => {
+  it("undo-of-create against a BAdI implementation now goes through enh-delete: this fake has no enhancement route, so the read fails and the plan is blocked fail-closed", async () => {
     const srv = fakeServer(V1);
     const { conn, adt } = await connected(srv.route);
     const e = await journal.begin({
       operation: "create",
       object: enhoXhRef(),
-      existedBefore: false, // undo-of-create ⇒ plannedAction === "delete"
+      existedBefore: false, // undo-of-create ⇒ specialUndoKind === "enh-delete"
       beforeCapture: "confirmed-absent",
     });
     expect(e).toBeDefined();
@@ -2569,17 +2577,20 @@ describe("enhancement undo refusals", () => {
 
     adt.calls.length = 0;
     const err = await catchErr(performUndo(conn, journal, (await journal.get(e!.id))!, ALLOW));
-    expect(err.message).toMatch(/DELETE the BAdI implementation ZBADI_IMPL/);
-    expect(err.message).toMatch(/isActive/);
-    expect(err.message).toMatch(/no local record of whether this implementation is/);
-    expect(adt.calls).toHaveLength(0);
+    expect(err.message).toMatch(/Could not verify whether ZBADI_IMPL still exists/);
+    expect(err.message).toMatch(/not an ENHO\/XH BAdI implementation document/);
+    // One real request (the existence read) — no longer zero, since deciding
+    // this now genuinely needs the live object, unlike the old unconditional
+    // by-name refusal.
+    expect(adt.calls).toHaveLength(1);
 
-    // NOT FORCEABLE — there is no evidence force=true could supply here.
+    // NOT FORCEABLE — a failed read is not evidence force=true could act on.
+    adt.calls.length = 0;
     const stillErr = await catchErr(
       performUndo(conn, journal, (await journal.get(e!.id))!, { ...ALLOW, force: true }),
     );
-    expect(stillErr.message).toMatch(/DELETE the BAdI implementation ZBADI_IMPL/);
-    expect(adt.calls).toHaveLength(0);
+    expect(stillErr.message).toMatch(/Could not verify whether ZBADI_IMPL still exists/);
+    expect(adt.calls).toHaveLength(1);
   });
 
   it("refuses a restore (not undo-of-create) against a BAdI implementation with the general refusal message", async () => {
@@ -2596,15 +2607,13 @@ describe("enhancement undo refusals", () => {
 
     adt.calls.length = 0;
     const err = await catchErr(performUndo(conn, journal, (await journal.get(e!.id))!, ALLOW));
-    expect(err.message).toMatch(/refused outright/);
-    expect(err.message).toMatch(/permanently undeletable phantom object/);
-    expect(err.message).toMatch(/TADIR and E071 rows behind indefinitely/);
-    expect(err.message).toMatch(/`tp` misconfigured/);
+    expect(err.message).toMatch(/Undo of an enhancement update is not supported/);
+    expect(err.message).toMatch(/set_impl_active/);
     expect(err.message).not.toMatch(/DELETE the BAdI implementation/);
     expect(adt.calls).toHaveLength(0);
   });
 
-  it("refuses undo-of-create against a source-code plug-in (ENHO/XHH) with the general message, not the sharp one", async () => {
+  it("undo-of-create against a source-code plug-in (ENHO/XHH) also goes through enh-delete, and also fails closed on the same missing-route read", async () => {
     const srv = fakeServer(V1);
     const { conn, adt } = await connected(srv.route);
     const e = await journal.begin({
@@ -2618,12 +2627,9 @@ describe("enhancement undo refusals", () => {
 
     adt.calls.length = 0;
     const err = await catchErr(performUndo(conn, journal, (await journal.get(e!.id))!, ALLOW));
-    // ENHO/XHH is a real, PUT-able source object, but the sharp DELETE message
-    // is reserved for ENHO/XH specifically — a source-code plug-in still gets
-    // the general outright-refusal message.
-    expect(err.message).toMatch(/refused outright/);
-    expect(err.message).not.toMatch(/DELETE the BAdI implementation/);
-    expect(adt.calls).toHaveLength(0);
+    expect(err.message).toMatch(/Could not verify whether ZBADI_IMPL still exists/);
+    expect(err.message).toMatch(/not an ENHO\/XHH source-code plugin document/);
+    expect(adt.calls).toHaveLength(1);
   });
 
   it("refuses undo-of-recreate against a deleted enhancement spot (ENHS/XS) with the general message", async () => {
@@ -2640,12 +2646,11 @@ describe("enhancement undo refusals", () => {
 
     adt.calls.length = 0;
     const err = await catchErr(performUndo(conn, journal, (await journal.get(e!.id))!, ALLOW));
-    expect(err.message).toMatch(/refused outright/);
-    expect(err.message).toMatch(/ENHS\/XS ZBADI_SPOT/);
+    expect(err.message).toMatch(/Undo of an enhancement delete is not supported/);
     expect(adt.calls).toHaveLength(0);
   });
 
-  it("planUndo reports the refusal without throwing and without fabricating a target that points at a real /source/main", async () => {
+  it("planUndo reports the enh-delete refusal without throwing and without fabricating a target that points at a real /source/main", async () => {
     const srv = fakeServer(V1);
     const { conn, adt } = await connected(srv.route);
     const e = await journal.begin({
@@ -2660,15 +2665,16 @@ describe("enhancement undo refusals", () => {
     adt.calls.length = 0;
     const plan = await planUndo(conn, journal, (await journal.get(e!.id))!);
     expect(plan.undoable).toBe(false);
-    expect(plan.blocker).toMatch(/DELETE the BAdI implementation ZBADI_IMPL/);
-    // planUndo must not throw for an enhancement entry — targetFromEntry (which
-    // DOES throw for these types) is never the function that builds this
-    // target; refusedEnhancementTarget is. The target it builds is honest: the
+    expect(plan.special).toBe("enh-delete");
+    expect(plan.blocker).toMatch(/Could not verify whether ZBADI_IMPL still exists/);
+    // planUndo must not throw for an enhancement entry. The target here comes
+    // from enhancementTargetFromEntry (src/adt/undo-special.ts), not
+    // targetFromEntry (which DOES throw for these types) — it is honest: the
     // entry's own recorded uri, not a guessed /source/main.
     expect(plan.target.type).toBe("ENHO/XH");
     expect(plan.target.sourceUri).toBe(enhoXhRef().uri);
     expect(plan.target.sourceUri).not.toMatch(/\/source\/main$/);
-    expect(adt.calls).toHaveLength(0);
+    expect(adt.calls).toHaveLength(1);
   });
 
   // planUndo never reaches targetFromEntry for an enhancement entry (the
@@ -2720,8 +2726,14 @@ describe("a missing before-image says WHY it is missing", () => {
 
     const plan = await planUndo(conn, journal, entry);
     expect(plan.undoable).toBe(false);
-    expect(plan.blocker).toMatch(/never\s+captured/);
-    expect(plan.blocker).toMatch(/Nothing was pruned/);
+    // Post-#200, a fresh entry always carries a stored `undoBlocker` from
+    // writeTimeUndoability (src/undoability.ts rule 11), and
+    // storedUndoableBlocker returns it before undo.ts's own richer
+    // "never captured, not retention" message (undo.ts ~line 1011) is ever
+    // reached — that branch is now reachable only for a legacy entry with no
+    // `undoable` field. The stored message still names the real cause
+    // (beforeCapture="failed"), just less discursively.
+    expect(plan.blocker).toMatch(/beforeCapture="failed"/);
     // The wrong answer, verbatim: sending the reader to the retention settings
     // for a failure that happened on the wire.
     expect(plan.blocker).not.toMatch(/pruned by the retention policy/);

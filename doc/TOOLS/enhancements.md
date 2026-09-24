@@ -29,10 +29,16 @@ spot name. `add_badi_def`/`add_filter_def` — the already-locked spot name.
 `exercise` — the BAdI definition's name. `create_hook` — the new hook
 object's name. Ignored by `discover_hook_anchors`.
 
-Notes: `delete` is irreversible and hard-refused against an `ENHO/XH` with
+Notes: `delete` is not undoable and hard-refused against an `ENHO/XH` with
 an active BAdI implementation (deactivate it first via `set_impl_active`).
-`set_impl_active` is reversible — call again with the opposite value to
-undo.
+`set_impl_active` entries record the implementation's previous active
+state, so `abap_journal mode=undo` sets it back directly — calling
+`set_impl_active` again with the opposite value works too. `create_spot`,
+`create_impl`, and `create_hook` are also undoable — undo deletes the
+object, but only when the before-state was confirmed-absent, and only
+after a where-used check and an active-implementation check both pass.
+`add_badi_def`, `add_filter_def`, `set_filter_values`, and
+`write_description` stay not undoable.
 
 ## Package, transport and activation
 

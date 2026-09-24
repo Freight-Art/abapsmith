@@ -12,6 +12,28 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.38] - 2026-09-23
+
+### Removed
+
+- **The dead `abap-contract` CLI and the `@abaplint/core` dependency** (#229). `src/bin/contract.ts` was the subprocess behind `abap_read view:"contract"`, which #76 removed; nothing has spawned it since. It is deleted together with its test, the unregistered `bin/abap-contract` shim and the second bundle output `bundle/bin/contract.js`, so `src/index.ts` is now the only bundle entry point. `@abaplint/core` was imported only by that file and is no longer a runtime dependency; THIRD-PARTY-NOTICES drops it and the two packages it alone pulled in (`json5`, `vscode-languageserver-types`). The server bundle and the `abap-journal-reconcile` CLI are unchanged.
+
+## [0.6.37] - 2026-09-23
+
+### Added
+
+- Journal entries carry `undoable` (bool) and `undoBlocker` (reason) fields, computed at write time (#200).
+- Text pool writes (`abap_write text_pool`) record a before-image, and `abap_journal mode=undo` restores the complete previous pool (#200).
+- BOPF `abap_bopf_edit` model updates record the previous model XML, and `abap_journal mode=undo` PUTs it back and re-activates, with node IDs mapped to the live model's first (BOPF re-mints them on every PUT) (#200).
+- `abap_enh create_spot`/`create_impl`/`create_hook` entries are undoable (delete the object) when the before-state was confirmed-absent, guarded by a where-used check (#200).
+- `abap_enh set_impl_active` entries record the implementation's previous active state, and `abap_journal mode=undo` sets it back (#200).
+- `abap_journal mode=undo` on an `activate` entry now undoes the latest earlier succeeded write entry for the same object instead of refusing outright (#200).
+
+### Changed
+
+- A create whose POST answers HTTP 201 with a `Location` header is now recorded as `beforeCapture: "confirmed-absent"` when no earlier absence evidence exists (#200).
+- `abap_enh create_spot`/`create_impl` now read the object before creating and refuse the create when it already exists (#200).
+
 ## [0.6.36] - 2026-09-23
 
 ### Added

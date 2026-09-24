@@ -6,17 +6,7 @@
  * straight from a checkout, which means its runtime dependencies and its
  * TypeScript both have to be resolved ahead of time and committed.
  *
- * Two entry points. `src/bin/contract.ts` runs the contract reducer as a
- * CHILD PROCESS so `@abaplint/core` stays out of the server's import graph;
- * bundling them together would undo that. As of issue #76 (removal of the v2
- * tool surface), nothing in the server actually spawns this binary anymore —
- * it is still built as a separate entry point and exercised by
- * `test/contract.test.ts`, but whether to keep the split is an open
- * follow-up. The layout mirrors `dist/` closely enough for
- * `compiledContractEntryPoint()` to find the second from the first:
- *
- *   bundle/index.js        <- src/index.ts        (the MCP server)
- *   bundle/bin/contract.js <- src/bin/contract.ts (spawned, carries abaplint)
+ * One entry point: `src/index.ts`, the MCP server, built to `bundle/index.js`.
  *
  * Run via `npm run bundle`. A committed build has exactly one failure mode that
  * matters: someone edits `src/`, the whole gate stays green, and users keep
@@ -35,7 +25,6 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 export const ENTRY_POINTS = [
   { entry: "src/index.ts", out: "bundle/index.js" },
-  { entry: "src/bin/contract.ts", out: "bundle/bin/contract.js" },
 ];
 
 export const MANIFEST_PATH = "bundle/BUILD-MANIFEST.json";
@@ -95,7 +84,7 @@ function build() {
   const esbuild = join(repoRoot, "node_modules", ".bin", "esbuild");
 
   rmSync(outDir, { recursive: true, force: true });
-  mkdirSync(join(outDir, "bin"), { recursive: true });
+  mkdirSync(outDir, { recursive: true });
 
   for (const { entry, out } of ENTRY_POINTS) {
     execFileSync(

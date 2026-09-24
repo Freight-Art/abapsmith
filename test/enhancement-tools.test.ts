@@ -62,6 +62,7 @@ import {
   ENH_ACTIVATION_OPERATIONS,
 } from "../src/tools/enh.js";
 import { Journal } from "../src/journal.js";
+import { deleteEvidenceBlockerText } from "../src/undoability.js";
 import { ENH_BRIDGE_PACKAGE, ENH_CREATE_PACKAGE } from "../src/adt/enhancement-bridge.js";
 import { patchBadiImplementationActive, patchEnhancementRootAttribute } from "../src/adt/enhancement-xml.js";
 import { DATAPREVIEW_XML, T000_NONPRODUCTIVE } from "./helpers/system-role-fake.js";
@@ -1321,7 +1322,7 @@ describe("abap_enh — the write journal", () => {
     });
   });
 
-  it("marks the entry irreversible — undo refuses every enhancement type, so it must not offer one", async () => {
+  it("marks the entry irreversible with its own undoBlocker text — write_description has no undo for any enhancement type", async () => {
     await withJournal(async (journal) => {
       const { conn } = await connected(writingServer());
       const { tools } = await registered(conn, { journal });
@@ -1333,10 +1334,16 @@ describe("abap_enh — the write journal", () => {
           affects: AFFECTS_HOOK,
         }),
       );
-      // `undoBlocker()` (src/adt/undo.ts) refuses ENHO/XH, ENHO/XHH and
-      // ENHS/XS unconditionally and unforceably (H7/H8/H26-H28). An entry that
-      // did not say so would advertise a rollback abap_journal always declines.
-      expect((await journal.list())[0]!.irreversible).toBe(true);
+      // writeTimeUndoability (src/undoability.ts) rule 1: the caller-supplied
+      // undoBlocker below always wins, so the recorded text is this literal
+      // string, not the generic IRREVERSIBLE_UNDO_BLOCKER.
+      const entry = (await journal.list())[0]!;
+      expect(entry.irreversible).toBe(true);
+      expect(entry.undoable).toBe(false);
+      expect(entry.undoBlocker).toBe(
+        "abap_enh has no undo for write_description. The previous XML is kept as this entry's " +
+          "before-image; set the description back with abap_enh write_description.",
+      );
     });
   });
 
@@ -1409,6 +1416,17 @@ describe("abap_enh — the write journal", () => {
 // ===========================================================================
 
 describe('abap_enh — operation:"set_impl_active" reaches the activation handler, not create', () => {
+  // Local to this describe block — every other test here calls `registered(conn)`
+  // with no journal at all, so there is nothing to reuse from an enclosing scope.
+  const withJournal = async (fn: (j: Journal) => Promise<void>): Promise<void> => {
+    const dir = await mkdtemp(join(tmpdir(), "abapsmith-enh-impl-active-journal-"));
+    try {
+      await fn(new Journal({ dir, enabled: true, maxEntries: 200, maxAgeDays: 30 }, "A4H"));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  };
+
   it("produces the GET/LOCK/GET/PUT/UNLOCK activation sequence and an activation-shaped response — never create's operation/tags/durationMs shape", async () => {
     // Uses the REAL, unmodified fixture 354 (plus a synthetic root
     // description — see ENHOXH_XML_WITH_DESC's own doc comment above; the
@@ -1480,6 +1498,43 @@ describe('abap_enh — operation:"set_impl_active" reaches the activation handle
     const put = adt.calls.find((c) => c.method === "PUT" && c.url === ENHOXH_URI);
     expect(put?.body).toContain('enho:name="ZMCP_BADI_I1"');
     expect(put?.body).toContain('enho:isActive="false"');
+  });
+
+  it("records beforeKind enh-impl-active with the resolved implName, undoable true — the one enhancement update writeTimeUndoability can reverse", async () => {
+    await withJournal(async (journal) => {
+      const { conn } = await connected((r) => {
+        if (r.url === ENHOXH_URI && r.method === "GET") return resp(200, ENHOXH_XML_WITH_DESC, OK_XML);
+        if (r.qs._action === "LOCK") return resp(200, LOCK_LOCAL_XML, OK_XML);
+        if (r.qs._action === "UNLOCK") return resp(200, "", OK_XML);
+        if (r.url === ENHOXH_URI && r.method === "PUT") return resp(200, "", { etag: "SYNETAG2=" });
+        if (r.url.includes("/activation"))
+          return resp(200, `<chkrun:checkRunReports xmlns:chkrun="http://www.sap.com/adt/checkrun"/>`, OK_XML);
+        return undefined;
+      });
+      const { tools } = await registered(conn, { journal });
+
+      okText(
+        await invoke(tools, "abap_enh", {
+          operation: "set_impl_active",
+          name: "ZMCP_ENH_BADI",
+          spec: { active: false },
+          affects: AFFECTS_SPOT,
+        }),
+      );
+
+      const entries = await journal.list();
+      expect(entries).toHaveLength(1);
+      const entry = entries[0]!;
+      expect(entry.operation).toBe("update");
+      expect(entry.beforeCapture).toBe("captured");
+      expect(entry.beforeKind).toBe("enh-impl-active");
+      // Resolved entry name, distinct from the container `name` above —
+      // the same lookup the response's own `implName:` line reports.
+      expect(entry.implName).toBe("ZMCP_BADI_I1");
+      expect(entry.irreversible).toBeFalsy();
+      expect(entry.undoable).toBe(true);
+      expect(entry.undoBlocker).toBe("");
+    });
   });
 
   it("activates in the OTHER direction too — reactivating (active:true) a currently-inactive implementation, with no activate input field passed", async () => {
@@ -1950,9 +2005,42 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
     };
   }
 
-  it("create_spot: records operation:create, object ENHS/XS at spotUri, irreversible:true", async () => {
+  /**
+   * create_spot/create_impl each run one plain GET at the object's own URI
+   * (`checkAbsentBeforeCreate`, src/tools/enh.ts) before the classrun/POST
+   * create ever fires. `preCreateGet404` mocks the real "confirmed absent"
+   * evidence (an actual 404, same throw shape `objectHappyPathRoute` above
+   * uses); `preCreateGet200` mocks the object already existing.
+   */
+  function preCreateGet404(url: string): Route {
+    return (r: Recorded) => {
+      if (r.url === url && r.method === "GET") {
+        const res = resp(404, "<exc:exception/>", { "content-type": "application/xml" });
+        throw new HttpClientException(
+          "Request failed with status code 404",
+          "404",
+          404,
+          undefined,
+          r as unknown as HttpClientOptions,
+          res,
+        );
+      }
+      return undefined;
+    };
+  }
+
+  function preCreateGet200(url: string, xml: string): Route {
+    return (r: Recorded) => {
+      if (r.url === url && r.method === "GET") return resp(200, xml, OK_XML);
+      return undefined;
+    };
+  }
+
+  it("create_spot: pre-create GET 404 -> beforeCapture confirmed-absent, undoable true, no irreversible", async () => {
     await withJournal(async (journal) => {
-      const { conn } = await connected(createSpotBridgeRoute(["SPOT-OBJECT-CREATED"]));
+      const { conn } = await connected(
+        combineRoutes(preCreateGet404(ENHSXS_URI), createSpotBridgeRoute(["SPOT-OBJECT-CREATED"])),
+      );
       const { tools } = await registered(conn, { journal });
 
       okText(
@@ -1974,12 +2062,60 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
       expect(entry.object.uri).toBe("/sap/bc/adt/enhancements/enhsxs/zmcp_spot");
       expect(entry.object.package).toBe(ENH_CREATE_PACKAGE);
       expect(entry.existedBefore).toBe(false);
-      // Deliberately "unknown", not "confirmed-absent": nothing in this codebase has ever
-      // captured what CL_ENH_FACTORY=>CREATE_ENHANCEMENT_SPOT does when a spot by this name
-      // already exists, so this call cannot claim the stronger value (contrast create_hook's
-      // own test below, whose evidence is a plain conn.post + explicit 201 check).
-      expect(entry.beforeCapture).toBe("unknown");
-      expect(entry.irreversible).toBe(true);
+      // A real 404 on the pre-create GET is positive evidence of absence — the
+      // strongest beforeCapture value, unlike the "failed"/"unknown" cases below.
+      expect(entry.beforeCapture).toBe("confirmed-absent");
+      expect(entry.irreversible).toBeFalsy();
+      expect(entry.undoable).toBe(true);
+      expect(entry.undoBlocker).toBe("");
+    });
+  });
+
+  it("create_spot: pre-create GET 200 (spot already exists) -> CHECK_FAILED before any mutating call, no journal entry", async () => {
+    await withJournal(async (journal) => {
+      const { conn, adt } = await connected(preCreateGet200(ENHSXS_URI, ENHSXS_XML));
+      const { tools } = await registered(conn, { journal });
+
+      const result = await invoke(tools, "abap_enh", {
+        operation: "create_spot",
+        name: "ZMCP_SPOT",
+        spec: { description: "A spot" },
+        affects: AFFECTS_SPOT,
+      });
+      const payload = errorPayload(result);
+      expect(payload.error).toBe("CHECK_FAILED");
+
+      // checkAbsentBeforeCreate throws before withJournalledMutation's begin()
+      // ever runs, and before the classrun-deploy/create POSTs it would otherwise issue.
+      expect(await journal.list()).toHaveLength(0);
+      expect(adt.calls.some((c) => c.method === "POST")).toBe(false);
+    });
+  });
+
+  it("create_spot: other pre-create GET error (unrouted, not a real 404) -> beforeCapture failed, undoable false", async () => {
+    await withJournal(async (journal) => {
+      // No route at all for the spot's own existence-check GET -> FakeAdt's
+      // unrouted-request guard throws a plain Error, not an AbapError with
+      // code NOT_FOUND, so checkAbsentBeforeCreate cannot call it confirmed-absent.
+      const { conn } = await connected(createSpotBridgeRoute(["SPOT-OBJECT-CREATED"]));
+      const { tools } = await registered(conn, { journal });
+
+      okText(
+        await invoke(tools, "abap_enh", {
+          operation: "create_spot",
+          name: "ZMCP_SPOT",
+          spec: { description: "A spot" },
+          affects: AFFECTS_SPOT,
+        }),
+      );
+
+      const entries = await journal.list();
+      expect(entries).toHaveLength(1);
+      const entry = entries[0]!;
+      expect(entry.beforeCapture).toBe("failed");
+      expect(entry.irreversible).toBeFalsy();
+      expect(entry.undoable).toBe(false);
+      expect(entry.undoBlocker).toBe(deleteEvidenceBlockerText("ZMCP_SPOT", "failed"));
     });
   });
 
@@ -2002,8 +2138,14 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
 
       const entries = await journal.list();
       expect(entries).toHaveLength(1);
-      expect(entries[0]!.outcome).toBe("failed");
-      expect(entries[0]!.irreversible).toBe(true);
+      const entry = entries[0]!;
+      expect(entry.outcome).toBe("failed");
+      // Same unrouted-GET fixture as the "other pre-create GET error" test above:
+      // beforeCapture is settled BEFORE the mutating call, so a failed create
+      // still leaves the same "failed"/undoable:false verdict behind.
+      expect(entry.beforeCapture).toBe("failed");
+      expect(entry.irreversible).toBeFalsy();
+      expect(entry.undoable).toBe(false);
     });
   });
 
@@ -2039,6 +2181,13 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
       expect(entry.existedBefore).toBe(true);
       expect(entry.beforeCapture).toBe("failed");
       expect(entry.irreversible).toBe(true);
+      expect(entry.undoable).toBe(false);
+      // writeTimeUndoability rule 1: the caller-supplied undoBlocker below always
+      // wins over the generic IRREVERSIBLE_UNDO_BLOCKER rule 4 would otherwise produce.
+      expect(entry.undoBlocker).toBe(
+        "abap_enh has no undo for add_badi_def: the spot's previous definition list is not " +
+          "recorded. Remove the BAdI definition in SE18.",
+      );
     });
   });
 
@@ -2062,8 +2211,14 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
 
       const entries = await journal.list();
       expect(entries).toHaveLength(1);
-      expect(entries[0]!.outcome).toBe("failed");
-      expect(entries[0]!.irreversible).toBe(true);
+      const entry = entries[0]!;
+      expect(entry.outcome).toBe("failed");
+      expect(entry.irreversible).toBe(true);
+      expect(entry.undoable).toBe(false);
+      expect(entry.undoBlocker).toBe(
+        "abap_enh has no undo for add_badi_def: the spot's previous definition list is not " +
+          "recorded. Remove the BAdI definition in SE18.",
+      );
     });
   });
 
@@ -2093,6 +2248,11 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
       expect(entry.existedBefore).toBe(true);
       expect(entry.beforeCapture).toBe("failed");
       expect(entry.irreversible).toBe(true);
+      expect(entry.undoable).toBe(false);
+      expect(entry.undoBlocker).toBe(
+        "abap_enh has no undo for add_filter_def: the spot's previous filter definition list " +
+          "is not recorded. Remove the filter definition in SE18/SE19.",
+      );
     });
   });
 
@@ -2113,15 +2273,24 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
 
       const entries = await journal.list();
       expect(entries).toHaveLength(1);
-      expect(entries[0]!.outcome).toBe("failed");
-      expect(entries[0]!.irreversible).toBe(true);
+      const entry = entries[0]!;
+      expect(entry.outcome).toBe("failed");
+      expect(entry.irreversible).toBe(true);
+      expect(entry.undoable).toBe(false);
+      expect(entry.undoBlocker).toBe(
+        "abap_enh has no undo for add_filter_def: the spot's previous filter definition list " +
+          "is not recorded. Remove the filter definition in SE18/SE19.",
+      );
     });
   });
 
-  it("create_impl: records operation:create, object ENHO/XH at implUri, irreversible:true", async () => {
+  it("create_impl: pre-create GET 404 -> beforeCapture confirmed-absent, undoable true, no irreversible", async () => {
     await withJournal(async (journal) => {
       const { conn } = await connected(
-        createImplBridgeRoute(["ENHO-OBJECT-CREATED", "IMPL-ADDED", "BADI-NO-FILTERS"]),
+        combineRoutes(
+          preCreateGet404(ENHOXH_URI),
+          createImplBridgeRoute(["ENHO-OBJECT-CREATED", "IMPL-ADDED", "BADI-NO-FILTERS"]),
+        ),
       );
       const { tools } = await registered(conn, { journal });
 
@@ -2142,10 +2311,55 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
       expect(entry.object.type).toBe("ENHO/XH");
       expect(entry.object.uri).toBe("/sap/bc/adt/enhancements/enhoxh/zmcp_enh_badi");
       expect(entry.existedBefore).toBe(false);
-      // Same "unknown, not confirmed-absent" reasoning as create_spot's own test above:
-      // classrun success is not a checked precondition on the name being free.
-      expect(entry.beforeCapture).toBe("unknown");
-      expect(entry.irreversible).toBe(true);
+      expect(entry.beforeCapture).toBe("confirmed-absent");
+      expect(entry.irreversible).toBeFalsy();
+      expect(entry.undoable).toBe(true);
+      expect(entry.undoBlocker).toBe("");
+    });
+  });
+
+  it("create_impl: pre-create GET 200 (implementation already exists) -> CHECK_FAILED before any mutating call, no journal entry", async () => {
+    await withJournal(async (journal) => {
+      const { conn, adt } = await connected(preCreateGet200(ENHOXH_URI, ENHOXH_XML));
+      const { tools } = await registered(conn, { journal });
+
+      const result = await invoke(tools, "abap_enh", {
+        operation: "create_impl",
+        name: "ZMCP_ENH_BADI",
+        spec: CREATE_IMPL_SPEC,
+        affects: AFFECTS_SPOT,
+      });
+      const payload = errorPayload(result);
+      expect(payload.error).toBe("CHECK_FAILED");
+
+      expect(await journal.list()).toHaveLength(0);
+      expect(adt.calls.some((c) => c.method === "POST")).toBe(false);
+    });
+  });
+
+  it("create_impl: other pre-create GET error (unrouted, not a real 404) -> beforeCapture failed, undoable false", async () => {
+    await withJournal(async (journal) => {
+      const { conn } = await connected(
+        createImplBridgeRoute(["ENHO-OBJECT-CREATED", "IMPL-ADDED", "BADI-NO-FILTERS"]),
+      );
+      const { tools } = await registered(conn, { journal });
+
+      okText(
+        await invoke(tools, "abap_enh", {
+          operation: "create_impl",
+          name: "ZMCP_ENH_BADI",
+          spec: CREATE_IMPL_SPEC,
+          affects: AFFECTS_SPOT,
+        }),
+      );
+
+      const entries = await journal.list();
+      expect(entries).toHaveLength(1);
+      const entry = entries[0]!;
+      expect(entry.beforeCapture).toBe("failed");
+      expect(entry.irreversible).toBeFalsy();
+      expect(entry.undoable).toBe(false);
+      expect(entry.undoBlocker).toBe(deleteEvidenceBlockerText("ZMCP_ENH_BADI", "failed"));
     });
   });
 
@@ -2165,12 +2379,15 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
 
       const entries = await journal.list();
       expect(entries).toHaveLength(1);
-      expect(entries[0]!.outcome).toBe("failed");
-      expect(entries[0]!.irreversible).toBe(true);
+      const entry = entries[0]!;
+      expect(entry.outcome).toBe("failed");
+      expect(entry.beforeCapture).toBe("failed");
+      expect(entry.irreversible).toBeFalsy();
+      expect(entry.undoable).toBe(false);
     });
   });
 
-  it("set_filter_values: records operation:update against the existing ENHO/XH, beforeCapture:failed, irreversible:true", async () => {
+  it("set_filter_values: records operation:update against the existing ENHO/XH, beforeCapture:failed, irreversible, undoable false with its own undoBlocker", async () => {
     await withJournal(async (journal) => {
       const { conn } = await connected(
         fluidRoute("set_filter_values", { replaced: true }),
@@ -2209,6 +2426,11 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
       expect(entry.existedBefore).toBe(true);
       expect(entry.beforeCapture).toBe("failed");
       expect(entry.irreversible).toBe(true);
+      expect(entry.undoable).toBe(false);
+      expect(entry.undoBlocker).toBe(
+        "abap_enh has no undo for set_filter_values: the implementation's previous filter " +
+          "values are not recorded. Set them back with abap_enh set_filter_values, or in SE19.",
+      );
 
       // The spot is mutated by the same POST and was previously invisible in the
       // journal — this is the entry that used to go unrecorded.
@@ -2219,7 +2441,15 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
       expect(spot.object.uri).toBe("/sap/bc/adt/enhancements/enhsxs/zmcp_spot");
       expect(spot.existedBefore).toBe(true);
       expect(spot.beforeCapture).toBe("failed");
-      expect(spot.irreversible).toBe(true);
+      // No `irreversible` here: an `operation: "activate"` entry's undo delegates
+      // to the preceding write for the same object (writeTimeUndoability rule 3),
+      // and this fresh journal has no preceding write entry for the spot.
+      expect(spot.irreversible).toBeFalsy();
+      expect(spot.undoable).toBe(false);
+      expect(spot.undoBlocker).toBe(
+        "No earlier write entry for ENHS/XS ZMCP_SPOT in this journal, so there is no " +
+          "before-image to go back to. An activation on its own cannot be undone.",
+      );
       // The src/journal.ts:1152 trap: an empty systemKey silently persists nothing,
       // so assert the field is actually present and non-empty on disk.
       expect(spot.systemKey).toBeTruthy();
@@ -2251,12 +2481,18 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
 
       const entries = await journal.list();
       expect(entries).toHaveLength(1);
-      expect(entries[0]!.outcome).toBe("failed");
-      expect(entries[0]!.irreversible).toBe(true);
+      const entry = entries[0]!;
+      expect(entry.outcome).toBe("failed");
+      expect(entry.irreversible).toBe(true);
+      expect(entry.undoable).toBe(false);
+      expect(entry.undoBlocker).toBe(
+        "abap_enh has no undo for set_filter_values: the implementation's previous filter " +
+          "values are not recorded. Set them back with abap_enh set_filter_values, or in SE19.",
+      );
     });
   });
 
-  it("create_hook: records operation:create, object ENHO/XHH at the deterministic hook URI, irreversible:true, activation.attempted:false when spec.activate is omitted", async () => {
+  it("create_hook: records operation:create, object ENHO/XHH at the deterministic hook URI, confirmed-absent, undoable true, activation.attempted:false when spec.activate is omitted", async () => {
     await withJournal(async (journal) => {
       const { conn } = await connected((r: Recorded) => {
         if (r.url === "/sap/bc/adt/enhancements/enhoxhh" && r.method === "POST") {
@@ -2320,7 +2556,9 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
       // non-2xx before that — a normal return is the server having accepted this POST as a
       // CREATE, same shape createBusinessObject's own confirmed-absent relies on (bopf.ts).
       expect(entry.beforeCapture).toBe("confirmed-absent");
-      expect(entry.irreversible).toBe(true);
+      expect(entry.irreversible).toBeFalsy();
+      expect(entry.undoable).toBe(true);
+      expect(entry.undoBlocker).toBe("");
       // create_hook's activation is OPTIONAL (spec.activate, default false) —
       // not requested here, so settle() must record attempted:false, never a
       // misleading activated:false.
@@ -2384,8 +2622,15 @@ describe("abap_enh — the six create/mutate operations are now journalled", () 
 
       const entries = await journal.list();
       expect(entries).toHaveLength(1);
-      expect(entries[0]!.outcome).toBe("failed");
-      expect(entries[0]!.irreversible).toBe(true);
+      const entry = entries[0]!;
+      expect(entry.outcome).toBe("failed");
+      // beforeCapture is hardcoded confirmed-absent regardless of outcome (create_hook
+      // never runs a pre-create GET), so writeTimeUndoability's create rule still finds
+      // !existedBefore && beforeCapture==="confirmed-absent" even for this failed create.
+      expect(entry.beforeCapture).toBe("confirmed-absent");
+      expect(entry.irreversible).toBeFalsy();
+      expect(entry.undoable).toBe(true);
+      expect(entry.undoBlocker).toBe("");
     });
   });
 });

@@ -56,7 +56,8 @@
  *   - Test 1 proves the END STATE: after a successful `set_filter_values`,
  *     BOTH the spot's `ENHS/XS activate` entry and the implementation's
  *     `ENHO/XH update` entry are on disk, and the spot entry carries
- *     `irreversible:true` and a real `systemKey`. On its own this test would
+ *     `undoable:false` (no preceding write for the spot in this journal) and
+ *     a real `systemKey`. On its own this test would
  *     still pass if the spot entry were written AFTER the POST returned —
  *     the end state looks identical either way.
  *   - Test 2 proves the ORDERING GUARANTEE the fix is actually about: the
@@ -419,7 +420,7 @@ function findByTypeOp(
 // ===========================================================================
 
 describe("set_filter_values's H23 joint activation journals BOTH objects, in order", () => {
-  it("Test 1 — after a successful call, both the spot (ENHS/XS, activate, irreversible, systemKey) and the implementation (ENHO/XH, update) entries are on disk", async () => {
+  it("Test 1 — after a successful call, both the spot (ENHS/XS, activate, undoable false, systemKey) and the implementation (ENHO/XH, update) entries are on disk", async () => {
     const dir = await mkdtemp(join(tmpdir(), "abap-enh-joint-act-"));
     try {
       const journal = new Journal({ dir, enabled: true, maxEntries: 200, maxAgeDays: 30 }, "A4H");
@@ -443,7 +444,16 @@ describe("set_filter_values's H23 joint activation journals BOTH objects, in ord
 
       const spotObj = spotEntry!.object as Record<string, unknown>;
       expect(spotObj.name).toBe("ZMCP_SPOT");
-      expect(spotEntry!.irreversible).toBe(true);
+      // No `irreversible` here: an `operation: "activate"` entry's undo delegates
+      // to the preceding write for the same object (writeTimeUndoability rule 3,
+      // src/undoability.ts), and this fresh journal has no preceding write entry
+      // for the spot.
+      expect(spotEntry!.irreversible).toBeFalsy();
+      expect(spotEntry!.undoable).toBe(false);
+      expect(spotEntry!.undoBlocker).toBe(
+        "No earlier write entry for ENHS/XS ZMCP_SPOT in this journal, so there is no " +
+          "before-image to go back to. An activation on its own cannot be undone.",
+      );
 
       // The trap `test/enh-system-key.test.ts` documents in full: journal.ts:1152
       // spreads `systemKey` in ONLY when truthy, so an empty string persists NO

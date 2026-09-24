@@ -589,10 +589,13 @@ SE63 task.
 The textelements resource is then activated with its own type
 (`PROG/PX`/`CLAS/OCX`/`FUGR/PX`), unless `activate: false` is passed — the
 same flag that controls source activation. Text-pool writes ARE
-journalled — as an irreversible `update` entry on the object's own
-textelements resource (history only, visible in `abap_journal mode=list`)
-— but `abap_journal mode=undo` refuses it: rewrite the texts with another
-`text_pool` call to revert.
+journalled — an `update` entry on the object's own textelements resource
+(`beforeKind: "text-pool"`) recording the complete previous pool as the
+before-image and a read-back after-image — and `abap_journal mode=undo`
+writes the complete previous pool back (keys the write added are
+removed), drift-checked against the after-image. Text pool entries written
+before this behaviour shipped carry no before-image and stay refused;
+rewrite the texts with another `text_pool` call to revert those.
 
 A successful write reports `text_pool_activated: yes|no` and a
 `text_pool:` header line: for `PROG/P` and `FUGR/F`, `symbols N,

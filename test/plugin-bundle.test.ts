@@ -48,16 +48,6 @@ describe("the committed plugin bundle matches the source it was built from", () 
     }
   });
 
-  it("the server bundle does not carry @abaplint/core", () => {
-    const server = readFileSync(join(repoRoot, "bundle/index.js"), "utf8");
-    expect(
-      server.includes("abaplint"),
-      "@abaplint/core reached the server bundle. src/bin/contract.ts is a separate entry point " +
-        "specifically so its @abaplint/core dependency (~4MB unpacked) stays out of the server's " +
-        "import graph — issue #76 removed abap_read view:\"contract\", contract.ts's only caller, " +
-        "so nothing in the server should import it, directly or otherwise, any more.",
-    ).toBe(false);
-  });
   it("module path comments stay inside the repository", () => {
     // esbuild labels every bundled module with its path relative to the build
     // directory. Without --preserve-symlinks a symlinked node_modules resolves

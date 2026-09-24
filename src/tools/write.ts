@@ -2464,6 +2464,8 @@ export async function abapWrite(
         // `attempted` is the local truth, not a constant: a syntax-check transport
         // failure also lands here with activation never reached.
         activation: { attempted, ...(attempted ? { activated: false } : {}) },
+        // #200: this settle and the one below are alternatives, so both carry it.
+        ...(written.createdFresh ? { createdFresh: written.createdFresh } : {}),
       });
     } catch (je) {
       journalError = String(je);
@@ -2595,6 +2597,8 @@ export async function abapWrite(
       attempted,
       ...(activation ? { activated: activation.activated } : {}),
     },
+    // #200: the create POST's 201 + Location; settle() ignores it when absence was already confirmed.
+    ...(written.createdFresh ? { createdFresh: written.createdFresh } : {}),
   });
 
   // ---- Post-activation re-read: the returned etag AND the after-image ------
