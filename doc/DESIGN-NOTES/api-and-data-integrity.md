@@ -62,7 +62,7 @@ generate a **per-call classrun bridge** (`IF_OO_ADT_CLASSRUN`) named from what
 they run, so identical calls reuse a class and distinct ones add another.
 Either way the generated object is an ordinary one in the namespace and package
 the safety gate already governs, so it inherits every existing control instead
-of needing new ones; `abap_fluid(op="status")` lists both kinds. Nothing is a
+of needing new ones; `abap_fluid(op="status")` lists both kinds. The `abap_ui press` bridge also ends with `ROLLBACK WORK` + `DEQUEUE_ALL` and its ADT session is dropped after the run, so it leaves no enqueue locks behind (#241). Nothing is a
 throwaway `$TMP` classrun torn down after the call any more.
 
 ## Tool schemas are treated as a budget

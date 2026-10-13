@@ -12,6 +12,10 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`abap_ui mode=press` no longer leaves enqueue locks held by the bridge session** (#241). The driven transaction's enqueues lived on as long as the pooled ADT session did, which blocked the same user in SAP GUI. The generated bridge now ends with `ROLLBACK WORK.` and `CALL FUNCTION 'DEQUEUE_ALL'` after every result line is written (the update is synchronous under `UPDATE 'S'`, so the rollback only discards leftovers), and the press run drops its ADT session afterwards through the new opt-in `RunClassOptions.dropSessionAfter`, so a dump, timeout or stall cannot keep the locks alive either. The bridge source changes, so the first press after upgrading rewrites its bridge class once.
+
 ## [0.6.41] - 2026-09-24
 
 ### Changed

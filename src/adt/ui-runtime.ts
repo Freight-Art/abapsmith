@@ -501,6 +501,15 @@ ${body}
       CATCH cx_root INTO DATA(lx).
         out->write( |${ERR_LINE_PREFIX}EXCEPTION { cl_abap_classdescr=>get_class_name( lx ) }: { lx->get_text( ) }| ).
     ENDTRY.
+*   Release what the driven transaction left behind (issue #241): the ADT
+*   session outlives this run, and an enqueue it still holds blocks the user
+*   in SAP GUI. UPDATE 'S' above makes the update synchronous and committed
+*   before CALL TRANSACTION returns, so ROLLBACK WORK only discards leftovers.
+*   Every result line is written already; nothing below may read sy-subrc.
+    ROLLBACK WORK.
+    CALL FUNCTION 'DEQUEUE_ALL'
+      EXPORTING
+        _synchron = 'X'.
   ENDMETHOD.
 
 ENDCLASS.
@@ -1011,7 +1020,8 @@ async function runUiPressBridge(
   });
   const { bridgeRefreshed } = deployed;
 
-  const run = await executeBridge(conn, gate, deployed);
+  // Issue #241: drop the pooled ADT session afterwards so a dump/timeout/stall can't leave its enqueues alive.
+  const run = await executeBridge(conn, gate, deployed, { dropSessionAfter: true });
   const transcript = parseUiTranscript(run.output);
 
   return {

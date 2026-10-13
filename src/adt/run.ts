@@ -814,6 +814,13 @@ export interface RunClassOptions {
    * `runClass` to the dumps feed (issue #149).
    */
   dumpPrograms?: readonly string[];
+  /**
+   * Drop the ADT session (`conn.dropSession()`) once the run ends, in a
+   * `finally`, so a dump, timeout or stall cannot leave the pooled session —
+   * and any enqueue locks it holds — alive (issue #241). Opt-in: only a bridge
+   * that drives a transaction needs it, and a drop costs the next call a logon.
+   */
+  dropSessionAfter?: boolean;
 }
 
 /**
@@ -1016,17 +1023,22 @@ export async function runClass(
   // it costs a tool that lies with a straight face.
   let raw: string;
   try {
-    // Issue #154: the whole fresh-session classrun gets its own (longer)
-    // client timeout instead of sharing ABAP_TIMEOUT_MS.
-    raw = await conn.withRequestTimeout(conn.cfg.runTimeoutMs, () =>
-      conn.withFreshSession(async (client) => {
-        try {
-          return await client.runClass(name);
-        } catch (e) {
-          throw translateRunFailure(conn, name, e);
-        }
-      }),
-    );
+    try {
+      // Issue #154: the whole fresh-session classrun gets its own (longer)
+      // client timeout instead of sharing ABAP_TIMEOUT_MS.
+      raw = await conn.withRequestTimeout(conn.cfg.runTimeoutMs, () =>
+        conn.withFreshSession(async (client) => {
+          try {
+            return await client.runClass(name);
+          } catch (e) {
+            throw translateRunFailure(conn, name, e);
+          }
+        }),
+      );
+    } finally {
+      // dropSession swallows wire failures; the catch covers its own preconditions (closed connection, open breaker) so nothing masks the run's error.
+      if (options.dropSessionAfter === true) await conn.dropSession().catch(() => undefined);
+    }
   } catch (e) {
     // Outside `withFreshSession`: the feed lookup needs the session lock this
     // callback holds. Only TIMEOUT is looked up; everything else passes through.
