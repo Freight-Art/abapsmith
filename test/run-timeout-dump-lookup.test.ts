@@ -12,7 +12,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { HttpClient, HttpClientOptions, HttpClientResponse } from "abap-adt-api/build/AdtHTTP.js";
 import { AbapConnection } from "../src/adt/connection.js";
 import { AuthCircuitBreaker } from "../src/adt/circuit-breaker.js";
@@ -355,5 +355,47 @@ describe("non-timeout errors never touch the dumps feed; pure helpers", () => {
     expect(withoutLookback!.to).toBe("20260811123449");
 
     expect(buildDumpCorrelation(undefined, "developer")).toBeUndefined();
+  });
+});
+
+describe("options.dropSessionAfter (issue #241)", () => {
+  const ok: Route = () => resp(200, "console output\n", { "content-type": "text/plain" });
+  // withFreshSession itself drops once BEFORE the run, so the baseline is one
+  // call; the option adds exactly one more, after the classrun POST.
+  const BEFORE_ONLY = 1;
+
+  it("by default only the pre-run drop happens", async () => {
+    const { conn } = await connected(ok);
+    const drop = vi.spyOn(conn, "dropSession");
+    await runClass(conn, "ZCL_ZMCP_PROBE");
+    expect(drop).toHaveBeenCalledTimes(BEFORE_ONLY);
+  });
+
+  it("drops the session again after a successful run when set", async () => {
+    const { conn } = await connected(ok);
+    const drop = vi.spyOn(conn, "dropSession");
+    const res = await runClass(conn, "ZCL_ZMCP_PROBE", { dropSessionAfter: true });
+    expect(res.output).toBe("console output");
+    expect(drop).toHaveBeenCalledTimes(BEFORE_ONLY + 1);
+  });
+
+  it("drops the session even when the run throws, and the run's own error still surfaces", async () => {
+    const { conn } = await connected(timeout, { feed: feedEmpty });
+    const drop = vi.spyOn(conn, "dropSession");
+    const err = await runClass(conn, "ZCL_ZMCP_PROBE", { dropSessionAfter: true }).catch((e: unknown) => e);
+    expect(drop).toHaveBeenCalledTimes(BEFORE_ONLY + 1);
+    expect(isAbapError(err) && err.code).toBe("TIMEOUT");
+  });
+
+  it("a failing dropSession does not mask the run's error", async () => {
+    const { conn } = await connected(timeout, { feed: feedEmpty });
+    const real = conn.dropSession.bind(conn);
+    let n = 0;
+    vi.spyOn(conn, "dropSession").mockImplementation(async () => {
+      if (++n > 1) throw new Error("drop failed");
+      await real();
+    });
+    const err = await runClass(conn, "ZCL_ZMCP_PROBE", { dropSessionAfter: true }).catch((e: unknown) => e);
+    expect(isAbapError(err) && err.code).toBe("TIMEOUT");
   });
 });
