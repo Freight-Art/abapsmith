@@ -20,6 +20,8 @@
  * pin down is surfaced as `dispatch.kind === "unresolved"` or a
  * `UiFcodeRow.unresolved` entry rather than silently guessed at.
  */
+import { describeTstc } from "./ui-tstc.js";
+
 
 // ---------------------------------------------------------------------------
 // Raw frame model — one entry per `kind` the ABAP side emits.
@@ -199,6 +201,7 @@ export function splitFcodeFrames(values: readonly unknown[]): UiFcodeRaw {
     switch (v.kind) {
       case "target": {
         const tcodeRaw = v.tcode;
+        const described = describeTstc(isRecord(tcodeRaw) ? str(tcodeRaw.cinfo) : "");
         raw.target = {
           program: str(v.program),
           dynpro: str(v.dynpro),
@@ -210,8 +213,9 @@ export function splitFcodeFrames(values: readonly unknown[]): UiFcodeRaw {
                   program: str(tcodeRaw.program),
                   dynpro: str(tcodeRaw.dynpro),
                   cinfo: str(tcodeRaw.cinfo),
-                  kind: str(tcodeRaw.kind),
-                  ...(typeof tcodeRaw.bdcApplies === "boolean" ? { bdcApplies: tcodeRaw.bdcApplies } : {}),
+                  // Derived from cinfo, not the bridge's flag, which only knows '00'/'80' (#236).
+                  kind: str(tcodeRaw.kind).startsWith("unrecognised") ? described.kind : str(tcodeRaw.kind),
+                  ...(described.bdcApplies !== undefined ? { bdcApplies: described.bdcApplies } : {}),
                 },
               }
             : {}),

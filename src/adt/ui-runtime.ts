@@ -46,6 +46,7 @@ import type { SafetyGate } from "../safety.js";
 import { dispatch } from "./fluid/dispatch.js";
 import { manifestVersion, type LoadedFluidTool } from "./fluid/manifest.js";
 import { uiManifest, uiSources } from "./fluid/builtin/ui.js";
+import { describeTstc } from "./ui-tstc.js";
 import { analyzeFcodes, splitFcodeFrames, type UiFcodeResult } from "./ui-fcode.js";
 
 // ---------------------------------------------------------------------------
@@ -571,7 +572,7 @@ export interface UiTranscriptResult {
     dynpro: string;
     cinfo: string;
     kind: string;
-    /** `true` for cinfo `'00'`, `false` for `'80'`, `undefined` for anything else (mechanism not confirmed). */
+    /** From `describeTstc` (./ui-tstc.ts): `true` dialog kinds, `false` report/OO/parameter/menu/locked, `undefined` unrecognised. */
     bdcApplies?: boolean;
   };
   resolved?: { program: string; dynpro: string };
@@ -642,13 +643,16 @@ export function parseUiTranscript(raw: string): UiTranscriptResult {
     switch (head) {
       case "TCODE": {
         const cinfo = fields.cinfo ?? "";
+        const described = describeTstc(cinfo);
         result.tcode = {
           tcode: fields.tcode ?? "",
           program: fields.program ?? "",
           dynpro: fields.dynpro ?? "",
           cinfo,
-          kind: fields.kind ?? "",
-          bdcApplies: cinfo === "00" ? true : cinfo === "80" ? false : undefined,
+          // The bridge's ABAP only names '00' and '80'; anything else arrives
+          // as "unrecognised", so the TS-side description replaces that text.
+          kind: fields.kind?.startsWith("unrecognised") ? described.kind : (fields.kind ?? ""),
+          bdcApplies: described.bdcApplies,
         };
         break;
       }
