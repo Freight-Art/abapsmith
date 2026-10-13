@@ -22,8 +22,8 @@
  *
  * BDC replays classic dynpros only — Web Dynpro, FPM/FBI (abap_fpm_read),
  * and Fiori/UI5 have no dynpro number and are unreachable here. When
- * TSTC-CINFO says report transaction ('80') rather than dialog ('00'),
- * press refuses (see assertBdcApplies) — use abap_run (report mode).
+ * TSTC-CINFO decodes to a report, OO, parameter or menu transaction, or a
+ * locked one, press refuses (see assertBdcApplies); for a report use abap_run.
  *
  * The 00/344 discovery loop is the core workflow: when a press script runs
  * out of screens, CALL TRANSACTION returns sy-subrc=1001 / msg 00/344,
@@ -67,7 +67,7 @@ import type {
   UiFcodeRow,
 } from "../adt/ui-fcode.js";
 import { uiManifest } from "../adt/fluid/builtin/ui.js";
-import { lookupTransaction, type UiTstcRecord } from "../adt/ui-tstc.js";
+import { lookupTransaction, tstcLocked, type UiTstcRecord } from "../adt/ui-tstc.js";
 import { LOG_TOOL_ID, LOG_ACTION } from "../adt/fluid/builtin/log.js";
 import type { SessionPool } from "../adt/pool.js";
 import type { Config } from "../config.js";
@@ -458,16 +458,28 @@ async function assertTransactionExists(
  * conservatively. Pure — the wire work happened in the pre-check.
  */
 function assertBdcApplies(tcode: string, kind: UiTstcRecord): void {
-  if (kind.bdcApplies !== true) {
-    throw new AbapError(
-      "SAFETY_DENIED",
-      `Transaction ${tcode} has TSTC-CINFO=${kind.cinfo} (${kind.kind}) — batch input only applies to ` +
-        "confirmed dialog transactions (cinfo='00'). CALL TRANSACTION against a report transaction runs " +
-        "the report directly and ignores scripted BDCDATA, which is not a safe no-op. Use abap_run " +
-        "(report mode) or SUBMIT instead.",
-      { tcode, cinfo: kind.cinfo, kind: kind.kind, phase: "preflight" },
-    );
+  if (kind.bdcApplies === true) return;
+  const head = `Transaction ${tcode} has TSTC-CINFO=${kind.cinfo}`;
+  let message: string;
+  let hint: string | undefined;
+  if (tstcLocked(kind.cinfo)) {
+    message = `${head} — it is locked (bit 0x20, set in SM01), so CALL TRANSACTION would be rejected.`;
+    hint = "Unlock the transaction in SM01 first, then press it.";
+  } else if (kind.bdcApplies === false && kind.kindCode === "report") {
+    message =
+      `${head} (${kind.kind}) — batch input only applies to dialog transactions. CALL TRANSACTION ` +
+      "against a report transaction runs the report directly and ignores scripted BDCDATA, which is " +
+      "not a safe no-op. Use abap_run (report mode) or SUBMIT instead.";
+  } else if (kind.bdcApplies === false) {
+    message =
+      `${head} (${kind.kind}) — batch input only applies to dialog transactions, and this is not one. ` +
+      'Press the underlying dialog transaction, or address its screens directly with mode:"screen".';
+  } else {
+    message =
+      `${head} — this value is not a recognised combination of CINFO bits, so batch input is not ` +
+      "assumed to apply and press refuses conservatively.";
   }
+  throw new AbapError("SAFETY_DENIED", message, { tcode, cinfo: kind.cinfo, kind: kind.kind, phase: "preflight" }, hint);
 }
 
 // ---------------------------------------------------------------------------
@@ -511,13 +523,12 @@ function buildScreenResponse(
   if (t.tcode) {
     if (t.tcode.bdcApplies === false) {
       notes.push(
-        `TSTC-CINFO=${t.tcode.cinfo} — ${t.tcode.kind}. abap_ui press refuses this transaction: ` +
-          "use abap_run (report mode) or SUBMIT instead.",
+        `TSTC-CINFO=${t.tcode.cinfo} — ${t.tcode.kind}. abap_ui press refuses this transaction.`,
       );
     } else if (t.tcode.bdcApplies === undefined) {
       notes.push(
-        `TSTC-CINFO=${t.tcode.cinfo} is not a recognised value ('00' dialog / '80' report) — press ` +
-          "will refuse this transaction conservatively until it is.",
+        `TSTC-CINFO=${t.tcode.cinfo} is not a recognised combination of CINFO bits — press ` +
+          "will refuse this transaction conservatively.",
       );
     }
   }

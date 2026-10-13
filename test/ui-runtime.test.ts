@@ -860,6 +860,15 @@ describe("parseUiTranscript — screen mode TCODE line / bdcApplies mapping", ()
     expect(parseUiTranscript(raw).tcode?.bdcApplies).toBe(false);
   });
 
+  it("cinfo '04' (dialog + authorization flag) maps to true; '84' stays false; '20' (locked) false (#236)", () => {
+    const line = (c: string) => `${UI_LINE_PREFIX}TCODE tcode=[MM01] program=[SAPLMGMM] dynpro=[0060] cinfo=[${c}] kind=[unrecognised transaction kind]\n`;
+    expect(parseUiTranscript(line("04")).tcode).toMatchObject({ bdcApplies: true });
+    expect(parseUiTranscript(line("04")).tcode?.kind).toContain("press applies");
+    expect(parseUiTranscript(line("84")).tcode?.bdcApplies).toBe(false);
+    expect(parseUiTranscript(line("20")).tcode?.bdcApplies).toBe(false);
+    expect(parseUiTranscript(line("20")).tcode?.kind).toContain("locked");
+  });
+
   it("any other cinfo maps to bdcApplies: undefined (mechanism not confirmed) rather than a guess", () => {
     const raw = `${UI_LINE_PREFIX}TCODE tcode=[SE38] program=[SAPMSEU5] dynpro=[1000] cinfo=[40] kind=[unrecognised]\n`;
     const result = parseUiTranscript(raw);

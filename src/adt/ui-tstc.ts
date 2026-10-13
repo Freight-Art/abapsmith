@@ -23,8 +23,10 @@
  * parameter/variant/OO-with-model — details live in TSTCP, see
  * `./catalog-query.ts`'s `parseTransactionParameters` — 0x01 area menu,
  * else dialog); `kind` is `kindCode`'s human-readable text. `bdcApplies`
- * keeps its old, narrower meaning: `true` only for CINFO `"00"`, `false`
- * only for `kindCode === "report"`.
+ * comes from {@link describeTstc}: `true` for a dialog kind with only known
+ * non-type bits (so `04`, the authorization flag, applies — #236), `false`
+ * for report/OO/parameter/menu kinds and locked transactions, `undefined`
+ * for anything unrecognised.
  */
 import type { AbapConnection } from "./connection.js";
 import { buildTransactionDetailQuery } from "./catalog-query.js";
@@ -51,7 +53,7 @@ export interface UiTstcRecord {
   readonly kindCode: UiTstcKind;
   /** `kindCode`'s human-readable text, printed to users by `src/tools/ui.ts`. */
   readonly kind: string;
-  /** true only for CINFO `"00"` (batch input / press applies); false only for `kindCode === "report"`; undefined otherwise. */
+  /** See {@link describeTstc}: true for a dialog kind, false for a known non-dialog kind or a locked transaction, undefined if unrecognised. */
   readonly bdcApplies: boolean | undefined;
 }
 
@@ -75,6 +77,45 @@ export function tstcKind(cinfo: string): UiTstcKind {
   return "dialog";
 }
 
+const LOCKED_TEXT = "locked transaction (TSTC-CINFO bit 0x20, set in SM01; batch input does NOT apply)";
+const UNKNOWN_TEXT = "unrecognised transaction kind - mechanism not confirmed, do not assume batch input applies";
+
+/** Every CINFO bit the table above names; anything else (e.g. `0x40`) is not understood. */
+const KNOWN_BITS = 0xbf;
+
+/** True when CINFO's `0x20` lock bit is set (transaction locked in SM01). */
+export function tstcLocked(cinfo: string): boolean {
+  const bits = parseInt(cinfo, 16);
+  return !Number.isNaN(bits) && (bits & 0x20) !== 0;
+}
+
+/**
+ * The one place that decides whether batch input / `press` applies to a
+ * CINFO value, shared by {@link lookupTransaction} (press pre-flight) and
+ * the screen-mode transcript parser in `./ui-runtime.ts` (#236). Derived
+ * from the decoded kind, not from the literal `"00"`: `04` (authorization
+ * flag) is still a dialog transaction. Conservative — a locked transaction
+ * (`0x20`), a bit this module does not know (`0x40`), a `0x10` that is not
+ * on a report, or an unparseable value is never `true`.
+ *
+ * | CINFO bits                         | bdcApplies |
+ * | ---------------------------------- | ---------- |
+ * | `0x20` set                         | false (locked) |
+ * | unknown bit set / unparseable      | undefined  |
+ * | `0x80` report (84, 90, ...)        | false      |
+ * | `0x08` oo / `0x02` parameter / `0x01` menu | false |
+ * | `0x10` without `0x80`              | undefined  |
+ * | otherwise (00, 04)                 | true       |
+ */
+export function describeTstc(cinfo: string): { bdcApplies: boolean | undefined; kind: string } {
+  const bits = parseInt(cinfo, 16);
+  if (Number.isNaN(bits)) return { bdcApplies: undefined, kind: UNKNOWN_TEXT };
+  if (bits & 0x20) return { bdcApplies: false, kind: LOCKED_TEXT };
+  if (bits & ~KNOWN_BITS || (bits & 0x90) === 0x10) return { bdcApplies: undefined, kind: UNKNOWN_TEXT };
+  const kindCode = tstcKind(cinfo);
+  return { bdcApplies: kindCode === "dialog", kind: KIND_TEXT[kindCode] };
+}
+
 /**
  * Reads `tcode`'s TSTC row through the catalog select path. Returns
  * `undefined` when TSTC has no such row — the caller decides how to refuse.
@@ -92,13 +133,14 @@ export async function lookupTransaction(conn: AbapConnection, tcode: string): Pr
   if (!row) return undefined;
   const cinfo = (row.CINFO ?? "").trim();
   const kindCode = tstcKind(cinfo);
+  const { bdcApplies, kind } = describeTstc(cinfo);
   return {
     tcode: (row.TCODE ?? tcode).trim(),
     program: (row.PGMNA ?? "").trim(),
     dynpro: (row.DYPNO ?? "").trim(),
     cinfo,
     kindCode,
-    kind: KIND_TEXT[kindCode],
-    bdcApplies: cinfo === "00" ? true : kindCode === "report" ? false : undefined,
+    kind,
+    bdcApplies,
   };
 }

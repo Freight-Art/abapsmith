@@ -15,7 +15,7 @@
 import { describe, expect, it } from "vitest";
 import type { HttpClientOptions } from "abap-adt-api/build/AdtHTTP.js";
 
-import { lookupTransaction, tstcKind } from "../src/adt/ui-tstc.js";
+import { describeTstc, lookupTransaction, tstcKind } from "../src/adt/ui-tstc.js";
 import { SCREEN_PAYLOAD } from "./helpers/ui-screen-fixture.js";
 import { isTstcSelect, type TstcRow } from "./helpers/tstc-select-fake.js";
 import { isUiFluidClass } from "./helpers/fluid-ui-fake.js";
@@ -81,6 +81,34 @@ describe("lookupTransaction — one data-preview select, typed row or undefined"
     expect(tstcKind("02")).toBe("parameter");
     expect(tstcKind("01")).toBe("menu");
     expect(tstcKind("20")).toBe("dialog");
+    expect(tstcKind("04")).toBe("dialog");
+    expect(tstcKind("84")).toBe("report");
+    expect(tstcKind("90")).toBe("report");
+  });
+
+  it.each([
+    ["00", true],
+    ["04", true], // authorization flag only — still a dialog transaction (#236)
+    ["80", false],
+    ["84", false], // report + authorization flag (SE11 on A4H)
+    ["90", false],
+    ["08", false],
+    ["02", false],
+    ["01", false],
+    ["20", false], // locked
+    ["24", false], // locked + authorization flag
+    ["40", undefined], // bit this module does not know
+    ["10", undefined], // 0x10 is only meaningful on top of 0x80
+    ["ZZ", undefined],
+    ["", undefined],
+  ] as const)("describeTstc(%j).bdcApplies is %s", (cinfo, expected) => {
+    expect(describeTstc(cinfo).bdcApplies).toBe(expected);
+  });
+
+  it("describeTstc names the lock for 0x20 and never calls an unknown value a dialog", () => {
+    expect(describeTstc("24").kind).toContain("locked transaction");
+    expect(describeTstc("40").kind).toContain("unrecognised");
+    expect(describeTstc("04").kind).toContain("press applies");
   });
 });
 
@@ -148,12 +176,56 @@ describe("abap_ui press: CINFO comes from the pre-check row, not a second bridge
 
   it("refuses an unrecognised CINFO conservatively, still with zero bridge calls", async () => {
     const { conn, inner } = await connected(
-      uiRoute({ payload: SCREEN_PAYLOAD, tstc: [{ ...DIALOG, TCODE: "ZAS_ODD", CINFO: "01" }] }),
+      uiRoute({ payload: SCREEN_PAYLOAD, tstc: [{ ...DIALOG, TCODE: "ZAS_ODD", CINFO: "40" }] }),
     );
     const err = errPayload(await invoke(registered(conn), "abap_ui", { ...PRESS_ARGS, tcode: "ZAS_ODD" }));
     expect(err.error).toBe("SAFETY_DENIED");
-    expect(err.details).toMatchObject({ cinfo: "01", phase: "preflight" });
+    expect(err.message).toContain("not a recognised combination");
+    expect(err.message).not.toContain("abap_run");
+    expect(err.details).toMatchObject({ cinfo: "40", phase: "preflight" });
     expect(bridgeCalls(inner.calls)).toEqual([]);
+  });
+
+  it("refuses a report transaction with an authorization flag (CINFO 84, SE11) as a report", async () => {
+    const { conn, inner } = await connected(
+      uiRoute({ payload: SCREEN_PAYLOAD, tstc: [{ ...REPORT, TCODE: "SE11", CINFO: "84" }] }),
+    );
+    const err = errPayload(await invoke(registered(conn), "abap_ui", { ...PRESS_ARGS, tcode: "SE11" }));
+    expect(err.error).toBe("SAFETY_DENIED");
+    expect(err.message).toContain("Use abap_run (report mode) or SUBMIT instead.");
+    expect(bridgeCalls(inner.calls)).toEqual([]);
+  });
+
+  it.each(["01", "02", "08"])("refuses a non-dialog kind (CINFO %s) without recommending abap_run", async (cinfo) => {
+    const { conn, inner } = await connected(
+      uiRoute({ payload: SCREEN_PAYLOAD, tstc: [{ ...DIALOG, TCODE: "ZAS_KIND", CINFO: cinfo }] }),
+    );
+    const err = errPayload(await invoke(registered(conn), "abap_ui", { ...PRESS_ARGS, tcode: "ZAS_KIND" }));
+    expect(err.error).toBe("SAFETY_DENIED");
+    expect(err.message).toContain("not one");
+    expect(err.message).not.toContain("abap_run");
+    expect(bridgeCalls(inner.calls)).toEqual([]);
+  });
+
+  it.each(["20", "24"])("refuses a locked transaction (CINFO %s) with a locked message", async (cinfo) => {
+    const { conn, inner } = await connected(
+      uiRoute({ payload: SCREEN_PAYLOAD, tstc: [{ ...DIALOG, TCODE: "ZAS_LOCK", CINFO: cinfo }] }),
+    );
+    const err = errPayload(await invoke(registered(conn), "abap_ui", { ...PRESS_ARGS, tcode: "ZAS_LOCK" }));
+    expect(err.error).toBe("SAFETY_DENIED");
+    expect(err.message).toContain("is locked");
+    expect(err.message).toContain("SM01");
+    expect(err.message).not.toContain("abap_run");
+    expect(bridgeCalls(inner.calls)).toEqual([]);
+  });
+
+  it.each(["04"])("presses a dialog transaction with only the authorization flag (CINFO %s)", async (cinfo) => {
+    const { conn, inner } = await connected(
+      uiRoute({ payload: SCREEN_PAYLOAD, tstc: [{ ...DIALOG, TCODE: "ZAS_MM01", CINFO: cinfo }] }),
+    );
+    const text = okText(await invoke(registered(conn), "abap_ui", { ...PRESS_ARGS, tcode: "ZAS_MM01" }));
+    expect(text).toContain("mode: press");
+    expect(inner.calls.filter((c) => c.url.startsWith(CLASSRUN_PREFIX))).toHaveLength(1);
   });
 
   it("on a dialog transaction deploys only its own zcl_zmcp_ui_ bridge — never a fluid invoker", async () => {
