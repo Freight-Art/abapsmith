@@ -6,7 +6,9 @@
  * only by `core.call_fm`'s `params`) is flattened too, as `key/subkey`
  * rows, alongside the existing string/array/scalar handling. Nested objects
  * hold scalars only — `core.call_fm`'s `params` is a flat map of parameter
- * name to string value, never a deeper structure.
+ * name to string value, never a deeper structure. A structured parameter's
+ * value is that structure's own JSON object text, which `fill_struct` below
+ * re-reads with the same `scan()` (see `abap-fm.ts`).
  *
  * Unlike `ClassicAbapPart`, an action's name need not equal its method name
  * (`select` -> `do_select`, `describe_fm` -> `do_describe_fm`, `call_fm` ->
@@ -374,6 +376,327 @@ const CORE_METHODS = `  METHOD run.
       WHEN OTHERS.
         rv_type = iv_type.
     ENDCASE.
+  ENDMETHOD.
+
+  METHOD set_elem.
+    " Converts one JSON scalar (already unescaped to a string) into one
+    " elementary target by the target's own RTTI type. A value that does not
+    " fit is reported in ev_error, never silently truncated or rounded.
+    DATA lo_elem TYPE REF TO cl_abap_elemdescr.
+    DATA lv_v    TYPE string.
+    DATA lv_re   TYPE string.
+    DATA lv_len  TYPE i.
+    DATA lv_int  TYPE string.
+    DATA lv_dec  TYPE string.
+    DATA lv_dlen TYPE i.
+    DATA lv_xs   TYPE xstring.
+
+    CLEAR ev_error.
+    lo_elem ?= cl_abap_typedescr=>describe_by_data( cv_target ).
+    TRY.
+        CASE lo_elem->type_kind.
+          WHEN cl_abap_typedescr=>typekind_char.
+            lv_len = lo_elem->length / cl_abap_char_utilities=>charsize.
+            IF lv_len = 1 AND iv_value = 'true'.
+              cv_target = 'X'.
+            ELSEIF lv_len = 1 AND iv_value = 'false'.
+              CLEAR cv_target.
+            ELSEIF strlen( iv_value ) > lv_len.
+              ev_error = |value is { strlen( iv_value ) } characters, the component holds { lv_len }|.
+            ELSE.
+              cv_target = iv_value.
+            ENDIF.
+          WHEN cl_abap_typedescr=>typekind_string.
+            cv_target = iv_value.
+          WHEN cl_abap_typedescr=>typekind_num.
+            lv_len = lo_elem->length / cl_abap_char_utilities=>charsize.
+            lv_v = condense( iv_value ).
+            IF lv_v IS INITIAL OR lv_v = 'null'.
+              CLEAR cv_target.
+            ELSEIF lv_v CN '0123456789' OR strlen( lv_v ) > lv_len.
+              ev_error = |value { lv_v } is not at most { lv_len } digits|.
+            ELSE.
+              cv_target = lv_v.
+            ENDIF.
+          WHEN cl_abap_typedescr=>typekind_date.
+            lv_v = condense( iv_value ).
+            IF strlen( lv_v ) = 10 AND lv_v+4(1) = '-' AND lv_v+7(1) = '-'.
+              lv_v = lv_v(4) && lv_v+5(2) && lv_v+8(2).
+            ENDIF.
+            IF lv_v IS INITIAL OR lv_v = 'null' OR lv_v = '00000000'.
+              CLEAR cv_target.
+            ELSEIF strlen( lv_v ) <> 8 OR lv_v CN '0123456789'
+                OR lv_v+4(2) < '01' OR lv_v+4(2) > '12'
+                OR lv_v+6(2) < '01' OR lv_v+6(2) > '31'.
+              ev_error = |value { lv_v } is not a date in YYYYMMDD form|.
+            ELSE.
+              cv_target = lv_v.
+            ENDIF.
+          WHEN cl_abap_typedescr=>typekind_time.
+            lv_v = condense( iv_value ).
+            IF strlen( lv_v ) = 8 AND lv_v+2(1) = ':' AND lv_v+5(1) = ':'.
+              lv_v = lv_v(2) && lv_v+3(2) && lv_v+6(2).
+            ENDIF.
+            IF lv_v IS INITIAL OR lv_v = 'null'.
+              CLEAR cv_target.
+            ELSEIF strlen( lv_v ) <> 6 OR lv_v CN '0123456789'
+                OR lv_v(2) > '24' OR lv_v+2(2) > '59' OR lv_v+4(2) > '59'.
+              ev_error = |value { lv_v } is not a time in HHMMSS form|.
+            ELSE.
+              cv_target = lv_v.
+            ENDIF.
+          WHEN cl_abap_typedescr=>typekind_packed
+            OR cl_abap_typedescr=>typekind_float
+            OR cl_abap_typedescr=>typekind_decfloat16
+            OR cl_abap_typedescr=>typekind_decfloat34
+            OR cl_abap_typedescr=>typekind_int
+            OR cl_abap_typedescr=>typekind_int1
+            OR cl_abap_typedescr=>typekind_int2
+            OR '8'.
+            " '8' is TYPEKIND_INT8, written as its literal so the class does
+            " not depend on the constant existing on older releases.
+            lv_v = condense( iv_value ).
+            IF lv_v IS INITIAL OR lv_v = 'null'.
+              CLEAR cv_target.
+              RETURN.
+            ENDIF.
+            lv_v = shift_left( val = lv_v sub = '+' ).
+            CASE lo_elem->type_kind.
+              WHEN cl_abap_typedescr=>typekind_packed.
+                lv_re = '[-+]?[0-9]+(\\.[0-9]+)?'.
+              WHEN cl_abap_typedescr=>typekind_float
+                OR cl_abap_typedescr=>typekind_decfloat16
+                OR cl_abap_typedescr=>typekind_decfloat34.
+                lv_re = '[-+]?[0-9]+(\\.[0-9]+)?([eE][-+]?[0-9]+)?'.
+              WHEN OTHERS.
+                lv_re = '[-+]?[0-9]+'.
+            ENDCASE.
+            IF NOT matches( val = lv_v regex = lv_re ).
+              ev_error = |value { iv_value } is not a number|.
+              RETURN.
+            ENDIF.
+            IF lo_elem->type_kind = cl_abap_typedescr=>typekind_packed.
+              SPLIT lv_v AT '.' INTO lv_int lv_dec.
+              lv_dlen = strlen( lv_dec ).
+              WHILE lv_dlen > lo_elem->decimals AND substring( val = lv_dec off = lv_dlen - 1 len = 1 ) = '0'.
+                lv_dlen = lv_dlen - 1.
+              ENDWHILE.
+              IF lv_dlen > lo_elem->decimals.
+                ev_error = |value { lv_v } has more than { lo_elem->decimals } decimals|.
+                RETURN.
+              ENDIF.
+            ENDIF.
+            cv_target = lv_v.
+          WHEN cl_abap_typedescr=>typekind_hex
+            OR cl_abap_typedescr=>typekind_xstring.
+            lv_v = to_upper( condense( iv_value ) ).
+            IF lv_v IS INITIAL OR lv_v = 'NULL'.
+              CLEAR cv_target.
+            ELSEIF lv_v CN '0123456789ABCDEF' OR strlen( lv_v ) MOD 2 <> 0.
+              ev_error = |value { iv_value } is not an even-length hex string|.
+            ELSEIF lo_elem->type_kind = cl_abap_typedescr=>typekind_hex
+               AND strlen( lv_v ) / 2 > lo_elem->length.
+              ev_error = |hex value is { strlen( lv_v ) / 2 } bytes, the component holds { lo_elem->length }|.
+            ELSE.
+              lv_xs = lv_v.
+              cv_target = lv_xs.
+            ENDIF.
+          WHEN OTHERS.
+            ev_error = |elementary type kind { lo_elem->type_kind } is not supported|.
+        ENDCASE.
+      CATCH cx_root.
+        ev_error = |value { iv_value } does not fit the component type|.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD fill_struct.
+    " Fills cs_data from a JSON object text, keyed by component name. Reads
+    " the object with the same scan() as every other argument, into a
+    " private copy of gt_arg that is swapped back before returning. scan()
+    " goes one object level deep, so a component that is itself a flat
+    " structure works (NAME/SUBNAME rows); anything deeper, and any table or
+    " reference component, is refused in ev_error. An unknown component name
+    " is an error, never ignored.
+    DATA lt_save    LIKE gt_arg.
+    DATA lt_obj     LIKE gt_arg.
+    DATA ls_obj     TYPE ty_arg.
+    DATA lo_type    TYPE REF TO cl_abap_typedescr.
+    DATA lo_struct  TYPE REF TO cl_abap_structdescr.
+    DATA lv_top     TYPE string.
+    DATA lv_sub     TYPE string.
+    DATA lv_unknown TYPE string.
+    DATA lv_err     TYPE string.
+    FIELD-SYMBOLS <lv_comp> TYPE any.
+    FIELD-SYMBOLS <lv_part> TYPE any.
+
+    CLEAR ev_error.
+    lt_save = gt_arg.
+    CLEAR gt_arg.
+    TRY.
+        scan( shift_left( val = iv_json sub = \` \` ) ).
+      CATCH cx_root.
+        gt_arg = lt_save.
+        ev_error = 'value is not a well-formed JSON object'.
+        RETURN.
+    ENDTRY.
+    lt_obj = gt_arg.
+    gt_arg = lt_save.
+
+    lo_struct ?= cl_abap_typedescr=>describe_by_data( cs_data ).
+
+    LOOP AT lt_obj INTO ls_obj.
+      SPLIT ls_obj-path AT '/' INTO lv_top lv_sub.
+      lv_top = to_upper( lv_top ).
+      READ TABLE lo_struct->components TRANSPORTING NO FIELDS WITH KEY name = lv_top.
+      IF sy-subrc <> 0 AND NOT lv_unknown CS | { lv_top } |.
+        lv_unknown = lv_unknown && | { lv_top } |.
+      ENDIF.
+    ENDLOOP.
+    IF lv_unknown IS NOT INITIAL.
+      ev_error = |unknown component(s){ condense( lv_unknown ) } (core.describe_fm lists the components)|.
+      RETURN.
+    ENDIF.
+
+    LOOP AT lt_obj INTO ls_obj.
+      SPLIT ls_obj-path AT '/' INTO lv_top lv_sub.
+      lv_top = to_upper( lv_top ).
+      lv_sub = to_upper( lv_sub ).
+      IF ls_obj-value = 'null'.
+        CONTINUE.
+      ENDIF.
+      ASSIGN COMPONENT lv_top OF STRUCTURE cs_data TO <lv_comp>.
+      IF sy-subrc <> 0.
+        ev_error = |unknown component { lv_top }|.
+        RETURN.
+      ENDIF.
+      lo_type = cl_abap_typedescr=>describe_by_data( <lv_comp> ).
+      CASE lo_type->kind.
+        WHEN cl_abap_typedescr=>kind_elem.
+          IF lv_sub IS NOT INITIAL.
+            ev_error = |component { lv_top } is not a structure, but was sent as an object or array|.
+            RETURN.
+          ENDIF.
+          set_elem( EXPORTING iv_value = ls_obj-value
+                    IMPORTING ev_error = lv_err
+                    CHANGING  cv_target = <lv_comp> ).
+          IF lv_err IS NOT INITIAL.
+            ev_error = |component { lv_top }: { lv_err }|.
+            RETURN.
+          ENDIF.
+        WHEN cl_abap_typedescr=>kind_struct.
+          IF lv_sub IS INITIAL.
+            ev_error = |component { lv_top } is a structure, send it as a JSON object|.
+            RETURN.
+          ENDIF.
+          ASSIGN COMPONENT lv_sub OF STRUCTURE <lv_comp> TO <lv_part>.
+          IF sy-subrc <> 0.
+            ev_error = |unknown component { lv_top }-{ lv_sub }|.
+            RETURN.
+          ENDIF.
+          lo_type = cl_abap_typedescr=>describe_by_data( <lv_part> ).
+          IF lo_type->kind <> cl_abap_typedescr=>kind_elem.
+            ev_error = |component { lv_top }-{ lv_sub } is itself a structure or table, which is nested deeper than core.call_fm supports (two levels, elementary leaves)|.
+            RETURN.
+          ENDIF.
+          set_elem( EXPORTING iv_value = ls_obj-value
+                    IMPORTING ev_error = lv_err
+                    CHANGING  cv_target = <lv_part> ).
+          IF lv_err IS NOT INITIAL.
+            ev_error = |component { lv_top }-{ lv_sub }: { lv_err }|.
+            RETURN.
+          ENDIF.
+        WHEN OTHERS.
+          ev_error = |component { lv_top } is a table or reference, which core.call_fm cannot fill from JSON|.
+          RETURN.
+      ENDCASE.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD comp_json.
+    " The component list of a structure type as a JSON array of
+    " {name,type,length,decimals}, or '' when iv_type is not a structure.
+    " length is in characters for C/N/D/T, digits for P, bytes otherwise.
+    DATA lo_type   TYPE REF TO cl_abap_typedescr.
+    DATA lo_struct TYPE REF TO cl_abap_structdescr.
+    DATA ls_comp   TYPE abap_compdescr.
+    DATA lv_type   TYPE string.
+    DATA lv_tname  TYPE string.
+    DATA lv_len    TYPE i.
+    DATA lv_first  TYPE abap_bool.
+    DATA lv_cname  TYPE string.
+
+    CLEAR rv_json.
+    IF iv_type IS INITIAL.
+      RETURN.
+    ENDIF.
+    lv_type = concrete_type( iv_type ).
+    cl_abap_typedescr=>describe_by_name(
+      EXPORTING  p_name       = lv_type
+      RECEIVING  p_descr_ref  = lo_type
+      EXCEPTIONS type_not_found = 1
+                 OTHERS         = 2 ).
+    IF sy-subrc <> 0 OR lo_type IS NOT BOUND OR lo_type->kind <> cl_abap_typedescr=>kind_struct.
+      RETURN.
+    ENDIF.
+    lo_struct ?= lo_type.
+    rv_json = '['.
+    lv_first = abap_true.
+    LOOP AT lo_struct->components INTO ls_comp.
+      CASE ls_comp-type_kind.
+        WHEN 'C'.
+          lv_tname = 'CHAR'.
+        WHEN 'N'.
+          lv_tname = 'NUMC'.
+        WHEN 'D'.
+          lv_tname = 'DATS'.
+        WHEN 'T'.
+          lv_tname = 'TIMS'.
+        WHEN 'P'.
+          lv_tname = 'DEC'.
+        WHEN 'I'.
+          lv_tname = 'INT4'.
+        WHEN 'b'.
+          lv_tname = 'INT1'.
+        WHEN 's'.
+          lv_tname = 'INT2'.
+        WHEN '8'.
+          lv_tname = 'INT8'.
+        WHEN 'F'.
+          lv_tname = 'FLTP'.
+        WHEN 'X'.
+          lv_tname = 'RAW'.
+        WHEN 'g'.
+          lv_tname = 'STRING'.
+        WHEN 'y'.
+          lv_tname = 'RAWSTRING'.
+        WHEN 'a'.
+          lv_tname = 'DECFLOAT16'.
+        WHEN 'e'.
+          lv_tname = 'DECFLOAT34'.
+        WHEN 'u' OR 'v'.
+          lv_tname = 'STRUCTURE'.
+        WHEN 'h'.
+          lv_tname = 'TABLE'.
+        WHEN OTHERS.
+          lv_tname = ls_comp-type_kind.
+      ENDCASE.
+      lv_len = ls_comp-length.
+      IF ls_comp-type_kind = 'C' OR ls_comp-type_kind = 'N'
+         OR ls_comp-type_kind = 'D' OR ls_comp-type_kind = 'T'.
+        lv_len = lv_len / cl_abap_char_utilities=>charsize.
+      ELSEIF ls_comp-type_kind = 'P'.
+        lv_len = lv_len * 2 - 1.
+      ENDIF.
+      IF lv_first = abap_false.
+        rv_json = rv_json && ','.
+      ENDIF.
+      lv_first = abap_false.
+      lv_cname = ls_comp-name.
+      rv_json = rv_json && |\\{"name":"{ zcl_zmcp_fluid_rt=>esc( lv_cname ) }",|.
+      rv_json = rv_json && |"type":"{ lv_tname }","length":{ lv_len },|.
+      rv_json = rv_json && |"decimals":{ ls_comp-decimals }\\}|.
+    ENDLOOP.
+    rv_json = rv_json && ']'.
   ENDMETHOD.`;
 
 export function coreBodySource(parts: readonly CoreAbapPart[]): string {
@@ -471,6 +794,25 @@ export function coreBodySource(parts: readonly CoreAbapPart[]): string {
         iv_type TYPE string
       RETURNING
         VALUE(rv_type) TYPE string.
+    CLASS-METHODS set_elem
+      IMPORTING
+        iv_value  TYPE string
+      EXPORTING
+        ev_error  TYPE string
+      CHANGING
+        cv_target TYPE any.
+    CLASS-METHODS fill_struct
+      IMPORTING
+        iv_json  TYPE string
+      EXPORTING
+        ev_error TYPE string
+      CHANGING
+        cs_data  TYPE any.
+    CLASS-METHODS comp_json
+      IMPORTING
+        iv_type TYPE string
+      RETURNING
+        VALUE(rv_json) TYPE string.
 ${methodDecls}
 ENDCLASS.
 
