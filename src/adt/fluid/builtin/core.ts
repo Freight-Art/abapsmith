@@ -285,7 +285,9 @@ export const coreManifest: FluidManifest = {
           params: {
             type: "object",
             description:
-              "Parameter name -> value, every value a string. See core.describe_fm's params_schema.",
+              "Parameter name -> value. A structured parameter takes a JSON object keyed by component " +
+              "name (or a fixed-width string for a flat character structure); every other value is a " +
+              "string. See core.describe_fm's params_schema.",
           },
           commit: {
             type: "boolean",
@@ -583,6 +585,43 @@ export async function guardCoreAction(deps: FluidDeps, req: FluidRunRequest): Pr
   // `assertDataPreview` nor `ABAP_ALLOW_DATA_PREVIEW` applies to it. It
   // (and every other action this function does not name) falls through to
   // the implicit `return` below untouched.
+}
+
+/**
+ * `core.call_fm`'s ABAP reads `params` as a flat name -> string map (see
+ * `abap-core.ts`'s `scan()`), so an object-valued parameter is serialised
+ * to its JSON text here, before the args are put on the wire; the ABAP's
+ * `fill_struct` parses that text per component. String values and every
+ * other argument pass through unchanged.
+ */
+export function normalizeCallFmArgs(args: unknown): unknown {
+  const rec = evalArgsRecord(args);
+  const params = rec["params"];
+  if (typeof params !== "object" || params === null || Array.isArray(params)) return args;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(params as Record<string, unknown>)) {
+    out[k] = compactStructParam(v);
+  }
+  return { ...rec, params: out };
+}
+
+/**
+ * The bridge's `scan()` reads compact JSON with quoted scalars only, so a
+ * struct param is re-serialised without blanks and with numbers as strings
+ * (`12.5` -> `"12.5"`). Text that is not a JSON object is returned as is.
+ */
+function compactStructParam(v: unknown): unknown {
+  let obj: unknown = v;
+  if (typeof v === "string") {
+    if (!v.trimStart().startsWith("{")) return v;
+    try {
+      obj = JSON.parse(v);
+    } catch {
+      return v;
+    }
+  }
+  if (typeof obj !== "object" || obj === null || Array.isArray(obj)) return v;
+  return JSON.stringify(obj, (_k, val: unknown) => (typeof val === "number" ? String(val) : val));
 }
 
 function evalArgsRecord(args: unknown): Record<string, unknown> {

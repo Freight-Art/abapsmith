@@ -52,6 +52,7 @@ export const fmPart: CoreAbapPart = {
     DATA lv_pfirst TYPE abap_bool.
     DATA lv_rfirst TYPE abap_bool.
     DATA lv_efirst TYPE abap_bool.
+    DATA lv_comps TYPE string.
 
     lv_name = to_upper( s( 'name' ) ).
     IF lv_name IS INITIAL.
@@ -115,8 +116,17 @@ export const fmPart: CoreAbapPart = {
         ENDIF.
         lv_pfirst = abap_false.
         lv_props = lv_props && |"{ zcl_zmcp_fluid_rt=>esc( ls_par-name ) }":|.
-        lv_props = lv_props && |\\{"type":"string","description":"{ lv_kind }, type |.
-        lv_props = lv_props && |{ zcl_zmcp_fluid_rt=>esc( ls_par-typename ) }"\\}|.
+        lv_comps = comp_json( ls_par-typename ).
+        IF lv_comps IS INITIAL.
+          lv_props = lv_props && |\\{"type":"string","description":"{ lv_kind }, type |.
+          lv_props = lv_props && |{ zcl_zmcp_fluid_rt=>esc( ls_par-typename ) }"\\}|.
+        ELSE.
+          lv_props = lv_props && |\\{"type":["object","string"],|.
+          lv_props = lv_props && |"description":"{ lv_kind }, structure type |.
+          lv_props = lv_props && |{ zcl_zmcp_fluid_rt=>esc( ls_par-typename ) }. |.
+          lv_props = lv_props && |Send a JSON object keyed by component name, or a fixed-width string.",|.
+          lv_props = lv_props && |"components":{ lv_comps }\\}|.
+        ENDIF.
         IF ls_par-optional = abap_false.
           IF lv_rfirst = abap_false.
             lv_req = lv_req && ','.
@@ -151,6 +161,9 @@ export const fmPart: CoreAbapPart = {
     DATA lv_kind  TYPE string.
     DATA lv_pname TYPE string.
     DATA lv_tname TYPE string.
+    DATA lo_desc  TYPE REF TO cl_abap_typedescr.
+    DATA lv_trim  TYPE string.
+    DATA lv_err   TYPE string.
     FIELD-SYMBOLS <lv_any> TYPE any.
 
     lv_name = to_upper( s( 'name' ) ).
@@ -189,12 +202,29 @@ export const fmPart: CoreAbapPart = {
       ENDTRY.
       ASSIGN lr_data->* TO <lv_any>.
       lv_val = s( |params/{ lv_key }| ).
-      TRY.
-          <lv_any> = lv_val.
-        CATCH cx_root.
-          fail( |value for { lv_key } does not fit type { lv_type }| ).
+      lo_desc = cl_abap_typedescr=>describe_by_data( <lv_any> ).
+      lv_trim = shift_left( val = lv_val sub = \` \` ).
+      IF lo_desc->kind = cl_abap_typedescr=>kind_struct AND lv_trim CP '{*'.
+        " A JSON object for a structure: fill it component by component.
+        fill_struct( EXPORTING iv_json = lv_trim
+                     IMPORTING ev_error = lv_err
+                     CHANGING  cs_data = <lv_any> ).
+        IF lv_err IS NOT INITIAL.
+          fail( |parameter { lv_key } of { lv_name }: { lv_err }| ).
           RETURN.
-      ENDTRY.
+        ENDIF.
+      ELSE.
+        TRY.
+            <lv_any> = lv_val.
+          CATCH cx_root.
+            IF lo_desc->kind = cl_abap_typedescr=>kind_struct.
+              fail( |value for { lv_key } does not fit type { lv_type }; send a JSON object keyed by component name| ).
+            ELSE.
+              fail( |value for { lv_key } does not fit type { lv_type }| ).
+            ENDIF.
+            RETURN.
+        ENDTRY.
+      ENDIF.
       CLEAR ls_ptab.
       ls_ptab-name = lv_key.
       IF ls_par-ptype = 'I'.

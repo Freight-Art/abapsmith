@@ -23,7 +23,7 @@ import {
   ensureFluidTool,
   recoverMissingFluidObject,
 } from "./ensure.js";
-import { CORE_EVAL_ACTION, CORE_TOOL_ID, guardCoreAction, parseEvalArgs } from "./builtin/core.js";
+import { CORE_EVAL_ACTION, CORE_TOOL_ID, guardCoreAction, normalizeCallFmArgs, parseEvalArgs } from "./builtin/core.js";
 import { parseFluidConsole, type FluidBeginFrame, type FluidEndFrame, type FluidTranscript } from "./protocol.js";
 import { canonicalArgsJson, invokerName, invokerSource } from "./invoke.js";
 import { flattenScanArgs } from "./flat-args.js";
@@ -571,7 +571,9 @@ export async function dispatch(deps: FluidDeps, req: FluidRunRequest): Promise<F
   // BOTH the invoker name below and `canonicalArgsJson` further down: they
   // must come from the same value or the invoker name would stop
   // identifying the source it names.
-  const wireArgs = tool.manifest.flatArgs === true ? flattenScanArgs(req.args) : req.args;
+  const shapedArgs =
+    req.tool === CORE_TOOL_ID && req.action === "call_fm" ? normalizeCallFmArgs(req.args) : req.args;
+  const wireArgs = tool.manifest.flatArgs === true ? flattenScanArgs(shapedArgs) : shapedArgs;
 
   // Pure and stable for the whole call, including across the one retry below:
   // no input it depends on (req.tool/action/wireArgs, the manifest's
