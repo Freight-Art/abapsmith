@@ -60189,10 +60189,13 @@ function defaultSetTimer(fn, ms) {
   }
   return h;
 }
-var SessionBusyError, DEFAULT_MAX_QUEUE, DEFAULT_WAIT_TIMEOUT_MS, DEFAULT_LEASE_TTL_MS, als, NOOP_RELEASE2, SessionLock;
+var MIN_RETRY_AFTER_MS, MAX_RETRY_AFTER_MS, FALLBACK_RETRY_AFTER_MS, SessionBusyError, DEFAULT_MAX_QUEUE, DEFAULT_WAIT_TIMEOUT_MS, DEFAULT_LEASE_TTL_MS, als, NOOP_RELEASE2, SessionLock;
 var init_session_lock = __esm({
   "src/adt/session-lock.ts"() {
     "use strict";
+    MIN_RETRY_AFTER_MS = 1e3;
+    MAX_RETRY_AFTER_MS = 6e4;
+    FALLBACK_RETRY_AFTER_MS = 5e3;
     SessionBusyError = class _SessionBusyError extends Error {
       code = "SESSION_BUSY";
       /** Op label of the holder at the moment of refusal. */
@@ -60200,18 +60203,38 @@ var init_session_lock = __esm({
       holderKind;
       heldForMs;
       reason;
+      /**
+       * Retryable unless a lease (the debugger's long poll) holds the session:
+       * nothing was sent to SAP, and a queue or wait refusal clears once the holder
+       * finishes. A lease refusal clears only when the debug session is stopped.
+       */
+      retryable;
+      /** Longest the holder can still legitimately run, when known. */
+      expectedRemainingMs;
+      /** Suggested delay before retrying; undefined when not retryable. */
+      retryAfterMs;
       constructor(detail) {
-        super(_SessionBusyError.describe(detail));
+        const retryable = detail.reason !== "lease-held";
+        const remaining = typeof detail.expectedRemainingMs === "number" && detail.expectedRemainingMs >= 0 ? Math.round(detail.expectedRemainingMs) : void 0;
+        const retryAfterMs = retryable ? Math.min(
+          MAX_RETRY_AFTER_MS,
+          Math.max(MIN_RETRY_AFTER_MS, remaining === void 0 ? FALLBACK_RETRY_AFTER_MS : remaining)
+        ) : void 0;
+        super(_SessionBusyError.describe(detail, remaining, retryAfterMs));
         this.name = "SessionBusyError";
+        this.retryable = retryable;
+        this.expectedRemainingMs = remaining;
+        this.retryAfterMs = retryAfterMs;
         this.reason = detail.reason;
         this.holder = detail.holder;
         this.holderKind = detail.holderKind;
         this.heldForMs = detail.heldForMs;
       }
-      static describe(detail) {
+      static describe(detail, remainingMs, retryAfterMs) {
         const who = `${detail.holderKind} "${detail.holder}" (held ${detail.heldForMs}ms)`;
         const mine = detail.op ? ` for "${detail.op}"` : "";
-        const tail = detail.note ? ` ${detail.note}` : "";
+        const retry = retryAfterMs === void 0 ? "" : ` Nothing was sent to SAP; ${remainingMs === void 0 ? "" : `the holder may run up to ~${remainingMs}ms longer; `}retry in ~${retryAfterMs}ms.`;
+        const tail = (detail.note ? ` ${detail.note}` : "") + retry;
         if (detail.reason === "lease-held") {
           return `The ABAP session is busy${mine}: ${who}. Only one request may be in flight on a stateful ADT session \u2014 a second one does not complete until the debugger's long poll settles, up to its full remaining timeout \u2014 and this holder is not queued behind, by design.` + tail;
         }
@@ -60233,6 +60256,7 @@ var init_session_lock = __esm({
       maxQueue;
       waitTimeoutMs;
       defaultLeaseTtlMs;
+      expectedHoldMs;
       now;
       setTimer;
       clearTimer;
@@ -60241,6 +60265,7 @@ var init_session_lock = __esm({
         this.maxQueue = typeof opts.maxQueue === "number" && opts.maxQueue >= 0 ? Math.floor(opts.maxQueue) : DEFAULT_MAX_QUEUE;
         this.waitTimeoutMs = typeof opts.waitTimeoutMs === "number" && opts.waitTimeoutMs > 0 ? opts.waitTimeoutMs : DEFAULT_WAIT_TIMEOUT_MS;
         this.defaultLeaseTtlMs = typeof opts.defaultLeaseTtlMs === "number" && opts.defaultLeaseTtlMs > 0 ? opts.defaultLeaseTtlMs : DEFAULT_LEASE_TTL_MS;
+        this.expectedHoldMs = typeof opts.expectedHoldMs === "number" && opts.expectedHoldMs > 0 ? opts.expectedHoldMs : void 0;
         this.now = typeof opts.now === "function" ? opts.now : () => Date.now();
         this.setTimer = typeof opts.setTimer === "function" ? opts.setTimer : defaultSetTimer;
         this.clearTimer = typeof opts.clearTimer === "function" ? opts.clearTimer : (h) => clearTimeout(h);
@@ -60505,7 +60530,8 @@ var init_session_lock = __esm({
             holder: held ? held.op : "<none>",
             holderKind: held ? held.kind : "exclusive",
             heldForMs: held ? Math.max(0, this.now() - held.acquiredAt) : 0,
-            op: waiter.op
+            op: waiter.op,
+            ...this.remainingDetail(held)
           })
         );
       }
@@ -60517,6 +60543,11 @@ var init_session_lock = __esm({
         this.log(`LEASE_EXPIRED op=${held.op} heldForMs=${heldForMs}`);
         this.releaseToken(token);
       }
+      /** Exclusive holders only: a lease's own TTL, not a request timeout, bounds it. */
+      expectedRemaining(held) {
+        if (held === null || held.kind !== "exclusive" || this.expectedHoldMs === void 0) return void 0;
+        return Math.max(0, this.expectedHoldMs - Math.max(0, this.now() - held.acquiredAt));
+      }
       busy(reason, held, op, note) {
         return new SessionBusyError({
           reason,
@@ -60524,8 +60555,13 @@ var init_session_lock = __esm({
           holderKind: held.kind,
           heldForMs: Math.max(0, this.now() - held.acquiredAt),
           op,
-          ...note ? { note } : {}
+          ...note ? { note } : {},
+          ...this.remainingDetail(held)
         });
+      }
+      remainingDetail(held) {
+        const r = this.expectedRemaining(held);
+        return r === void 0 ? {} : { expectedRemainingMs: r };
       }
     };
   }
@@ -65796,6 +65832,7 @@ var init_connection = __esm({
         this.now = opts.now ?? (() => Date.now());
         this.lock = opts.sessionLock ?? new SessionLock({
           waitTimeoutMs: cfg.sessionWaitMs + longestRequestTimeoutMs(cfg),
+          expectedHoldMs: longestRequestTimeoutMs(cfg),
           log: this.log
         });
         this.oauth = cfg.oauth ? new OAuthTokenProvider({ settings: cfg.oauth }) : void 0;
@@ -67645,9 +67682,31 @@ var init_pool = __esm({
         }
         return oldest;
       }
+      /**
+       * Issue #242: how long the holder of a slot can legitimately run — the
+       * longest per-family request timeout — or `undefined` when the config does
+       * not say (test fixtures build partial configs).
+       */
+      holderCeilingMs() {
+        const c = this.cfg;
+        const v = Math.max(c.timeoutMs, c.bopfTimeoutMs, c.activateTimeoutMs, c.runTimeoutMs, c.searchTimeoutMs);
+        return Number.isFinite(v) && v > 0 ? v : void 0;
+      }
+      /**
+       * The wait budget: `sessionWaitMs` of queueing headroom PLUS the holder's own ceiling, so a
+       * caller queued behind one long healthy request (a ~60s `abap_ui` press, a 180s BOPF create)
+       * is not refused before that request can finish. Same derivation as `SessionLock`'s
+       * `waitTimeoutMs` in connection.ts; one fixed 10s default alone could never cover it.
+       */
+      waitBudgetMs() {
+        return this.cfg.sessionWaitMs + (this.holderCeilingMs() ?? 0);
+      }
       busyError(reason, op, note) {
         const holder = this.blockingSlot();
+        const ceiling = this.holderCeilingMs();
+        const remaining = holder && holder.role !== "debug" && ceiling !== void 0 ? Math.max(0, ceiling - Math.max(0, this.now() - holder.leasedAt)) : void 0;
         return new SessionBusyError({
+          ...remaining !== void 0 ? { expectedRemainingMs: remaining } : {},
           reason,
           op,
           holder: holder ? holder.op : "(none)",
@@ -67687,7 +67746,7 @@ var init_pool = __esm({
        *  - Budget or attempts exhausted — hand freed capacity to whoever is parked, then fail.
        */
       async acquire(role, op) {
-        const deadline2 = this.now() + this.cfg.sessionWaitMs;
+        const deadline2 = this.now() + this.waitBudgetMs();
         const acquireStart = this.now();
         let attempts = 0;
         for (; ; ) {
@@ -83275,6 +83334,327 @@ var CORE_METHODS2 = `  METHOD run.
       WHEN OTHERS.
         rv_type = iv_type.
     ENDCASE.
+  ENDMETHOD.
+
+  METHOD set_elem.
+    " Converts one JSON scalar (already unescaped to a string) into one
+    " elementary target by the target's own RTTI type. A value that does not
+    " fit is reported in ev_error, never silently truncated or rounded.
+    DATA lo_elem TYPE REF TO cl_abap_elemdescr.
+    DATA lv_v    TYPE string.
+    DATA lv_re   TYPE string.
+    DATA lv_len  TYPE i.
+    DATA lv_int  TYPE string.
+    DATA lv_dec  TYPE string.
+    DATA lv_dlen TYPE i.
+    DATA lv_xs   TYPE xstring.
+
+    CLEAR ev_error.
+    lo_elem ?= cl_abap_typedescr=>describe_by_data( cv_target ).
+    TRY.
+        CASE lo_elem->type_kind.
+          WHEN cl_abap_typedescr=>typekind_char.
+            lv_len = lo_elem->length / cl_abap_char_utilities=>charsize.
+            IF lv_len = 1 AND iv_value = 'true'.
+              cv_target = 'X'.
+            ELSEIF lv_len = 1 AND iv_value = 'false'.
+              CLEAR cv_target.
+            ELSEIF strlen( iv_value ) > lv_len.
+              ev_error = |value is { strlen( iv_value ) } characters, the component holds { lv_len }|.
+            ELSE.
+              cv_target = iv_value.
+            ENDIF.
+          WHEN cl_abap_typedescr=>typekind_string.
+            cv_target = iv_value.
+          WHEN cl_abap_typedescr=>typekind_num.
+            lv_len = lo_elem->length / cl_abap_char_utilities=>charsize.
+            lv_v = condense( iv_value ).
+            IF lv_v IS INITIAL OR lv_v = 'null'.
+              CLEAR cv_target.
+            ELSEIF lv_v CN '0123456789' OR strlen( lv_v ) > lv_len.
+              ev_error = |value { lv_v } is not at most { lv_len } digits|.
+            ELSE.
+              cv_target = lv_v.
+            ENDIF.
+          WHEN cl_abap_typedescr=>typekind_date.
+            lv_v = condense( iv_value ).
+            IF strlen( lv_v ) = 10 AND lv_v+4(1) = '-' AND lv_v+7(1) = '-'.
+              lv_v = lv_v(4) && lv_v+5(2) && lv_v+8(2).
+            ENDIF.
+            IF lv_v IS INITIAL OR lv_v = 'null' OR lv_v = '00000000'.
+              CLEAR cv_target.
+            ELSEIF strlen( lv_v ) <> 8 OR lv_v CN '0123456789'
+                OR lv_v+4(2) < '01' OR lv_v+4(2) > '12'
+                OR lv_v+6(2) < '01' OR lv_v+6(2) > '31'.
+              ev_error = |value { lv_v } is not a date in YYYYMMDD form|.
+            ELSE.
+              cv_target = lv_v.
+            ENDIF.
+          WHEN cl_abap_typedescr=>typekind_time.
+            lv_v = condense( iv_value ).
+            IF strlen( lv_v ) = 8 AND lv_v+2(1) = ':' AND lv_v+5(1) = ':'.
+              lv_v = lv_v(2) && lv_v+3(2) && lv_v+6(2).
+            ENDIF.
+            IF lv_v IS INITIAL OR lv_v = 'null'.
+              CLEAR cv_target.
+            ELSEIF strlen( lv_v ) <> 6 OR lv_v CN '0123456789'
+                OR lv_v(2) > '24' OR lv_v+2(2) > '59' OR lv_v+4(2) > '59'.
+              ev_error = |value { lv_v } is not a time in HHMMSS form|.
+            ELSE.
+              cv_target = lv_v.
+            ENDIF.
+          WHEN cl_abap_typedescr=>typekind_packed
+            OR cl_abap_typedescr=>typekind_float
+            OR cl_abap_typedescr=>typekind_decfloat16
+            OR cl_abap_typedescr=>typekind_decfloat34
+            OR cl_abap_typedescr=>typekind_int
+            OR cl_abap_typedescr=>typekind_int1
+            OR cl_abap_typedescr=>typekind_int2
+            OR '8'.
+            " '8' is TYPEKIND_INT8, written as its literal so the class does
+            " not depend on the constant existing on older releases.
+            lv_v = condense( iv_value ).
+            IF lv_v IS INITIAL OR lv_v = 'null'.
+              CLEAR cv_target.
+              RETURN.
+            ENDIF.
+            lv_v = shift_left( val = lv_v sub = '+' ).
+            CASE lo_elem->type_kind.
+              WHEN cl_abap_typedescr=>typekind_packed.
+                lv_re = '[-+]?[0-9]+(\\.[0-9]+)?'.
+              WHEN cl_abap_typedescr=>typekind_float
+                OR cl_abap_typedescr=>typekind_decfloat16
+                OR cl_abap_typedescr=>typekind_decfloat34.
+                lv_re = '[-+]?[0-9]+(\\.[0-9]+)?([eE][-+]?[0-9]+)?'.
+              WHEN OTHERS.
+                lv_re = '[-+]?[0-9]+'.
+            ENDCASE.
+            IF NOT matches( val = lv_v regex = lv_re ).
+              ev_error = |value { iv_value } is not a number|.
+              RETURN.
+            ENDIF.
+            IF lo_elem->type_kind = cl_abap_typedescr=>typekind_packed.
+              SPLIT lv_v AT '.' INTO lv_int lv_dec.
+              lv_dlen = strlen( lv_dec ).
+              WHILE lv_dlen > lo_elem->decimals AND substring( val = lv_dec off = lv_dlen - 1 len = 1 ) = '0'.
+                lv_dlen = lv_dlen - 1.
+              ENDWHILE.
+              IF lv_dlen > lo_elem->decimals.
+                ev_error = |value { lv_v } has more than { lo_elem->decimals } decimals|.
+                RETURN.
+              ENDIF.
+            ENDIF.
+            cv_target = lv_v.
+          WHEN cl_abap_typedescr=>typekind_hex
+            OR cl_abap_typedescr=>typekind_xstring.
+            lv_v = to_upper( condense( iv_value ) ).
+            IF lv_v IS INITIAL OR lv_v = 'NULL'.
+              CLEAR cv_target.
+            ELSEIF lv_v CN '0123456789ABCDEF' OR strlen( lv_v ) MOD 2 <> 0.
+              ev_error = |value { iv_value } is not an even-length hex string|.
+            ELSEIF lo_elem->type_kind = cl_abap_typedescr=>typekind_hex
+               AND strlen( lv_v ) / 2 > lo_elem->length.
+              ev_error = |hex value is { strlen( lv_v ) / 2 } bytes, the component holds { lo_elem->length }|.
+            ELSE.
+              lv_xs = lv_v.
+              cv_target = lv_xs.
+            ENDIF.
+          WHEN OTHERS.
+            ev_error = |elementary type kind { lo_elem->type_kind } is not supported|.
+        ENDCASE.
+      CATCH cx_root.
+        ev_error = |value { iv_value } does not fit the component type|.
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD fill_struct.
+    " Fills cs_data from a JSON object text, keyed by component name. Reads
+    " the object with the same scan() as every other argument, into a
+    " private copy of gt_arg that is swapped back before returning. scan()
+    " goes one object level deep, so a component that is itself a flat
+    " structure works (NAME/SUBNAME rows); anything deeper, and any table or
+    " reference component, is refused in ev_error. An unknown component name
+    " is an error, never ignored.
+    DATA lt_save    LIKE gt_arg.
+    DATA lt_obj     LIKE gt_arg.
+    DATA ls_obj     TYPE ty_arg.
+    DATA lo_type    TYPE REF TO cl_abap_typedescr.
+    DATA lo_struct  TYPE REF TO cl_abap_structdescr.
+    DATA lv_top     TYPE string.
+    DATA lv_sub     TYPE string.
+    DATA lv_unknown TYPE string.
+    DATA lv_err     TYPE string.
+    FIELD-SYMBOLS <lv_comp> TYPE any.
+    FIELD-SYMBOLS <lv_part> TYPE any.
+
+    CLEAR ev_error.
+    lt_save = gt_arg.
+    CLEAR gt_arg.
+    TRY.
+        scan( shift_left( val = iv_json sub = \` \` ) ).
+      CATCH cx_root.
+        gt_arg = lt_save.
+        ev_error = 'value is not a well-formed JSON object'.
+        RETURN.
+    ENDTRY.
+    lt_obj = gt_arg.
+    gt_arg = lt_save.
+
+    lo_struct ?= cl_abap_typedescr=>describe_by_data( cs_data ).
+
+    LOOP AT lt_obj INTO ls_obj.
+      SPLIT ls_obj-path AT '/' INTO lv_top lv_sub.
+      lv_top = to_upper( lv_top ).
+      READ TABLE lo_struct->components TRANSPORTING NO FIELDS WITH KEY name = lv_top.
+      IF sy-subrc <> 0 AND NOT lv_unknown CS | { lv_top } |.
+        lv_unknown = lv_unknown && | { lv_top } |.
+      ENDIF.
+    ENDLOOP.
+    IF lv_unknown IS NOT INITIAL.
+      ev_error = |unknown component(s){ condense( lv_unknown ) } (core.describe_fm lists the components)|.
+      RETURN.
+    ENDIF.
+
+    LOOP AT lt_obj INTO ls_obj.
+      SPLIT ls_obj-path AT '/' INTO lv_top lv_sub.
+      lv_top = to_upper( lv_top ).
+      lv_sub = to_upper( lv_sub ).
+      IF ls_obj-value = 'null'.
+        CONTINUE.
+      ENDIF.
+      ASSIGN COMPONENT lv_top OF STRUCTURE cs_data TO <lv_comp>.
+      IF sy-subrc <> 0.
+        ev_error = |unknown component { lv_top }|.
+        RETURN.
+      ENDIF.
+      lo_type = cl_abap_typedescr=>describe_by_data( <lv_comp> ).
+      CASE lo_type->kind.
+        WHEN cl_abap_typedescr=>kind_elem.
+          IF lv_sub IS NOT INITIAL.
+            ev_error = |component { lv_top } is not a structure, but was sent as an object or array|.
+            RETURN.
+          ENDIF.
+          set_elem( EXPORTING iv_value = ls_obj-value
+                    IMPORTING ev_error = lv_err
+                    CHANGING  cv_target = <lv_comp> ).
+          IF lv_err IS NOT INITIAL.
+            ev_error = |component { lv_top }: { lv_err }|.
+            RETURN.
+          ENDIF.
+        WHEN cl_abap_typedescr=>kind_struct.
+          IF lv_sub IS INITIAL.
+            ev_error = |component { lv_top } is a structure, send it as a JSON object|.
+            RETURN.
+          ENDIF.
+          ASSIGN COMPONENT lv_sub OF STRUCTURE <lv_comp> TO <lv_part>.
+          IF sy-subrc <> 0.
+            ev_error = |unknown component { lv_top }-{ lv_sub }|.
+            RETURN.
+          ENDIF.
+          lo_type = cl_abap_typedescr=>describe_by_data( <lv_part> ).
+          IF lo_type->kind <> cl_abap_typedescr=>kind_elem.
+            ev_error = |component { lv_top }-{ lv_sub } is itself a structure or table, which is nested deeper than core.call_fm supports (two levels, elementary leaves)|.
+            RETURN.
+          ENDIF.
+          set_elem( EXPORTING iv_value = ls_obj-value
+                    IMPORTING ev_error = lv_err
+                    CHANGING  cv_target = <lv_part> ).
+          IF lv_err IS NOT INITIAL.
+            ev_error = |component { lv_top }-{ lv_sub }: { lv_err }|.
+            RETURN.
+          ENDIF.
+        WHEN OTHERS.
+          ev_error = |component { lv_top } is a table or reference, which core.call_fm cannot fill from JSON|.
+          RETURN.
+      ENDCASE.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD comp_json.
+    " The component list of a structure type as a JSON array of
+    " {name,type,length,decimals}, or '' when iv_type is not a structure.
+    " length is in characters for C/N/D/T, digits for P, bytes otherwise.
+    DATA lo_type   TYPE REF TO cl_abap_typedescr.
+    DATA lo_struct TYPE REF TO cl_abap_structdescr.
+    DATA ls_comp   TYPE abap_compdescr.
+    DATA lv_type   TYPE string.
+    DATA lv_tname  TYPE string.
+    DATA lv_len    TYPE i.
+    DATA lv_first  TYPE abap_bool.
+    DATA lv_cname  TYPE string.
+
+    CLEAR rv_json.
+    IF iv_type IS INITIAL.
+      RETURN.
+    ENDIF.
+    lv_type = concrete_type( iv_type ).
+    cl_abap_typedescr=>describe_by_name(
+      EXPORTING  p_name       = lv_type
+      RECEIVING  p_descr_ref  = lo_type
+      EXCEPTIONS type_not_found = 1
+                 OTHERS         = 2 ).
+    IF sy-subrc <> 0 OR lo_type IS NOT BOUND OR lo_type->kind <> cl_abap_typedescr=>kind_struct.
+      RETURN.
+    ENDIF.
+    lo_struct ?= lo_type.
+    rv_json = '['.
+    lv_first = abap_true.
+    LOOP AT lo_struct->components INTO ls_comp.
+      CASE ls_comp-type_kind.
+        WHEN 'C'.
+          lv_tname = 'CHAR'.
+        WHEN 'N'.
+          lv_tname = 'NUMC'.
+        WHEN 'D'.
+          lv_tname = 'DATS'.
+        WHEN 'T'.
+          lv_tname = 'TIMS'.
+        WHEN 'P'.
+          lv_tname = 'DEC'.
+        WHEN 'I'.
+          lv_tname = 'INT4'.
+        WHEN 'b'.
+          lv_tname = 'INT1'.
+        WHEN 's'.
+          lv_tname = 'INT2'.
+        WHEN '8'.
+          lv_tname = 'INT8'.
+        WHEN 'F'.
+          lv_tname = 'FLTP'.
+        WHEN 'X'.
+          lv_tname = 'RAW'.
+        WHEN 'g'.
+          lv_tname = 'STRING'.
+        WHEN 'y'.
+          lv_tname = 'RAWSTRING'.
+        WHEN 'a'.
+          lv_tname = 'DECFLOAT16'.
+        WHEN 'e'.
+          lv_tname = 'DECFLOAT34'.
+        WHEN 'u' OR 'v'.
+          lv_tname = 'STRUCTURE'.
+        WHEN 'h'.
+          lv_tname = 'TABLE'.
+        WHEN OTHERS.
+          lv_tname = ls_comp-type_kind.
+      ENDCASE.
+      lv_len = ls_comp-length.
+      IF ls_comp-type_kind = 'C' OR ls_comp-type_kind = 'N'
+         OR ls_comp-type_kind = 'D' OR ls_comp-type_kind = 'T'.
+        lv_len = lv_len / cl_abap_char_utilities=>charsize.
+      ELSEIF ls_comp-type_kind = 'P'.
+        lv_len = lv_len * 2 - 1.
+      ENDIF.
+      IF lv_first = abap_false.
+        rv_json = rv_json && ','.
+      ENDIF.
+      lv_first = abap_false.
+      lv_cname = ls_comp-name.
+      rv_json = rv_json && |\\{"name":"{ zcl_zmcp_fluid_rt=>esc( lv_cname ) }",|.
+      rv_json = rv_json && |"type":"{ lv_tname }","length":{ lv_len },|.
+      rv_json = rv_json && |"decimals":{ ls_comp-decimals }\\}|.
+    ENDLOOP.
+    rv_json = rv_json && ']'.
   ENDMETHOD.`;
 function coreBodySource(parts) {
   const allActions = parts.flatMap((p) => p.actions);
@@ -83370,6 +83750,25 @@ function coreBodySource(parts) {
         iv_type TYPE string
       RETURNING
         VALUE(rv_type) TYPE string.
+    CLASS-METHODS set_elem
+      IMPORTING
+        iv_value  TYPE string
+      EXPORTING
+        ev_error  TYPE string
+      CHANGING
+        cv_target TYPE any.
+    CLASS-METHODS fill_struct
+      IMPORTING
+        iv_json  TYPE string
+      EXPORTING
+        ev_error TYPE string
+      CHANGING
+        cs_data  TYPE any.
+    CLASS-METHODS comp_json
+      IMPORTING
+        iv_type TYPE string
+      RETURNING
+        VALUE(rv_json) TYPE string.
 ${methodDecls}
 ENDCLASS.
 
@@ -83519,6 +83918,7 @@ var fmPart = {
     DATA lv_pfirst TYPE abap_bool.
     DATA lv_rfirst TYPE abap_bool.
     DATA lv_efirst TYPE abap_bool.
+    DATA lv_comps TYPE string.
 
     lv_name = to_upper( s( 'name' ) ).
     IF lv_name IS INITIAL.
@@ -83582,8 +83982,17 @@ var fmPart = {
         ENDIF.
         lv_pfirst = abap_false.
         lv_props = lv_props && |"{ zcl_zmcp_fluid_rt=>esc( ls_par-name ) }":|.
-        lv_props = lv_props && |\\{"type":"string","description":"{ lv_kind }, type |.
-        lv_props = lv_props && |{ zcl_zmcp_fluid_rt=>esc( ls_par-typename ) }"\\}|.
+        lv_comps = comp_json( ls_par-typename ).
+        IF lv_comps IS INITIAL.
+          lv_props = lv_props && |\\{"type":"string","description":"{ lv_kind }, type |.
+          lv_props = lv_props && |{ zcl_zmcp_fluid_rt=>esc( ls_par-typename ) }"\\}|.
+        ELSE.
+          lv_props = lv_props && |\\{"type":["object","string"],|.
+          lv_props = lv_props && |"description":"{ lv_kind }, structure type |.
+          lv_props = lv_props && |{ zcl_zmcp_fluid_rt=>esc( ls_par-typename ) }. |.
+          lv_props = lv_props && |Send a JSON object keyed by component name, or a fixed-width string.",|.
+          lv_props = lv_props && |"components":{ lv_comps }\\}|.
+        ENDIF.
         IF ls_par-optional = abap_false.
           IF lv_rfirst = abap_false.
             lv_req = lv_req && ','.
@@ -83618,6 +84027,9 @@ var fmPart = {
     DATA lv_kind  TYPE string.
     DATA lv_pname TYPE string.
     DATA lv_tname TYPE string.
+    DATA lo_desc  TYPE REF TO cl_abap_typedescr.
+    DATA lv_trim  TYPE string.
+    DATA lv_err   TYPE string.
     FIELD-SYMBOLS <lv_any> TYPE any.
 
     lv_name = to_upper( s( 'name' ) ).
@@ -83656,12 +84068,29 @@ var fmPart = {
       ENDTRY.
       ASSIGN lr_data->* TO <lv_any>.
       lv_val = s( |params/{ lv_key }| ).
-      TRY.
-          <lv_any> = lv_val.
-        CATCH cx_root.
-          fail( |value for { lv_key } does not fit type { lv_type }| ).
+      lo_desc = cl_abap_typedescr=>describe_by_data( <lv_any> ).
+      lv_trim = shift_left( val = lv_val sub = \` \` ).
+      IF lo_desc->kind = cl_abap_typedescr=>kind_struct AND lv_trim CP '{*'.
+        " A JSON object for a structure: fill it component by component.
+        fill_struct( EXPORTING iv_json = lv_trim
+                     IMPORTING ev_error = lv_err
+                     CHANGING  cs_data = <lv_any> ).
+        IF lv_err IS NOT INITIAL.
+          fail( |parameter { lv_key } of { lv_name }: { lv_err }| ).
           RETURN.
-      ENDTRY.
+        ENDIF.
+      ELSE.
+        TRY.
+            <lv_any> = lv_val.
+          CATCH cx_root.
+            IF lo_desc->kind = cl_abap_typedescr=>kind_struct.
+              fail( |value for { lv_key } does not fit type { lv_type }; send a JSON object keyed by component name| ).
+            ELSE.
+              fail( |value for { lv_key } does not fit type { lv_type }| ).
+            ENDIF.
+            RETURN.
+        ENDTRY.
+      ENDIF.
       CLEAR ls_ptab.
       ls_ptab-name = lv_key.
       IF ls_par-ptype = 'I'.
@@ -84573,7 +85002,7 @@ var coreManifest = {
           name: { type: "string", maxLength: 30, description: "The function module to call." },
           params: {
             type: "object",
-            description: "Parameter name -> value, every value a string. See core.describe_fm's params_schema."
+            description: "Parameter name -> value. A structured parameter takes a JSON object keyed by component name (or a fixed-width string for a flat character structure); every other value is a string. See core.describe_fm's params_schema."
           },
           commit: {
             type: "boolean",
@@ -84783,6 +85212,29 @@ async function guardCoreAction(deps, req) {
     }
     return;
   }
+}
+function normalizeCallFmArgs(args) {
+  const rec = evalArgsRecord(args);
+  const params = rec["params"];
+  if (typeof params !== "object" || params === null || Array.isArray(params)) return args;
+  const out = {};
+  for (const [k, v] of Object.entries(params)) {
+    out[k] = compactStructParam(v);
+  }
+  return { ...rec, params: out };
+}
+function compactStructParam(v) {
+  let obj = v;
+  if (typeof v === "string") {
+    if (!v.trimStart().startsWith("{")) return v;
+    try {
+      obj = JSON.parse(v);
+    } catch {
+      return v;
+    }
+  }
+  if (typeof obj !== "object" || obj === null || Array.isArray(obj)) return v;
+  return JSON.stringify(obj, (_k, val) => typeof val === "number" ? String(val) : val);
 }
 function evalArgsRecord(args) {
   return typeof args === "object" && args !== null && !Array.isArray(args) ? args : {};
@@ -111953,7 +112405,8 @@ async function dispatch2(deps, req) {
   assertTargetsAgainstGate(deps.gate, action, req.args, tool.origin, req.corrSource);
   await ensureFluidPackage(deps.conn, deps.gate);
   const sysKey = systemKey(deps.conn.cfg);
-  const wireArgs = tool.manifest.flatArgs === true ? flattenScanArgs(req.args) : req.args;
+  const shapedArgs = req.tool === CORE_TOOL_ID && req.action === "call_fm" ? normalizeCallFmArgs(req.args) : req.args;
+  const wireArgs = tool.manifest.flatArgs === true ? flattenScanArgs(shapedArgs) : shapedArgs;
   const contract = tool.manifest.contract;
   const invokerClassName = invokerName(req.tool, req.action, wireArgs, contract);
   const runDeployAndExecute = async () => {
@@ -116159,16 +116612,20 @@ async function runClass(conn, className, options = {}) {
   const started = Date.now();
   let raw;
   try {
-    raw = await conn.withRequestTimeout(
-      conn.cfg.runTimeoutMs,
-      () => conn.withFreshSession(async (client) => {
-        try {
-          return await client.runClass(name);
-        } catch (e) {
-          throw translateRunFailure(conn, name, e);
-        }
-      })
-    );
+    try {
+      raw = await conn.withRequestTimeout(
+        conn.cfg.runTimeoutMs,
+        () => conn.withFreshSession(async (client) => {
+          try {
+            return await client.runClass(name);
+          } catch (e) {
+            throw translateRunFailure(conn, name, e);
+          }
+        })
+      );
+    } finally {
+      if (options.dropSessionAfter === true) await conn.dropSession().catch(() => void 0);
+    }
   } catch (e) {
     throw await attachRecentDump(conn, name, e, options);
   }
@@ -120456,6 +120913,7 @@ init_source();
 init_errors();
 init_session();
 init_error_capture();
+init_session_lock();
 init_truncate();
 var MAX_ERROR_ENVELOPE_CHARS = 4e3;
 var MAX_PROPERTY_VALUE_CHARS = 300;
@@ -120691,7 +121149,22 @@ function hintForRawThrow(code) {
 }
 function buildErrorPayload(e) {
   let payload;
-  if (isAbapError(e)) {
+  if (e instanceof SessionBusyError) {
+    payload = {
+      error: e.code,
+      message: e.message,
+      hint: e.retryable ? `Retryable: the session is busy with "${e.holder}", not broken. Retry the same call in ~${Math.ceil((e.retryAfterMs ?? 0) / 1e3)}s; do not fire calls in parallel against one session pool (raise ABAP_SESSION_WAIT_MS / ABAP_MAX_SESSIONS only if this recurs).` : "Stop the debug session holding the ABAP session, then retry.",
+      retryable: e.retryable,
+      details: {
+        reason: e.reason,
+        holder: e.holder,
+        holderKind: e.holderKind,
+        heldForMs: e.heldForMs,
+        ...e.expectedRemainingMs !== void 0 ? { expectedRemainingMs: e.expectedRemainingMs } : {},
+        ...e.retryAfterMs !== void 0 ? { retryAfterMs: e.retryAfterMs } : {}
+      }
+    };
+  } else if (isAbapError(e)) {
     const { adt: adtRaw, rest } = adtEnvelopeFromDetails(e.details);
     const message2 = e.code === "NOT_FOUND" ? ensureNotFoundNamesObject(e.message, e.details) : e.message;
     const adt = withXt465Fallback(adtRaw, message2);
@@ -126681,6 +127154,21 @@ function tstcKind(cinfo) {
   if (bits & 1) return "menu";
   return "dialog";
 }
+var LOCKED_TEXT = "locked transaction (TSTC-CINFO bit 0x20, set in SM01; batch input does NOT apply)";
+var UNKNOWN_TEXT = "unrecognised transaction kind - mechanism not confirmed, do not assume batch input applies";
+var KNOWN_BITS = 191;
+function tstcLocked(cinfo) {
+  const bits = parseInt(cinfo, 16);
+  return !Number.isNaN(bits) && (bits & 32) !== 0;
+}
+function describeTstc(cinfo) {
+  const bits = parseInt(cinfo, 16);
+  if (Number.isNaN(bits)) return { bdcApplies: void 0, kind: UNKNOWN_TEXT };
+  if (bits & 32) return { bdcApplies: false, kind: LOCKED_TEXT };
+  if (bits & ~KNOWN_BITS || (bits & 144) === 16) return { bdcApplies: void 0, kind: UNKNOWN_TEXT };
+  const kindCode = tstcKind(cinfo);
+  return { bdcApplies: kindCode === "dialog", kind: KIND_TEXT[kindCode] };
+}
 async function lookupTransaction(conn, tcode) {
   const result = await runCatalogSelect(conn, buildTransactionDetailQuery(tcode), 1);
   if (!result.columns.includes("TCODE")) return void 0;
@@ -126688,14 +127176,15 @@ async function lookupTransaction(conn, tcode) {
   if (!row2) return void 0;
   const cinfo = (row2.CINFO ?? "").trim();
   const kindCode = tstcKind(cinfo);
+  const { bdcApplies, kind } = describeTstc(cinfo);
   return {
     tcode: (row2.TCODE ?? tcode).trim(),
     program: (row2.PGMNA ?? "").trim(),
     dynpro: (row2.DYPNO ?? "").trim(),
     cinfo,
     kindCode,
-    kind: KIND_TEXT[kindCode],
-    bdcApplies: cinfo === "00" ? true : kindCode === "report" ? false : void 0
+    kind,
+    bdcApplies
   };
 }
 
@@ -158585,6 +159074,7 @@ function splitFcodeFrames(values) {
     switch (v.kind) {
       case "target": {
         const tcodeRaw = v.tcode;
+        const described = describeTstc(isRecord2(tcodeRaw) ? str5(tcodeRaw.cinfo) : "");
         raw.target = {
           program: str5(v.program),
           dynpro: str5(v.dynpro),
@@ -158595,8 +159085,9 @@ function splitFcodeFrames(values) {
               program: str5(tcodeRaw.program),
               dynpro: str5(tcodeRaw.dynpro),
               cinfo: str5(tcodeRaw.cinfo),
-              kind: str5(tcodeRaw.kind),
-              ...typeof tcodeRaw.bdcApplies === "boolean" ? { bdcApplies: tcodeRaw.bdcApplies } : {}
+              // Derived from cinfo, not the bridge's flag, which only knows '00'/'80' (#236).
+              kind: str5(tcodeRaw.kind).startsWith("unrecognised") ? described.kind : str5(tcodeRaw.kind),
+              ...described.bdcApplies !== void 0 ? { bdcApplies: described.bdcApplies } : {}
             }
           } : {}
         };
@@ -159407,6 +159898,15 @@ ${body}
       CATCH cx_root INTO DATA(lx).
         out->write( |${ERR_LINE_PREFIX}EXCEPTION { cl_abap_classdescr=>get_class_name( lx ) }: { lx->get_text( ) }| ).
     ENDTRY.
+*   Release what the driven transaction left behind (issue #241): the ADT
+*   session outlives this run, and an enqueue it still holds blocks the user
+*   in SAP GUI. UPDATE 'S' above makes the update synchronous and committed
+*   before CALL TRANSACTION returns, so ROLLBACK WORK only discards leftovers.
+*   Every result line is written already; nothing below may read sy-subrc.
+    ROLLBACK WORK.
+    CALL FUNCTION 'DEQUEUE_ALL'
+      EXPORTING
+        _synchron = 'X'.
   ENDMETHOD.
 
 ENDCLASS.
@@ -159448,13 +159948,16 @@ function parseUiTranscript(raw) {
     switch (head) {
       case "TCODE": {
         const cinfo = fields.cinfo ?? "";
+        const described = describeTstc(cinfo);
         result.tcode = {
           tcode: fields.tcode ?? "",
           program: fields.program ?? "",
           dynpro: fields.dynpro ?? "",
           cinfo,
-          kind: fields.kind ?? "",
-          bdcApplies: cinfo === "00" ? true : cinfo === "80" ? false : void 0
+          // The bridge's ABAP only names '00' and '80'; anything else arrives
+          // as "unrecognised", so the TS-side description replaces that text.
+          kind: fields.kind?.startsWith("unrecognised") ? described.kind : fields.kind ?? "",
+          bdcApplies: described.bdcApplies
         };
         break;
       }
@@ -159674,7 +160177,7 @@ async function runUiPressBridge(conn, query, gate) {
     verify: (activation) => verifyBridgeActivation(activation, className, "UI bridge", { mode: query.mode })
   });
   const { bridgeRefreshed } = deployed;
-  const run = await executeBridge(conn, gate, deployed);
+  const run = await executeBridge(conn, gate, deployed, { dropSessionAfter: true });
   const transcript = parseUiTranscript(run.output);
   return {
     query,
@@ -160264,13 +160767,21 @@ async function assertTransactionExists(deps, tcode) {
   return record2;
 }
 function assertBdcApplies(tcode, kind) {
-  if (kind.bdcApplies !== true) {
-    throw new AbapError(
-      "SAFETY_DENIED",
-      `Transaction ${tcode} has TSTC-CINFO=${kind.cinfo} (${kind.kind}) \u2014 batch input only applies to confirmed dialog transactions (cinfo='00'). CALL TRANSACTION against a report transaction runs the report directly and ignores scripted BDCDATA, which is not a safe no-op. Use abap_run (report mode) or SUBMIT instead.`,
-      { tcode, cinfo: kind.cinfo, kind: kind.kind, phase: "preflight" }
-    );
+  if (kind.bdcApplies === true) return;
+  const head = `Transaction ${tcode} has TSTC-CINFO=${kind.cinfo}`;
+  let message2;
+  let hint;
+  if (tstcLocked(kind.cinfo)) {
+    message2 = `${head} \u2014 it is locked (bit 0x20, set in SM01), so CALL TRANSACTION would be rejected.`;
+    hint = "Unlock the transaction in SM01 first, then press it.";
+  } else if (kind.bdcApplies === false && kind.kindCode === "report") {
+    message2 = `${head} (${kind.kind}) \u2014 batch input only applies to dialog transactions. CALL TRANSACTION against a report transaction runs the report directly and ignores scripted BDCDATA, which is not a safe no-op. Use abap_run (report mode) or SUBMIT instead.`;
+  } else if (kind.bdcApplies === false) {
+    message2 = `${head} (${kind.kind}) \u2014 batch input only applies to dialog transactions, and this is not one. Press the underlying dialog transaction, or address its screens directly with mode:"screen".`;
+  } else {
+    message2 = `${head} \u2014 this value is not a recognised combination of CINFO bits, so batch input is not assumed to apply and press refuses conservatively.`;
   }
+  throw new AbapError("SAFETY_DENIED", message2, { tcode, cinfo: kind.cinfo, kind: kind.kind, phase: "preflight" }, hint);
 }
 function renderRecordRows(rows) {
   if (!rows.length) return "(none)";
@@ -160286,11 +160797,11 @@ function buildScreenResponse(query, result, maxChars, layout, detail = "compact"
   if (t.tcode) {
     if (t.tcode.bdcApplies === false) {
       notes.push(
-        `TSTC-CINFO=${t.tcode.cinfo} \u2014 ${t.tcode.kind}. abap_ui press refuses this transaction: use abap_run (report mode) or SUBMIT instead.`
+        `TSTC-CINFO=${t.tcode.cinfo} \u2014 ${t.tcode.kind}. abap_ui press refuses this transaction.`
       );
     } else if (t.tcode.bdcApplies === void 0) {
       notes.push(
-        `TSTC-CINFO=${t.tcode.cinfo} is not a recognised value ('00' dialog / '80' report) \u2014 press will refuse this transaction conservatively until it is.`
+        `TSTC-CINFO=${t.tcode.cinfo} is not a recognised combination of CINFO bits \u2014 press will refuse this transaction conservatively.`
       );
     }
   }

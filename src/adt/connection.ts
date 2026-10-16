@@ -719,6 +719,7 @@ export class AbapConnection {
       opts.sessionLock ??
       new SessionLock({
         waitTimeoutMs: cfg.sessionWaitMs + longestRequestTimeoutMs(cfg),
+        expectedHoldMs: longestRequestTimeoutMs(cfg),
         log: this.log,
       });
 

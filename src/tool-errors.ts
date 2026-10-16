@@ -17,6 +17,7 @@ import {
   isNotFoundError,
 } from "./adt/session.js";
 import { BODY_DUMP_DIR_ENV } from "./error-capture.js";
+import { SessionBusyError } from "./adt/session-lock.js";
 import { truncateText } from "./truncate.js";
 
 // ---------------------------------------------------------------------------
@@ -510,7 +511,27 @@ function hintForRawThrow(code: AbapErrorCode): string | undefined {
 export function buildErrorPayload(e: unknown): Record<string, unknown> {
   let payload: Record<string, unknown>;
 
-  if (isAbapError(e)) {
+  if (e instanceof SessionBusyError) {
+    // Issue #242: an in-process admission refusal, not an ADT failure — nothing was sent to SAP.
+    payload = {
+      error: e.code,
+      message: e.message,
+      hint: e.retryable
+        ? `Retryable: the session is busy with "${e.holder}", not broken. Retry the same call in ` +
+          `~${Math.ceil((e.retryAfterMs ?? 0) / 1000)}s; do not fire calls in parallel against one ` +
+          "session pool (raise ABAP_SESSION_WAIT_MS / ABAP_MAX_SESSIONS only if this recurs)."
+        : "Stop the debug session holding the ABAP session, then retry.",
+      retryable: e.retryable,
+      details: {
+        reason: e.reason,
+        holder: e.holder,
+        holderKind: e.holderKind,
+        heldForMs: e.heldForMs,
+        ...(e.expectedRemainingMs !== undefined ? { expectedRemainingMs: e.expectedRemainingMs } : {}),
+        ...(e.retryAfterMs !== undefined ? { retryAfterMs: e.retryAfterMs } : {}),
+      },
+    };
+  } else if (isAbapError(e)) {
     const { adt: adtRaw, rest } = adtEnvelopeFromDetails(e.details);
     const message = e.code === "NOT_FOUND" ? ensureNotFoundNamesObject(e.message, e.details) : e.message;
     const adt = withXt465Fallback(adtRaw, message);

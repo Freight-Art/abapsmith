@@ -910,9 +910,36 @@ export class AdtSessionPool implements SessionPool {
     return oldest;
   }
 
+  /**
+   * Issue #242: how long the holder of a slot can legitimately run — the
+   * longest per-family request timeout — or `undefined` when the config does
+   * not say (test fixtures build partial configs).
+   */
+  private holderCeilingMs(): number | undefined {
+    const c = this.cfg;
+    const v = Math.max(c.timeoutMs, c.bopfTimeoutMs, c.activateTimeoutMs, c.runTimeoutMs, c.searchTimeoutMs);
+    return Number.isFinite(v) && v > 0 ? v : undefined;
+  }
+
+  /**
+   * The wait budget: `sessionWaitMs` of queueing headroom PLUS the holder's own ceiling, so a
+   * caller queued behind one long healthy request (a ~60s `abap_ui` press, a 180s BOPF create)
+   * is not refused before that request can finish. Same derivation as `SessionLock`'s
+   * `waitTimeoutMs` in connection.ts; one fixed 10s default alone could never cover it.
+   */
+  private waitBudgetMs(): number {
+    return this.cfg.sessionWaitMs + (this.holderCeilingMs() ?? 0);
+  }
+
   private busyError(reason: SessionBusyReason, op: string, note?: string): SessionBusyError {
     const holder = this.blockingSlot();
+    const ceiling = this.holderCeilingMs();
+    const remaining =
+      holder && holder.role !== "debug" && ceiling !== undefined
+        ? Math.max(0, ceiling - Math.max(0, this.now() - holder.leasedAt))
+        : undefined;
     return new SessionBusyError({
+      ...(remaining !== undefined ? { expectedRemainingMs: remaining } : {}),
       reason,
       op,
       holder: holder ? holder.op : "(none)",
@@ -954,7 +981,7 @@ export class AdtSessionPool implements SessionPool {
    *  - Budget or attempts exhausted — hand freed capacity to whoever is parked, then fail.
    */
   private async acquire(role: SlotRole, op: string): Promise<InternalSlot> {
-    const deadline = this.now() + this.cfg.sessionWaitMs;
+    const deadline = this.now() + this.waitBudgetMs();
     const acquireStart = this.now();
     let attempts = 0;
     for (;;) {

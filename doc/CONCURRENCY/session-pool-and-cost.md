@@ -57,11 +57,14 @@ starved silently:
 - `queue-full` — more than `maxQueue` (default 8, not currently exposed as
   an env var) callers are already waiting for a slot.
 - `wait-timeout` — the caller waited past `ABAP_SESSION_WAIT_MS` (default
-  10 000 ms) for a slot.
+  10 000 ms) **plus the longest request timeout** for a slot (#242).
 
 All three surface as `SessionBusyError` (`code: "SESSION_BUSY"`), naming the
 holder — operation label, how long it has held the slot, and whether it is an
-exclusive slot or a debug lease — so a caller can decide whether to retry.
+exclusive slot or a debug lease — so a caller can decide whether to retry. `wait-timeout` and `queue-full` are
+`retryable` and carry `expectedRemainingMs` (the holder's request-timeout
+ceiling minus how long it has held) and a suggested `retryAfterMs`; `lease-held`
+is not retryable until the debug session stops.
 
 The wait budget is an **absolute deadline**, computed once per call: retrying
 internally after discovering a dead slot does not reset the clock, so a
