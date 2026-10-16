@@ -58,6 +58,10 @@ import {
   type UiFcodeQuery,
   type UiMessage,
   type UiPressQuery,
+  type UiCtuOptions,
+  DEFAULT_CTU_OPTIONS,
+  ctuOptionsText,
+  effectiveCtuOptions,
   type UiScreenQuery,
   type UiScreenTarget,
 } from "../adt/ui-runtime.js";
@@ -167,6 +171,26 @@ export const uiInputSchema = {
         'collapsed; "full" is the raw dump of every D021S column and flow line. Render-side only — ' +
         "same single bridge call. Ignored by fcode and press.",
     ),
+  defsize: z
+    .boolean()
+    .optional()
+    .describe(
+      "press only, default true: CTU_PARAMS-DEFSIZE — run the transaction at its standard screen " +
+        "size so table controls expose their standard row count to batch input (without it only " +
+        "rows (01)/(02) are addressable). The effective options are echoed in the response header.",
+    ),
+  racommit: z
+    .boolean()
+    .optional()
+    .describe("press only, default false: CTU_PARAMS-RACOMMIT — a COMMIT WORK in the called transaction does not end batch input."),
+  nobinpt: z
+    .boolean()
+    .optional()
+    .describe("press only, default false: CTU_PARAMS-NOBINPT — sy-binpt stays space (no batch-input mode) in the called transaction."),
+  nobiend: z
+    .boolean()
+    .optional()
+    .describe("press only, default false: CTU_PARAMS-NOBIEND — no batch-input mode after the end of the batch input data."),
   confirm: z
     .boolean()
     .optional()
@@ -356,7 +380,14 @@ function buildPressQuery(input: UiInput): UiPressQuery {
       value: f.value,
     })),
   }));
-  return { mode: "press", tcode: normalizeTcode(tcode), screens };
+  const options: UiCtuOptions = {
+    ...DEFAULT_CTU_OPTIONS,
+    ...(input.defsize !== undefined ? { defsize: input.defsize } : {}),
+    ...(input.racommit !== undefined ? { racommit: input.racommit } : {}),
+    ...(input.nobinpt !== undefined ? { nobinpt: input.nobinpt } : {}),
+    ...(input.nobiend !== undefined ? { nobiend: input.nobiend } : {}),
+  };
+  return { mode: "press", tcode: normalizeTcode(tcode), screens, options };
 }
 
 // ---------------------------------------------------------------------------
@@ -369,7 +400,7 @@ function assertPressConfirmed(input: UiInput): void {
   if (input.confirm === true) return;
   throw new AbapError(
     "SAFETY_DENIED",
-    "abap_ui press executes CALL TRANSACTION ... MODE 'N' UPDATE 'S' against a live system. " +
+    "abap_ui press executes CALL TRANSACTION ... OPTIONS FROM CTU_PARAMS (DISMODE 'N', UPDMODE 'S') against a live system. " +
       "This COMMITS business data changes immediately and CANNOT be rolled back — MODE 'N' still " +
       "commits, and ROLLBACK WORK does not reach back across a CALL TRANSACTION boundary. There is " +
       "no dry run. Pass confirm: true to proceed.",
@@ -829,6 +860,7 @@ function buildPressResponse(
       tcode: query.tcode,
       subrc: press.subrc,
       rowCount: press.rowCount,
+      options: ctuOptionsText(effectiveCtuOptions(query)),
       stalled_at_program: press.stalled?.program,
       stalled_at_dynpro: press.stalled?.dynpro,
       bridgeClass: result.bridgeClass,
