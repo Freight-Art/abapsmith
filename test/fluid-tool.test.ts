@@ -420,6 +420,25 @@ describe("abap_fluid — bare call (no op/tool/action)", () => {
     expect(lines[lines.length - 1]).toMatch(/^NEXT:/);
   });
 
+  it("returns the catalogue when deps carry cfg/safety as prototype getters (withDeps(routed, ...) shape)", async () => {
+    const toolSet = toolSetOf(makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" }));
+    const base = {
+      get pool() { return boobyPool(); },
+      get cfg() { return cfg(); },
+      get safety() { return gate(); },
+      ensureConnected: boobyEnsureConnected,
+      errorResult,
+      journal: disabledJournal,
+    };
+    const deps = Object.create(base, Object.getOwnPropertyDescriptors({ toolSet })) as FluidToolDeps;
+    const { mcp, tools } = fakeMcp();
+    registerFluidTool(mcp, deps);
+
+    const text = okText(await invoke(tools, {}));
+    expect(text).toContain("demo");
+    expect(text).toContain("flag_ABAP_FLUID_API: true");
+  });
+
   it("names the disabled reason instead of the catalogue when the fluid flag is off, touching no network", async () => {
     const toolSet = toolSetOf(makeTool({ id: "demo", className: "ZCL_ZMCP_DEMO" }));
     const tools = registered({ toolSet, cfg: cfg({ fluidApi: false }) });

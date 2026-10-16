@@ -310,7 +310,13 @@ function refusedSection(toolSet: FluidToolSet): Array<{ title: string; content: 
  * REFUSED PLUGINS table, same as `renderList`.
  */
 function renderInfoBlock(deps: FluidToolDeps): string {
-  const info = buildFluidInfoBlock({ ...deps, toolSet: catalogueToolSet(deps.toolSet, deps.cfg) });
+  // Pass fields explicitly: `deps` may be a `withDeps(routed, …)` object whose
+  // `cfg`/`safety` are PROTOTYPE getters, which an object spread would drop.
+  const info = buildFluidInfoBlock({
+    cfg: deps.cfg,
+    safety: deps.safety,
+    toolSet: catalogueToolSet(deps.toolSet, deps.cfg),
+  });
   const rows = info.tools.map((t) => ({
     id: t.id,
     origin: t.origin,
