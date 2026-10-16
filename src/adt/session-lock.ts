@@ -93,7 +93,17 @@ export interface SessionBusyDetail {
   heldForMs: number;
   op?: string;
   note?: string;
+  /**
+   * How much longer the holder can legitimately run (its request timeout minus
+   * `heldForMs`), when the caller knows its ceiling. Drives `retryAfterMs`.
+   */
+  expectedRemainingMs?: number;
 }
+
+/** Floor / ceiling / fallback for the retry delay suggested on a retryable refusal. */
+const MIN_RETRY_AFTER_MS = 1_000;
+const MAX_RETRY_AFTER_MS = 60_000;
+const FALLBACK_RETRY_AFTER_MS = 5_000;
 
 /**
  * Refusal to admit a request onto the shared ADT session.
@@ -109,20 +119,54 @@ export class SessionBusyError extends Error {
   readonly holderKind: "lease" | "exclusive";
   readonly heldForMs: number;
   readonly reason: SessionBusyReason;
+  /**
+   * Retryable unless a lease (the debugger's long poll) holds the session:
+   * nothing was sent to SAP, and a queue or wait refusal clears once the holder
+   * finishes. A lease refusal clears only when the debug session is stopped.
+   */
+  readonly retryable: boolean;
+  /** Longest the holder can still legitimately run, when known. */
+  readonly expectedRemainingMs: number | undefined;
+  /** Suggested delay before retrying; undefined when not retryable. */
+  readonly retryAfterMs: number | undefined;
 
   constructor(detail: SessionBusyDetail) {
-    super(SessionBusyError.describe(detail));
+    const retryable = detail.reason !== "lease-held";
+    const remaining =
+      typeof detail.expectedRemainingMs === "number" && detail.expectedRemainingMs >= 0
+        ? Math.round(detail.expectedRemainingMs)
+        : undefined;
+    const retryAfterMs = retryable
+      ? Math.min(
+          MAX_RETRY_AFTER_MS,
+          Math.max(MIN_RETRY_AFTER_MS, remaining === undefined ? FALLBACK_RETRY_AFTER_MS : remaining),
+        )
+      : undefined;
+    super(SessionBusyError.describe(detail, remaining, retryAfterMs));
     this.name = "SessionBusyError";
+    this.retryable = retryable;
+    this.expectedRemainingMs = remaining;
+    this.retryAfterMs = retryAfterMs;
     this.reason = detail.reason;
     this.holder = detail.holder;
     this.holderKind = detail.holderKind;
     this.heldForMs = detail.heldForMs;
   }
 
-  private static describe(detail: SessionBusyDetail): string {
+  private static describe(
+    detail: SessionBusyDetail,
+    remainingMs: number | undefined,
+    retryAfterMs: number | undefined,
+  ): string {
     const who = `${detail.holderKind} "${detail.holder}" (held ${detail.heldForMs}ms)`;
     const mine = detail.op ? ` for "${detail.op}"` : "";
-    const tail = detail.note ? ` ${detail.note}` : "";
+    const retry =
+      retryAfterMs === undefined
+        ? ""
+        : ` Nothing was sent to SAP; ${
+            remainingMs === undefined ? "" : `the holder may run up to ~${remainingMs}ms longer; `
+          }retry in ~${retryAfterMs}ms.`;
+    const tail = (detail.note ? ` ${detail.note}` : "") + retry;
     if (detail.reason === "lease-held") {
       return (
         `The ABAP session is busy${mine}: ${who}. ` +
@@ -152,6 +196,12 @@ export interface SessionLockOptions {
   maxQueue?: number;
   /** How long a parked waiter may wait before it gives up. Default 10_000. */
   waitTimeoutMs?: number;
+  /**
+   * Longest an exclusive hold can legitimately last (the longest request
+   * timeout). Only used to report the holder's expected remaining time on a
+   * refusal; it never changes admission. Default: unknown.
+   */
+  expectedHoldMs?: number;
   /** Hard TTL applied to a lease when the caller does not name one. Default 300_000. */
   defaultLeaseTtlMs?: number;
   /** Injectable clock. Default `() => Date.now()`. */
@@ -237,6 +287,7 @@ export class SessionLock {
   private readonly maxQueue: number;
   private readonly waitTimeoutMs: number;
   private readonly defaultLeaseTtlMs: number;
+  private readonly expectedHoldMs: number | undefined;
   private readonly now: () => number;
   private readonly setTimer: (fn: () => void, ms: number) => unknown;
   private readonly clearTimer: (h: unknown) => void;
@@ -255,6 +306,8 @@ export class SessionLock {
       typeof opts.defaultLeaseTtlMs === "number" && opts.defaultLeaseTtlMs > 0
         ? opts.defaultLeaseTtlMs
         : DEFAULT_LEASE_TTL_MS;
+    this.expectedHoldMs =
+      typeof opts.expectedHoldMs === "number" && opts.expectedHoldMs > 0 ? opts.expectedHoldMs : undefined;
     this.now = typeof opts.now === "function" ? opts.now : () => Date.now();
     this.setTimer = typeof opts.setTimer === "function" ? opts.setTimer : defaultSetTimer;
     this.clearTimer =
@@ -568,6 +621,7 @@ export class SessionLock {
         holderKind: held ? held.kind : "exclusive",
         heldForMs: held ? Math.max(0, this.now() - held.acquiredAt) : 0,
         op: waiter.op,
+        ...this.remainingDetail(held),
       }),
     );
   }
@@ -580,6 +634,12 @@ export class SessionLock {
     this.log(`LEASE_EXPIRED op=${held.op} heldForMs=${heldForMs}`);
     // Reuse the normal release path so the hand-off to queued waiters happens.
     this.releaseToken(token);
+  }
+
+  /** Exclusive holders only: a lease's own TTL, not a request timeout, bounds it. */
+  private expectedRemaining(held: Hold | null): number | undefined {
+    if (held === null || held.kind !== "exclusive" || this.expectedHoldMs === undefined) return undefined;
+    return Math.max(0, this.expectedHoldMs - Math.max(0, this.now() - held.acquiredAt));
   }
 
   private busy(
@@ -595,6 +655,12 @@ export class SessionLock {
       heldForMs: Math.max(0, this.now() - held.acquiredAt),
       op,
       ...(note ? { note } : {}),
+      ...this.remainingDetail(held),
     });
+  }
+
+  private remainingDetail(held: Hold | null): { expectedRemainingMs?: number } {
+    const r = this.expectedRemaining(held);
+    return r === undefined ? {} : { expectedRemainingMs: r };
   }
 }

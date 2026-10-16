@@ -121,6 +121,19 @@ and does not guarantee once this is reachable over a network.
 Every other variable — allowlists, pool sizing, journal retention, timeouts, debugger identity —
 is in **[doc/CONFIGURATION/README.md](doc/CONFIGURATION/README.md)**.
 
+**Concurrent calls and `ABAP_SESSION_WAIT_MS`.** Calls to one server share a small pool of ABAP
+sessions (`ABAP_MAX_SESSIONS`, default 5 = `ABAP_READ_CONCURRENCY` 2 + `ABAP_WRITE_CONCURRENCY` 2
++ 1 reserved for the debugger). A call that finds every slot of its lane busy queues, up to
+`ABAP_SESSION_WAIT_MS` (default 10000) of queueing headroom **plus** the longest request timeout
+(`ABAP_TIMEOUT_MS`, `ABAP_RUN_TIMEOUT_MS`, `ABAP_ACTIVATE_TIMEOUT_MS`, ...), so a call queued behind
+one long `abap_ui` press, run or activation is not refused before that holder can finish. If it
+still times out, the result is `SESSION_BUSY` with `retryable: true` and `details` naming the
+holder, how long it has held the slot, its expected remaining time and a suggested `retryAfterMs`;
+nothing was sent to SAP, so retrying unchanged is safe. `abap_ui press` already runs on the write
+lane, so read-only calls (`abap_read`, `abap_data_preview`) are not queued behind it. More lane
+slots (`ABAP_READ_CONCURRENCY`, `ABAP_WRITE_CONCURRENCY`, within `ABAP_MAX_SESSIONS`) reduce queueing;
+raising `ABAP_SESSION_WAIT_MS` only lengthens how long a caller waits.
+
 ## Wire it into an MCP client
 
 For clients other than Claude Code, which the plugin install above already wires up:
