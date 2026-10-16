@@ -169338,7 +169338,11 @@ function refusedSection(toolSet) {
   return [{ title: "REFUSED PLUGINS", content: textTable(rows, ["path", "id", "code", "reason"]) }];
 }
 function renderInfoBlock(deps) {
-  const info = buildFluidInfoBlock({ ...deps, toolSet: catalogueToolSet(deps.toolSet, deps.cfg) });
+  const info = buildFluidInfoBlock({
+    cfg: deps.cfg,
+    safety: deps.safety,
+    toolSet: catalogueToolSet(deps.toolSet, deps.cfg)
+  });
   const rows = info.tools.map((t) => ({
     id: t.id,
     origin: t.origin,
