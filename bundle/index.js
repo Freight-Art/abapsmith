@@ -159775,6 +159775,14 @@ function analyzeFcodes(raw, opts) {
 }
 
 // src/adt/ui-runtime.ts
+var DEFAULT_CTU_OPTIONS = { defsize: true, racommit: false, nobinpt: false, nobiend: false };
+function effectiveCtuOptions(q) {
+  return { ...DEFAULT_CTU_OPTIONS, ...q.options ?? {} };
+}
+function ctuOptionsText(o) {
+  const f = (b) => b ? "X" : "-";
+  return `dismode=N updmode=S defsize=${f(o.defsize)} racommit=${f(o.racommit)} nobinpt=${f(o.nobinpt)} nobiend=${f(o.nobiend)}`;
+}
 var TCODE_MAX = 20;
 var PROGRAM_MAX = 40;
 var FIELD_NAME_MAX = 132;
@@ -159939,7 +159947,7 @@ function discriminator(q) {
     case "fcode":
       return JSON.stringify({ mode: "fcode", target: q.target, fcode: q.fcode });
     case "press":
-      return JSON.stringify({ mode: "press", tcode: q.tcode, screens: q.screens });
+      return JSON.stringify({ mode: "press", tcode: q.tcode, screens: q.screens, options: effectiveCtuOptions(q) });
   }
 }
 function uiBridgeClassName(q) {
@@ -159979,7 +159987,16 @@ function pressBody(q) {
   lines.push(`    DATA lt_bdc TYPE STANDARD TABLE OF bdcdata.`);
   lines.push(`    DATA lt_msgcoll TYPE STANDARD TABLE OF bdcmsgcoll.`);
   lines.push(`    DATA lv_fval TYPE string.`);
+  lines.push(`    DATA ls_opt TYPE ctu_params.`);
   lines.push(`    CLEAR: lt_bdc, lt_msgcoll, lv_fval.`);
+  const o = effectiveCtuOptions(q);
+  const x = (b) => b ? "'X'" : "' '";
+  lines.push(`    ls_opt-dismode = 'N'.`);
+  lines.push(`    ls_opt-updmode = 'S'.`);
+  lines.push(`    ls_opt-defsize = ${x(o.defsize)}.`);
+  lines.push(`    ls_opt-racommit = ${x(o.racommit)}.`);
+  lines.push(`    ls_opt-nobinpt = ${x(o.nobinpt)}.`);
+  lines.push(`    ls_opt-nobiend = ${x(o.nobiend)}.`);
   for (const screen of q.screens) {
     const program = assertProgramName(screen.program);
     const dynpro = assertDynpro(screen.dynpro);
@@ -159997,7 +160014,7 @@ function pressBody(q) {
   lines.push(``);
   lines.push(`    " NEVER add WITHOUT AUTHORITY-CHECK here \u2014 SAP's own authority check inside`);
   lines.push(`    " the driven transaction is the real security boundary for this bridge.`);
-  lines.push(`    CALL TRANSACTION '${tcode}' USING lt_bdc MODE 'N' UPDATE 'S'`);
+  lines.push(`    CALL TRANSACTION '${tcode}' USING lt_bdc OPTIONS FROM ls_opt`);
   lines.push(`                          MESSAGES INTO lt_msgcoll.`);
   lines.push(`    " sy-subrc here is CALL TRANSACTION's own MESSAGES-table-specific code, NOT`);
   lines.push(`    " the plain 0/1/2/3 range documented for a bare CALL TRANSACTION (no MESSAGES`);
@@ -160788,6 +160805,12 @@ var uiInputSchema = {
   detail: external_exports.enum(["compact", "full"]).optional().describe(
     'screen only, default "compact": "compact" is one line per field, generated %_ flow lines collapsed; "full" is the raw dump of every D021S column and flow line. Render-side only \u2014 same single bridge call. Ignored by fcode and press.'
   ),
+  defsize: external_exports.boolean().optional().describe(
+    "press only, default true: CTU_PARAMS-DEFSIZE \u2014 run the transaction at its standard screen size so table controls expose their standard row count to batch input (without it only rows (01)/(02) are addressable). The effective options are echoed in the response header."
+  ),
+  racommit: external_exports.boolean().optional().describe("press only, default false: CTU_PARAMS-RACOMMIT \u2014 a COMMIT WORK in the called transaction does not end batch input."),
+  nobinpt: external_exports.boolean().optional().describe("press only, default false: CTU_PARAMS-NOBINPT \u2014 sy-binpt stays space (no batch-input mode) in the called transaction."),
+  nobiend: external_exports.boolean().optional().describe("press only, default false: CTU_PARAMS-NOBIEND \u2014 no batch-input mode after the end of the batch input data."),
   confirm: external_exports.boolean().optional().describe(
     "press only, REQUIRED (must be exactly true) \u2014 acknowledges the commit. Omitted or false is refused before any network call."
   ),
@@ -160891,13 +160914,20 @@ function buildPressQuery(input) {
       value: f.value
     }))
   }));
-  return { mode: "press", tcode: normalizeTcode(tcode), screens };
+  const options = {
+    ...DEFAULT_CTU_OPTIONS,
+    ...input.defsize !== void 0 ? { defsize: input.defsize } : {},
+    ...input.racommit !== void 0 ? { racommit: input.racommit } : {},
+    ...input.nobinpt !== void 0 ? { nobinpt: input.nobinpt } : {},
+    ...input.nobiend !== void 0 ? { nobiend: input.nobiend } : {}
+  };
+  return { mode: "press", tcode: normalizeTcode(tcode), screens, options };
 }
 function assertPressConfirmed(input) {
   if (input.confirm === true) return;
   throw new AbapError(
     "SAFETY_DENIED",
-    "abap_ui press executes CALL TRANSACTION ... MODE 'N' UPDATE 'S' against a live system. This COMMITS business data changes immediately and CANNOT be rolled back \u2014 MODE 'N' still commits, and ROLLBACK WORK does not reach back across a CALL TRANSACTION boundary. There is no dry run. Pass confirm: true to proceed.",
+    "abap_ui press executes CALL TRANSACTION ... OPTIONS FROM CTU_PARAMS (DISMODE 'N', UPDMODE 'S') against a live system. This COMMITS business data changes immediately and CANNOT be rolled back \u2014 MODE 'N' still commits, and ROLLBACK WORK does not reach back across a CALL TRANSACTION boundary. There is no dry run. Pass confirm: true to proceed.",
     { operation: "execute", phase: "preflight" },
     "Re-issue the call with confirm: true once you intend the script to actually run.",
     { retryable: true }
@@ -161214,6 +161244,7 @@ function buildPressResponse(query, result, maxChars) {
       tcode: query.tcode,
       subrc: press.subrc,
       rowCount: press.rowCount,
+      options: ctuOptionsText(effectiveCtuOptions(query)),
       stalled_at_program: press.stalled?.program,
       stalled_at_dynpro: press.stalled?.dynpro,
       bridgeClass: result.bridgeClass,

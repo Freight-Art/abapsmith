@@ -100,6 +100,32 @@ export interface UiPressQuery {
   readonly mode: "press";
   readonly tcode: string;
   readonly screens: readonly UiBdcScreen[];
+  /** `CTU_PARAMS` options; omitted = {@link DEFAULT_CTU_OPTIONS}. DISMODE='N' and UPDMODE='S' are fixed. */
+  readonly options?: UiCtuOptions;
+}
+
+/** The settable `CTU_PARAMS` flags of a press. */
+export interface UiCtuOptions {
+  /** DEFSIZE: run at the standard screen size, so table controls show their standard row count. */
+  readonly defsize: boolean;
+  /** RACOMMIT: a COMMIT WORK in the called transaction does not end batch input processing. */
+  readonly racommit: boolean;
+  /** NOBINPT: no batch-input mode (sy-binpt stays space). */
+  readonly nobinpt: boolean;
+  /** NOBIEND: no batch-input mode at the end of the data (screens are not processed in the foreground after it). */
+  readonly nobiend: boolean;
+}
+
+export const DEFAULT_CTU_OPTIONS: UiCtuOptions = { defsize: true, racommit: false, nobinpt: false, nobiend: false };
+
+/** The effective options of a press query (defaults filled in), rendered as `defsize=X racommit=- ...`. */
+export function effectiveCtuOptions(q: UiPressQuery): UiCtuOptions {
+  return { ...DEFAULT_CTU_OPTIONS, ...(q.options ?? {}) };
+}
+
+export function ctuOptionsText(o: UiCtuOptions): string {
+  const f = (b: boolean): string => (b ? "X" : "-");
+  return `dismode=N updmode=S defsize=${f(o.defsize)} racommit=${f(o.racommit)} nobinpt=${f(o.nobinpt)} nobiend=${f(o.nobiend)}`;
 }
 
 export type UiBridgeQuery = UiScreenQuery | UiFcodeQuery | UiPressQuery;
@@ -335,7 +361,7 @@ function discriminator(q: UiBridgeQuery): string {
     case "fcode":
       return JSON.stringify({ mode: "fcode", target: q.target, fcode: q.fcode });
     case "press":
-      return JSON.stringify({ mode: "press", tcode: q.tcode, screens: q.screens });
+      return JSON.stringify({ mode: "press", tcode: q.tcode, screens: q.screens, options: effectiveCtuOptions(q) });
   }
 }
 
@@ -397,7 +423,16 @@ function pressBody(q: UiPressQuery): string {
   lines.push(`    DATA lt_bdc TYPE STANDARD TABLE OF bdcdata.`);
   lines.push(`    DATA lt_msgcoll TYPE STANDARD TABLE OF bdcmsgcoll.`);
   lines.push(`    DATA lv_fval TYPE string.`);
+  lines.push(`    DATA ls_opt TYPE ctu_params.`);
   lines.push(`    CLEAR: lt_bdc, lt_msgcoll, lv_fval.`);
+  const o = effectiveCtuOptions(q);
+  const x = (b: boolean): string => (b ? "'X'" : "' '");
+  lines.push(`    ls_opt-dismode = 'N'.`);
+  lines.push(`    ls_opt-updmode = 'S'.`);
+  lines.push(`    ls_opt-defsize = ${x(o.defsize)}.`);
+  lines.push(`    ls_opt-racommit = ${x(o.racommit)}.`);
+  lines.push(`    ls_opt-nobinpt = ${x(o.nobinpt)}.`);
+  lines.push(`    ls_opt-nobiend = ${x(o.nobiend)}.`);
 
   for (const screen of q.screens) {
     const program = assertProgramName(screen.program);
@@ -417,7 +452,7 @@ function pressBody(q: UiPressQuery): string {
   lines.push(``);
   lines.push(`    " NEVER add WITHOUT AUTHORITY-CHECK here — SAP's own authority check inside`);
   lines.push(`    " the driven transaction is the real security boundary for this bridge.`);
-  lines.push(`    CALL TRANSACTION '${tcode}' USING lt_bdc MODE 'N' UPDATE 'S'`);
+  lines.push(`    CALL TRANSACTION '${tcode}' USING lt_bdc OPTIONS FROM ls_opt`);
   lines.push(`                          MESSAGES INTO lt_msgcoll.`);
   lines.push(`    " sy-subrc here is CALL TRANSACTION's own MESSAGES-table-specific code, NOT`);
   lines.push(`    " the plain 0/1/2/3 range documented for a bare CALL TRANSACTION (no MESSAGES`);

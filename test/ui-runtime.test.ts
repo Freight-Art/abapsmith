@@ -508,7 +508,10 @@ describe("uiBridgeSource — press mode: quote injection cannot break out of its
     // more in prose (e.g. "a bare CALL TRANSACTION (no MESSAGES...") and
     // would otherwise inflate this count without indicating any problem.
     expect((src.match(/CALL TRANSACTION '/g) ?? []).length).toBe(1);
-    expect(src).toContain(`CALL TRANSACTION 'SE38' USING lt_bdc MODE 'N' UPDATE 'S'`);
+    expect(src).toContain(`CALL TRANSACTION 'SE38' USING lt_bdc OPTIONS FROM ls_opt`);
+    expect(src).toContain(`ls_opt-defsize = 'X'.`);
+    expect(src).toContain(`ls_opt-dismode = 'N'.`);
+    expect(src).toContain(`ls_opt-racommit = ' '.`);
 
     // (f) No line in the whole generated source exceeds ADT's 255-char limit
     // (uiBridgeSource would have thrown via assertNoOverlongLines otherwise —
@@ -718,7 +721,7 @@ describe("uiBridgeSource — press mode: WITHOUT AUTHORITY-CHECK never appears a
     const statement = `${lines[callIdx]}\n${lines[callIdx + 1]}`;
     expect(statement).toContain("MESSAGES INTO lt_msgcoll.");
     expect(statement).not.toContain("WITHOUT AUTHORITY-CHECK");
-    expect(statement).toMatch(/^\s+CALL TRANSACTION '[^']*' USING lt_bdc MODE 'N' UPDATE 'S'/);
+    expect(statement).toMatch(/^\s+CALL TRANSACTION '[^']*' USING lt_bdc OPTIONS FROM ls_opt/);
   });
 });
 
@@ -1171,5 +1174,29 @@ describe("uiBridgeSource — every TABLES-bound variable is declared as an inter
     const { declarations, tablesBindings } = analyse(bad);
     expect(tablesBindings).toHaveLength(1);
     expect(isInternalTable(declarations.get("LT_FLOW_LOGIC") as string)).toBe(false);
+  });
+});
+
+describe("uiBridgeSource — press mode: CTU_PARAMS options", () => {
+  const base: UiPressQuery = {
+    mode: "press",
+    tcode: "SE38",
+    screens: [{ program: "SAPMSSY0", dynpro: "0100", fields: [] }],
+  };
+
+  it("defaults to DEFSIZE on and the other flags off, with DISMODE N / UPDMODE S fixed", () => {
+    const src = uiBridgeSource(base, uiBridgeClassName(base));
+    expect(src).toContain(`ls_opt-defsize = 'X'.`);
+    for (const f of ["racommit", "nobinpt", "nobiend"]) expect(src).toContain(`ls_opt-${f} = ' '.`);
+    expect(src).toContain(`ls_opt-dismode = 'N'.`);
+    expect(src).toContain(`ls_opt-updmode = 'S'.`);
+  });
+
+  it("explicit options are emitted and change the bridge class name", () => {
+    const q: UiPressQuery = { ...base, options: { defsize: false, racommit: true, nobinpt: true, nobiend: true } };
+    const src = uiBridgeSource(q, uiBridgeClassName(q));
+    expect(src).toContain(`ls_opt-defsize = ' '.`);
+    for (const f of ["racommit", "nobinpt", "nobiend"]) expect(src).toContain(`ls_opt-${f} = 'X'.`);
+    expect(uiBridgeClassName(q)).not.toBe(uiBridgeClassName(base));
   });
 });
