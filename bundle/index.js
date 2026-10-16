@@ -147628,15 +147628,16 @@ async function runPublishJob(conn, binding, action, proof) {
   const odataVersion = bindingODataVersion(binding);
   const jobPath = publishJobPath(action, odataVersion);
   const serviceName = binding.serviceName ?? binding.name;
-  if (!SERVICE_NAME_CHARS.test(serviceName)) {
+  const referenceName = odataVersion === "V4" ? binding.name : serviceName;
+  if (!SERVICE_NAME_CHARS.test(referenceName)) {
     throw new AbapError(
       "BAD_INPUT",
-      `Service binding ${binding.name} names a service '${truncateText(serviceName, MESSAGE_EXCERPT_MAX)}' outside the character set abapsmith accepts for a publish job.`,
+      `Service binding ${binding.name} names a service '${truncateText(referenceName, MESSAGE_EXCERPT_MAX)}' outside the character set abapsmith accepts for a publish job.`,
       { bindingName: binding.name, serviceName },
       "This name came from the binding document, not from the caller, so this means the document carried something unexpected. abapsmith will not put it into a request body unescaped."
     );
   }
-  const objectReference = odataVersion === "V4" ? `<adtcore:objectReference adtcore:name="${serviceName}" adtcore:type="SCGR"/>` : `<adtcore:objectReference adtcore:name="${serviceName}"/>`;
+  const objectReference = odataVersion === "V4" ? `<adtcore:objectReference adtcore:name="${referenceName}" adtcore:type="SCGR"/>` : `<adtcore:objectReference adtcore:name="${serviceName}"/>`;
   const body = `<?xml version="1.0" encoding="UTF-8"?><adtcore:objectReferences xmlns:adtcore="http://www.sap.com/adt/core">${objectReference}</adtcore:objectReferences>`;
   const headers = odataVersion === "V4" ? {
     Accept: "application/xml, application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.StatusMessage",
