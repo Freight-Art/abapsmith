@@ -126,3 +126,4 @@ activation. A mismatch dumps at run time as `CX_SY_DYN_CALL_ILLEGAL_TYPE`. Decla
 each actual with the formal's own type — `TYPE <table>-<field>` or the DDIC element the
 module declares — after reading the interface (`abap_read` the module, or
 `abap_fluid tool=core action=describe_fm`).
+`abap_fluid tool=core action=call_fm` takes a `TABLES` parameter as a JSON array of row objects keyed by component name (`[]` for an empty table).

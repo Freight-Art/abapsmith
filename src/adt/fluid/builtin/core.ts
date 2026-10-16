@@ -286,8 +286,9 @@ export const coreManifest: FluidManifest = {
             type: "object",
             description:
               "Parameter name -> value. A structured parameter takes a JSON object keyed by component " +
-              "name (or a fixed-width string for a flat character structure); every other value is a " +
-              "string. See core.describe_fm's params_schema.",
+              "name (or a fixed-width string for a flat character structure); a TABLES parameter takes " +
+              "a JSON array of row objects (or a JSON string of one); every other value is a string. " +
+              "See core.describe_fm's params_schema.",
           },
           commit: {
             type: "boolean",
@@ -607,21 +608,25 @@ export function normalizeCallFmArgs(args: unknown): unknown {
 
 /**
  * The bridge's `scan()` reads compact JSON with quoted scalars only, so a
- * struct param is re-serialised without blanks and with numbers as strings
- * (`12.5` -> `"12.5"`). Text that is not a JSON object is returned as is.
+ * struct param (JSON object) or a TABLES param (JSON array of row objects)
+ * is re-serialised without blanks and with numbers as strings
+ * (`12.5` -> `"12.5"`; `true`/`false`/`null` stay bare, which `set_elem`
+ * reads as flags / initial). Text that is not a well-formed JSON object or
+ * array is returned as is.
  */
 function compactStructParam(v: unknown): unknown {
-  let obj: unknown = v;
+  let val: unknown = v;
   if (typeof v === "string") {
-    if (!v.trimStart().startsWith("{")) return v;
+    const t = v.trimStart();
+    if (!t.startsWith("{") && !t.startsWith("[")) return v;
     try {
-      obj = JSON.parse(v);
+      val = JSON.parse(v);
     } catch {
       return v;
     }
   }
-  if (typeof obj !== "object" || obj === null || Array.isArray(obj)) return v;
-  return JSON.stringify(obj, (_k, val: unknown) => (typeof val === "number" ? String(val) : val));
+  if (typeof val !== "object" || val === null) return v;
+  return JSON.stringify(val, (_k, x: unknown) => (typeof x === "number" ? String(x) : x));
 }
 
 function evalArgsRecord(args: unknown): Record<string, unknown> {

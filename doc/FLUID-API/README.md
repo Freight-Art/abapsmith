@@ -72,7 +72,10 @@ tool having checked first.
   Schema, built from FUPARAREF.
 - `core.call_fm` (execute) — calls a function module dynamically. Off
   by default; requires `ABAP_ALLOW_FLUID_CALL_FM`. When `commit: true`,
-  also requires a per-call `confirm: "core.call_fm"` echo.
+  also requires a per-call `confirm: "core.call_fm"` echo. A structured
+  parameter takes a JSON object keyed by component name; a `TABLES`
+  parameter takes a JSON array of row objects (see `describe_fm`'s
+  `params_schema`).
 - `core.docu` (read) — reads SAP's own documentation (`DOKHL`/`DOKIL`/
   `DOKTL`, via `DOCU_GET`), flattened to plain text. Judged by
   **neither** `core.select`'s data-preview policy nor
