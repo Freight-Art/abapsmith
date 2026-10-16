@@ -581,7 +581,25 @@ describe("abap_service publish/unpublish", () => {
         Accept: "application/xml, application/vnd.sap.as+xml;charset=UTF-8;dataname=com.sap.adt.StatusMessage",
         "Content-Type": "application/xml",
       });
-      expect(post?.body).toContain('<adtcore:objectReference adtcore:name="ZTRAVEL_O4_SRV" adtcore:type="SCGR"/>');
+      // The V4 service group is the BINDING name, not the service name (#245).
+      expect(post?.body).toContain('<adtcore:objectReference adtcore:name="ZTRAVEL_O4" adtcore:type="SCGR"/>');
+      expect(post?.body).not.toContain("ZTRAVEL_O4_SRV");
+    });
+
+    it("V4 unpublish also sends the binding name as the SCGR reference, even though the service name differs (#245)", async () => {
+      const calls: FakeCall[] = [];
+      await abapServicePublish(
+        fakeConn({ calls, binding: BINDING_V4, catalogueError: { status: 404 } }),
+        input("ZTRAVEL_O4", "ZTRAVEL_O4"),
+        "unpublish",
+        MAX_CHARS,
+        openPublishGate(),
+        deps(),
+      );
+
+      const post = calls.find((c) => c.method === "POST");
+      expect(post?.url).toBe("/sap/bc/adt/businessservices/odatav4/unpublishjobs");
+      expect(post?.body).toContain('<adtcore:objectReference adtcore:name="ZTRAVEL_O4" adtcore:type="SCGR"/>');
     });
 
     it("a binding whose service name falls outside SERVICE_NAME_CHARS is refused BAD_INPUT before any POST", async () => {
