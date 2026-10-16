@@ -92,6 +92,12 @@ export interface UiFcodeRawModule {
   unterminated?: boolean;
 }
 
+export interface UiFcodeRawMention {
+  include: string;
+  line: number;
+  text: string;
+}
+
 export interface UiFcodeRawSrc {
   include: string;
   line: number;
@@ -118,6 +124,8 @@ export interface UiFcodeRaw {
   includes: readonly UiFcodeRawInclude[];
   modules: readonly UiFcodeRawModule[];
   src: readonly UiFcodeRawSrc[];
+  /** Lines anywhere in the program mentioning the requested fcode as a quoted literal. */
+  mentions: readonly UiFcodeRawMention[];
   summary?: UiFcodeRawSummary;
   /** Frames with no recognised `kind` (or not even an object) — not an error, just uncounted. */
   unknownFrames: number;
@@ -185,8 +193,10 @@ export function splitFcodeFrames(values: readonly unknown[]): UiFcodeRaw {
     includes: [],
     modules: [],
     src: [],
+    mentions: [],
     unknownFrames: 0,
   };
+  const mentions: UiFcodeRawMention[] = [];
   const flow: UiFcodeRawFlow[] = [];
   const paiModules: UiFcodeRawPaiModule[] = [];
   const includes: UiFcodeRawInclude[] = [];
@@ -276,6 +286,9 @@ export function splitFcodeFrames(values: readonly unknown[]): UiFcodeRaw {
       case "src":
         src.push({ include: str(v.include), line: num(v.line), text: str(v.text) });
         break;
+      case "mention":
+        mentions.push({ include: str(v.include), line: num(v.line), text: str(v.text) });
+        break;
       case "summary":
         raw.summary = {
           program: str(v.program),
@@ -299,6 +312,7 @@ export function splitFcodeFrames(values: readonly unknown[]): UiFcodeRaw {
   raw.includes = includes;
   raw.modules = modules;
   raw.src = src;
+  raw.mentions = mentions;
   return raw;
 }
 
@@ -351,6 +365,12 @@ export interface UiFcodeRow {
   text: string;
   modules: readonly UiFcodeModuleHit[];
   unresolved: readonly { module: string; include: string; reason: string }[];
+  /**
+   * Source lines elsewhere in the program (constants, other CASEs, includes
+   * outside the screen's PAI modules) that mention the fcode as a quoted
+   * literal — leads for handling the PAI-module scan cannot see.
+   */
+  mentions: readonly { include: string; line: number; text: string }[];
 }
 
 export interface UiFcodeResult {
@@ -970,7 +990,9 @@ export function analyzeFcodes(raw: UiFcodeRaw, opts: { fcode?: string }): UiFcod
         rowUnresolved.push({
           module: pai.name,
           include: frame.include,
-          reason: `no WHEN branch (including WHEN OTHERS) in module ${pai.name} matches fcode "${fcode}"`,
+          reason:
+            `not found statically: no literal WHEN branch (including WHEN OTHERS) in module ${pai.name} matches ` +
+            `fcode "${fcode}"; it may be handled dynamically (variable/constant, table-driven) or by the caller`,
         });
       }
     }
@@ -985,7 +1007,18 @@ export function analyzeFcodes(raw: UiFcodeRaw, opts: { fcode?: string }): UiFcod
       }
     }
 
-    return { fcode, statuses, text, modules, unresolved: rowUnresolved };
+    const mentions = raw.mentions
+      .filter((m) => m.text.toUpperCase().includes(`'${fcode}`))
+      .map((m) => ({ include: m.include, line: m.line, text: m.text }));
+    if (modules.every((m) => m.branches.length === 0)) {
+      notes.push(
+        `fcode "${fcode}": no WHEN branch found statically in the PAI modules — this does NOT mean it is unhandled. ` +
+          "It may be evaluated by the calling program after the screen/popup returns, held in a variable or constant, " +
+          "or routed through table-driven sequence control. Probe at runtime with a short abap_ui mode=press script " +
+          "and read where it lands.",
+      );
+    }
+    return { fcode, statuses, text, modules, unresolved: rowUnresolved, mentions };
   });
 
   const truncatedParts: string[] = [];

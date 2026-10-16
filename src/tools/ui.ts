@@ -718,6 +718,10 @@ function renderFcodeRow(row: UiFcodeRow): string {
   for (const u of row.unresolved) {
     lines.push(`  UNRESOLVED: module ${u.module} [${u.include}] — ${u.reason}`);
   }
+  if (row.mentions.length > 0) {
+    lines.push(`  OTHER MENTIONS of '${row.fcode}' in the program (possible handlers outside the PAI modules):`);
+    for (const m of row.mentions) lines.push(`    ${m.include}:${m.line}  ${m.text}`);
+  }
   return lines.join("\n");
 }
 

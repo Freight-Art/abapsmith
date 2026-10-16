@@ -114,10 +114,12 @@ const UI_SOURCE = `CLASS zcl_zmcp_fluid_ui DEFINITION
         iv_include   TYPE string
         it_src       TYPE string_table
         it_pai       TYPE string_table
+        iv_fcode     TYPE string OPTIONAL
       CHANGING
         cv_mod_count TYPE i
         cv_src_count TYPE i
-        cv_trunc     TYPE string.
+        cv_trunc     TYPE string
+        cv_mentions  TYPE i OPTIONAL.
 
     " Emits one "src" frame per line of it_src from iv_from to iv_to
     " inclusive, but only when iv_name is in it_pai, and stops (setting
@@ -487,6 +489,7 @@ CLASS zcl_zmcp_fluid_ui IMPLEMENTATION.
         DATA lv_mod_count  TYPE i VALUE 0.
         DATA lv_src_count  TYPE i VALUE 0.
         DATA lv_trunc      TYPE string.
+        DATA lv_mentions   TYPE i VALUE 0.
         CLEAR lv_trunc.
 
         LOOP AT lt_names INTO DATA(lv_name).
@@ -511,7 +514,9 @@ CLASS zcl_zmcp_fluid_ui IMPLEMENTATION.
 
           scan_modules(
             EXPORTING iv_include = lv_name it_src = lt_src it_pai = lt_pai_names
-            CHANGING  cv_mod_count = lv_mod_count cv_src_count = lv_src_count cv_trunc = lv_trunc ).
+                      iv_fcode = lv_fcode_in
+            CHANGING  cv_mod_count = lv_mod_count cv_src_count = lv_src_count cv_trunc = lv_trunc
+                      cv_mentions = lv_mentions ).
         ENDLOOP.
 
         DATA(lv_summary) = |\\{"kind":"summary","program":"{ zcl_zmcp_fluid_rt=>esc( lv_prog_s ) }"|.
@@ -537,10 +542,22 @@ CLASS zcl_zmcp_fluid_ui IMPLEMENTATION.
     DATA lv_mod_name TYPE string.
     DATA lv_mod_from TYPE i.
     DATA(lv_last) = lines( it_src ).
+    " Quoted-literal needle for the requested function code (issue #239):
+    " every line anywhere in the program that mentions 'FCODE is reported as
+    " a "mention" frame (capped at 40 per run) so the TypeScript side can
+    " point at constants, other CASEs and caller-side handling.
+    DATA(lv_needle) = |'{ to_upper( condense( iv_fcode ) ) }|.
 
     LOOP AT it_src INTO DATA(lv_srcline).
       DATA(lv_lno) = sy-tabix.
       DATA(lv_lu)  = to_upper( lv_srcline ).
+      IF iv_fcode IS NOT INITIAL AND cv_mentions < 40 AND lv_lu CS lv_needle
+         AND substring( val = condense( lv_lu ) off = 0 len = 1 ) <> '*'.
+        cv_mentions = cv_mentions + 1.
+        zcl_zmcp_fluid_rt=>out(
+          |\\{"kind":"mention","include":"{ zcl_zmcp_fluid_rt=>esc( iv_include ) }",| &&
+          |"line":{ lv_lno },"text":"{ zcl_zmcp_fluid_rt=>esc( condense( lv_srcline ) ) }"\\}| ).
+      ENDIF.
       CONDENSE lv_lu.
       DATA lt_w TYPE string_table.
       CLEAR lt_w.

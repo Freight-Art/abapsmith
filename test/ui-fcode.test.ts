@@ -21,7 +21,7 @@ const PROGRAM = "SAPMSVMA";
 const INCLUDE = "SAPMSVMA";
 
 function emptyRaw(): UiFcodeRaw {
-  return { flow: [], paiModules: [], includes: [], modules: [], src: [], unknownFrames: 0 };
+  return { flow: [], paiModules: [], includes: [], modules: [], src: [], mentions: [], unknownFrames: 0 };
 }
 
 /** Turns a multi-line ABAP snippet into `src` frames for `include`, starting at `firstLine`. */
@@ -180,6 +180,25 @@ endmodule.`;
     ]);
   });
 
+  it("hedges an unmatched fcode and surfaces mentions found elsewhere in the program (#239)", () => {
+    const raw = actionRaw();
+    raw.mentions = [
+      { include: "LV45CF01", line: 12, text: "constants gc_rue1 value 'RUE1'." },
+      { include: "LV45CF01", line: 30, text: "when 'OTHER'." },
+    ];
+    const result = analyzeFcodes(raw, { fcode: "RUE1" });
+    const row = result.fcodes[0]!;
+    expect(row.mentions).toEqual([{ include: "LV45CF01", line: 12, text: "constants gc_rue1 value 'RUE1'." }]);
+    expect(row.unresolved[0]!.reason).toMatch(/not found statically/);
+    expect(row.unresolved[0]!.reason).toMatch(/by the caller/);
+    expect(result.notes.join("\n")).toMatch(/does NOT mean it is unhandled/);
+  });
+
+  it("parses mention frames", () => {
+    const raw = splitFcodeFrames([{ kind: "mention", include: "X", line: 3, text: "when 'RUE1'." }]);
+    expect(raw.mentions).toEqual([{ include: "X", line: 3, text: "when 'RUE1'." }]);
+  });
+
   it("suggests an abap_read call scoped to just the matching branch's own lines", () => {
     const result = analyzeFcodes(actionRaw(), { fcode: "IMG" });
     const branch = result.fcodes[0]!.modules[0]!.branches[0]!;
@@ -319,7 +338,7 @@ endmodule.`;
     expect(result.fcodes[0]!.unresolved).toContainEqual({
       module: "EXIT_COMMAND",
       include: INCLUDE,
-      reason: 'no WHEN branch (including WHEN OTHERS) in module EXIT_COMMAND matches fcode "BACK"',
+      reason: expect.stringContaining('no literal WHEN branch (including WHEN OTHERS) in module EXIT_COMMAND matches fcode "BACK"'),
     });
   });
 
@@ -382,7 +401,7 @@ endmodule.`;
     expect(result2.fcodes[0]!.unresolved).toContainEqual({
       module: "ACTION",
       include: INCLUDE,
-      reason: 'no WHEN branch (including WHEN OTHERS) in module ACTION matches fcode "SHOW"',
+      reason: expect.stringContaining('no literal WHEN branch (including WHEN OTHERS) in module ACTION matches fcode "SHOW"'),
     });
   });
 
