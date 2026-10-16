@@ -567,15 +567,19 @@ export async function runPublishJob(
   const odataVersion = bindingODataVersion(binding);
   const jobPath = publishJobPath(action, odataVersion);
   const serviceName = binding.serviceName ?? binding.name;
+  // A V4 publish job registers a service group (SCGR), and a V4 binding's
+  // service group is the binding itself, not the service definition its
+  // `services name` attribute carries. V2 identifies the service by name.
+  const referenceName = odataVersion === "V4" ? binding.name : serviceName;
   // Checked against SERVICE_NAME_CHARS below precisely because this value
   // arrives from the server (the binding document), not from the caller —
   // nothing in that character set needs XML escaping, but an unescaped
   // server-supplied `&` or `<` would otherwise go straight into the body
   // this function POSTs.
-  if (!SERVICE_NAME_CHARS.test(serviceName)) {
+  if (!SERVICE_NAME_CHARS.test(referenceName)) {
     throw new AbapError(
       "BAD_INPUT",
-      `Service binding ${binding.name} names a service '${truncateText(serviceName, MESSAGE_EXCERPT_MAX)}' ` +
+      `Service binding ${binding.name} names a service '${truncateText(referenceName, MESSAGE_EXCERPT_MAX)}' ` +
         `outside the character set abapsmith accepts for a publish job.`,
       { bindingName: binding.name, serviceName },
       "This name came from the binding document, not from the caller, so this means the " +
@@ -586,7 +590,7 @@ export async function runPublishJob(
 
   const objectReference =
     odataVersion === "V4"
-      ? `<adtcore:objectReference adtcore:name="${serviceName}" adtcore:type="SCGR"/>`
+      ? `<adtcore:objectReference adtcore:name="${referenceName}" adtcore:type="SCGR"/>`
       : `<adtcore:objectReference adtcore:name="${serviceName}"/>`;
   const body =
     `<?xml version="1.0" encoding="UTF-8"?>` +
