@@ -90119,10 +90119,12 @@ var UI_SOURCE = `CLASS zcl_zmcp_fluid_ui DEFINITION
         iv_include   TYPE string
         it_src       TYPE string_table
         it_pai       TYPE string_table
+        iv_fcode     TYPE string OPTIONAL
       CHANGING
         cv_mod_count TYPE i
         cv_src_count TYPE i
-        cv_trunc     TYPE string.
+        cv_trunc     TYPE string
+        cv_mentions  TYPE i OPTIONAL.
 
     " Emits one "src" frame per line of it_src from iv_from to iv_to
     " inclusive, but only when iv_name is in it_pai, and stops (setting
@@ -90492,6 +90494,7 @@ CLASS zcl_zmcp_fluid_ui IMPLEMENTATION.
         DATA lv_mod_count  TYPE i VALUE 0.
         DATA lv_src_count  TYPE i VALUE 0.
         DATA lv_trunc      TYPE string.
+        DATA lv_mentions   TYPE i VALUE 0.
         CLEAR lv_trunc.
 
         LOOP AT lt_names INTO DATA(lv_name).
@@ -90516,7 +90519,9 @@ CLASS zcl_zmcp_fluid_ui IMPLEMENTATION.
 
           scan_modules(
             EXPORTING iv_include = lv_name it_src = lt_src it_pai = lt_pai_names
-            CHANGING  cv_mod_count = lv_mod_count cv_src_count = lv_src_count cv_trunc = lv_trunc ).
+                      iv_fcode = lv_fcode_in
+            CHANGING  cv_mod_count = lv_mod_count cv_src_count = lv_src_count cv_trunc = lv_trunc
+                      cv_mentions = lv_mentions ).
         ENDLOOP.
 
         DATA(lv_summary) = |\\{"kind":"summary","program":"{ zcl_zmcp_fluid_rt=>esc( lv_prog_s ) }"|.
@@ -90542,10 +90547,22 @@ CLASS zcl_zmcp_fluid_ui IMPLEMENTATION.
     DATA lv_mod_name TYPE string.
     DATA lv_mod_from TYPE i.
     DATA(lv_last) = lines( it_src ).
+    " Quoted-literal needle for the requested function code (issue #239):
+    " every line anywhere in the program that mentions 'FCODE is reported as
+    " a "mention" frame (capped at 40 per run) so the TypeScript side can
+    " point at constants, other CASEs and caller-side handling.
+    DATA(lv_needle) = |'{ to_upper( condense( iv_fcode ) ) }|.
 
     LOOP AT it_src INTO DATA(lv_srcline).
       DATA(lv_lno) = sy-tabix.
       DATA(lv_lu)  = to_upper( lv_srcline ).
+      IF iv_fcode IS NOT INITIAL AND cv_mentions < 40 AND lv_lu CS lv_needle
+         AND substring( val = condense( lv_lu ) off = 0 len = 1 ) <> '*'.
+        cv_mentions = cv_mentions + 1.
+        zcl_zmcp_fluid_rt=>out(
+          |\\{"kind":"mention","include":"{ zcl_zmcp_fluid_rt=>esc( iv_include ) }",| &&
+          |"line":{ lv_lno },"text":"{ zcl_zmcp_fluid_rt=>esc( condense( lv_srcline ) ) }"\\}| ).
+      ENDIF.
       CONDENSE lv_lu.
       DATA lt_w TYPE string_table.
       CLEAR lt_w.
@@ -159234,8 +159251,10 @@ function splitFcodeFrames(values) {
     includes: [],
     modules: [],
     src: [],
+    mentions: [],
     unknownFrames: 0
   };
+  const mentions = [];
   const flow = [];
   const paiModules = [];
   const includes = [];
@@ -159322,6 +159341,9 @@ function splitFcodeFrames(values) {
       case "src":
         src.push({ include: str5(v.include), line: num3(v.line), text: str5(v.text) });
         break;
+      case "mention":
+        mentions.push({ include: str5(v.include), line: num3(v.line), text: str5(v.text) });
+        break;
       case "summary":
         raw.summary = {
           program: str5(v.program),
@@ -159344,6 +159366,7 @@ function splitFcodeFrames(values) {
   raw.includes = includes;
   raw.modules = modules;
   raw.src = src;
+  raw.mentions = mentions;
   return raw;
 }
 function stripAbapComment(line2) {
@@ -159744,7 +159767,7 @@ function analyzeFcodes(raw, opts) {
         rowUnresolved.push({
           module: pai.name,
           include: frame.include,
-          reason: `no WHEN branch (including WHEN OTHERS) in module ${pai.name} matches fcode "${fcode}"`
+          reason: `not found statically: no literal WHEN branch (including WHEN OTHERS) in module ${pai.name} matches fcode "${fcode}"; it may be handled dynamically (variable/constant, table-driven) or by the caller`
         });
       }
     }
@@ -159757,7 +159780,13 @@ function analyzeFcodes(raw, opts) {
         });
       }
     }
-    return { fcode, statuses, text: text5, modules, unresolved: rowUnresolved };
+    const mentions = raw.mentions.filter((m) => m.text.toUpperCase().includes(`'${fcode}`)).map((m) => ({ include: m.include, line: m.line, text: m.text }));
+    if (modules.every((m) => m.branches.length === 0)) {
+      notes.push(
+        `fcode "${fcode}": no WHEN branch found statically in the PAI modules \u2014 this does NOT mean it is unhandled. It may be evaluated by the calling program after the screen/popup returns, held in a variable or constant, or routed through table-driven sequence control. Probe at runtime with a short abap_ui mode=press script and read where it lands.`
+      );
+    }
+    return { fcode, statuses, text: text5, modules, unresolved: rowUnresolved, mentions };
   });
   const truncatedParts = [];
   if (raw.summary?.truncated) truncatedParts.push(raw.summary.truncated);
@@ -161131,6 +161160,10 @@ function renderFcodeRow(row2) {
   for (const hit of row2.modules) lines.push(renderModuleHit(hit));
   for (const u of row2.unresolved) {
     lines.push(`  UNRESOLVED: module ${u.module} [${u.include}] \u2014 ${u.reason}`);
+  }
+  if (row2.mentions.length > 0) {
+    lines.push(`  OTHER MENTIONS of '${row2.fcode}' in the program (possible handlers outside the PAI modules):`);
+    for (const m of row2.mentions) lines.push(`    ${m.include}:${m.line}  ${m.text}`);
   }
   return lines.join("\n");
 }
