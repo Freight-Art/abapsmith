@@ -83570,6 +83570,124 @@ var CORE_METHODS2 = `  METHOD run.
     ENDLOOP.
   ENDMETHOD.
 
+  METHOD split_rows.
+    " Splits a JSON array of objects into one object text per row. scan()
+    " cannot read an array of objects, so this walks the text once, tracking
+    " strings, escapes and brace depth. [] is zero rows; any element that is
+    " not an object is an error naming its position.
+    DATA lv_str   TYPE string.
+    DATA lv_len   TYPE i.
+    DATA lv_end   TYPE i.
+    DATA lv_off   TYPE i.
+    DATA lv_ch    TYPE c LENGTH 1.
+    DATA lv_depth TYPE i.
+    DATA lv_start TYPE i.
+    DATA lv_cnt   TYPE i.
+    DATA lv_instr TYPE abap_bool.
+    DATA lv_esc   TYPE abap_bool.
+    DATA lv_crlf  TYPE c LENGTH 2.
+    DATA lv_cr    TYPE c LENGTH 1.
+
+    CLEAR: et_rows, ev_error.
+    lv_crlf = cl_abap_char_utilities=>cr_lf.
+    lv_cr = lv_crlf(1).
+    lv_str = shift_right( val = shift_left( val = iv_json sub = \` \` ) sub = \` \` ).
+    lv_len = strlen( lv_str ).
+    IF lv_len < 2 OR substring( val = lv_str off = 0 len = 1 ) <> '['
+       OR substring( val = lv_str off = lv_len - 1 len = 1 ) <> ']'.
+      ev_error = 'value is not a JSON array'.
+      RETURN.
+    ENDIF.
+    lv_end = lv_len - 1.
+    lv_off = 1.
+    WHILE lv_off < lv_end.
+      lv_ch = substring( val = lv_str off = lv_off len = 1 ).
+      IF lv_instr = abap_true.
+        IF lv_esc = abap_true.
+          lv_esc = abap_false.
+        ELSEIF lv_ch = '\\'.
+          lv_esc = abap_true.
+        ELSEIF lv_ch = '"'.
+          lv_instr = abap_false.
+        ENDIF.
+      ELSEIF lv_ch = '"'.
+        IF lv_depth = 0.
+          lv_cnt = lv_cnt + 1.
+          ev_error = |row { lv_cnt } is not a JSON object|.
+          RETURN.
+        ENDIF.
+        lv_instr = abap_true.
+      ELSEIF lv_ch = '{'.
+        IF lv_depth = 0.
+          lv_start = lv_off.
+        ENDIF.
+        lv_depth = lv_depth + 1.
+      ELSEIF lv_ch = '}'.
+        lv_depth = lv_depth - 1.
+        IF lv_depth < 0.
+          ev_error = 'value is not a well-formed JSON array'.
+          RETURN.
+        ENDIF.
+        IF lv_depth = 0.
+          lv_cnt = lv_cnt + 1.
+          APPEND substring( val = lv_str off = lv_start len = lv_off - lv_start + 1 ) TO et_rows.
+        ENDIF.
+      ELSEIF lv_depth = 0.
+        IF lv_ch <> ',' AND lv_ch <> ' ' AND lv_ch <> cl_abap_char_utilities=>newline
+           AND lv_ch <> cl_abap_char_utilities=>horizontal_tab AND lv_ch <> lv_cr.
+          lv_cnt = lv_cnt + 1.
+          ev_error = |row { lv_cnt } is not a JSON object|.
+          RETURN.
+        ENDIF.
+      ENDIF.
+      lv_off = lv_off + 1.
+    ENDWHILE.
+    IF lv_instr = abap_true OR lv_depth <> 0.
+      ev_error = 'value is not a well-formed JSON array'.
+      CLEAR et_rows.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD fill_table.
+    " Fills ct_data from a JSON array of row objects: one APPEND per row,
+    " each row filled by fill_struct. Only a table of structures can be
+    " filled; errors are prefixed with the 1-based row number.
+    DATA lt_rows TYPE string_table.
+    DATA lv_row  TYPE string.
+    DATA lv_idx  TYPE i.
+    DATA lv_err  TYPE string.
+    DATA lo_tab  TYPE REF TO cl_abap_tabledescr.
+    DATA lo_line TYPE REF TO cl_abap_datadescr.
+    FIELD-SYMBOLS <ls_line> TYPE any.
+
+    CLEAR ev_error.
+    split_rows( EXPORTING iv_json = iv_json
+                IMPORTING et_rows = lt_rows
+                          ev_error = lv_err ).
+    IF lv_err IS NOT INITIAL.
+      ev_error = lv_err.
+      RETURN.
+    ENDIF.
+    lo_tab ?= cl_abap_typedescr=>describe_by_data( ct_data ).
+    lo_line = lo_tab->get_table_line_type( ).
+    IF lo_line->kind <> cl_abap_typedescr=>kind_struct.
+      ev_error = 'the table has an elementary line type, which core.call_fm cannot fill from JSON'.
+      RETURN.
+    ENDIF.
+    CLEAR ct_data.
+    LOOP AT lt_rows INTO lv_row.
+      lv_idx = sy-tabix.
+      APPEND INITIAL LINE TO ct_data ASSIGNING <ls_line>.
+      fill_struct( EXPORTING iv_json = lv_row
+                   IMPORTING ev_error = lv_err
+                   CHANGING  cs_data = <ls_line> ).
+      IF lv_err IS NOT INITIAL.
+        ev_error = |row { lv_idx }: { lv_err }|.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD comp_json.
     " The component list of a structure type as a JSON array of
     " {name,type,length,decimals}, or '' when iv_type is not a structure.
@@ -83764,6 +83882,19 @@ function coreBodySource(parts) {
         ev_error TYPE string
       CHANGING
         cs_data  TYPE any.
+    CLASS-METHODS split_rows
+      IMPORTING
+        iv_json  TYPE string
+      EXPORTING
+        et_rows  TYPE string_table
+        ev_error TYPE string.
+    CLASS-METHODS fill_table
+      IMPORTING
+        iv_json  TYPE string
+      EXPORTING
+        ev_error TYPE string
+      CHANGING
+        ct_data  TYPE STANDARD TABLE.
     CLASS-METHODS comp_json
       IMPORTING
         iv_type TYPE string
@@ -83976,14 +84107,24 @@ var fmPart = {
       lv_json = lv_json && |"optional":"{ ls_par-optional }",|.
       lv_json = lv_json && |"default":"{ zcl_zmcp_fluid_rt=>esc( ls_par-defval ) }"\\}|.
 
-      IF ls_par-ptype = 'I' OR ls_par-ptype = 'C'.
+      IF ls_par-ptype = 'I' OR ls_par-ptype = 'C' OR ls_par-ptype = 'T'.
         IF lv_pfirst = abap_false.
           lv_props = lv_props && ','.
         ENDIF.
         lv_pfirst = abap_false.
         lv_props = lv_props && |"{ zcl_zmcp_fluid_rt=>esc( ls_par-name ) }":|.
         lv_comps = comp_json( ls_par-typename ).
-        IF lv_comps IS INITIAL.
+        IF ls_par-ptype = 'T'.
+          lv_props = lv_props && |\\{"type":["array","string"],|.
+          lv_props = lv_props && |"description":"{ lv_kind }, row type |.
+          lv_props = lv_props && |{ zcl_zmcp_fluid_rt=>esc( ls_par-typename ) }. |.
+          lv_props = lv_props && |Send a JSON array of row objects keyed by component name.",|.
+          lv_props = lv_props && |"items":\\{"type":"object"|.
+          IF lv_comps IS NOT INITIAL.
+            lv_props = lv_props && |,"components":{ lv_comps }|.
+          ENDIF.
+          lv_props = lv_props && |\\}\\}|.
+        ELSEIF lv_comps IS INITIAL.
           lv_props = lv_props && |\\{"type":"string","description":"{ lv_kind }, type |.
           lv_props = lv_props && |{ zcl_zmcp_fluid_rt=>esc( ls_par-typename ) }"\\}|.
         ELSE.
@@ -84031,6 +84172,7 @@ var fmPart = {
     DATA lv_trim  TYPE string.
     DATA lv_err   TYPE string.
     FIELD-SYMBOLS <lv_any> TYPE any.
+    FIELD-SYMBOLS <lt_tab> TYPE STANDARD TABLE.
 
     lv_name = to_upper( s( 'name' ) ).
     IF lv_name IS INITIAL.
@@ -84050,7 +84192,7 @@ var fmPart = {
     LOOP AT lt_keys INTO lv_key.
       lv_key = to_upper( lv_key ).
       READ TABLE lt_par INTO ls_par WITH KEY name = lv_key.
-      IF sy-subrc <> 0 OR ( ls_par-ptype <> 'I' AND ls_par-ptype <> 'C' ).
+      IF sy-subrc <> 0 OR ( ls_par-ptype <> 'I' AND ls_par-ptype <> 'C' AND ls_par-ptype <> 'T' ).
         fail( |{ lv_name } has no input parameter { lv_key }| ).
         RETURN.
       ENDIF.
@@ -84060,6 +84202,37 @@ var fmPart = {
       ENDIF.
       lv_tname = ls_par-typename.
       lv_type = concrete_type( lv_tname ).
+      IF ls_par-ptype = 'T'.
+        " TABLES parameter: a JSON array of row objects, one fill_struct per row.
+        lv_val = s( |params/{ lv_key }| ).
+        lv_trim = shift_left( val = lv_val sub = \` \` ).
+        IF lv_trim IS NOT INITIAL AND NOT lv_trim CP '[*'.
+          fail( |parameter { lv_key } is a TABLES parameter; send a JSON array of row objects| ).
+          RETURN.
+        ENDIF.
+        TRY.
+            CREATE DATA lr_data TYPE STANDARD TABLE OF (lv_type).
+          CATCH cx_root.
+            fail( |cannot create a table of type { lv_type } for parameter { lv_key }| ).
+            RETURN.
+        ENDTRY.
+        ASSIGN lr_data->* TO <lt_tab>.
+        IF lv_trim IS NOT INITIAL.
+          fill_table( EXPORTING iv_json = lv_trim
+                      IMPORTING ev_error = lv_err
+                      CHANGING  ct_data = <lt_tab> ).
+          IF lv_err IS NOT INITIAL.
+            fail( |parameter { lv_key } of { lv_name }: { lv_err }| ).
+            RETURN.
+          ENDIF.
+        ENDIF.
+        CLEAR ls_ptab.
+        ls_ptab-name = lv_key.
+        ls_ptab-kind = abap_func_tables.
+        ls_ptab-value = lr_data.
+        INSERT ls_ptab INTO TABLE lt_ptab.
+        CONTINUE.
+      ENDIF.
       TRY.
           CREATE DATA lr_data TYPE (lv_type).
         CATCH cx_root.
@@ -85002,7 +85175,7 @@ var coreManifest = {
           name: { type: "string", maxLength: 30, description: "The function module to call." },
           params: {
             type: "object",
-            description: "Parameter name -> value. A structured parameter takes a JSON object keyed by component name (or a fixed-width string for a flat character structure); every other value is a string. See core.describe_fm's params_schema."
+            description: "Parameter name -> value. A structured parameter takes a JSON object keyed by component name (or a fixed-width string for a flat character structure); a TABLES parameter takes a JSON array of row objects (or a JSON string of one); every other value is a string. See core.describe_fm's params_schema."
           },
           commit: {
             type: "boolean",
@@ -85224,17 +85397,18 @@ function normalizeCallFmArgs(args) {
   return { ...rec, params: out };
 }
 function compactStructParam(v) {
-  let obj = v;
+  let val = v;
   if (typeof v === "string") {
-    if (!v.trimStart().startsWith("{")) return v;
+    const t = v.trimStart();
+    if (!t.startsWith("{") && !t.startsWith("[")) return v;
     try {
-      obj = JSON.parse(v);
+      val = JSON.parse(v);
     } catch {
       return v;
     }
   }
-  if (typeof obj !== "object" || obj === null || Array.isArray(obj)) return v;
-  return JSON.stringify(obj, (_k, val) => typeof val === "number" ? String(val) : val);
+  if (typeof val !== "object" || val === null) return v;
+  return JSON.stringify(val, (_k, x) => typeof x === "number" ? String(x) : x);
 }
 function evalArgsRecord(args) {
   return typeof args === "object" && args !== null && !Array.isArray(args) ? args : {};

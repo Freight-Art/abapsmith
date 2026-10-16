@@ -612,6 +612,124 @@ const CORE_METHODS = `  METHOD run.
     ENDLOOP.
   ENDMETHOD.
 
+  METHOD split_rows.
+    " Splits a JSON array of objects into one object text per row. scan()
+    " cannot read an array of objects, so this walks the text once, tracking
+    " strings, escapes and brace depth. [] is zero rows; any element that is
+    " not an object is an error naming its position.
+    DATA lv_str   TYPE string.
+    DATA lv_len   TYPE i.
+    DATA lv_end   TYPE i.
+    DATA lv_off   TYPE i.
+    DATA lv_ch    TYPE c LENGTH 1.
+    DATA lv_depth TYPE i.
+    DATA lv_start TYPE i.
+    DATA lv_cnt   TYPE i.
+    DATA lv_instr TYPE abap_bool.
+    DATA lv_esc   TYPE abap_bool.
+    DATA lv_crlf  TYPE c LENGTH 2.
+    DATA lv_cr    TYPE c LENGTH 1.
+
+    CLEAR: et_rows, ev_error.
+    lv_crlf = cl_abap_char_utilities=>cr_lf.
+    lv_cr = lv_crlf(1).
+    lv_str = shift_right( val = shift_left( val = iv_json sub = \` \` ) sub = \` \` ).
+    lv_len = strlen( lv_str ).
+    IF lv_len < 2 OR substring( val = lv_str off = 0 len = 1 ) <> '['
+       OR substring( val = lv_str off = lv_len - 1 len = 1 ) <> ']'.
+      ev_error = 'value is not a JSON array'.
+      RETURN.
+    ENDIF.
+    lv_end = lv_len - 1.
+    lv_off = 1.
+    WHILE lv_off < lv_end.
+      lv_ch = substring( val = lv_str off = lv_off len = 1 ).
+      IF lv_instr = abap_true.
+        IF lv_esc = abap_true.
+          lv_esc = abap_false.
+        ELSEIF lv_ch = '\\'.
+          lv_esc = abap_true.
+        ELSEIF lv_ch = '"'.
+          lv_instr = abap_false.
+        ENDIF.
+      ELSEIF lv_ch = '"'.
+        IF lv_depth = 0.
+          lv_cnt = lv_cnt + 1.
+          ev_error = |row { lv_cnt } is not a JSON object|.
+          RETURN.
+        ENDIF.
+        lv_instr = abap_true.
+      ELSEIF lv_ch = '{'.
+        IF lv_depth = 0.
+          lv_start = lv_off.
+        ENDIF.
+        lv_depth = lv_depth + 1.
+      ELSEIF lv_ch = '}'.
+        lv_depth = lv_depth - 1.
+        IF lv_depth < 0.
+          ev_error = 'value is not a well-formed JSON array'.
+          RETURN.
+        ENDIF.
+        IF lv_depth = 0.
+          lv_cnt = lv_cnt + 1.
+          APPEND substring( val = lv_str off = lv_start len = lv_off - lv_start + 1 ) TO et_rows.
+        ENDIF.
+      ELSEIF lv_depth = 0.
+        IF lv_ch <> ',' AND lv_ch <> ' ' AND lv_ch <> cl_abap_char_utilities=>newline
+           AND lv_ch <> cl_abap_char_utilities=>horizontal_tab AND lv_ch <> lv_cr.
+          lv_cnt = lv_cnt + 1.
+          ev_error = |row { lv_cnt } is not a JSON object|.
+          RETURN.
+        ENDIF.
+      ENDIF.
+      lv_off = lv_off + 1.
+    ENDWHILE.
+    IF lv_instr = abap_true OR lv_depth <> 0.
+      ev_error = 'value is not a well-formed JSON array'.
+      CLEAR et_rows.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD fill_table.
+    " Fills ct_data from a JSON array of row objects: one APPEND per row,
+    " each row filled by fill_struct. Only a table of structures can be
+    " filled; errors are prefixed with the 1-based row number.
+    DATA lt_rows TYPE string_table.
+    DATA lv_row  TYPE string.
+    DATA lv_idx  TYPE i.
+    DATA lv_err  TYPE string.
+    DATA lo_tab  TYPE REF TO cl_abap_tabledescr.
+    DATA lo_line TYPE REF TO cl_abap_datadescr.
+    FIELD-SYMBOLS <ls_line> TYPE any.
+
+    CLEAR ev_error.
+    split_rows( EXPORTING iv_json = iv_json
+                IMPORTING et_rows = lt_rows
+                          ev_error = lv_err ).
+    IF lv_err IS NOT INITIAL.
+      ev_error = lv_err.
+      RETURN.
+    ENDIF.
+    lo_tab ?= cl_abap_typedescr=>describe_by_data( ct_data ).
+    lo_line = lo_tab->get_table_line_type( ).
+    IF lo_line->kind <> cl_abap_typedescr=>kind_struct.
+      ev_error = 'the table has an elementary line type, which core.call_fm cannot fill from JSON'.
+      RETURN.
+    ENDIF.
+    CLEAR ct_data.
+    LOOP AT lt_rows INTO lv_row.
+      lv_idx = sy-tabix.
+      APPEND INITIAL LINE TO ct_data ASSIGNING <ls_line>.
+      fill_struct( EXPORTING iv_json = lv_row
+                   IMPORTING ev_error = lv_err
+                   CHANGING  cs_data = <ls_line> ).
+      IF lv_err IS NOT INITIAL.
+        ev_error = |row { lv_idx }: { lv_err }|.
+        RETURN.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
   METHOD comp_json.
     " The component list of a structure type as a JSON array of
     " {name,type,length,decimals}, or '' when iv_type is not a structure.
@@ -808,6 +926,19 @@ export function coreBodySource(parts: readonly CoreAbapPart[]): string {
         ev_error TYPE string
       CHANGING
         cs_data  TYPE any.
+    CLASS-METHODS split_rows
+      IMPORTING
+        iv_json  TYPE string
+      EXPORTING
+        et_rows  TYPE string_table
+        ev_error TYPE string.
+    CLASS-METHODS fill_table
+      IMPORTING
+        iv_json  TYPE string
+      EXPORTING
+        ev_error TYPE string
+      CHANGING
+        ct_data  TYPE STANDARD TABLE.
     CLASS-METHODS comp_json
       IMPORTING
         iv_type TYPE string

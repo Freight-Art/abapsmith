@@ -23,11 +23,13 @@
  *   FUPARAREF `T`  -> `core` reports `"tables"`
  *   FUPARAREF `X`  -> `core` reports `"exception"`
  *
- * `core.call_fm`'s `params` binds only against FUPARAREF `I` and `C`
- * parameters (`abap_func_exporting` / `abap_func_changing` in the RTTI
- * parameter-table sense — ABAP's own function-call binding table is
- * likewise named from the FM's perspective). Every `E`/`C`/`T` parameter
- * with a resolvable type is bound too, as `abap_func_importing` /
+ * `core.call_fm`'s `params` binds against FUPARAREF `I`, `C` and `T`
+ * parameters (`abap_func_exporting` / `abap_func_changing` /
+ * `abap_func_tables` in the RTTI parameter-table sense — ABAP's own
+ * function-call binding table is likewise named from the FM's perspective).
+ * A `T` parameter takes a JSON array of row objects (`fill_table`), and
+ * `describe_fm` lists it in `params_schema`. Every `E`/`C`/`T` parameter
+ * with a resolvable type that was not supplied is bound too, as `abap_func_importing` /
  * `abap_func_changing` / `abap_func_tables`, so the results can be read
  * back and reported.
  */
@@ -110,14 +112,24 @@ export const fmPart: CoreAbapPart = {
       lv_json = lv_json && |"optional":"{ ls_par-optional }",|.
       lv_json = lv_json && |"default":"{ zcl_zmcp_fluid_rt=>esc( ls_par-defval ) }"\\}|.
 
-      IF ls_par-ptype = 'I' OR ls_par-ptype = 'C'.
+      IF ls_par-ptype = 'I' OR ls_par-ptype = 'C' OR ls_par-ptype = 'T'.
         IF lv_pfirst = abap_false.
           lv_props = lv_props && ','.
         ENDIF.
         lv_pfirst = abap_false.
         lv_props = lv_props && |"{ zcl_zmcp_fluid_rt=>esc( ls_par-name ) }":|.
         lv_comps = comp_json( ls_par-typename ).
-        IF lv_comps IS INITIAL.
+        IF ls_par-ptype = 'T'.
+          lv_props = lv_props && |\\{"type":["array","string"],|.
+          lv_props = lv_props && |"description":"{ lv_kind }, row type |.
+          lv_props = lv_props && |{ zcl_zmcp_fluid_rt=>esc( ls_par-typename ) }. |.
+          lv_props = lv_props && |Send a JSON array of row objects keyed by component name.",|.
+          lv_props = lv_props && |"items":\\{"type":"object"|.
+          IF lv_comps IS NOT INITIAL.
+            lv_props = lv_props && |,"components":{ lv_comps }|.
+          ENDIF.
+          lv_props = lv_props && |\\}\\}|.
+        ELSEIF lv_comps IS INITIAL.
           lv_props = lv_props && |\\{"type":"string","description":"{ lv_kind }, type |.
           lv_props = lv_props && |{ zcl_zmcp_fluid_rt=>esc( ls_par-typename ) }"\\}|.
         ELSE.
@@ -165,6 +177,7 @@ export const fmPart: CoreAbapPart = {
     DATA lv_trim  TYPE string.
     DATA lv_err   TYPE string.
     FIELD-SYMBOLS <lv_any> TYPE any.
+    FIELD-SYMBOLS <lt_tab> TYPE STANDARD TABLE.
 
     lv_name = to_upper( s( 'name' ) ).
     IF lv_name IS INITIAL.
@@ -184,7 +197,7 @@ export const fmPart: CoreAbapPart = {
     LOOP AT lt_keys INTO lv_key.
       lv_key = to_upper( lv_key ).
       READ TABLE lt_par INTO ls_par WITH KEY name = lv_key.
-      IF sy-subrc <> 0 OR ( ls_par-ptype <> 'I' AND ls_par-ptype <> 'C' ).
+      IF sy-subrc <> 0 OR ( ls_par-ptype <> 'I' AND ls_par-ptype <> 'C' AND ls_par-ptype <> 'T' ).
         fail( |{ lv_name } has no input parameter { lv_key }| ).
         RETURN.
       ENDIF.
@@ -194,6 +207,37 @@ export const fmPart: CoreAbapPart = {
       ENDIF.
       lv_tname = ls_par-typename.
       lv_type = concrete_type( lv_tname ).
+      IF ls_par-ptype = 'T'.
+        " TABLES parameter: a JSON array of row objects, one fill_struct per row.
+        lv_val = s( |params/{ lv_key }| ).
+        lv_trim = shift_left( val = lv_val sub = \` \` ).
+        IF lv_trim IS NOT INITIAL AND NOT lv_trim CP '[*'.
+          fail( |parameter { lv_key } is a TABLES parameter; send a JSON array of row objects| ).
+          RETURN.
+        ENDIF.
+        TRY.
+            CREATE DATA lr_data TYPE STANDARD TABLE OF (lv_type).
+          CATCH cx_root.
+            fail( |cannot create a table of type { lv_type } for parameter { lv_key }| ).
+            RETURN.
+        ENDTRY.
+        ASSIGN lr_data->* TO <lt_tab>.
+        IF lv_trim IS NOT INITIAL.
+          fill_table( EXPORTING iv_json = lv_trim
+                      IMPORTING ev_error = lv_err
+                      CHANGING  ct_data = <lt_tab> ).
+          IF lv_err IS NOT INITIAL.
+            fail( |parameter { lv_key } of { lv_name }: { lv_err }| ).
+            RETURN.
+          ENDIF.
+        ENDIF.
+        CLEAR ls_ptab.
+        ls_ptab-name = lv_key.
+        ls_ptab-kind = abap_func_tables.
+        ls_ptab-value = lr_data.
+        INSERT ls_ptab INTO TABLE lt_ptab.
+        CONTINUE.
+      ENDIF.
       TRY.
           CREATE DATA lr_data TYPE (lv_type).
         CATCH cx_root.
