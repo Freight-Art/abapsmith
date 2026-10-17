@@ -12,6 +12,8 @@ version was set to `0.3.0`, which is intended.
 
 ## [Unreleased]
 
+## [0.6.42] - 2026-10-16
+
 ### Fixed
 
 - **Queued calls no longer time out behind a long `abap_ui` press, and a remaining timeout is retryable** (#242). The pool's wait budget was a fixed `ABAP_SESSION_WAIT_MS` (10 s), so a call queued behind a ~60 s press failed with `Timed out waiting for the ABAP session`. It is now `ABAP_SESSION_WAIT_MS` plus the longest request timeout, as the connection-level lock already was. A refusal that still happens is classified `SESSION_BUSY` with `retryable: true` and `details` holder, `heldForMs`, `expectedRemainingMs` and `retryAfterMs`, instead of a generic `ADT_ERROR`. Press already runs on the write lane, so reads are not blocked behind it. README documents the variable.
